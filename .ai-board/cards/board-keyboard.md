@@ -1,0 +1,23 @@
+---
+id: board-keyboard
+title: キーボード操作に対応する
+created: '2026-09-04T06:48:23.413Z'
+explored: true
+implStartedAt: null
+change: null
+branch: null
+mr: null
+stageOverride: null
+---
+
+## アイデア
+
+現状はマウス専用で、詳細パネルを閉じるにも「閉じる」ボタンを押すしかない。キーボードだけでボードを見て回れるようにする。
+
+## 探索メモ
+
+- Esc で詳細パネルと新規作成ダイアログを閉じる
+- 矢印キーでカード選択を移動（左右で列、上下でカード）
+- カードは既に `role="button"` / `tabIndex={0}` を持ち Enter / Space で選択できる
+- ドラッグはキーボードで代替できないため、選択中のカードを別の列へ送るショートカットが要る。移動先は `droppableStages` に限る（AI の列へは送れない）
+- フォーカスリングは `:focus-visible` で既に出る。移動時に対象カードへ `focus()` するだけでよい
