@@ -1,0 +1,208 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createCreateCardCommand } from '../commands/create-card.command.js';
+import { createUpdateCardMetaCommand } from '../commands/update-card-meta.command.js';
+import { createUpdateCardBodyCommand } from '../commands/update-card-body.command.js';
+import type { CardRepository } from '../../repositories/card.repository.js';
+import type { Card } from '../../models/card.js';
+import type { CardId, ChangeName } from '../../../shared/schemas/common.js';
+
+// ============================================================
+// インメモリのテストダブル
+// ============================================================
+
+class InMemoryCardRepository implements CardRepository {
+  readonly cards = new Map<string, Card>();
+
+  async findAll(): Promise<Card[]> {
+    return [...this.cards.values()];
+  }
+
+  async findById(id: CardId): Promise<Card | null> {
+    return this.cards.get(id) ?? null;
+  }
+
+  async create(card: Card): Promise<boolean> {
+    if (this.cards.has(card.id)) return false;
+    this.cards.set(card.id, card);
+    return true;
+  }
+
+  async save(card: Card): Promise<boolean> {
+    if (!this.cards.has(card.id)) return false;
+    this.cards.set(card.id, card);
+    return true;
+  }
+}
+
+let repository: InMemoryCardRepository;
+
+beforeEach(() => {
+  repository = new InMemoryCardRepository();
+});
+
+const createdAt = new Date('2026-09-04T10:00:00.000Z');
+
+// ============================================================
+// 作成
+// ============================================================
+
+describe('createCardCommand', () => {
+  it('タイトルから ID を生成する', async () => {
+    const result = await createCreateCardCommand(repository)({
+      title: 'Refresh Token Support',
+      createdAt,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.id).toBe('refresh-token-support');
+      expect(result.value.created).toBe('2026-09-04T10:00:00.000Z');
+      expect(result.value.stageOverride).toBeNull();
+    }
+  });
+
+  it('ID を明示できる', async () => {
+    const result = await createCreateCardCommand(repository)({
+      title: 'リフレッシュトークン対応',
+      id: 'refresh-token',
+      createdAt,
+    });
+
+    expect(result.ok && result.value.id).toBe('refresh-token');
+  });
+
+  it('日本語だけのタイトルは ID を生成できず InvalidCardId になる', async () => {
+    const result = await createCreateCardCommand(repository)({
+      title: 'リフレッシュトークン対応',
+      createdAt,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.type).toBe('InvalidCardId');
+  });
+
+  it('不正な形式の ID を弾く', async () => {
+    const result = await createCreateCardCommand(repository)({
+      title: 'test',
+      id: 'Bad ID!',
+      createdAt,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.type).toBe('InvalidCardId');
+  });
+
+  it('ID が重複したら DuplicateCardId', async () => {
+    const command = createCreateCardCommand(repository);
+    await command({ title: 'first', id: 'dup', createdAt });
+
+    const result = await command({ title: 'second', id: 'dup', createdAt });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.type).toBe('DuplicateCardId');
+  });
+
+  it('新規カードは idea 相当の初期値を持つ', async () => {
+    const result = await createCreateCardCommand(repository)({ title: 'idea', createdAt });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.explored).toBe(false);
+      expect(result.value.implStartedAt).toBeNull();
+      expect(result.value.change).toBeNull();
+      expect(result.value.mr).toBeNull();
+    }
+  });
+});
+
+// ============================================================
+// frontmatter 更新
+// ============================================================
+
+describe('updateCardMetaCommand', () => {
+  beforeEach(async () => {
+    await createCreateCardCommand(repository)({ title: 'target', id: 'target', createdAt });
+  });
+
+  it('指定したフィールドだけを変える', async () => {
+    const result = await createUpdateCardMetaCommand(repository)({
+      id: 'target' as CardId,
+      patch: { explored: true },
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.explored).toBe(true);
+      expect(result.value.title).toBe('target');
+    }
+  });
+
+  it('null を送ると値を消せる（上書きの解除）', async () => {
+    const command = createUpdateCardMetaCommand(repository);
+    await command({ id: 'target' as CardId, patch: { stageOverride: 'done' } });
+
+    const result = await command({ id: 'target' as CardId, patch: { stageOverride: null } });
+
+    expect(result.ok && result.value.stageOverride).toBeNull();
+  });
+
+  it('undefined のフィールドは現在値を維持する', async () => {
+    const command = createUpdateCardMetaCommand(repository);
+    await command({ id: 'target' as CardId, patch: { change: 'my-change' } });
+
+    const result = await command({ id: 'target' as CardId, patch: { explored: true } });
+
+    expect(result.ok && result.value.change).toBe('my-change');
+  });
+
+  it('change / branch / mr を紐付けられる', async () => {
+    const result = await createUpdateCardMetaCommand(repository)({
+      id: 'target' as CardId,
+      patch: { change: 'refresh-token', branch: 'feat/refresh-token', mr: 42 },
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.change).toBe('refresh-token' as ChangeName);
+      expect(result.value.branch).toBe('feat/refresh-token');
+      expect(result.value.mr).toBe(42);
+    }
+  });
+
+  it('存在しないカードは CardNotFound', async () => {
+    const result = await createUpdateCardMetaCommand(repository)({
+      id: 'missing' as CardId,
+      patch: { explored: true },
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.type).toBe('CardNotFound');
+  });
+});
+
+// ============================================================
+// 本文更新
+// ============================================================
+
+describe('updateCardBodyCommand', () => {
+  it('本文を差し替える', async () => {
+    await createCreateCardCommand(repository)({ title: 'target', id: 'target', createdAt });
+
+    const result = await createUpdateCardBodyCommand(repository)({
+      id: 'target' as CardId,
+      body: '## 探索メモ\n調べた結果',
+    });
+
+    expect(result.ok && result.value.body).toBe('## 探索メモ\n調べた結果');
+  });
+
+  it('存在しないカードは CardNotFound', async () => {
+    const result = await createUpdateCardBodyCommand(repository)({
+      id: 'missing' as CardId,
+      body: 'x',
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.type).toBe('CardNotFound');
+  });
+});

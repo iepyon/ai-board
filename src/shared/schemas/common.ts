@@ -1,0 +1,91 @@
+import { z } from 'zod';
+
+// ============================================================
+// Branded Types — 型レベルで取り違えを防ぐ ID / 名前
+// ============================================================
+
+export type Brand<T, B extends string> = T & { readonly __brand: B };
+
+/** カードの不変 ID（ファイル名と一致する kebab-case） */
+export type CardId = Brand<string, 'CardId'>;
+
+/** openspec の change ディレクトリ名 */
+export type ChangeName = Brand<string, 'ChangeName'>;
+
+/** GitLab の MR iid */
+export type MergeRequestIid = Brand<number, 'MergeRequestIid'>;
+
+// ============================================================
+// ステージ
+// ============================================================
+
+/**
+ * カードが取りうる 7 つのステージ。
+ * 配列の順序がそのまま「進行度」を表し、UI の列順にも使う。
+ */
+export const STAGES = [
+  'idea',
+  'explored',
+  'proposed',
+  'impling',
+  'ai-pr',
+  'ai-pr-fixed',
+  'done',
+] as const;
+
+export const StageSchema = z.enum(STAGES);
+
+export type Stage = z.infer<typeof StageSchema>;
+
+/** ステージの進行度（大きいほど後段）。導出ロジックの優先順位比較に使う */
+export function stageRank(stage: Stage): number {
+  return STAGES.indexOf(stage);
+}
+
+// ============================================================
+// ID ファクトリ / バリデータ
+// ============================================================
+
+/** kebab-case の slug。ファイル名として安全な文字だけを許す */
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+export const CardIdSchema = z
+  .string()
+  .min(1)
+  .max(100)
+  .regex(SLUG_PATTERN, 'id は kebab-case（英小文字・数字・ハイフン）で指定してください');
+
+export const ChangeNameSchema = z
+  .string()
+  .min(1)
+  .max(200)
+  .regex(SLUG_PATTERN, 'change 名は kebab-case で指定してください');
+
+export function createCardId(raw: string): CardId {
+  return CardIdSchema.parse(raw) as CardId;
+}
+
+export function createChangeName(raw: string): ChangeName {
+  return ChangeNameSchema.parse(raw) as ChangeName;
+}
+
+export function createMergeRequestIid(raw: number): MergeRequestIid {
+  return z.number().int().positive().parse(raw) as MergeRequestIid;
+}
+
+/**
+ * 任意の文字列（日本語を含むタイトル等）から kebab-case の slug を作る。
+ * 英数字が 1 文字も残らない場合は呼び出し側でフォールバックする必要があるため
+ * null を返す。
+ */
+export function slugify(raw: string): string | null {
+  const slug = raw
+    .normalize('NFKD')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 100)
+    .replace(/-+$/g, '');
+
+  return slug.length > 0 ? slug : null;
+}

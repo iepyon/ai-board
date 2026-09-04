@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+
+# ループが書く実行状態。共有しない
+.ai-board/loop.json

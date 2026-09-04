@@ -1,0 +1,585 @@
+/* ============================================================
+   ai-board — カンバン UI
+   列の帯色は「そのステージを立てる情報源」を表す
+   ============================================================ */
+
+:root {
+  --bg: #f7f9fa;
+  --surface: #ffffff;
+  --surface-2: #eef2f4;
+  --border: #d9e1e5;
+  --text: #1c2b31;
+  --text-2: #55686f;
+  --accent: #0e7490;
+  --accent-soft: #e0f0f5;
+
+  --src-card: #b45309;
+  --src-card-bg: #fdf2e3;
+  --src-openspec: #0e7490;
+  --src-openspec-bg: #e0f0f5;
+  --src-gitlab: #7c3aed;
+  --src-gitlab-bg: #ede9fe;
+  --src-archive: #15803d;
+  --src-archive-bg: #e3f3e8;
+
+  --warn: #b45309;
+  --warn-bg: #fdf2e3;
+  --danger: #b91c1c;
+
+  --shadow: 0 1px 3px rgba(28, 43, 49, 0.08);
+  --radius: 8px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #10181c;
+    --surface: #172227;
+    --surface-2: #1e2b31;
+    --border: #2b3b42;
+    --text: #dce7eb;
+    --text-2: #8fa3ab;
+    --accent: #38bdd8;
+    --accent-soft: #123540;
+
+    --src-card: #f0a860;
+    --src-card-bg: #33240f;
+    --src-openspec: #38bdd8;
+    --src-openspec-bg: #123540;
+    --src-gitlab: #b79cf8;
+    --src-gitlab-bg: #271d45;
+    --src-archive: #6fce8b;
+    --src-archive-bg: #12301c;
+
+    --warn: #f0a860;
+    --warn-bg: #33240f;
+    --danger: #f08d8d;
+
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Hiragino Sans', 'Noto Sans JP', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.mono {
+  font-family: 'SF Mono', Menlo, monospace;
+}
+
+/* ---------- レイアウト ---------- */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex: 0 0 auto;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.topbar .spacer {
+  flex: 1;
+}
+
+.status {
+  font-size: 12px;
+  color: var(--text-2);
+  font-family: 'SF Mono', Menlo, monospace;
+  white-space: nowrap;
+}
+
+.status::before {
+  content: '●';
+  margin-right: 5px;
+}
+
+.status.connected::before {
+  color: var(--src-archive);
+}
+.status.disabled::before {
+  color: var(--text-2);
+}
+.status.error::before {
+  color: var(--danger);
+}
+
+.btn {
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.btn.ghost {
+  background: transparent;
+  color: var(--text-2);
+  border: 1px solid var(--border);
+  font-weight: 400;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.banner {
+  padding: 8px 18px;
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--border);
+}
+.banner.error {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.banner.info {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* ---------- ボード ---------- */
+
+.board {
+  display: flex;
+  gap: 10px;
+  padding: 14px;
+  overflow-x: auto;
+  align-items: flex-start;
+  flex: 1 1 auto;
+}
+
+.column {
+  flex: 0 0 216px;
+  display: flex;
+  flex-direction: column;
+  min-height: 80px;
+  border-radius: var(--radius);
+  padding-bottom: 6px;
+}
+
+.column.dragover {
+  background: var(--accent-soft);
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+
+/* ドラッグ中のカードを受け入れない列。落とせないことを弱く示す */
+.column.rejects {
+  opacity: 0.42;
+}
+
+.column-head .lock {
+  margin-left: 5px;
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.column-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 5px 7px 7px;
+  border-top: 3px solid var(--source-color, var(--accent));
+  border-radius: 3px 3px 0 0;
+}
+
+.column-head .name {
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.column-head .count {
+  font-family: 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.column-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 3px;
+}
+
+/* ---------- カード ---------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 9px 10px;
+  box-shadow: var(--shadow);
+  text-align: left;
+  width: 100%;
+  cursor: grab;
+  display: block;
+}
+
+.card:active {
+  cursor: grabbing;
+}
+
+/* AI の成果物で位置が決まるカードは掴めない */
+.card.pinned {
+  cursor: pointer;
+}
+
+.card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.card .title {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  overflow-wrap: anywhere;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 3px;
+}
+
+.badge {
+  border-radius: 4px;
+  padding: 0 6px;
+  font-family: 'SF Mono', Menlo, monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge.openspec {
+  color: var(--src-openspec);
+  background: var(--src-openspec-bg);
+}
+.badge.gitlab {
+  color: var(--src-gitlab);
+  background: var(--src-gitlab-bg);
+}
+/* 修飾子名は .card（カンバンカード本体）と衝突しないものにする */
+.badge.manual {
+  color: var(--src-card);
+  background: var(--src-card-bg);
+}
+.badge.archive {
+  color: var(--src-archive);
+  background: var(--src-archive-bg);
+}
+.badge.warn {
+  color: var(--warn);
+  background: var(--warn-bg);
+}
+
+.artifacts {
+  display: flex;
+  gap: 3px;
+  margin-top: 5px;
+}
+
+.artifacts span {
+  font-family: 'SF Mono', Menlo, monospace;
+  font-size: 9.5px;
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+}
+
+.artifacts span.on {
+  color: var(--src-openspec);
+  border-color: var(--src-openspec);
+}
+
+.progress {
+  margin-top: 6px;
+}
+
+.progress .label {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'SF Mono', Menlo, monospace;
+  font-size: 10px;
+  color: var(--text-2);
+  margin-bottom: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress .bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.progress .fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+.add-card {
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 7px;
+  text-align: center;
+  color: var(--text-2);
+  font-size: 12px;
+  background: none;
+  width: 100%;
+}
+
+.add-card:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ---------- 詳細パネル ---------- */
+
+.detail {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(560px, 100%);
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+}
+
+.detail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.detail-head h2 {
+  margin: 0;
+  font-size: 15px;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.detail-body {
+  padding: 16px 18px 28px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.detail-body h3 {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+  margin: 20px 0 8px;
+  font-weight: 600;
+}
+
+.detail-body h3:first-child {
+  margin-top: 0;
+}
+
+.field {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 7px;
+}
+
+.field label {
+  font-size: 11.5px;
+  color: var(--text-2);
+  font-family: 'SF Mono', Menlo, monospace;
+}
+
+.field input,
+.field select {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text);
+  width: 100%;
+}
+
+.detail textarea {
+  font-family: 'SF Mono', Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.7;
+  width: 100%;
+  min-height: 240px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  resize: vertical;
+}
+
+.detail .actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ---------- 詳細パネルのステージ表示 ---------- */
+
+.stage-now {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 8px;
+}
+
+.stage-chip {
+  font-weight: 700;
+  font-size: 13px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 6px;
+  padding: 2px 12px;
+}
+
+.stage-chip.ai {
+  background: var(--src-gitlab-bg);
+  color: var(--src-gitlab);
+}
+
+.stage-owner {
+  font-size: 11.5px;
+  color: var(--text-2);
+  font-family: 'SF Mono', Menlo, monospace;
+}
+
+.movable {
+  font-size: 12px;
+  color: var(--text-2);
+  margin: 8px 0 0;
+}
+
+.reason {
+  font-size: 12px;
+  color: var(--text-2);
+  background: var(--surface-2);
+  border-radius: 6px;
+  padding: 7px 10px;
+  overflow-wrap: anywhere;
+}
+
+.divergence {
+  font-size: 12px;
+  color: var(--warn);
+  background: var(--warn-bg);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-top: 10px;
+}
+
+.divergence code {
+  font-family: 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+}
+
+.divergence .actions {
+  margin-top: 8px;
+}
+
+.mr-link {
+  color: var(--src-gitlab);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- 新規作成ダイアログ ---------- */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  padding: 20px;
+}
+
+.dialog {
+  background: var(--surface);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  padding: 20px 22px;
+  width: min(420px, 100%);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+
+.dialog h2 {
+  margin: 0 0 14px;
+  font-size: 15px;
+}
+
+.dialog .hint {
+  font-size: 11.5px;
+  color: var(--text-2);
+  margin: -2px 0 12px 104px;
+}
+
+.empty {
+  padding: 40px 18px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
