@@ -156,6 +156,76 @@ export AI_BOARD_GITLAB_TOKEN=glpat-xxxxxxxxxxxx
 
 MR 一覧の全件取得はページングで取りこぼすため使わず、カード単位で問い合わせる。
 
+### ローカル GitLab
+
+検証用の GitLab を Docker Compose で立てられる。`compose.yaml` が起動するのは
+GitLab だけで、ai-board 本体は従来どおり npm で動かす。
+
+```bash
+cp .env.example .env       # GITLAB_ROOT_PASSWORD を書く（8 文字以上）
+docker compose up -d       # 初回はイメージ取得と初期化で数分かかる
+docker compose ps          # healthy になるまで待つ
+```
+
+| 項目 | 値 |
+| ---- | -- |
+| URL | http://localhost:8929 |
+| 管理ユーザー | `root` / `.env` の `GITLAB_ROOT_PASSWORD` |
+| SSH | `ssh://git@localhost:2222/<namespace>/<project>.git` |
+| 常駐メモリ | 約 2.4 GiB（実測。prometheus・registry を落とし puma を single mode にした状態） |
+
+**ポートに 8080 は使えない。** omnibus の puma が内部で `127.0.0.1:8080` に bind するため
+nginx と衝突し、puma だけが `EADDRINUSE` で無限に再起動する。このときコンテナは落ちないので
+`RestartCount` は 0、Docker の health も `starting` に張り付いたまま、外からは 502 が返り続ける。
+コンテナ層のシグナルは何も異常を示さないので、`gitlab-ctl status` で puma の pid 経過時間が
+毎回リセットされていないかを見る。8929 はこの衝突を避けるために GitLab 公式が例示するポート。
+
+`external_url` は必ず実際にブラウザで開く URL と一致させる。GitLab はこの値を API の
+`web_url` に載せ、ai-board はそれをそのままカードのリンクにする。ずれていても API は 200 を
+返すため、**列は埋まったままリンクだけが静かに壊れる**。
+
+アクセストークンの発行:
+
+```bash
+docker compose exec -T gitlab gitlab-rails runner "
+u = User.find_by_username('root')
+t = u.personal_access_tokens.build(scopes: ['api'], name: 'ai-board', expires_at: 365.days.from_now)
+t.set_token('glpat-xxxxxxxxxxxxxxxxxxxx')
+t.save!
+"
+```
+
+動かない場合は Web UI（`/-/user_settings/personal_access_tokens`）から `api` スコープで発行する。
+発行したトークンは `.env` に `AI_BOARD_GITLAB_TOKEN=` として置き、起動時に読み込む。
+
+疎通確認:
+
+```bash
+set -a; . ./.env; set +a
+
+# GitLab が生きているか。/-/health は monitoring_whitelist により
+# コンテナ内からは 200、ホストからは 404 になるので疎通判定には使わない
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8929/users/sign_in      # 200
+
+# トークンが有効か
+curl -s -H "PRIVATE-TOKEN: $AI_BOARD_GITLAB_TOKEN" http://localhost:8929/api/v4/user
+
+# ボードが接続できているか
+curl -s localhost:3000/api/board | jq .gitlab                                      # {"status":"connected"}
+
+# カードの mr.webUrl に実際に到達できるか。列が埋まっていることを疎通の根拠にしない
+curl -s localhost:3000/api/board | jq -r '.cards[] | select(.mrState) | .mrState.webUrl'
+```
+
+GitLab を停止してもボードは落ちず、接続状態が `error` になって列は直近のキャッシュを保つ。
+
+```bash
+docker compose stop     # ボードは HTTP 200 のまま、gitlab は {"status":"error"}
+docker compose start    # 復帰すると connected に戻る
+docker compose down -v  # データごと破棄
+```
+
+
 ## 設計
 
 `openspec` CLI をサブプロセス起動せず、ディレクトリを直接読む。

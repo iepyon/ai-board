@@ -1,0 +1,66 @@
+# ローカル検証用の GitLab。
+# ここで起動するのは GitLab だけで、ai-board 本体は npm で動かす。
+#
+#   docker compose up -d     起動（初回は数分かかる）
+#   docker compose ps        healthy になるまで待つ
+#   docker compose down -v   データごと破棄
+#
+# root パスワードは .env の GITLAB_ROOT_PASSWORD から読む（.env.example を参照）。
+
+services:
+  gitlab:
+    image: gitlab/gitlab-ce:latest
+    container_name: ai-board-gitlab
+    restart: unless-stopped
+    hostname: localhost
+    shm_size: 256m
+    environment:
+      # external_url は「実際にブラウザで開く URL」と一致させる。
+      # GitLab はこの値を API の web_url に載せ、ai-board はそれをそのまま
+      # カードのリンクにするため、ここがずれると API は 200 のまま
+      # リンクだけが壊れる。
+      #
+      # ポートに 8080 は使えない。omnibus の puma が内部で 127.0.0.1:8080 に
+      # bind するため、nginx と衝突して puma が EADDRINUSE で無限に再起動し、
+      # nginx だけが生き残って 502 を返し続ける（コンテナは healthy にならず
+      # RestartCount も 0 のままなので気付きにくい）。8929 は GitLab 公式が
+      # この衝突を避けるために例示しているポート。
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://localhost:8929'
+
+        # 使わないコンポーネントを落としてメモリを削る。
+        # prometheus_monitoring を false にすると alertmanager や各 exporter も
+        # まとめて止まる。grafana は omnibus から削除済みで、設定キー自体が
+        # 存在しない（指定すると reconfigure が UnknownConfigOptionError で落ちる）。
+        prometheus_monitoring['enable'] = false
+        registry['enable'] = false
+
+        # 単一ユーザーのローカル検証なので並列度は最小でよい
+        puma['worker_processes'] = 0
+        sidekiq['max_concurrency'] = 5
+        gitlab_rails['env'] = { 'MALLOC_ARENA_MAX' => '2' }
+
+        # SSH の公開ポート。ports の 2222:22 と必ず一致させること。
+        # ここだけ設定して ports を足さないと、GitLab は
+        # ssh://git@localhost:2222/... を広告するのに誰も listen しておらず、
+        # clone が Connection refused で落ちる。
+        gitlab_rails['gitlab_shell_ssh_port'] = 2222
+      GITLAB_ROOT_PASSWORD: ${GITLAB_ROOT_PASSWORD:?.env に GITLAB_ROOT_PASSWORD を設定してください}
+    ports:
+      - '8929:8929'
+      - '2222:22'
+    volumes:
+      - gitlab-config:/etc/gitlab
+      - gitlab-logs:/var/log/gitlab
+      - gitlab-data:/var/opt/gitlab
+    healthcheck:
+      test: ['CMD', 'curl', '-sf', 'http://localhost:8929/-/health']
+      interval: 20s
+      timeout: 10s
+      retries: 30
+      start_period: 300s
+
+volumes:
+  gitlab-config:
+  gitlab-logs:
+  gitlab-data:
