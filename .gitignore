@@ -6,3 +6,6 @@ coverage/
 
 # ループが書く実行状態。共有しない
 .ai-board/loop.json
+
+# GitLab の root パスワード。compose が読む。共有しない
+.env

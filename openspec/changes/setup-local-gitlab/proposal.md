@@ -1,51 +1,65 @@
 ## Why
 
-ボードの AI-PR / AI-PR 修正済みの 2 列は GitLab の MR 状態から導出しているが、接続先の GitLab が
-存在しないため常に空のまま検証できない。ai-board 側の実装（`HttpGitLabClient` / `GitLabPoller`）は
-スタブで検証済みで、欠けているのは実物の GitLab だけである。
+ボードの 7 列のうち AI-PR と AI-PR 修正済みの 2 列は、GitLab の MR 状態からしか導出できない。
+接続先の GitLab が存在しないため、この 2 列は起動以来一度も実データで埋まったことがなく、
+`resolveStage` のルール 2 と 3、および `GitLabPoller` の挙動が実物に対して検証されていない。
 
-ローカルに GitLab を Docker Compose で立て、ボードが実際の GitLab API を読めるところまでを通す。
-そこで確立した compose と認証情報は、後続の `gitlab-mr-loop`（ai-board 自身の開発を MR で回す）が
-そのまま再利用する土台になる。
+ai-board 側の実装は揃っている。`loadConfig()` は設定とトークンが揃えば連携を有効化し、
+`HttpGitLabClient` は GitLab REST API v4 に 4 本の GET を投げるだけで、webhook も
+GitLab からホストへの到達性も要求しない。欠けているのは接続先そのものである。
+
+ローカルに GitLab を Docker Compose で立て、ボードが実物の API を読んで
+AI-PR 列が埋まるところまでを通す。ここで確立する compose・認証情報・疎通確認の手順は、
+後続の `gitlab-mr-loop`（ai-board 自身の開発を MR で回す）がそのまま土台にする。
 
 ## What Changes
 
 - リポジトリ直下に `compose.yaml` を追加し、`gitlab/gitlab-ce` を単一サービスとして定義する
-- root パスワードを `.env` から注入する。`.env.example` を雛形としてコミットし、`.env` 本体は追跡しない
-- `.gitignore` に `.env` を追加する（現状 `.env` 行が無く、パスワードを誤ってコミットする穴がある）
-- `.ai-board/config.yaml` を追加し、`gitlab.url` と `gitlab.projectId` を設定する
-  （このファイルは現在存在せず、そのため GitLab 連携は無効状態のまま）
-- 疎通確認をコマンド列として README に記載する。手順書ではなく再実行可能な形にする
-- omnibus 設定で不要コンポーネント（prometheus / grafana / registry）を無効化し、常駐メモリを削る
+- `.env.example` を追加し、root パスワードを `.env` 経由で注入する形にする
+- `.gitignore` に `.env` を追加する。現在この行が無く、パスワードを誤ってコミットしうる
+- `.ai-board/config.yaml` を新規作成し `gitlab.url` と `gitlab.projectId` を設定する。
+  このファイルは現在存在せず、そのため連携は `disabled` のまま起動している
+- 疎通確認を再実行可能なコマンド列として README に記載する
+- GitLab 側に検証用のプロジェクトと MR を 1 本用意する。作成は GitLab API のみで行い、
+  ローカルからの push は行わない
 
-明示的にスコープ外とするもの:
+スコープ外:
 
-- ai-board リポジトリを GitLab へ push すること、および MR を実際に運用すること → `gitlab-mr-loop`
-- GitLab 以外のホスティング（Gitea / Forgejo）への対応。`HttpGitLabClient` は GitLab REST API v4
-  決め打ちで API 非互換のため、クライアントのアダプタ層という別の change になる
+- ai-board リポジトリを GitLab へ push すること、`git remote` の設定、MR の実運用
+  → `gitlab-mr-loop` カードに分離済み
+- GitLab 以外のホスティング（Gitea / Forgejo）への対応。`HttpGitLabClient` は
+  GitLab REST API v4 決め打ちで API が非互換のため、クライアントにアダプタ層を足す別の change になる
+- 本番相当の可用性・バックアップ・HTTPS 終端
 
 ## Capabilities
 
 ### New Capabilities
 
-なし。この change は開発環境の構成とドキュメントのみを追加し、ai-board の振る舞いを変えない。
+なし。
 
 ### Modified Capabilities
 
-なし。`openspec/specs/` は空であり、変更すべき既存の要件も存在しない。
+なし。
 
-ソースコードに一切手を入れず、追加するのは `compose.yaml`・`.env.example`・`.ai-board/config.yaml`・
-`.gitignore` の 1 行・README の節のみであるため、`.openspec.yaml` に `skip_specs: true` を設定する。
+この change が追加するのは `compose.yaml`・`.env.example`・`.ai-board/config.yaml`・
+`.gitignore` の 1 行・README の節だけで、`src/` には一切触れない。
+
+「設定とトークンが揃ったときに GitLab 連携を有効化し、MR 状態から AI-PR 系のステージを
+導出する」という振る舞いは既に実装され、`config.test.ts` と `stage-resolver.test.ts` で
+検証済みである。この change はその振る舞いに設定値を与えるだけで、システムが満たすべき
+要件を変えない。よって `.openspec.yaml` に `skip_specs: true` を設定する。
 検証を通すためだけの要件は書かない。
 
 ## Impact
 
 - **新規ファイル**: `compose.yaml`, `.env.example`, `.ai-board/config.yaml`
 - **変更ファイル**: `.gitignore`, `README.md`
-- **ソースコード**: 変更なし
-- **既存の挙動**: `loadConfig()` は `gitlab` セクションとトークンの両方が揃って初めて連携を有効化する。
-  片方でも欠ければ従来どおり連携が無効になるだけで、この change 以前の動作は保たれる
-- **前提**: Docker と Docker Compose が利用できること。`gitlab/gitlab-ce` は amd64 / arm64 の
-  両方のイメージを持つため、Apple Silicon でもエミュレーションは発生しない
-- **運用上の注意**: GitLab を停止している間、ボードの接続状態は `error` を表示し AI-PR 系の列は
+- **ソースコード**: 変更なし。既存テスト 145 件は影響を受けない
+- **既存の挙動**: `loadConfig()` は `gitlab` セクションとトークンの両方が揃って初めて
+  連携を有効化する（`config.test.ts` の「両方そろって初めて GitLab を有効にする」）。
+  トークンを設定ファイルに書いても読まれないことも同テストが保証している。
+  よって設定ファイルを追加しても、トークン未設定の環境では従来どおり `disabled` のまま動く
+- **新規の外部依存**: Docker および Docker Compose。`gitlab/gitlab-ce` は amd64 / arm64 の
+  両イメージを持つため、Apple Silicon でもエミュレーションは発生しない
+- **運用上の影響**: GitLab 停止中はボードの接続状態が `error` になり AI-PR 系の列は
   キャッシュのみとなる。ボード自体は落ちない

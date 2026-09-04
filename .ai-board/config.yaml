@@ -1,0 +1,8 @@
+# ローカル GitLab との接続設定。
+# トークンはここに書かない。環境変数 AI_BOARD_GITLAB_TOKEN からのみ読む。
+gitlab:
+  # compose.yaml の external_url と一致させること。
+  # ここがずれても API は 200 を返し、カードのリンクだけが静かに壊れる。
+  url: http://localhost:8929
+  # 数値 id ではなくパス形式にする。GitLab を作り直しても変わらない。
+  projectId: 'iepyon/ai-board'

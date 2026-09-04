@@ -4,9 +4,9 @@ title: Docker Compose で GitLab を立てて接続する
 created: '2026-09-04T06:48:23.390Z'
 explored: true
 implStartedAt: null
-change: setup-local-gitlab
-branch: null
-mr: null
+change: null
+branch: setup-local-gitlab
+mr: 1
 stageOverride: null
 ---
 
@@ -36,5 +36,14 @@ AI-PR / AI-PR 修正済みの 2 列は GitLab の MR 状態から導出してい
   - root パスワードは `.env`（gitignore）＋ `.env.example`。トークンと同じ「設定ファイルに書かない」方針に揃える。
     **現在の `.gitignore` に `.env` 行が無い**ため追記が要る
   - 疎通確認は手順書ではなくコマンド列にする。PAT 発行の自動化（`gitlab-rails runner`）は未検証、起動後に確認する
-- 未検証（コンテナ起動時に確かめる）: ポート付き `external_url` のときの待ち受けポート、
-  `gitlab-rails runner` による PAT 発行、omnibus 設定でのメモリ削減幅
+- 実測（`setup-local-gitlab` で確認済み）:
+  - **ポート 8080 は使えない。** nginx は `external_url` のポートに追随するが、puma が既定で
+    `127.0.0.1:8080` に bind するため衝突し、puma だけが EADDRINUSE で無限再起動する。
+    コンテナは落ちないので `RestartCount` は 0、health も `starting` のまま 502 が返り続ける。
+    採用値は 8929（`8929:8929`）。SSH は `2222:22`
+  - `gitlab-rails runner` での PAT 発行は動く（`personal_access_tokens.build` → `set_token` → `save!`）
+  - 常駐メモリは **2.42 GiB**（15.58 GiB 中 15.5%）。懸念していた 4GB を下回り常時起動は現実的
+  - `grafana['enable']` は指定してはならない。omnibus から削除済みで、書くと reconfigure が
+    `UnknownConfigOptionError` で失敗しコンテナがクラッシュループする
+  - `/-/health` は `monitoring_whitelist` によりホストからは 404。疎通判定には `/users/sign_in` を使う
+  - GitLab のバージョンは 19.3.1 (CE)、対象プロジェクトは `iepyon/ai-board`
