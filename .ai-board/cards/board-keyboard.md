@@ -2,7 +2,7 @@
 id: board-keyboard
 title: キーボード操作に対応する
 created: '2026-09-04T06:48:23.413Z'
-explored: true
+explored: false
 implStartedAt: null
 change: null
 branch: null

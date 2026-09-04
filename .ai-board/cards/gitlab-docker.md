@@ -2,7 +2,7 @@
 id: gitlab-docker
 title: Docker Compose で GitLab を立てて接続する
 created: '2026-09-04T06:48:23.390Z'
-explored: true
+explored: false
 implStartedAt: null
 change: null
 branch: null
