@@ -4,7 +4,7 @@ title: Docker Compose で GitLab を立てて接続する
 created: '2026-09-04T06:48:23.390Z'
 explored: true
 implStartedAt: null
-change: null
+change: setup-local-gitlab
 branch: setup-local-gitlab
 mr: 1
 stageOverride: null
