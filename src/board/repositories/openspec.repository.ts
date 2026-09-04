@@ -21,7 +21,9 @@ import type {
  * - 完了判定はファイル存在のみで、構造が単純かつ安定している
  * - openspec 未インストールの環境でも動く
  *
- * 判定ロジックは @fission-ai/openspec v1.3.1 の実装に合わせてある。
+ * 判定ロジックは @fission-ai/openspec v1.12.0 の実装に合わせてある
+ * （archive の日付プレフィックス、tasks の行パターン）。openspec を上げたら
+ * 参照先の定数を突き合わせる。
  */
 export interface OpenSpecRepository {
   load(): Promise<OpenSpecState>;
@@ -30,12 +32,23 @@ export interface OpenSpecRepository {
 const CHANGES_DIR = 'changes';
 const ARCHIVE_DIR = 'archive';
 
-/** archive のディレクトリ名に付く日付プレフィックス（core/archive.js:252） */
+/**
+ * archive のディレクトリ名に付く日付プレフィックス。
+ * core/archive.js の `ARCHIVE_DATE_PREFIX_PATTERN` と同じ。
+ */
 const ARCHIVE_DATE_PREFIX = /^\d{4}-\d{2}-\d{2}-/;
 
-/** utils/task-progress.js の 2 つの正規表現をそのまま移植 */
-const TASK_PATTERN = /^[-*]\s+\[[\sx]\]/i;
-const COMPLETED_TASK_PATTERN = /^[-*]\s+\[x\]/i;
+/**
+ * tasks.md のチェックボックス行。
+ * utils/task-progress.js の `TASK_LINE_PATTERN` を移植したもの。
+ *
+ * 先頭の空白を許すのは、インデントされたサブタスクを親と同じように
+ * 数えるため（列 0 に固定すると `  - [ ] 1.1.1 …` が進捗から消える）。
+ * 箇条点とブラケットの間も `\s*` で、`-[ ]` のような詰めた書き方も拾う。
+ * 上流は「ここを狭めると数えていた行が落ちる」として意図的に緩い。
+ */
+const TASK_PATTERN = /^\s*[-*]\s*\[[\sx]\]/i;
+const COMPLETED_TASK_PATTERN = /^\s*[-*]\s*\[x\]/i;
 
 export class FsOpenSpecRepository implements OpenSpecRepository {
   constructor(private readonly openspecDir: string) {}

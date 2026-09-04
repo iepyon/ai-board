@@ -45,12 +45,6 @@ node dist/cli.js --root /path/to/your-project
 
 サーバは `127.0.0.1` にのみ bind する。
 
-同梱のデモで動作を確認できる。
-
-```bash
-node dist/cli.js --root examples/demo
-```
-
 ## ステージの決まり方
 
 `card.stageOverride`（手動上書き）があればそれを最優先。無ければ以下を
@@ -211,10 +205,10 @@ curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8929/users/sign_in    
 curl -s -H "PRIVATE-TOKEN: $AI_BOARD_GITLAB_TOKEN" http://localhost:8929/api/v4/user
 
 # ボードが接続できているか
-curl -s localhost:3000/api/board | jq .gitlab                                      # {"status":"connected"}
+curl -s localhost:5673/api/board | jq .gitlab                                      # {"status":"connected"}
 
 # カードの mr.webUrl に実際に到達できるか。列が埋まっていることを疎通の根拠にしない
-curl -s localhost:3000/api/board | jq -r '.cards[] | select(.mrState) | .mrState.webUrl'
+curl -s localhost:5673/api/board | jq -r '.cards[] | select(.mrState) | .mrState.webUrl'
 ```
 
 GitLab を停止してもボードは落ちず、接続状態が `error` になって列は直近のキャッシュを保つ。
@@ -235,8 +229,12 @@ docker compose down -v  # データごと破棄
 - 完了判定はファイル存在のみで、構造が単純かつ安定している
 - openspec 未インストールの環境でも動く
 
-判定ロジックは `@fission-ai/openspec` v1.3.1 の実装に合わせてある
-（tasks のカウント正規表現、archive の日付プレフィックス、artifact の存在判定）。
+判定ロジックは `@fission-ai/openspec` v1.12.0 の実装に合わせてある
+（tasks の行パターン、archive の日付プレフィックス、artifact の存在判定）。
+openspec を上げたときは参照先の定数を突き合わせる。
+
+ただし change 名自体が `YYYY-MM-DD-` で始まる場合、1.12.0 は接頭辞を重ねず
+既存名のまま archive するため、日付を剥がす前提のこちらの完了判定が外れる。
 
 ### レイヤー構成
 

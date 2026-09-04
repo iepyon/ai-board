@@ -52,6 +52,21 @@ describe('countTasks', () => {
     expect(countTasks(content)).toEqual({ completed: 2, total: 3 });
   });
 
+  it('インデントされたサブタスクも親と同じように数える', () => {
+    const content = [
+      '- [x] 1. 親タスク',
+      '  - [x] 1.1 サブタスク',
+      '  - [ ] 1.2 サブタスク',
+      '\t- [ ] 1.3 タブインデント',
+    ].join('\n');
+
+    expect(countTasks(content)).toEqual({ completed: 2, total: 4 });
+  });
+
+  it('箇条点とチェックボックスの間に空白が無くても数える', () => {
+    expect(countTasks('-[x] 詰めて書かれたタスク')).toEqual({ completed: 1, total: 1 });
+  });
+
   it('タスクが 1 つも無ければ 0 件', () => {
     expect(countTasks('# 見出しだけ\n\n本文')).toEqual({ completed: 0, total: 0 });
   });
