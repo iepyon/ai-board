@@ -24,20 +24,25 @@ change ディレクトリ・GitLab の MR）から毎回導出しなければな
 - **WHEN** クライアントがカードのステージを直接指定しようとする
 - **THEN** そのような入力フィールドは API に存在せず、指定は無視される
 
-### Requirement: 9 段のステージ
+### Requirement: 7 段のステージ
 
-システムは カードを次の 9 つのステージのいずれか 1 つに割り当てなければならない (MUST)。
+システムは カードを次の 7 つのステージのいずれか 1 つに割り当てなければならない (MUST)。
 並びはそのまま進行度を表す。
 
-`idea` → `exploring` → `explore-review` → `planning` → `plan-review` → `impling` → `verifying` → `pr` → `merged`
+`idea` → `planning` → `plan-review` → `impling` → `verifying` → `pr` → `merged`
 
-このうち `explore-review` / `plan-review` / `pr` は人の判断を待つゲートであり、
-`exploring` / `planning` / `impling` / `verifying` は AI が自走する工程である。
+このうち `plan-review` / `pr` は人の判断を待つゲートであり、
+`planning` / `impling` / `verifying` は AI が自走する工程である。
 
 #### Scenario: 進行度の順序
 
 - **WHEN** 2 つのステージの進行度を比べる
 - **THEN** 上の並びで後ろにあるほうが進んでいると判定される
+
+#### Scenario: 探索の列は存在しない
+
+- **WHEN** ボードが返すステージの一覧を見る
+- **THEN** `exploring` と `explore-review` はどこにも現れない
 
 ### Requirement: 最も進んだステージが勝つ
 
@@ -48,42 +53,27 @@ change ディレクトリ・GitLab の MR）から毎回導出しなければな
 - **WHEN** カードに着手時刻が記録されており、かつ MR が opened である
 - **THEN** ステージは `pr` になる
 
-### Requirement: アイデアと探索中は人の着手指示で決まる
+### Requirement: アイデアと計画提案中は人の着手指示で決まる
 
 システムは カードに着手時刻が記録されていなければ `idea`、記録されていれば
-`exploring` を返さなければならない (MUST)。ただしより進んだ条件が成り立つ場合はそちらが優先される。
+`planning` を返さなければならない (MUST)。ただしより進んだ条件が成り立つ場合はそちらが優先される。
 
 着手時刻は人だけが記録できる (MUST)。AI エージェントはこれを記録 SHALL NOT。
 
 #### Scenario: 着手が指示されていない
 
-- **WHEN** カードに着手時刻が無く、探索メモもレビュー記録も openspec も MR も無い
+- **WHEN** カードに着手時刻が無く、レビュー記録も openspec も MR も無い
 - **THEN** ステージは `idea` になる
 
 #### Scenario: 着手が指示された
 
 - **WHEN** カードに着手時刻が記録され、他に何も無い
-- **THEN** ステージは `exploring` になる
-
-### Requirement: 探索レビューは探索メモの存在で立つ
-
-システムは カード本文に探索メモの見出しがあり、かつ explore ゲートがまだ通過も否決も
-されていないとき `explore-review` を返さなければならない (MUST)。
-
-#### Scenario: 探索メモが書かれた
-
-- **WHEN** カード本文に探索メモの見出しがあり、レビュー記録が無い
-- **THEN** ステージは `explore-review` になる
-
-#### Scenario: 探索が否決された
-
-- **WHEN** explore ゲートの最新の記録が否決である
-- **THEN** ステージは `exploring` に戻る
-
-#### Scenario: 探索が承認された
-
-- **WHEN** explore ゲートの最新の記録が承認である
 - **THEN** ステージは `planning` になる
+
+#### Scenario: 計画が否決されても着手時刻は残る
+
+- **WHEN** 着手時刻のあるカードで plan ゲートの最新の記録が否決である
+- **THEN** ステージは `planning` に戻る
 
 ### Requirement: 計画レビューは proposal の存在で立つ
 
@@ -163,9 +153,9 @@ change を検証中へ進めてしまうためである。
 - **WHEN** MR が opened で、レビューコメントが 1 件も無い
 - **THEN** 再レビュー待ちとしては示されない
 
-### Requirement: 人がドラッグで動かせるのは着手の 1 遷移だけ
+### Requirement: 人が動かせるのはアイデアと計画提案中の間だけ
 
-システムは 人が手で動かせる遷移を `idea` と `exploring` の間に限定しなければならない (MUST)。
+システムは 人が手で動かせる遷移を `idea` と `planning` の間に限定しなければならない (MUST)。
 それ以外の列へのドロップは受け付けては SHALL NOT。実態が変わらないため着地できないからである。
 
 さらにシステムは AI の成果物と人のレビュー記録が課す下限より手前の列へ戻すことを
@@ -173,13 +163,13 @@ change を検証中へ進めてしまうためである。
 
 #### Scenario: まだ何も成果物が無い
 
-- **WHEN** カードに探索メモもレビュー記録も openspec も MR も無い
-- **THEN** `idea` と `exploring` の両方へ手で動かせる
+- **WHEN** カードにレビュー記録も openspec も MR も無い
+- **THEN** `idea` と `planning` の両方へ手で動かせる
 
-#### Scenario: 探索メモが書かれている
+#### Scenario: proposal が出ている
 
-- **WHEN** カード本文に探索メモの見出しがある
-- **THEN** 下限は `explore-review` となり、手で動かせる先は 1 つも無い
+- **WHEN** カードの change に proposal が存在する
+- **THEN** 下限は `plan-review` となり、手で動かせる先は 1 つも無い
 
 #### Scenario: MR が出ている
 
