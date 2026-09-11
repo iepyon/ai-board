@@ -63,12 +63,14 @@ describe('GET /api/board', () => {
     expect(response.body.cards).toEqual([]);
     expect(response.body.stages).toEqual([
       'idea',
-      'explored',
-      'proposed',
+      'exploring',
+      'explore-review',
+      'planning',
+      'plan-review',
       'impling',
-      'ai-pr',
-      'ai-pr-fixed',
-      'done',
+      'verifying',
+      'pr',
+      'merged',
     ]);
     expect(response.body.gitlab).toEqual({ status: 'disabled' });
   });
@@ -84,12 +86,12 @@ describe('GET /api/board', () => {
     const response = await request(buildApp()).get('/api/board').expect(200);
     const card = response.body.cards[0];
 
-    expect(card.stage).toBe('proposed');
+    expect(card.stage).toBe('plan-review');
     expect(card.openspec.tasks).toEqual({ completed: 1, total: 2 });
     expect(card.openspec.artifacts.proposal).toBe(true);
   });
 
-  it('archive にある change は done になる', async () => {
+  it('archive にある change は merged になる', async () => {
     await writeFile(
       '.ai-board/cards/login-redesign.md',
       '---\nid: login-redesign\ntitle: ログイン画面刷新\nchange: login-redesign\n---\n'
@@ -98,7 +100,7 @@ describe('GET /api/board', () => {
 
     const response = await request(buildApp()).get('/api/board').expect(200);
 
-    expect(response.body.cards[0].stage).toBe('done');
+    expect(response.body.cards[0].stage).toBe('merged');
     expect(response.body.cards[0].openspec.archivedAs).toBe('2026-09-01-login-redesign');
   });
 
@@ -123,7 +125,8 @@ describe('GET /api/board', () => {
       .get('/api/board')
       .expect(200);
 
-    expect(response.body.cards[0].stage).toBe('ai-pr-fixed');
+    expect(response.body.cards[0].stage).toBe('pr');
+    expect(response.body.cards[0].mrState.resubmitted).toBe(true);
     expect(response.body.cards[0].mrState.webUrl).toBe('http://localhost:8080/mr/38');
     expect(response.body.gitlab).toEqual({ status: 'connected' });
   });
@@ -136,19 +139,46 @@ describe('GET /api/board', () => {
     expect(response.body.orphanChanges).toEqual(['orphan-change']);
   });
 
-  it('手動上書きと自動導出の乖離を返す', async () => {
+  it('レビューログから探索の承認を読み取って planning にする', async () => {
     await writeFile(
-      '.ai-board/cards/overridden.md',
-      '---\nid: overridden\ntitle: 上書き\nchange: overridden\nstageOverride: done\n---\n'
+      '.ai-board/cards/gated.md',
+      [
+        '---',
+        'id: gated',
+        'title: ゲート付き',
+        'startedAt: 2026-09-05T00:00:00.000Z',
+        '---',
+        '',
+        '## 探索メモ',
+        '',
+        '- 調べた',
+        '',
+        '## レビュー',
+        '',
+        '### 2026-09-06T00:00:00.000Z explore 承認',
+        '',
+      ].join('\n')
     );
-    await writeFile('openspec/changes/overridden/proposal.md', '# Why');
 
     const response = await request(buildApp()).get('/api/board').expect(200);
     const card = response.body.cards[0];
 
-    expect(card.stage).toBe('done');
-    expect(card.derivedStage).toBe('proposed');
-    expect(card.diverged).toBe(true);
+    expect(card.stage).toBe('planning');
+    expect(card.gates).toEqual({ explore: 'approved', plan: 'none' });
+    expect(card.aborted).toBe(false);
+    expect(card.droppableStages).toEqual([]);
+  });
+
+  it('BoardCard に上書き関連のフィールドは現れない', async () => {
+    await writeFile('.ai-board/cards/plain.md', '---\nid: plain\ntitle: 素\n---\n');
+
+    const response = await request(buildApp()).get('/api/board').expect(200);
+    const card = response.body.cards[0];
+
+    expect(card).not.toHaveProperty('stageOverride');
+    expect(card).not.toHaveProperty('derivedStage');
+    expect(card).not.toHaveProperty('diverged');
+    expect(card).not.toHaveProperty('overridden');
   });
 });
 
@@ -189,7 +219,7 @@ describe('カード API', () => {
     expect(response.body.code).toBe('VALIDATION_ERROR');
   });
 
-  it('PATCH /api/cards/:id で紐付けと実装開始マーカーを更新する', async () => {
+  it('PATCH /api/cards/:id で紐付けと着手マーカーを更新する', async () => {
     const app = buildApp();
     await request(app).post('/api/cards').send({ title: 'target', id: 'target' }).expect(201);
 
@@ -198,30 +228,32 @@ describe('カード API', () => {
       .send({
         change: 'refresh-token',
         branch: 'feat/refresh-token',
-        implStartedAt: '2026-09-04T10:00:00.000Z',
+        startedAt: '2026-09-04T10:00:00.000Z',
       })
       .expect(200);
 
     expect(response.body.change).toBe('refresh-token');
-    expect(response.body.implStartedAt).toBe('2026-09-04T10:00:00.000Z');
+    expect(response.body.startedAt).toBe('2026-09-04T10:00:00.000Z');
   });
 
-  it('PATCH で null を送ると手書きの上書きを解除できる', async () => {
+  it('PATCH で null を送ると着手を取り消せる', async () => {
     await writeFile(
       '.ai-board/cards/hand-written.md',
-      '---\nid: hand-written\ntitle: 手書き\nstageOverride: done\n---\n'
+      '---\nid: hand-written\ntitle: 手書き\nstartedAt: 2026-09-05T00:00:00.000Z\n---\n'
     );
 
     const response = await request(buildApp())
       .patch('/api/cards/hand-written')
-      .send({ stageOverride: null })
+      .send({ startedAt: null })
       .expect(200);
 
-    expect(response.body.stageOverride).toBeNull();
+    expect(response.body.startedAt).toBeNull();
   });
 
   it('PATCH は存在しないカードを 404 にする', async () => {
-    const response = await request(buildApp()).patch('/api/cards/missing').send({ explored: true });
+    const response = await request(buildApp())
+      .patch('/api/cards/missing')
+      .send({ startedAt: '2026-09-05T00:00:00.000Z' });
 
     expect(response.status).toBe(404);
     expect(response.body.code).toBe('CARD_NOT_FOUND');
@@ -297,17 +329,17 @@ describe('書き込みは .ai-board/ 配下に限られる', () => {
 // ============================================================
 
 describe('移動できる先の制限', () => {
-  it('AI の成果物が無いカードは人の 3 列すべてへ動かせる', async () => {
+  it('AI の成果物が無いカードは人の 2 列へ動かせる', async () => {
     await writeFile('.ai-board/cards/free.md', '---\nid: free\ntitle: 自由\n---\n');
 
     const response = await request(buildApp()).get('/api/board').expect(200);
     const card = response.body.cards[0];
 
     expect(card.floorStage).toBe('idea');
-    expect(card.droppableStages).toEqual(['idea', 'explored', 'impling']);
+    expect(card.droppableStages).toEqual(['idea', 'exploring']);
   });
 
-  it('proposal.md があるカードは実装中にしか落とせない', async () => {
+  it('proposal.md があるカードはどこへも動かせない', async () => {
     await writeFile(
       '.ai-board/cards/proposed-card.md',
       '---\nid: proposed-card\ntitle: 提案済み\nchange: proposed-card\n---\n'
@@ -317,8 +349,8 @@ describe('移動できる先の制限', () => {
     const response = await request(buildApp()).get('/api/board').expect(200);
     const card = response.body.cards[0];
 
-    expect(card.floorStage).toBe('proposed');
-    expect(card.droppableStages).toEqual(['impling']);
+    expect(card.floorStage).toBe('plan-review');
+    expect(card.droppableStages).toEqual([]);
   });
 
   it('MR があるカードはどこへも動かせない', async () => {
@@ -342,7 +374,7 @@ describe('移動できる先の制限', () => {
       .get('/api/board')
       .expect(200);
 
-    expect(response.body.cards[0].floorStage).toBe('ai-pr');
+    expect(response.body.cards[0].floorStage).toBe('pr');
     expect(response.body.cards[0].droppableStages).toEqual([]);
   });
 
@@ -358,76 +390,64 @@ describe('移動できる先の制限', () => {
     expect(response.body.cards[0].droppableStages).toEqual([]);
   });
 
-  it('実装開始が打刻済みでも下限は変わらない', async () => {
+  it('着手が打刻済みでも下限は変わらない', async () => {
     await writeFile(
       '.ai-board/cards/started.md',
-      '---\nid: started\ntitle: 実装中\nexplored: true\nimplStartedAt: 2026-09-04T10:00:00.000Z\n---\n'
+      '---\nid: started\ntitle: 探索中\nstartedAt: 2026-09-04T10:00:00.000Z\n---\n'
     );
 
     const response = await request(buildApp()).get('/api/board').expect(200);
     const card = response.body.cards[0];
 
-    expect(card.stage).toBe('impling');
+    expect(card.stage).toBe('exploring');
     expect(card.floorStage).toBe('idea');
-    expect(card.droppableStages).toEqual(['idea', 'explored', 'impling']);
+    expect(card.droppableStages).toEqual(['idea', 'exploring']);
   });
 });
 
-describe('stageOverride は API から設定できない', () => {
-  it('AI の列を指定すると 400 で拒む', async () => {
+describe('stageOverride はもう存在しない', () => {
+  it('PATCH で stageOverride を送っても無視される', async () => {
     const app = buildApp();
     await request(app).post('/api/cards').send({ title: 'target', id: 'target' }).expect(201);
 
-    const response = await request(app).patch('/api/cards/target').send({ stageOverride: 'done' });
-
-    expect(response.status).toBe(400);
-    expect(response.body.code).toBe('VALIDATION_ERROR');
-    expect(response.body.message).toContain('実態から導出');
-  });
-
-  it('人の列であっても指定は拒む（フラグで表すため）', async () => {
-    const app = buildApp();
-    await request(app).post('/api/cards').send({ title: 'target', id: 'target' }).expect(201);
-
-    const response = await request(app)
-      .patch('/api/cards/target')
-      .send({ stageOverride: 'explored' });
-
-    expect(response.status).toBe(400);
-  });
-
-  it('上書きを外すと自動導出の列に戻る', async () => {
-    await writeFile(
-      '.ai-board/cards/release-me.md',
-      '---\nid: release-me\ntitle: 解除\nstageOverride: done\n---\n'
-    );
-    const app = buildApp();
-
-    // ドラッグと同じ操作（フラグ書き込み＋上書き解除）
     await request(app)
-      .patch('/api/cards/release-me')
-      .send({ explored: true, implStartedAt: null, stageOverride: null })
+      .patch('/api/cards/target')
+      .send({ stageOverride: 'merged', title: '別のタイトル' })
       .expect(200);
 
     const response = await request(app).get('/api/board').expect(200);
     const card = response.body.cards[0];
 
-    expect(card.stage).toBe('explored');
-    expect(card.overridden).toBe(false);
-    expect(card.diverged).toBe(false);
+    expect(card.title).toBe('別のタイトル');
+    expect(card.stage).toBe('idea');
   });
 
-  it('手で書かれた上書きは読み取り側では尊重する', async () => {
+  it('手で書かれた上書きも読み取り側で無視される', async () => {
     await writeFile(
       '.ai-board/cards/hand-override.md',
-      '---\nid: hand-override\ntitle: 手書き上書き\nstageOverride: done\n---\n'
+      '---\nid: hand-override\ntitle: 手書き上書き\nstageOverride: merged\n---\n'
     );
 
     const response = await request(buildApp()).get('/api/board').expect(200);
-    const card = response.body.cards[0];
 
-    expect(card.stage).toBe('done');
-    expect(card.derivedStage).toBe('idea');
-    expect(card.diverged).toBe(true);
+    expect(response.body.cards[0].stage).toBe('idea');
+  });
+
+  it('ドラッグ相当の PATCH で idea と exploring を往復できる', async () => {
+    await writeFile('.ai-board/cards/drag-me.md', '---\nid: drag-me\ntitle: 移動\n---\n');
+    const app = buildApp();
+
+    await request(app)
+      .patch('/api/cards/drag-me')
+      .send({ startedAt: '2026-09-05T00:00:00.000Z' })
+      .expect(200);
+
+    const started = await request(app).get('/api/board').expect(200);
+    expect(started.body.cards[0].stage).toBe('exploring');
+
+    await request(app).patch('/api/cards/drag-me').send({ startedAt: null }).expect(200);
+
+    const reverted = await request(app).get('/api/board').expect(200);
+    expect(reverted.body.cards[0].stage).toBe('idea');
   });
 });

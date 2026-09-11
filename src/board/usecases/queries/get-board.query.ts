@@ -2,7 +2,12 @@ import { ok, err, type Result } from '../../../shared/result.js';
 import type { CardRepository } from '../../../cards/repositories/card.repository.js';
 import type { OpenSpecRepository } from '../../repositories/openspec.repository.js';
 import type { MrStateProvider } from '../../services/mr-state-provider.js';
-import { droppableStages, resolveFloorStage, resolveStage } from '../../services/stage-resolver.js';
+import {
+  droppableStages,
+  hasFixAfterReview,
+  resolveFloorStage,
+  resolveStage,
+} from '../../services/stage-resolver.js';
 import {
   toBoardCard,
   type Board,
@@ -104,5 +109,6 @@ function toBoardCardMr(mr: MrState | null): BoardCardMr | null {
     noteCount: mr.noteCount,
     latestNoteAt: mr.latestNoteAt,
     latestCommitAt: mr.latestCommitAt,
+    resubmitted: hasFixAfterReview(mr),
   };
 }

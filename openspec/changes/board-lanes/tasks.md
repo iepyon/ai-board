@@ -19,8 +19,8 @@
 
 ## 4. ボード読み取り
 
-- [ ] 4.1 `BoardCard` から `derivedStage` / `overridden` / `diverged` / `stageOverride` / `explored` / `implStartedAt` を外し、`aborted` / `gates` / `startedAt` / `skipGates` を足す。`BoardCardMr` に `resubmitted` を足す
-- [ ] 4.2 `get-board.query.ts` を追従させ、`npm run typecheck`（サーバ側）と `npx vitest run` が通ることを確認する。e2e でレビューログから導出したステージが返ること、削除したフィールドがレスポンスに現れないことを確認する
+- [x] 4.1 `BoardCard` から `derivedStage` / `overridden` / `diverged` / `stageOverride` / `explored` / `implStartedAt` を外し、`aborted` / `gates` / `startedAt` / `skipGates` を足す。`BoardCardMr` に `resubmitted` を足す
+- [x] 4.2 `get-board.query.ts` を追従させ、`npm run typecheck`（サーバ側）と `npx vitest run` が通ることを確認する。e2e でレビューログから導出したステージが返ること、削除したフィールドがレスポンスに現れないことを確認する
 
 ## 5. レビュー API
 

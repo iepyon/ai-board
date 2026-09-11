@@ -127,7 +127,6 @@ describe('serializeCard', () => {
     expect(restored?.startedAt).toBe('2026-09-11T01:00:00.000Z');
   });
 
-
   it('往復しても値が変わらない', () => {
     const card = makeCard({
       startedAt: '2026-09-04T10:12:00.000Z',

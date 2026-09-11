@@ -1,5 +1,7 @@
 import type { Stage } from '../../shared/schemas/common.js';
 import type { Card } from '../../cards/models/card.js';
+import type { GateState, ReviewGate } from '../../cards/models/review.js';
+import type { StageResolution } from '../services/stage-resolver.js';
 import type { OpenSpecArtifacts, TaskProgress } from './openspec-state.js';
 import type { GitLabConnection, MrLifecycleState } from './mr-state.js';
 
@@ -24,6 +26,8 @@ export interface BoardCardMr {
   readonly noteCount: number;
   readonly latestNoteAt: string | null;
   readonly latestCommitAt: string | null;
+  /** レビュー指摘のあとに修正コミットが push されたか＝再レビュー待ち */
+  readonly resubmitted: boolean;
 }
 
 export interface BoardCard {
@@ -31,18 +35,17 @@ export interface BoardCard {
   readonly title: string;
   readonly created: string;
   readonly stage: Stage;
-  readonly derivedStage: Stage;
-  readonly overridden: boolean;
-  readonly diverged: boolean;
   readonly reason: string;
-  /** 手動上書きの生の値。null なら自動導出に従っている */
-  readonly stageOverride: Stage | null;
-  /** カードのフラグを外したときに残るステージ＝AI の成果物が課す下限 */
+  /** 最新のレビューエントリが 中止 か。UI は既定でこのカードを畳む */
+  readonly aborted: boolean;
+  /** 各ゲートの通過状況 */
+  readonly gates: Readonly<Record<ReviewGate, GateState>>;
+  /** 着手を取り消しても残るステージ＝AI の成果物とレビュー記録が課す下限 */
   readonly floorStage: Stage;
   /** 人が手でドロップできる列。空なら AI の領分でドラッグ不可 */
   readonly droppableStages: readonly Stage[];
-  readonly explored: boolean;
-  readonly implStartedAt: string | null;
+  readonly startedAt: string | null;
+  readonly skipGates: readonly ReviewGate[];
   readonly change: string | null;
   readonly branch: string | null;
   readonly mr: number | null;
@@ -64,13 +67,7 @@ export interface Board {
 /** Card と導出結果から BoardCard を組み立てる */
 export function toBoardCard(
   card: Card,
-  resolution: {
-    stage: Stage;
-    derived: Stage;
-    overridden: boolean;
-    diverged: boolean;
-    reason: string;
-  },
+  resolution: StageResolution,
   movement: {
     floorStage: Stage;
     droppableStages: readonly Stage[];
@@ -83,15 +80,13 @@ export function toBoardCard(
     title: card.title,
     created: card.created,
     stage: resolution.stage,
-    derivedStage: resolution.derived,
-    overridden: resolution.overridden,
-    diverged: resolution.diverged,
     reason: resolution.reason,
-    stageOverride: card.stageOverride,
+    aborted: resolution.aborted,
+    gates: resolution.gates,
     floorStage: movement.floorStage,
     droppableStages: movement.droppableStages,
-    explored: card.explored,
-    implStartedAt: card.implStartedAt,
+    startedAt: card.startedAt,
+    skipGates: card.skipGates,
     change: card.change,
     branch: card.branch,
     mr: card.mr,
