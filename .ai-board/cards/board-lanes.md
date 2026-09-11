@@ -2,7 +2,7 @@
 id: board-lanes
 title: レーンを HIL ゲート付きの 9 列に作り直す
 created: '2026-09-11T00:00:00.000Z'
-explored: false
+explored: true
 implStartedAt: null
 change: null
 branch: board-lanes
@@ -28,7 +28,8 @@ stageOverride: null
 `stage` は保存せず常に純関数の出力とする原則は維持する。人の判断（着手・承認・否決）も
 ファイル上の痕跡として残るので、それも実態として導出の入力にする。
 
-設計は `docs/superpowers/specs/2026-09-11-board-lanes-design.md` にある。
+設計は `docs/superpowers/specs/2026-09-11-board-lanes-design.md`、
+実装計画は `docs/superpowers/plans/2026-09-11-board-lanes.md` にある（9 タスク）。
 
 ## 探索メモ
 
