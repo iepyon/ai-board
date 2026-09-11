@@ -63,8 +63,6 @@ describe('GET /api/board', () => {
     expect(response.body.cards).toEqual([]);
     expect(response.body.stages).toEqual([
       'idea',
-      'exploring',
-      'explore-review',
       'planning',
       'plan-review',
       'impling',
@@ -139,13 +137,43 @@ describe('GET /api/board', () => {
     expect(response.body.orphanChanges).toEqual(['orphan-change']);
   });
 
-  it('レビューログから探索の承認を読み取って planning にする', async () => {
+  it('レビューログから計画の承認を読み取って impling にする', async () => {
     await writeFile(
       '.ai-board/cards/gated.md',
       [
         '---',
         'id: gated',
         'title: ゲート付き',
+        'startedAt: 2026-09-05T00:00:00.000Z',
+        '---',
+        '',
+        '## 探索メモ',
+        '',
+        '- 調べた',
+        '',
+        '## レビュー',
+        '',
+        '### 2026-09-06T00:00:00.000Z plan 承認',
+        '',
+      ].join('\n')
+    );
+
+    const response = await request(buildApp()).get('/api/board').expect(200);
+    const card = response.body.cards[0];
+
+    expect(card.stage).toBe('impling');
+    expect(card.gates).toEqual({ plan: 'approved' });
+    expect(card.aborted).toBe(false);
+    expect(card.droppableStages).toEqual([]);
+  });
+
+  it('廃止された explore のエントリはゲートにもステージにも現れない', async () => {
+    await writeFile(
+      '.ai-board/cards/legacy.md',
+      [
+        '---',
+        'id: legacy',
+        'title: 旧ゲート',
         'startedAt: 2026-09-05T00:00:00.000Z',
         '---',
         '',
@@ -164,9 +192,7 @@ describe('GET /api/board', () => {
     const card = response.body.cards[0];
 
     expect(card.stage).toBe('planning');
-    expect(card.gates).toEqual({ explore: 'approved', plan: 'none' });
-    expect(card.aborted).toBe(false);
-    expect(card.droppableStages).toEqual([]);
+    expect(card.gates).toEqual({ plan: 'none' });
   });
 
   it('BoardCard に上書き関連のフィールドは現れない', async () => {
@@ -336,7 +362,7 @@ describe('移動できる先の制限', () => {
     const card = response.body.cards[0];
 
     expect(card.floorStage).toBe('idea');
-    expect(card.droppableStages).toEqual(['idea', 'exploring']);
+    expect(card.droppableStages).toEqual(['idea', 'planning']);
   });
 
   it('proposal.md があるカードはどこへも動かせない', async () => {
@@ -393,15 +419,15 @@ describe('移動できる先の制限', () => {
   it('着手が打刻済みでも下限は変わらない', async () => {
     await writeFile(
       '.ai-board/cards/started.md',
-      '---\nid: started\ntitle: 探索中\nstartedAt: 2026-09-04T10:00:00.000Z\n---\n'
+      '---\nid: started\ntitle: 着手済み\nstartedAt: 2026-09-04T10:00:00.000Z\n---\n'
     );
 
     const response = await request(buildApp()).get('/api/board').expect(200);
     const card = response.body.cards[0];
 
-    expect(card.stage).toBe('exploring');
+    expect(card.stage).toBe('planning');
     expect(card.floorStage).toBe('idea');
-    expect(card.droppableStages).toEqual(['idea', 'exploring']);
+    expect(card.droppableStages).toEqual(['idea', 'planning']);
   });
 });
 
@@ -433,7 +459,7 @@ describe('stageOverride はもう存在しない', () => {
     expect(response.body.cards[0].stage).toBe('idea');
   });
 
-  it('ドラッグ相当の PATCH で idea と exploring を往復できる', async () => {
+  it('ドラッグ相当の PATCH で idea と planning を往復できる', async () => {
     await writeFile('.ai-board/cards/drag-me.md', '---\nid: drag-me\ntitle: 移動\n---\n');
     const app = buildApp();
 
@@ -443,7 +469,7 @@ describe('stageOverride はもう存在しない', () => {
       .expect(200);
 
     const started = await request(app).get('/api/board').expect(200);
-    expect(started.body.cards[0].stage).toBe('exploring');
+    expect(started.body.cards[0].stage).toBe('planning');
 
     await request(app).patch('/api/cards/drag-me').send({ startedAt: null }).expect(200);
 
@@ -479,10 +505,10 @@ describe('POST /api/cards/:id/reviews', () => {
     await writeFile('.ai-board/cards/awaiting.md', AWAITING_CARD);
   });
 
-  it('探索レビュー待ちから始まる', async () => {
+  it('着手済みのカードは計画提案中から始まる', async () => {
     const response = await request(buildApp()).get('/api/board').expect(200);
 
-    expect(response.body.cards[0].stage).toBe('explore-review');
+    expect(response.body.cards[0].stage).toBe('planning');
   });
 
   it('承認を追記するとステージが進む', async () => {
@@ -490,33 +516,33 @@ describe('POST /api/cards/:id/reviews', () => {
 
     await request(app)
       .post('/api/cards/awaiting/reviews')
-      .send({ gate: 'explore', kind: '承認' })
+      .send({ gate: 'plan', kind: '承認' })
       .expect(200);
 
     const response = await request(app).get('/api/board').expect(200);
 
-    expect(response.body.cards[0].stage).toBe('planning');
+    expect(response.body.cards[0].stage).toBe('impling');
   });
 
-  it('否決を追記すると探索中へ戻り、理由が本文に残る', async () => {
+  it('否決を追記すると計画提案中へ戻り、理由が本文に残る', async () => {
     const app = buildApp();
 
     await request(app)
       .post('/api/cards/awaiting/reviews')
-      .send({ gate: 'explore', kind: '否決', reason: 'まだ浅い' })
+      .send({ gate: 'plan', kind: '否決', reason: 'まだ浅い' })
       .expect(200);
 
     const response = await request(app).get('/api/board').expect(200);
     const card = response.body.cards[0];
 
-    expect(card.stage).toBe('exploring');
+    expect(card.stage).toBe('planning');
     expect(card.body).toContain('まだ浅い');
   });
 
   it('理由の無い否決は 400', async () => {
     const response = await request(buildApp())
       .post('/api/cards/awaiting/reviews')
-      .send({ gate: 'explore', kind: '否決' });
+      .send({ gate: 'plan', kind: '否決' });
 
     expect(response.status).toBe(400);
     expect(response.body.code).toBe('VALIDATION_ERROR');
@@ -528,7 +554,7 @@ describe('POST /api/cards/:id/reviews', () => {
 
     await request(app)
       .post('/api/cards/awaiting/reviews')
-      .send({ gate: 'explore', kind: '中止', reason: 'やめる' })
+      .send({ gate: 'plan', kind: '中止', reason: 'やめる' })
       .expect(200);
 
     const response = await request(app).get('/api/board').expect(200);
@@ -541,18 +567,18 @@ describe('POST /api/cards/:id/reviews', () => {
 
     await request(app)
       .post('/api/cards/awaiting/reviews')
-      .send({ gate: 'explore', kind: '承認' })
+      .send({ gate: 'plan', kind: '承認' })
       .expect(200);
 
     await request(app)
       .post('/api/cards/awaiting/reviews')
-      .send({ gate: 'explore', kind: '中止', reason: 'やめる' })
+      .send({ gate: 'plan', kind: '中止', reason: 'やめる' })
       .expect(200);
 
     const response = await request(app).get('/api/board').expect(200);
     const card = response.body.cards[0];
 
-    expect(card.stage).toBe('planning');
+    expect(card.stage).toBe('impling');
     expect(card.aborted).toBe(true);
   });
 
@@ -561,6 +587,19 @@ describe('POST /api/cards/:id/reviews', () => {
       .post('/api/cards/awaiting/reviews')
       .send({ gate: 'pr', kind: '承認' })
       .expect(400);
+  });
+
+  it('廃止された explore ゲートは 400', async () => {
+    const app = buildApp();
+
+    await request(app)
+      .post('/api/cards/awaiting/reviews')
+      .send({ gate: 'explore', kind: '承認' })
+      .expect(400);
+
+    const response = await request(app).get('/api/board').expect(200);
+
+    expect(response.body.cards[0].body).not.toContain('explore');
   });
 
   it('存在しないカードなら 404', async () => {
@@ -575,7 +614,7 @@ describe('POST /api/cards/:id/reviews', () => {
 
     await request(app)
       .post('/api/cards/awaiting/reviews')
-      .send({ gate: 'explore', kind: '承認' })
+      .send({ gate: 'plan', kind: '承認' })
       .expect(200);
 
     await expect(fs.readdir(path.join(root, 'openspec'))).rejects.toThrow();

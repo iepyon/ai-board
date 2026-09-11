@@ -28,7 +28,7 @@ export function BodyEditor({ card, saving, onRun }: BodyEditorProps) {
         value={body}
         onChange={(event) => setBody(event.target.value)}
         spellCheck={false}
-        placeholder="## アイデア&#10;&#10;## 探索メモ"
+        placeholder="## アイデア"
       />
 
       <div className="actions">

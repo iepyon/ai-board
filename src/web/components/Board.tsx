@@ -4,7 +4,7 @@ import { updateCardMeta, type CardMetaPatch } from '../api.js';
 import type { Board as BoardData, BoardCard, Stage } from '../types.js';
 
 // ============================================================
-// 9 列のカンバン
+// 7 列のカンバン
 // ============================================================
 
 interface BoardProps {
@@ -29,7 +29,7 @@ function patchForStage(stage: Stage): CardMetaPatch | null {
   switch (stage) {
     case 'idea':
       return { startedAt: null };
-    case 'exploring':
+    case 'planning':
       return { startedAt: new Date().toISOString() };
     default:
       // AI の成果物かレビューログから導出される列。ドラッグでは着地できない

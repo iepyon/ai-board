@@ -7,8 +7,11 @@
  *
  * `pr` ゲートはここに含めない。PR の承認は GitLab 側の実態
  * （MR が merged になること）そのものであり、カード本文には現れないため。
+ *
+ * かつては `explore` ゲートもあったが、探索レビューの列とともに廃止した。
+ * 既存カードに残る `explore` のエントリは規定外のゲートとして黙って無視される。
  */
-export const REVIEW_GATES = ['explore', 'plan'] as const;
+export const REVIEW_GATES = ['plan'] as const;
 
 export type ReviewGate = (typeof REVIEW_GATES)[number];
 
