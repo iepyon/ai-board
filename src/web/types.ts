@@ -4,8 +4,6 @@
 
 export type Stage =
   | 'idea'
-  | 'exploring'
-  | 'explore-review'
   | 'planning'
   | 'plan-review'
   | 'impling'
@@ -14,7 +12,7 @@ export type Stage =
   | 'merged';
 
 /** 人が判断するゲートのうち、レビューログに現れるもの */
-export type ReviewGate = 'explore' | 'plan';
+export type ReviewGate = 'plan';
 
 export type ReviewKind = '提出' | '再提出' | '承認' | '否決' | '中止';
 
@@ -85,7 +83,7 @@ export interface Board {
  * 人が直接ドラッグで動かせるステージ。
  * 残りは AI の成果物か、レビューボタンの追記で決まる。
  */
-export const HUMAN_STAGES: Stage[] = ['idea', 'exploring'];
+export const HUMAN_STAGES: Stage[] = ['idea', 'planning'];
 
 export function isHumanStage(stage: Stage): boolean {
   return HUMAN_STAGES.includes(stage);
@@ -94,8 +92,6 @@ export function isHumanStage(stage: Stage): boolean {
 /** 列見出しに出す日本語ラベル */
 export const STAGE_LABELS: Record<Stage, string> = {
   idea: 'アイデア',
-  exploring: '探索中',
-  'explore-review': '探索レビュー',
   planning: '計画提案中',
   'plan-review': '計画レビュー',
   impling: '実装中',
@@ -107,8 +103,6 @@ export const STAGE_LABELS: Record<Stage, string> = {
 /** その列で次に動くのは誰か。見出しのアイコンに使う */
 export const STAGE_OWNER: Record<Stage, 'human' | 'ai' | 'none'> = {
   idea: 'human',
-  exploring: 'ai',
-  'explore-review': 'human',
   planning: 'ai',
   'plan-review': 'human',
   impling: 'ai',
@@ -120,8 +114,6 @@ export const STAGE_OWNER: Record<Stage, 'human' | 'ai' | 'none'> = {
 /** 列の帯色 = そのステージを立てる情報源 */
 export const STAGE_SOURCE: Record<Stage, 'card' | 'openspec' | 'gitlab' | 'archive'> = {
   idea: 'card',
-  exploring: 'card',
-  'explore-review': 'card',
   planning: 'card',
   'plan-review': 'openspec',
   impling: 'openspec',
@@ -132,6 +124,5 @@ export const STAGE_SOURCE: Record<Stage, 'card' | 'openspec' | 'gitlab' | 'archi
 
 /** その列が人の判断を待っているゲート。待ちの列でなければ undefined */
 export const GATE_OF_STAGE: Partial<Record<Stage, ReviewGate>> = {
-  'explore-review': 'explore',
   'plan-review': 'plan',
 };

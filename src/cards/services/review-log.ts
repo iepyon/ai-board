@@ -12,7 +12,6 @@ import {
 // ============================================================
 
 const REVIEW_HEADING = '## レビュー';
-const EXPLORE_NOTE_HEADING = '## 探索メモ';
 
 /** `### <ISO8601> <gate> <種別>` */
 const ENTRY_HEADING = /^###\s+(\S+)\s+(\S+)\s+(\S+)\s*$/;
@@ -128,11 +127,6 @@ export function gateState(
 /** 全エントリを通じて最新のものが 中止 か */
 export function isAborted(entries: readonly ReviewEntry[]): boolean {
   return latestOf(entries)?.kind === '中止';
-}
-
-/** 本文に `## 探索メモ` 見出しがあるか＝探索の成果物が出ているか */
-export function hasExploreNote(body: string): boolean {
-  return extractSection(body, EXPLORE_NOTE_HEADING) !== null;
 }
 
 /** 時刻が最も新しいエントリ。同時刻なら後に書かれたほうを採る */

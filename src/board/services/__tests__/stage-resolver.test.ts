@@ -55,10 +55,15 @@ function makeMr(overrides: Partial<MrState> = {}): MrState {
   };
 }
 
-/** 探索メモとレビューログを持つ本文を組み立てる */
+/**
+ * 探索メモとレビューログを持つ本文を組み立てる。
+ *
+ * `gate` は string で受ける。廃止された `explore` を書いたエントリが
+ * 無視されることまで確かめたいため、規定のゲートに型で縛らない。
+ */
 function makeBody(options: {
   exploreNote?: boolean;
-  entries?: ReadonlyArray<{ at: string; gate: 'explore' | 'plan'; kind: string }>;
+  entries?: ReadonlyArray<{ at: string; gate: string; kind: string }>;
 }): string {
   const parts: string[] = ['## アイデア', '', 'なにかする。', ''];
 
@@ -84,24 +89,13 @@ const T3 = '2026-09-07T00:00:00.000Z';
 const PROPOSAL_ONLY = { proposal: true, specs: false, design: false, tasks: false };
 const PROPOSAL_AND_TASKS = { proposal: true, specs: false, design: false, tasks: true };
 
-/** explore を承認済みにした本文 */
-function exploreApproved(): string {
-  return makeBody({ exploreNote: true, entries: [{ at: T2, gate: 'explore', kind: '承認' }] });
-}
-
-/** explore と plan の両方を承認済みにした本文 */
+/** plan を承認済みにした本文 */
 function planApproved(): string {
-  return makeBody({
-    exploreNote: true,
-    entries: [
-      { at: T2, gate: 'explore', kind: '承認' },
-      { at: T3, gate: 'plan', kind: '承認' },
-    ],
-  });
+  return makeBody({ entries: [{ at: T3, gate: 'plan', kind: '承認' }] });
 }
 
 // ============================================================
-// 9 ステージの導出
+// 7 ステージの導出
 // ============================================================
 
 describe('resolveStage — 自動導出', () => {
@@ -120,34 +114,21 @@ describe('resolveStage — 自動導出', () => {
       expected: 'idea',
     },
     {
-      name: 'startedAt が打たれていれば exploring',
+      name: 'startedAt が打たれていれば planning',
       card: makeCard({ startedAt: T1 }),
       openspec: null,
       mr: null,
-      expected: 'exploring',
+      expected: 'planning',
     },
     {
-      name: '探索メモがあれば explore-review',
+      name: '探索メモがあってもステージは動かない',
       card: makeCard({ startedAt: T1, body: makeBody({ exploreNote: true }) }),
       openspec: null,
       mr: null,
-      expected: 'explore-review',
+      expected: 'planning',
     },
     {
-      name: '探索メモがあり explore 提出が記録されていても explore-review',
-      card: makeCard({
-        startedAt: T1,
-        body: makeBody({
-          exploreNote: true,
-          entries: [{ at: T2, gate: 'explore', kind: '提出' }],
-        }),
-      }),
-      openspec: null,
-      mr: null,
-      expected: 'explore-review',
-    },
-    {
-      name: 'explore が否決されたら exploring へ戻る',
+      name: '廃止された explore のエントリが残っていてもステージは動かない',
       card: makeCard({
         startedAt: T1,
         body: makeBody({
@@ -160,32 +141,25 @@ describe('resolveStage — 自動導出', () => {
       }),
       openspec: null,
       mr: null,
-      expected: 'exploring',
-    },
-    {
-      name: 'explore が承認されたら planning',
-      card: makeCard({ startedAt: T1, body: exploreApproved() }),
-      openspec: null,
-      mr: null,
       expected: 'planning',
     },
     {
-      name: 'skipGates に explore があれば探索メモが無くても planning',
-      card: makeCard({ startedAt: T1, skipGates: ['explore'] }),
+      name: 'startedAt が無ければ探索メモがあっても idea',
+      card: makeCard({ body: makeBody({ exploreNote: true }) }),
       openspec: null,
       mr: null,
-      expected: 'planning',
+      expected: 'idea',
     },
     {
       name: 'proposal.md があれば plan-review',
-      card: makeCard({ startedAt: T1, body: exploreApproved() }),
+      card: makeCard({ startedAt: T1 }),
       openspec: makeOpenSpec({ artifacts: PROPOSAL_ONLY }),
       mr: null,
       expected: 'plan-review',
     },
     {
       name: 'proposal.md があり plan のログが無くても plan-review に着地する',
-      card: makeCard({ startedAt: T1, skipGates: ['explore'] }),
+      card: makeCard({ startedAt: T1, body: makeBody({ exploreNote: true }) }),
       openspec: makeOpenSpec({ artifacts: PROPOSAL_ONLY }),
       mr: null,
       expected: 'plan-review',
@@ -194,13 +168,7 @@ describe('resolveStage — 自動導出', () => {
       name: 'plan が否決されたら planning へ戻る',
       card: makeCard({
         startedAt: T1,
-        body: makeBody({
-          exploreNote: true,
-          entries: [
-            { at: T2, gate: 'explore', kind: '承認' },
-            { at: T3, gate: 'plan', kind: '否決' },
-          ],
-        }),
+        body: makeBody({ entries: [{ at: T3, gate: 'plan', kind: '否決' }] }),
       }),
       openspec: makeOpenSpec({ artifacts: PROPOSAL_ONLY }),
       mr: null,
@@ -228,7 +196,7 @@ describe('resolveStage — 自動導出', () => {
     },
     {
       name: 'tasks が 0 件なら全完了扱いにせず impling',
-      card: makeCard({ startedAt: T1, skipGates: ['explore', 'plan'] }),
+      card: makeCard({ startedAt: T1, skipGates: ['plan'] }),
       openspec: makeOpenSpec({ tasks: { completed: 0, total: 0 } }),
       mr: null,
       expected: 'impling',
@@ -273,7 +241,7 @@ describe('resolveStage — 自動導出', () => {
   });
 
   it('同じ実態からは同じステージが出る', () => {
-    const card = makeCard({ startedAt: T1, body: exploreApproved() });
+    const card = makeCard({ startedAt: T1, body: planApproved() });
     const openspec = makeOpenSpec({ artifacts: PROPOSAL_ONLY });
 
     expect(resolveStage(card, openspec, null)).toEqual(resolveStage(card, openspec, null));
@@ -289,9 +257,8 @@ describe('resolveStage — 中止', () => {
     const card = makeCard({
       startedAt: T1,
       body: makeBody({
-        exploreNote: true,
         entries: [
-          { at: T2, gate: 'explore', kind: '承認' },
+          { at: T2, gate: 'plan', kind: '承認' },
           { at: T3, gate: 'plan', kind: '中止' },
         ],
       }),
@@ -304,10 +271,9 @@ describe('resolveStage — 中止', () => {
     const card = makeCard({
       startedAt: T1,
       body: makeBody({
-        exploreNote: true,
         entries: [
-          { at: T2, gate: 'explore', kind: '中止' },
-          { at: T3, gate: 'explore', kind: '再提出' },
+          { at: T2, gate: 'plan', kind: '中止' },
+          { at: T3, gate: 'plan', kind: '再提出' },
         ],
       }),
     });
@@ -319,17 +285,16 @@ describe('resolveStage — 中止', () => {
     const card = makeCard({
       startedAt: T1,
       body: makeBody({
-        exploreNote: true,
         entries: [
-          { at: T2, gate: 'explore', kind: '承認' },
-          { at: T3, gate: 'explore', kind: '中止' },
+          { at: T2, gate: 'plan', kind: '承認' },
+          { at: T3, gate: 'plan', kind: '中止' },
         ],
       }),
     });
 
     const resolution = resolveStage(card, null, null);
 
-    expect(resolution.stage).toBe('planning');
+    expect(resolution.stage).toBe('impling');
     expect(resolution.aborted).toBe(true);
   });
 
@@ -339,32 +304,29 @@ describe('resolveStage — 中止', () => {
 });
 
 describe('resolveStage — ゲートの状態', () => {
-  it('gates に explore / plan の状態を載せる', () => {
+  it('gates は plan の状態だけを載せる', () => {
     const card = makeCard({
       startedAt: T1,
-      skipGates: ['plan'],
-      body: makeBody({
-        exploreNote: true,
-        entries: [{ at: T2, gate: 'explore', kind: '否決' }],
-      }),
+      body: makeBody({ entries: [{ at: T2, gate: 'plan', kind: '否決' }] }),
     });
 
-    expect(resolveStage(card, null, null).gates).toEqual({
-      explore: 'rejected',
-      plan: 'approved',
-    });
+    expect(resolveStage(card, null, null).gates).toEqual({ plan: 'rejected' });
   });
 
-  it('スキップを両方宣言したカードはレビュー列に留まらない', () => {
+  it('廃止された explore のエントリは plan の判定に混ざらない', () => {
     const card = makeCard({
       startedAt: T1,
-      skipGates: ['explore', 'plan'],
-      body: makeBody({ exploreNote: true }),
+      body: makeBody({ entries: [{ at: T2, gate: 'explore', kind: '承認' }] }),
     });
+
+    expect(resolveStage(card, null, null).gates).toEqual({ plan: 'none' });
+  });
+
+  it('スキップを宣言したカードはレビュー列に留まらない', () => {
+    const card = makeCard({ startedAt: T1, skipGates: ['plan'] });
 
     const stage = resolveStage(card, makeOpenSpec({ artifacts: PROPOSAL_ONLY }), null).stage;
 
-    expect(stage).not.toBe('explore-review');
     expect(stage).not.toBe('plan-review');
   });
 });
@@ -374,23 +336,31 @@ describe('resolveStage — ゲートの状態', () => {
 // ============================================================
 
 describe('resolveFloorStage / droppableStages', () => {
-  it('人の列は idea と exploring の 2 つだけ', () => {
-    expect(HUMAN_STAGES).toEqual(['idea', 'exploring']);
+  it('人の列は idea と planning の 2 つだけ', () => {
+    expect(HUMAN_STAGES).toEqual(['idea', 'planning']);
   });
 
-  it('何も成果物が無いカードは idea と exploring の間を動かせる', () => {
+  it('何も成果物が無いカードは idea と planning の間を動かせる', () => {
     const card = makeCard({ startedAt: T1 });
     const floor = resolveFloorStage(card, null, null);
 
     expect(floor).toBe('idea');
-    expect(droppableStages(floor)).toEqual(['idea', 'exploring']);
+    expect(droppableStages(floor)).toEqual(['idea', 'planning']);
   });
 
-  it('探索メモが書かれたら手では動かせない', () => {
+  it('探索メモが書かれていても手で動かせる範囲は変わらない', () => {
     const card = makeCard({ startedAt: T1, body: makeBody({ exploreNote: true }) });
     const floor = resolveFloorStage(card, null, null);
 
-    expect(floor).toBe('explore-review');
+    expect(floor).toBe('idea');
+    expect(droppableStages(floor)).toEqual(['idea', 'planning']);
+  });
+
+  it('proposal が出ていれば手では動かせない', () => {
+    const card = makeCard({ startedAt: T1 });
+    const floor = resolveFloorStage(card, makeOpenSpec({ artifacts: PROPOSAL_ONLY }), null);
+
+    expect(floor).toBe('plan-review');
     expect(droppableStages(floor)).toEqual([]);
   });
 

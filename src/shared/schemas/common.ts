@@ -20,16 +20,14 @@ export type MergeRequestIid = Brand<number, 'MergeRequestIid'>;
 // ============================================================
 
 /**
- * カードが取りうる 9 つのステージ。
+ * カードが取りうる 7 つのステージ。
  * 配列の順序がそのまま「進行度」を表し、UI の列順にも使う。
  *
- * `explore-review` / `plan-review` / `pr` は人の判断を待つ HIL ゲート、
- * `exploring` / `planning` / `impling` / `verifying` は AI が自走する列。
+ * `plan-review` / `pr` は人の判断を待つ HIL ゲート、
+ * `planning` / `impling` / `verifying` は AI が自走する列。
  */
 export const STAGES = [
   'idea',
-  'exploring',
-  'explore-review',
   'planning',
   'plan-review',
   'impling',

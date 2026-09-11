@@ -1,11 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  appendReviewEntry,
-  gateState,
-  hasExploreNote,
-  isAborted,
-  parseReviewLog,
-} from '../review-log.js';
+import { appendReviewEntry, gateState, isAborted, parseReviewLog } from '../review-log.js';
 import type { ReviewEntry } from '../../models/review.js';
 
 const BODY_WITH_LOG = `## アイデア
@@ -18,14 +12,22 @@ const BODY_WITH_LOG = `## アイデア
 
 ## レビュー
 
-### 2026-09-11T04:00:00.000Z explore 提出
+### 2026-09-11T04:00:00.000Z plan 提出
 
-### 2026-09-11T05:12:00.000Z explore 否決
+### 2026-09-11T05:12:00.000Z plan 否決
 
 既存の stage-resolver を見ていない。
 導出ルールとの整合を調べ直して。
 
-### 2026-09-11T09:30:00.000Z explore 再提出
+### 2026-09-11T09:30:00.000Z plan 再提出
+`;
+
+/** 廃止された explore ゲートのエントリだけが残っている本文 */
+const BODY_WITH_LEGACY_GATE = `## レビュー
+
+### 2026-09-11T04:00:00.000Z explore 提出
+
+### 2026-09-11T05:00:00.000Z explore 承認
 `;
 
 describe('parseReviewLog', () => {
@@ -35,7 +37,7 @@ describe('parseReviewLog', () => {
     expect(entries).toHaveLength(3);
     expect(entries[0]).toEqual<ReviewEntry>({
       at: '2026-09-11T04:00:00.000Z',
-      gate: 'explore',
+      gate: 'plan',
       kind: '提出',
       reason: '',
     });
@@ -56,7 +58,7 @@ describe('parseReviewLog', () => {
   it('別の h2 が来たらセクションを打ち切る', () => {
     const body = `## レビュー
 
-### 2026-09-11T04:00:00.000Z explore 提出
+### 2026-09-11T04:00:00.000Z plan 提出
 
 ## 参考
 
@@ -71,13 +73,17 @@ describe('parseReviewLog', () => {
 
 ### これは見出しではない
 ### 2026-09-11T04:00:00.000Z unknown 提出
-### not-a-date explore 提出
-### 2026-09-11T04:00:00.000Z explore 承認
+### not-a-date plan 提出
+### 2026-09-11T04:00:00.000Z plan 承認
 `;
 
     const entries = parseReviewLog(body);
     expect(entries).toHaveLength(1);
     expect(entries[0]?.kind).toBe('承認');
+  });
+
+  it('廃止された explore ゲートのエントリは規定外として無視する', () => {
+    expect(parseReviewLog(BODY_WITH_LEGACY_GATE)).toEqual([]);
   });
 });
 
@@ -85,32 +91,32 @@ describe('gateState', () => {
   const entries = parseReviewLog(BODY_WITH_LOG);
 
   it('エントリが無ければ none', () => {
-    expect(gateState([], 'explore', [])).toBe('none');
+    expect(gateState([], 'plan', [])).toBe('none');
   });
 
   it('最新が 再提出 なら submitted', () => {
-    expect(gateState(entries, 'explore', [])).toBe('submitted');
+    expect(gateState(entries, 'plan', [])).toBe('submitted');
   });
 
   it('最新が 否決 なら rejected', () => {
-    expect(gateState(entries.slice(0, 2), 'explore', [])).toBe('rejected');
+    expect(gateState(entries.slice(0, 2), 'plan', [])).toBe('rejected');
   });
 
   it('最新が 承認 なら approved', () => {
     const approved: ReviewEntry[] = [
       ...entries,
-      { at: '2026-09-11T09:45:00.000Z', gate: 'explore', kind: '承認', reason: '' },
+      { at: '2026-09-11T09:45:00.000Z', gate: 'plan', kind: '承認', reason: '' },
     ];
 
-    expect(gateState(approved, 'explore', [])).toBe('approved');
+    expect(gateState(approved, 'plan', [])).toBe('approved');
   });
 
-  it('他のゲートのエントリは混ざらない', () => {
-    expect(gateState(entries, 'plan', [])).toBe('none');
+  it('規定外のゲートのエントリは混ざらない', () => {
+    expect(gateState(parseReviewLog(BODY_WITH_LEGACY_GATE), 'plan', [])).toBe('none');
   });
 
   it('skipGates に含まれていればエントリを見ずに approved', () => {
-    expect(gateState(entries.slice(0, 2), 'explore', ['explore'])).toBe('approved');
+    expect(gateState(entries.slice(0, 2), 'plan', ['plan'])).toBe('approved');
   });
 
   it('時刻の並びが逆でも最新の時刻のものを採る', () => {
@@ -132,18 +138,18 @@ describe('gateState', () => {
 
   it('中止は承認済みのゲートを巻き戻さない', () => {
     const aborted: ReviewEntry[] = [
-      { at: '2026-09-11T04:00:00.000Z', gate: 'explore', kind: '承認', reason: '' },
-      { at: '2026-09-11T05:00:00.000Z', gate: 'explore', kind: '中止', reason: 'やめる' },
+      { at: '2026-09-11T04:00:00.000Z', gate: 'plan', kind: '承認', reason: '' },
+      { at: '2026-09-11T05:00:00.000Z', gate: 'plan', kind: '中止', reason: 'やめる' },
     ];
 
-    expect(gateState(aborted, 'explore', [])).toBe('approved');
+    expect(gateState(aborted, 'plan', [])).toBe('approved');
   });
 });
 
 describe('isAborted', () => {
   it('最新のエントリが 中止 なら true', () => {
     const entries: ReviewEntry[] = [
-      { at: '2026-09-11T04:00:00.000Z', gate: 'explore', kind: '承認', reason: '' },
+      { at: '2026-09-11T04:00:00.000Z', gate: 'plan', kind: '承認', reason: '' },
       { at: '2026-09-11T05:00:00.000Z', gate: 'plan', kind: '中止', reason: 'やめる' },
     ];
 
@@ -164,24 +170,10 @@ describe('isAborted', () => {
   });
 });
 
-describe('hasExploreNote', () => {
-  it('## 探索メモ があれば true', () => {
-    expect(hasExploreNote(BODY_WITH_LOG)).toBe(true);
-  });
-
-  it('無ければ false', () => {
-    expect(hasExploreNote('## アイデア\n\nなにかする。')).toBe(false);
-  });
-
-  it('見出しでない行に同じ文字列があっても false', () => {
-    expect(hasExploreNote('探索メモを書く予定')).toBe(false);
-  });
-});
-
 describe('appendReviewEntry', () => {
   const entry: ReviewEntry = {
     at: '2026-09-11T09:45:00.000Z',
-    gate: 'explore',
+    gate: 'plan',
     kind: '承認',
     reason: '',
   };
@@ -190,15 +182,15 @@ describe('appendReviewEntry', () => {
     const result = appendReviewEntry('## アイデア\n\nなにかする。\n', entry);
 
     expect(result).toBe(
-      '## アイデア\n\nなにかする。\n\n## レビュー\n\n### 2026-09-11T09:45:00.000Z explore 承認\n'
+      '## アイデア\n\nなにかする。\n\n## レビュー\n\n### 2026-09-11T09:45:00.000Z plan 承認\n'
     );
   });
 
   it('既存のセクションの末尾に足す', () => {
-    const body = '## レビュー\n\n### 2026-09-11T04:00:00.000Z explore 提出\n';
+    const body = '## レビュー\n\n### 2026-09-11T04:00:00.000Z plan 提出\n';
 
     expect(appendReviewEntry(body, entry)).toBe(
-      '## レビュー\n\n### 2026-09-11T04:00:00.000Z explore 提出\n\n### 2026-09-11T09:45:00.000Z explore 承認\n'
+      '## レビュー\n\n### 2026-09-11T04:00:00.000Z plan 提出\n\n### 2026-09-11T09:45:00.000Z plan 承認\n'
     );
   });
 
@@ -216,10 +208,10 @@ describe('appendReviewEntry', () => {
   });
 
   it('## レビュー の後ろに別のセクションがあってもその手前に足す', () => {
-    const body = '## レビュー\n\n### 2026-09-11T04:00:00.000Z explore 提出\n\n## 参考\n\nリンク\n';
+    const body = '## レビュー\n\n### 2026-09-11T04:00:00.000Z plan 提出\n\n## 参考\n\nリンク\n';
 
     expect(appendReviewEntry(body, entry)).toBe(
-      '## レビュー\n\n### 2026-09-11T04:00:00.000Z explore 提出\n\n### 2026-09-11T09:45:00.000Z explore 承認\n\n## 参考\n\nリンク\n'
+      '## レビュー\n\n### 2026-09-11T04:00:00.000Z plan 提出\n\n### 2026-09-11T09:45:00.000Z plan 承認\n\n## 参考\n\nリンク\n'
     );
   });
 
@@ -229,6 +221,6 @@ describe('appendReviewEntry', () => {
 
     expect(entries).toHaveLength(4);
     expect(entries[3]).toEqual(entry);
-    expect(gateState(entries, 'explore', [])).toBe('approved');
+    expect(gateState(entries, 'plan', [])).toBe('approved');
   });
 });

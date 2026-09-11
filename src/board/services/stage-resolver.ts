@@ -1,12 +1,7 @@
 import { stageRank, type Stage } from '../../shared/schemas/common.js';
 import type { Card } from '../../cards/models/card.js';
 import type { GateState, ReviewGate } from '../../cards/models/review.js';
-import {
-  gateState,
-  hasExploreNote,
-  isAborted,
-  parseReviewLog,
-} from '../../cards/services/review-log.js';
+import { gateState, isAborted, parseReviewLog } from '../../cards/services/review-log.js';
 import type { OpenSpecChangeState } from '../models/openspec-state.js';
 import type { MrState } from '../models/mr-state.js';
 
@@ -21,7 +16,7 @@ import type { MrState } from '../models/mr-state.js';
  * 残りは AI の成果物（openspec / GitLab）か、本文のレビューログが立てる。
  * レビューログへの書き込みはドラッグではなくボタンで行う。
  */
-export const HUMAN_STAGES = ['idea', 'exploring'] as const satisfies readonly Stage[];
+export const HUMAN_STAGES = ['idea', 'planning'] as const satisfies readonly Stage[];
 
 export interface StageResolution {
   /** 表示する列 */
@@ -40,20 +35,18 @@ export interface StageResolution {
  * 下記を上から評価し、最初に真になったものを採用する（＝最も進んだステージ）。
  * `stage` はどこにも保存しない。ここが唯一の決定点である。
  *
- * | # | stage          | 条件                                                    |
- * |---|----------------|---------------------------------------------------------|
- * | 1 | merged         | archive に存在、または MR が merged                      |
- * | 2 | pr             | MR が opened                                             |
- * | 3 | verifying      | plan 承認済み かつ tasks が total > 0 で全完了            |
- * | 4 | impling        | plan 承認済み                                            |
- * | 5 | plan-review    | proposal.md が存在し plan ゲートが none / submitted       |
- * | 6 | planning       | explore 承認済み                                         |
- * | 7 | explore-review | 本文に `## 探索メモ` があり explore が none / submitted   |
- * | 8 | exploring      | startedAt が非 null                                      |
- * | 9 | idea           | 既定                                                     |
+ * | # | stage       | 条件                                                 |
+ * |---|-------------|------------------------------------------------------|
+ * | 1 | merged      | archive に存在、または MR が merged                   |
+ * | 2 | pr          | MR が opened                                          |
+ * | 3 | verifying   | plan 承認済み かつ tasks が total > 0 で全完了         |
+ * | 4 | impling     | plan 承認済み                                         |
+ * | 5 | plan-review | proposal.md が存在し plan ゲートが none / submitted    |
+ * | 6 | planning    | startedAt が非 null                                   |
+ * | 7 | idea        | 既定                                                  |
  *
  * 否決の差し戻しは専用ルールを持たない。`gate = rejected` のとき
- * その工程のレビュー行と承認行が両方外れ、1 つ手前の AI 列へ自然に落ちる。
+ * その工程のレビュー行と承認行が両方外れ、1 つ手前の列へ自然に落ちる。
  */
 export function resolveStage(
   card: Card,
@@ -102,7 +95,6 @@ interface Facts {
   readonly openspec: OpenSpecChangeState | null;
   readonly mr: MrState | null;
   readonly gates: Readonly<Record<ReviewGate, GateState>>;
-  readonly exploreNote: boolean;
   readonly aborted: boolean;
 }
 
@@ -114,10 +106,8 @@ function toFacts(card: Card, openspec: OpenSpecChangeState | null, mr: MrState |
     openspec,
     mr,
     gates: {
-      explore: gateState(entries, 'explore', card.skipGates),
       plan: gateState(entries, 'plan', card.skipGates),
     },
-    exploreNote: hasExploreNote(card.body),
     aborted: isAborted(entries),
   };
 }
@@ -174,24 +164,14 @@ const RULES: ReadonlyArray<(facts: Facts) => Derivation | null> = [
         }
       : null,
 
-  // 6. planning
-  ({ gates }) =>
-    gates.explore === 'approved' ? { stage: 'planning', reason: '探索が承認されている' } : null,
-
-  // 7. explore-review
-  ({ exploreNote, gates }) =>
-    exploreNote && (gates.explore === 'none' || gates.explore === 'submitted')
-      ? { stage: 'explore-review', reason: '探索メモが人の承認を待っている' }
-      : null,
-
-  // 8. exploring
+  // 6. planning — 人が着手を指示した。ここが人の列の上限になる
   ({ card }) =>
     card.startedAt !== null
-      ? { stage: 'exploring', reason: `${card.startedAt} に着手が指示されている` }
+      ? { stage: 'planning', reason: `${card.startedAt} に着手が指示されている` }
       : null,
 ];
 
-/** 9. idea — どのルールにも当てはまらなかったとき */
+/** 7. idea — どのルールにも当てはまらなかったとき */
 const DEFAULT_DERIVATION: Derivation = {
   stage: 'idea',
   reason: 'まだ着手が指示されていない',
