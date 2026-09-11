@@ -206,7 +206,7 @@ button {
   opacity: 0.42;
 }
 
-.column-head .lock {
+.column-head .owner {
   margin-left: 5px;
   font-size: 10px;
   opacity: 0.7;
@@ -582,4 +582,8 @@ button {
   * {
     transition: none !important;
   }
+}
+
+.reason-input {
+  min-height: 4.5rem;
 }
