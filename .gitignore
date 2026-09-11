@@ -9,3 +9,6 @@ coverage/
 
 # GitLab の root パスワード。compose が読む。共有しない
 .env
+
+# アップグレード前に取り出す GitLab のバックアップと secrets。共有しない
+/gitlab-backup/

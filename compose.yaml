@@ -5,11 +5,19 @@
 #   docker compose ps        healthy になるまで待つ
 #   docker compose down -v   データごと破棄
 #
+# アップグレードは image のタグを書き換えてから pull → up -d。
+# 手順とバックアップは README の「ローカル GitLab」節にある。
+#
 # root パスワードは .env の GITLAB_ROOT_PASSWORD から読む（.env.example を参照）。
 
 services:
   gitlab:
-    image: gitlab/gitlab-ce:latest
+    # アップグレードはこの行を書き換えてコミットする。latest は使わない。
+    # GitLab はアップグレードパス上の required stop を飛ばすとマイグレーションが
+    # 壊れ、しかもダウングレードはできない（復元はバックアップからのみ）。
+    # 上げる前に次の required stop を確認する。
+    #   https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/update/upgrade_paths.md
+    image: gitlab/gitlab-ce:19.3.1-ce.0
     container_name: ai-board-gitlab
     restart: unless-stopped
     hostname: localhost
