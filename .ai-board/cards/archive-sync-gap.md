@@ -37,6 +37,37 @@ mr: null
 delta spec の本体へのマージは内容の判断を含むので、レビューを挟む余地はある。
 一方で tasks が全完了して MR もマージ済みなら、残っているのは機械的な移動だけとも言える。
 
+## 追記: 遅れて sync すると後続の change を巻き戻す
+
+同期漏れは「積み上がる」だけでなく、**あとから解消しようとした瞬間に巻き戻しを起こす。**
+`drop-explore-lanes`（MR !7 / !8）で実際に踏んだ。
+
+経緯はこうだった。`board-lanes` が未 archive で `openspec/specs/` が空だったため、
+後続の change が `MODIFIED` / `REMOVED` delta を書いても突き合わせる相手がいない。
+そこで先に `board-lanes` の delta をメイン spec へ起こし、その上に
+`drop-explore-lanes` の delta を重ねてマージした。
+
+このあと `board-lanes` を archive しようとすると、archive 手順のステップ 4 が
+もう一度 sync をかけようとする。`board-lanes` の delta は全て `ADDED` で、
+sync の規則は「`ADDED` の要件が既にあれば内容を delta に合わせて更新する」である。
+つまり `9 段のステージ` や `探索レビューは探索メモの存在で立つ` など 7 要件が復活し、
+直前にマージした `drop-explore-lanes` が静かに巻き戻る。
+
+今回は sync を飛ばして archive した。それが正しい判断だったのは、
+その delta が既にメイン spec へ入っていることを人が知っていたからにすぎない。
+判断の材料はボードにもファイルにも出ていない。
+
+ここから言えることが 2 つある。
+
+- **archive の遅れは順序の問題を生む。** 未 archive の change が 1 つでもあると、
+  後続の change はその delta を踏み台にするか、踏まずに書くかを選ぶことになる。
+  どちらを選んだかは記録に残らない。
+- **`ADDED` を暗黙の `MODIFIED` として扱う規則は、時間が経った delta では危険。**
+  sync が「適用済みかどうか」を持たないため、2 回目の適用が上書きになる。
+
+バッジや列を足すより前に、**「この change の delta は既にメイン spec へ入っているか」
+を導出できるか**を先に決めたい。入っていると分かるなら sync を飛ばす判断は機械にできる。
+
 ## 前提
 
 - archive は git の操作ではなく `openspec/specs/` を書き換える操作。差分が生まれる
