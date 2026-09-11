@@ -252,6 +252,64 @@ curl -s localhost:5673/api/board | jq .gitlab                                   
 curl -s localhost:5673/api/board | jq -r '.cards[] | select(.mrState) | .mrState.webUrl'
 ```
 
+#### アップグレード
+
+イメージのタグは `compose.yaml` に直接書いてある。
+上げるときはこの行を書き換えてコミットする。
+リポジトリの記述と実際に動いているものが常に一致し、`git log` がそのままアップグレードの履歴になる。
+
+稼働中のバージョンはコンテナの中を見る。
+
+```bash
+docker compose exec -T gitlab head -1 /opt/gitlab/version-manifest.txt   # gitlab-ce 19.3.2
+```
+
+`docker image inspect` のラベルは当てにならない。
+`org.opencontainers.image.version` が返すのはベースイメージの Ubuntu のバージョン（`24.04`）で、
+GitLab のバージョンではない。
+
+**required stop を飛ばすわけにはいかない。**
+GitLab は特定のバージョンを踏まないとマイグレーションが完走しない作りになっていて、
+しかもイメージを戻すだけのダウングレードができない（古いバージョンは移行済みの DB で起動しない）。
+失敗したときに戻る先はバックアップだけになる。
+上げる前に
+[upgrade_paths.md](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/update/upgrade_paths.md)
+で現在のバージョンから次の stop を確認し、間の stop を順に踏む。
+
+バックアップを取る。
+捨ててよい検証用データなら飛ばしてよいが、MR とカードの紐付けを残したいなら取っておく。
+
+```bash
+mkdir -p gitlab-backup                                  # .gitignore 済み
+docker compose exec -T gitlab gitlab-backup create
+
+# gitlab-secrets.json はバックアップに含まれない。これを失うと DB 内の
+# 暗号化データ（アクセストークン、CI 変数）が復号できなくなるので別に退避する。
+docker compose cp gitlab:/etc/gitlab/gitlab-secrets.json ./gitlab-backup/
+
+# tar を取り出す。ファイル名は作成時刻を含むので一覧から拾う。
+docker compose exec -T gitlab sh -c 'ls -t /var/opt/gitlab/backups/*_gitlab_backup.tar | head -1'
+docker compose cp gitlab:/var/opt/gitlab/backups/<上で出たファイル名> ./gitlab-backup/
+```
+
+タグを書き換えてから入れ替える。
+
+```bash
+docker compose pull
+docker compose up -d
+docker compose logs -f gitlab   # reconfigure と db:migrate を見届ける
+docker compose ps               # healthy に戻るまで待つ（数分かかる）
+```
+
+`up -d` はコンテナを作り直すだけで、`gitlab-config` / `gitlab-logs` / `gitlab-data` の
+3 つの named volume には触らない。
+設定もログもリポジトリも残り、消えるのは `down -v` を打ったときだけ。
+
+healthy に戻ったら、上の疎通確認をもう一度通す。
+とくにカードの `mr.webUrl` に実際に到達できるかまで見る。
+マイグレーションが通ってボードの列が埋まっていても、`external_url` の扱いが変われば
+リンクだけが静かに壊れる。
+
 GitLab を停止してもボードは落ちず、接続状態が `error` になって列は直近のキャッシュを保つ。
 
 ```bash
