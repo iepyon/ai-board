@@ -21,7 +21,7 @@ import type {
  * - 完了判定はファイル存在のみで、構造が単純かつ安定している
  * - openspec 未インストールの環境でも動く
  *
- * 判定ロジックは @fission-ai/openspec v1.12.0 の実装に合わせてある
+ * 判定ロジックは @fission-ai/openspec v1.13.0 の実装に合わせてある
  * （archive の日付プレフィックス、tasks の行パターン）。openspec を上げたら
  * 参照先の定数を突き合わせる。
  */

@@ -325,11 +325,11 @@ docker compose down -v  # データごと破棄
 - 完了判定はファイル存在のみで、構造が単純かつ安定している
 - openspec 未インストールの環境でも動く
 
-判定ロジックは `@fission-ai/openspec` v1.12.0 の実装に合わせてある
+判定ロジックは `@fission-ai/openspec` v1.13.0 の実装に合わせてある
 （tasks の行パターン、archive の日付プレフィックス、artifact の存在判定）。
 openspec を上げたときは参照先の定数を突き合わせる。
 
-ただし change 名自体が `YYYY-MM-DD-` で始まる場合、1.12.0 は接頭辞を重ねず
+ただし change 名自体が `YYYY-MM-DD-` で始まる場合、1.13.0 は接頭辞を重ねず
 既存名のまま archive するため、日付を剥がす前提のこちらの完了判定が外れる。
 
 ### レイヤー構成
