@@ -2,12 +2,11 @@
 id: board-keyboard
 title: キーボード操作に対応する
 created: '2026-09-04T06:48:23.413Z'
-explored: false
-implStartedAt: null
+startedAt: null
+skipGates: []
 change: null
 branch: null
 mr: null
-stageOverride: null
 ---
 
 ## アイデア

@@ -2,12 +2,11 @@
 id: gitlab-docker
 title: Docker Compose で GitLab を立てて接続する
 created: '2026-09-04T06:48:23.390Z'
-explored: true
-implStartedAt: null
+startedAt: '2026-09-04T06:48:23.390Z'
+skipGates: []
 change: setup-local-gitlab
 branch: setup-local-gitlab
 mr: 1
-stageOverride: null
 ---
 
 ## アイデア
@@ -47,3 +46,7 @@ AI-PR / AI-PR 修正済みの 2 列は GitLab の MR 状態から導出してい
     `UnknownConfigOptionError` で失敗しコンテナがクラッシュループする
   - `/-/health` は `monitoring_whitelist` によりホストからは 404。疎通判定には `/users/sign_in` を使う
   - GitLab のバージョンは 19.3.1 (CE)、対象プロジェクトは `iepyon/ai-board`
+
+## レビュー
+
+### 2026-09-04T06:48:23.390Z explore 承認

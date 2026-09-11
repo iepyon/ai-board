@@ -2,12 +2,11 @@
 id: jenkins-ci
 title: Jenkins を導入して品質ゲートを CI で回す
 created: '2026-09-04T06:48:23.402Z'
-explored: false
-implStartedAt: null
+startedAt: null
+skipGates: []
 change: null
 branch: null
 mr: null
-stageOverride: null
 ---
 
 ## アイデア

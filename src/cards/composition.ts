@@ -12,6 +12,10 @@ import {
   createUpdateCardBodyCommand,
   type UpdateCardBodyCommand,
 } from './usecases/commands/update-card-body.command.js';
+import {
+  createAppendReviewCommand,
+  type AppendReviewCommand,
+} from './usecases/commands/append-review.command.js';
 
 // ============================================================
 // Cards コンテキスト 依存性構成
@@ -22,6 +26,7 @@ export interface CardDependencies {
   readonly createCardCommand: CreateCardCommand;
   readonly updateCardMetaCommand: UpdateCardMetaCommand;
   readonly updateCardBodyCommand: UpdateCardBodyCommand;
+  readonly appendReviewCommand: AppendReviewCommand;
 }
 
 export function createCardDependencies(cardsDir: string): CardDependencies {
@@ -32,5 +37,6 @@ export function createCardDependencies(cardsDir: string): CardDependencies {
     createCardCommand: createCreateCardCommand(cardRepository),
     updateCardMetaCommand: createUpdateCardMetaCommand(cardRepository),
     updateCardBodyCommand: createUpdateCardBodyCommand(cardRepository),
+    appendReviewCommand: createAppendReviewCommand(cardRepository),
   };
 }

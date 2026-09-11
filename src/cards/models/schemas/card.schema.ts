@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { CardIdSchema, ChangeNameSchema, StageSchema } from '../../../shared/schemas/common.js';
+import { CardIdSchema, ChangeNameSchema } from '../../../shared/schemas/common.js';
+import { REVIEW_GATES, REVIEW_KINDS } from '../review.js';
+
+const ReviewGateSchema = z.enum(REVIEW_GATES);
 
 // ============================================================
 // カード frontmatter のスキーマ
@@ -28,18 +31,16 @@ export const CardFrontmatterSchema = z.object({
   id: CardIdSchema,
   title: z.string().min(1).max(200),
   created: IsoDateTime,
-  /** explored ステージへ昇格させる明示フラグ */
-  explored: z.boolean().default(false),
-  /** impling ステージへ昇格させる明示マーカー（打刻時刻） */
-  implStartedAt: nullableField(IsoDateTime).default(null),
+  /** 人が探索の着手を指示した時刻 */
+  startedAt: nullableField(IsoDateTime).default(null),
+  /** 人が事前に見ないと宣言したゲート */
+  skipGates: z.array(ReviewGateSchema).default([]),
   /** openspec の change ディレクトリ名 */
   change: nullableField(ChangeNameSchema).default(null),
   /** Git のブランチ名。MR iid の自動解決に使う */
   branch: nullableField(z.string().min(1).max(200)).default(null),
   /** GitLab MR の iid */
   mr: nullableField(z.number().int().positive()).default(null),
-  /** ステージの手動上書き。null なら自動導出 */
-  stageOverride: nullableField(StageSchema).default(null),
 });
 
 export type CardFrontmatter = z.infer<typeof CardFrontmatterSchema>;
@@ -62,24 +63,17 @@ export type CreateCardInput = z.infer<typeof CreateCardInputSchema>;
  * 明示的に null を送ることで「紐付けを外す」を表現できるため、
  * undefined（未指定＝変更しない）と null を区別する。
  *
- * `stageOverride` は null（解除）しか受け付けない。ステージは実態から
- * 導出するものであり、ツール自身が実態と食い違う値を書かないため。
- * 手で書かれた上書きは読み取り側では尊重する。
+ * ステージを直接指定する手段は無い。人の判断は `startedAt` の打刻と
+ * 本文のレビューログにだけ現れ、そこから導出される。
  */
 export const UpdateCardMetaInputSchema = z
   .object({
     title: z.string().min(1).max(200).optional(),
-    explored: z.boolean().optional(),
-    implStartedAt: z.union([IsoDateTime, z.null()]).optional(),
+    startedAt: z.union([IsoDateTime, z.null()]).optional(),
+    skipGates: z.array(ReviewGateSchema).optional(),
     change: z.union([ChangeNameSchema, z.null()]).optional(),
     branch: z.union([z.string().min(1).max(200), z.null()]).optional(),
     mr: z.union([z.number().int().positive(), z.null()]).optional(),
-    stageOverride: z
-      .null({
-        message:
-          'ステージは実態から導出されます。手動での指定はできません（null を送ると上書きを解除できます）',
-      })
-      .optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: '更新するフィールドを 1 つ以上指定してください',
@@ -92,3 +86,22 @@ export const UpdateCardBodyInputSchema = z.object({
 });
 
 export type UpdateCardBodyInput = z.infer<typeof UpdateCardBodyInputSchema>;
+
+/**
+ * レビューエントリの追記。
+ *
+ * 提出 / 再提出 は AI が書くもので、この API からは受け付けない。
+ * 否決には理由文を必須にする。空の否決は AI が次の周回で読むものを持たないため。
+ */
+export const AppendReviewInputSchema = z
+  .object({
+    gate: z.enum(REVIEW_GATES),
+    kind: z.enum(REVIEW_KINDS),
+    reason: z.string().max(10_000).default(''),
+  })
+  .refine((value) => value.kind !== '否決' || value.reason.trim() !== '', {
+    message: '否決には理由を書いてください',
+    path: ['reason'],
+  });
+
+export type AppendReviewInput = z.infer<typeof AppendReviewInputSchema>;

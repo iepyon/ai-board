@@ -2,12 +2,11 @@
 id: dismissible-banner
 title: バナーを閉じられるようにする
 created: '2026-09-04T06:48:23.418Z'
-explored: false
-implStartedAt: null
+startedAt: null
+skipGates: []
 change: null
 branch: null
 mr: null
-stageOverride: null
 ---
 
 ## アイデア

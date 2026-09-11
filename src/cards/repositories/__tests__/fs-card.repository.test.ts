@@ -29,12 +29,11 @@ function makeCard(overrides: Partial<Card> = {}): Card {
     id: 'refresh-token' as CardId,
     title: 'リフレッシュトークン対応',
     created: '2026-09-01T00:00:00.000Z',
-    explored: false,
-    implStartedAt: null,
+    startedAt: null,
+    skipGates: [],
     change: null,
     branch: null,
     mr: null,
-    stageOverride: null,
     body: '',
     ...overrides,
   };
@@ -51,10 +50,10 @@ describe('parseCard', () => {
       'id: refresh-token',
       'title: リフレッシュトークン対応',
       'created: 2026-09-01T00:00:00.000Z',
-      'explored: true',
+      'startedAt: 2026-09-05T00:00:00.000Z',
+      'skipGates: [explore]',
       'change: refresh-token',
       'mr: 42',
-      'stageOverride: done',
       '---',
       '',
       '## アイデア',
@@ -64,10 +63,10 @@ describe('parseCard', () => {
     const card = parseCard('/tmp/refresh-token.md', raw);
 
     expect(card).not.toBeNull();
-    expect(card?.explored).toBe(true);
+    expect(card?.startedAt).toBe('2026-09-05T00:00:00.000Z');
+    expect(card?.skipGates).toEqual(['explore']);
     expect(card?.change).toBe('refresh-token');
     expect(card?.mr).toBe(42);
-    expect(card?.stageOverride).toBe('done');
     expect(card?.body).toBe('## アイデア\n本文');
   });
 
@@ -89,10 +88,9 @@ describe('parseCard', () => {
 
     const card = parseCard('/tmp/minimal.md', raw);
 
-    expect(card?.explored).toBe(false);
-    expect(card?.implStartedAt).toBeNull();
+    expect(card?.startedAt).toBeNull();
+    expect(card?.skipGates).toEqual([]);
     expect(card?.change).toBeNull();
-    expect(card?.stageOverride).toBeNull();
   });
 
   it('frontmatter が無くてもファイル名から id を補って読める', () => {
@@ -109,22 +107,33 @@ describe('parseCard', () => {
     expect(parseCard('/tmp/refresh-token.md', raw)).toBeNull();
   });
 
-  it('不正なステージ値のカードは読み込まない', () => {
-    const raw = ['---', 'id: bad', 'title: 不正', 'stageOverride: nonsense', '---', ''].join('\n');
+  it('不正なゲート名のカードは読み込まない', () => {
+    const raw = ['---', 'id: bad', 'title: 不正', 'skipGates: [nonsense]', '---', ''].join('\n');
 
     expect(parseCard('/tmp/bad.md', raw)).toBeNull();
   });
 });
 
 describe('serializeCard', () => {
+  it('skipGates を配列として往復できる', () => {
+    const card = makeCard({
+      startedAt: '2026-09-11T01:00:00.000Z',
+      skipGates: ['explore', 'plan'],
+    });
+
+    const restored = parseCard('/tmp/refresh-token.md', serializeCard(card));
+
+    expect(restored?.skipGates).toEqual(['explore', 'plan']);
+    expect(restored?.startedAt).toBe('2026-09-11T01:00:00.000Z');
+  });
+
   it('往復しても値が変わらない', () => {
     const card = makeCard({
-      explored: true,
-      implStartedAt: '2026-09-04T10:12:00.000Z',
+      startedAt: '2026-09-04T10:12:00.000Z',
+      skipGates: ['explore', 'plan'],
       change: 'refresh-token' as ChangeName,
       branch: 'feat/refresh-token',
       mr: 42 as MergeRequestIid,
-      stageOverride: 'ai-pr',
       body: '## アイデア\n本文',
     });
 
@@ -138,7 +147,8 @@ describe('serializeCard', () => {
 
     expect(restored?.change).toBeNull();
     expect(restored?.mr).toBeNull();
-    expect(restored?.stageOverride).toBeNull();
+    expect(restored?.startedAt).toBeNull();
+    expect(restored?.skipGates).toEqual([]);
   });
 });
 
@@ -177,8 +187,10 @@ describe('FsCardRepository', () => {
     const repository = new FsCardRepository(cardsDir);
     await repository.create(makeCard());
 
-    expect(await repository.save(makeCard({ explored: true }))).toBe(true);
-    expect((await repository.findById('refresh-token' as CardId))?.explored).toBe(true);
+    expect(await repository.save(makeCard({ startedAt: '2026-09-05T00:00:00.000Z' }))).toBe(true);
+    expect((await repository.findById('refresh-token' as CardId))?.startedAt).toBe(
+      '2026-09-05T00:00:00.000Z'
+    );
   });
 
   it('壊れたファイルは読み飛ばして残りを返す', async () => {

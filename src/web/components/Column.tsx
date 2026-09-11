@@ -1,10 +1,17 @@
 import { useState, type DragEvent } from 'react';
 import { Card } from './Card.js';
-import { STAGE_LABELS, STAGE_SOURCE, isHumanStage, type BoardCard, type Stage } from '../types.js';
+import { STAGE_LABELS, STAGE_OWNER, STAGE_SOURCE, type BoardCard, type Stage } from '../types.js';
 
 // ============================================================
 // カンバンの 1 列
 // ============================================================
+
+/** 列見出しに出す印。次に動くのが誰かを示す */
+const OWNER_MARK: Record<'human' | 'ai' | 'none', { icon: string; title: string } | null> = {
+  human: { icon: '★', title: 'あなたの判断を待っています' },
+  ai: { icon: '🤖', title: 'AI が進めます。手では動かせません' },
+  none: null,
+};
 
 const SOURCE_COLORS: Record<string, string> = {
   card: 'var(--src-card)',
@@ -39,6 +46,8 @@ export function Column({
 }: ColumnProps) {
   const [dragOver, setDragOver] = useState(false);
 
+  const mark = OWNER_MARK[STAGE_OWNER[stage]];
+
   const accepts = dragging !== null && dragging.droppableStages.includes(stage);
   const rejects = dragging !== null && !accepts && dragging.stage !== stage;
 
@@ -69,9 +78,9 @@ export function Column({
       >
         <span className="name">
           {STAGE_LABELS[stage]}
-          {!isHumanStage(stage) && (
-            <span className="lock" title="AI の成果物から自動で決まる列です。手では動かせません">
-              🔒
+          {mark !== null && (
+            <span className="owner" title={mark.title}>
+              {mark.icon}
             </span>
           )}
         </span>

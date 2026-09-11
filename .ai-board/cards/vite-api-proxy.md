@@ -2,12 +2,11 @@
 id: vite-api-proxy
 title: dev サーバの /api プロキシが api.ts を横取りする
 created: '2026-09-10T23:28:21.734Z'
-explored: false
-implStartedAt: null
+startedAt: null
+skipGates: []
 change: null
 branch: fix-vite-api-proxy
 mr: 3
-stageOverride: null
 ---
 
 ## アイデア

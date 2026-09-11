@@ -1,4 +1,4 @@
-import type { Board, BoardCard, Stage } from './types.js';
+import type { Board, BoardCard, ReviewGate, ReviewKind } from './types.js';
 
 // ============================================================
 // API クライアント
@@ -32,12 +32,11 @@ export function createCard(input: {
 
 export interface CardMetaPatch {
   title?: string;
-  explored?: boolean;
-  implStartedAt?: string | null;
+  startedAt?: string | null;
+  skipGates?: ReviewGate[];
   change?: string | null;
   branch?: string | null;
   mr?: number | null;
-  stageOverride?: Stage | null;
 }
 
 export function updateCardMeta(id: string, patch: CardMetaPatch): Promise<BoardCard> {
@@ -51,5 +50,19 @@ export function updateCardBody(id: string, body: string): Promise<BoardCard> {
   return request<BoardCard>(`/api/cards/${encodeURIComponent(id)}/body`, {
     method: 'PUT',
     body: JSON.stringify({ body }),
+  });
+}
+
+/**
+ * 人の判断をカード本文の `## レビュー` へ追記する。
+ * ステージは送らない。追記の結果としてサーバが導出し直す。
+ */
+export function appendReview(
+  id: string,
+  input: { gate: ReviewGate; kind: ReviewKind; reason?: string }
+): Promise<BoardCard> {
+  return request<BoardCard>(`/api/cards/${encodeURIComponent(id)}/reviews`, {
+    method: 'POST',
+    body: JSON.stringify(input),
   });
 }

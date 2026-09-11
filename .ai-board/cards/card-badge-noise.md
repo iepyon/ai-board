@@ -2,12 +2,11 @@
 id: card-badge-noise
 title: カードのバッジを整理し本文プレビューを出す
 created: '2026-09-04T06:48:23.417Z'
-explored: false
-implStartedAt: null
+startedAt: null
+skipGates: []
 change: null
 branch: null
 mr: null
-stageOverride: null
 ---
 
 ## アイデア

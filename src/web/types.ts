@@ -2,7 +2,23 @@
 // API レスポンスの型（サーバの BoardCard と対応）
 // ============================================================
 
-export type Stage = 'idea' | 'explored' | 'proposed' | 'impling' | 'ai-pr' | 'ai-pr-fixed' | 'done';
+export type Stage =
+  | 'idea'
+  | 'exploring'
+  | 'explore-review'
+  | 'planning'
+  | 'plan-review'
+  | 'impling'
+  | 'verifying'
+  | 'pr'
+  | 'merged';
+
+/** 人が判断するゲートのうち、レビューログに現れるもの */
+export type ReviewGate = 'explore' | 'plan';
+
+export type ReviewKind = '提出' | '再提出' | '承認' | '否決' | '中止';
+
+export type GateState = 'none' | 'submitted' | 'approved' | 'rejected';
 
 export interface Artifacts {
   proposal: boolean;
@@ -27,6 +43,8 @@ export interface BoardCardMr {
   noteCount: number;
   latestNoteAt: string | null;
   latestCommitAt: string | null;
+  /** レビュー指摘のあとに修正コミットが push されたか＝再レビュー待ち */
+  resubmitted: boolean;
 }
 
 export interface BoardCard {
@@ -34,17 +52,16 @@ export interface BoardCard {
   title: string;
   created: string;
   stage: Stage;
-  derivedStage: Stage;
-  overridden: boolean;
-  diverged: boolean;
   reason: string;
-  stageOverride: Stage | null;
-  /** カードのフラグを外したときに残るステージ＝AI の成果物が課す下限 */
+  /** 最新のレビューエントリが 中止 か */
+  aborted: boolean;
+  gates: Record<ReviewGate, GateState>;
+  /** 着手を取り消しても残るステージ＝AI の成果物とレビュー記録が課す下限 */
   floorStage: Stage;
   /** 人が手でドロップできる列。空なら AI の領分でドラッグ不可 */
   droppableStages: Stage[];
-  explored: boolean;
-  implStartedAt: string | null;
+  startedAt: string | null;
+  skipGates: ReviewGate[];
   change: string | null;
   branch: string | null;
   mr: number | null;
@@ -65,10 +82,10 @@ export interface Board {
 }
 
 /**
- * 人が直接動かせるステージ。残りは openspec と GitLab の実態から
- * 導出されるため、AI の領分としてドロップ先にならない。
+ * 人が直接ドラッグで動かせるステージ。
+ * 残りは AI の成果物か、レビューボタンの追記で決まる。
  */
-export const HUMAN_STAGES: Stage[] = ['idea', 'explored', 'impling'];
+export const HUMAN_STAGES: Stage[] = ['idea', 'exploring'];
 
 export function isHumanStage(stage: Stage): boolean {
   return HUMAN_STAGES.includes(stage);
@@ -77,21 +94,44 @@ export function isHumanStage(stage: Stage): boolean {
 /** 列見出しに出す日本語ラベル */
 export const STAGE_LABELS: Record<Stage, string> = {
   idea: 'アイデア',
-  explored: '探索済み',
-  proposed: '提案済み',
+  exploring: '探索中',
+  'explore-review': '探索レビュー',
+  planning: '計画提案中',
+  'plan-review': '計画レビュー',
   impling: '実装中',
-  'ai-pr': 'AI-PR',
-  'ai-pr-fixed': 'AI-PR 修正済み',
-  done: '完了',
+  verifying: '検証中',
+  pr: 'PR中',
+  merged: 'マージ済み',
+};
+
+/** その列で次に動くのは誰か。見出しのアイコンに使う */
+export const STAGE_OWNER: Record<Stage, 'human' | 'ai' | 'none'> = {
+  idea: 'human',
+  exploring: 'ai',
+  'explore-review': 'human',
+  planning: 'ai',
+  'plan-review': 'human',
+  impling: 'ai',
+  verifying: 'ai',
+  pr: 'human',
+  merged: 'none',
 };
 
 /** 列の帯色 = そのステージを立てる情報源 */
 export const STAGE_SOURCE: Record<Stage, 'card' | 'openspec' | 'gitlab' | 'archive'> = {
   idea: 'card',
-  explored: 'card',
-  proposed: 'openspec',
-  impling: 'card',
-  'ai-pr': 'gitlab',
-  'ai-pr-fixed': 'gitlab',
-  done: 'archive',
+  exploring: 'card',
+  'explore-review': 'card',
+  planning: 'card',
+  'plan-review': 'openspec',
+  impling: 'openspec',
+  verifying: 'openspec',
+  pr: 'gitlab',
+  merged: 'archive',
+};
+
+/** その列が人の判断を待っているゲート。待ちの列でなければ undefined */
+export const GATE_OF_STAGE: Partial<Record<Stage, ReviewGate>> = {
+  'explore-review': 'explore',
+  'plan-review': 'plan',
 };

@@ -2,12 +2,11 @@
 id: gitlab-mr-loop
 title: ai-board 自身の開発を GitLab の MR で回す
 created: '2026-09-04T07:32:00.000Z'
-explored: false
-implStartedAt: null
+startedAt: null
+skipGates: []
 change: null
 branch: null
 mr: null
-stageOverride: null
 ---
 
 ## アイデア
@@ -27,3 +26,7 @@ stageOverride: null
   - GitLab を常時起動しない場合の扱い。落ちている間 AI-PR 列は空になり、接続状態は error を表示する
   - AI エージェントが MR を作る手順（glab CLI / API 直叩き / 手動）
 - 依存: `gitlab-docker` の疎通が先。compose と PAT 発行はそちらの成果物を再利用する
+
+## レビュー
+
+### 2026-09-11T01:32:52.165Z explore 承認

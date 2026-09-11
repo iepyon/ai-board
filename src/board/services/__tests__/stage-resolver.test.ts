@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   HUMAN_STAGES,
   droppableStages,
+  hasFixAfterReview,
   resolveFloorStage,
   resolveStage,
 } from '../stage-resolver.js';
@@ -19,12 +20,11 @@ function makeCard(overrides: Partial<Card> = {}): Card {
     id: 'refresh-token' as CardId,
     title: 'リフレッシュトークン対応',
     created: '2026-09-01T00:00:00.000Z',
-    explored: false,
-    implStartedAt: null,
+    startedAt: null,
+    skipGates: [],
     change: 'refresh-token' as ChangeName,
     branch: null,
     mr: null,
-    stageOverride: null,
     body: '',
     ...overrides,
   };
@@ -47,7 +47,7 @@ function makeMr(overrides: Partial<MrState> = {}): MrState {
     state: 'opened',
     sourceBranch: 'feat/refresh-token',
     title: 'リフレッシュトークン対応',
-    webUrl: 'http://localhost:8080/g/p/-/merge_requests/42',
+    webUrl: 'http://localhost:8929/g/p/-/merge_requests/42',
     latestNoteAt: null,
     noteCount: 0,
     latestCommitAt: null,
@@ -55,8 +55,53 @@ function makeMr(overrides: Partial<MrState> = {}): MrState {
   };
 }
 
+/** 探索メモとレビューログを持つ本文を組み立てる */
+function makeBody(options: {
+  exploreNote?: boolean;
+  entries?: ReadonlyArray<{ at: string; gate: 'explore' | 'plan'; kind: string }>;
+}): string {
+  const parts: string[] = ['## アイデア', '', 'なにかする。', ''];
+
+  if (options.exploreNote === true) {
+    parts.push('## 探索メモ', '', '- 調べた', '');
+  }
+
+  const entries = options.entries ?? [];
+  if (entries.length > 0) {
+    parts.push('## レビュー', '');
+    for (const entry of entries) {
+      parts.push(`### ${entry.at} ${entry.gate} ${entry.kind}`, '');
+    }
+  }
+
+  return parts.join('\n');
+}
+
+const T1 = '2026-09-05T00:00:00.000Z';
+const T2 = '2026-09-06T00:00:00.000Z';
+const T3 = '2026-09-07T00:00:00.000Z';
+
+const PROPOSAL_ONLY = { proposal: true, specs: false, design: false, tasks: false };
+const PROPOSAL_AND_TASKS = { proposal: true, specs: false, design: false, tasks: true };
+
+/** explore を承認済みにした本文 */
+function exploreApproved(): string {
+  return makeBody({ exploreNote: true, entries: [{ at: T2, gate: 'explore', kind: '承認' }] });
+}
+
+/** explore と plan の両方を承認済みにした本文 */
+function planApproved(): string {
+  return makeBody({
+    exploreNote: true,
+    entries: [
+      { at: T2, gate: 'explore', kind: '承認' },
+      { at: T3, gate: 'plan', kind: '承認' },
+    ],
+  });
+}
+
 // ============================================================
-// 7 ステージの導出
+// 9 ステージの導出
 // ============================================================
 
 describe('resolveStage — 自動導出', () => {
@@ -68,326 +113,320 @@ describe('resolveStage — 自動導出', () => {
     expected: Stage;
   }> = [
     {
-      name: '何の実態も無ければ idea',
+      name: '何も無ければ idea',
       card: makeCard(),
       openspec: null,
       mr: null,
       expected: 'idea',
     },
     {
-      name: 'explored フラグが立てば explored',
-      card: makeCard({ explored: true }),
+      name: 'startedAt が打たれていれば exploring',
+      card: makeCard({ startedAt: T1 }),
       openspec: null,
       mr: null,
-      expected: 'explored',
+      expected: 'exploring',
     },
     {
-      name: 'proposal.md があれば proposed',
-      card: makeCard({ explored: true }),
-      openspec: makeOpenSpec({
-        artifacts: { proposal: true, specs: false, design: false, tasks: false },
-      }),
+      name: '探索メモがあれば explore-review',
+      card: makeCard({ startedAt: T1, body: makeBody({ exploreNote: true }) }),
+      openspec: null,
       mr: null,
-      expected: 'proposed',
+      expected: 'explore-review',
     },
     {
-      name: 'implStartedAt が打刻されていれば impling',
-      card: makeCard({ implStartedAt: '2026-09-04T10:12:00.000Z' }),
+      name: '探索メモがあり explore 提出が記録されていても explore-review',
+      card: makeCard({
+        startedAt: T1,
+        body: makeBody({
+          exploreNote: true,
+          entries: [{ at: T2, gate: 'explore', kind: '提出' }],
+        }),
+      }),
+      openspec: null,
+      mr: null,
+      expected: 'explore-review',
+    },
+    {
+      name: 'explore が否決されたら exploring へ戻る',
+      card: makeCard({
+        startedAt: T1,
+        body: makeBody({
+          exploreNote: true,
+          entries: [
+            { at: T2, gate: 'explore', kind: '提出' },
+            { at: T3, gate: 'explore', kind: '否決' },
+          ],
+        }),
+      }),
+      openspec: null,
+      mr: null,
+      expected: 'exploring',
+    },
+    {
+      name: 'explore が承認されたら planning',
+      card: makeCard({ startedAt: T1, body: exploreApproved() }),
+      openspec: null,
+      mr: null,
+      expected: 'planning',
+    },
+    {
+      name: 'skipGates に explore があれば探索メモが無くても planning',
+      card: makeCard({ startedAt: T1, skipGates: ['explore'] }),
+      openspec: null,
+      mr: null,
+      expected: 'planning',
+    },
+    {
+      name: 'proposal.md があれば plan-review',
+      card: makeCard({ startedAt: T1, body: exploreApproved() }),
+      openspec: makeOpenSpec({ artifacts: PROPOSAL_ONLY }),
+      mr: null,
+      expected: 'plan-review',
+    },
+    {
+      name: 'proposal.md があり plan のログが無くても plan-review に着地する',
+      card: makeCard({ startedAt: T1, skipGates: ['explore'] }),
+      openspec: makeOpenSpec({ artifacts: PROPOSAL_ONLY }),
+      mr: null,
+      expected: 'plan-review',
+    },
+    {
+      name: 'plan が否決されたら planning へ戻る',
+      card: makeCard({
+        startedAt: T1,
+        body: makeBody({
+          exploreNote: true,
+          entries: [
+            { at: T2, gate: 'explore', kind: '承認' },
+            { at: T3, gate: 'plan', kind: '否決' },
+          ],
+        }),
+      }),
+      openspec: makeOpenSpec({ artifacts: PROPOSAL_ONLY }),
+      mr: null,
+      expected: 'planning',
+    },
+    {
+      name: 'plan が承認され tasks に未完があれば impling',
+      card: makeCard({ startedAt: T1, body: planApproved() }),
       openspec: makeOpenSpec({
-        artifacts: { proposal: true, specs: true, design: false, tasks: true },
+        artifacts: PROPOSAL_AND_TASKS,
+        tasks: { completed: 3, total: 10 },
       }),
       mr: null,
       expected: 'impling',
     },
     {
-      name: 'MR がオープンなら ai-pr',
-      card: makeCard({ implStartedAt: '2026-09-04T10:12:00.000Z' }),
+      name: 'plan が承認され tasks が全完了なら verifying',
+      card: makeCard({ startedAt: T1, body: planApproved() }),
       openspec: makeOpenSpec({
-        artifacts: { proposal: true, specs: true, design: false, tasks: true },
+        artifacts: PROPOSAL_AND_TASKS,
+        tasks: { completed: 10, total: 10 },
       }),
-      mr: makeMr(),
-      expected: 'ai-pr',
-    },
-    {
-      name: 'レビュー後に修正コミットがあれば ai-pr-fixed',
-      card: makeCard(),
-      openspec: null,
-      mr: makeMr({
-        latestNoteAt: '2026-09-04T10:00:00.000Z',
-        noteCount: 2,
-        latestCommitAt: '2026-09-04T10:30:00.000Z',
-      }),
-      expected: 'ai-pr-fixed',
-    },
-    {
-      name: 'archive にあれば done',
-      card: makeCard(),
-      openspec: makeOpenSpec({ archived: true, archivedAs: '2026-09-01-refresh-token' }),
       mr: null,
-      expected: 'done',
+      expected: 'verifying',
     },
     {
-      name: 'MR がマージ済みなら done',
-      card: makeCard(),
-      openspec: makeOpenSpec({
-        artifacts: { proposal: true, specs: false, design: false, tasks: false },
-      }),
+      name: 'tasks が 0 件なら全完了扱いにせず impling',
+      card: makeCard({ startedAt: T1, skipGates: ['explore', 'plan'] }),
+      openspec: makeOpenSpec({ tasks: { completed: 0, total: 0 } }),
+      mr: null,
+      expected: 'impling',
+    },
+    {
+      name: 'MR が opened なら pr',
+      card: makeCard({ startedAt: T1 }),
+      openspec: null,
+      mr: makeMr({ state: 'opened' }),
+      expected: 'pr',
+    },
+    {
+      name: 'MR が merged なら merged',
+      card: makeCard({ startedAt: T1 }),
+      openspec: null,
       mr: makeMr({ state: 'merged' }),
-      expected: 'done',
-    },
-  ];
-
-  it.each(cases)('$name', ({ card, openspec, mr, expected }) => {
-    expect(resolveStage(card, openspec, mr).stage).toBe(expected);
-  });
-
-  it('最も進んだステージが勝つ（archive は MR オープンより優先）', () => {
-    const result = resolveStage(
-      makeCard({ explored: true, implStartedAt: '2026-09-04T10:00:00.000Z' }),
-      makeOpenSpec({ archived: true, archivedAs: '2026-09-01-refresh-token' }),
-      makeMr()
-    );
-
-    expect(result.stage).toBe('done');
-  });
-});
-
-// ============================================================
-// ai-pr-fixed の境界条件
-// ============================================================
-
-describe('resolveStage — ai-pr-fixed の判定', () => {
-  it('レビューコメントが 1 件も無ければ ai-pr-fixed にはならない', () => {
-    const result = resolveStage(
-      makeCard(),
-      null,
-      makeMr({ latestNoteAt: null, noteCount: 0, latestCommitAt: '2026-09-04T10:30:00.000Z' })
-    );
-
-    expect(result.stage).toBe('ai-pr');
-  });
-
-  it('コミットがレビューコメントより古ければ ai-pr のまま', () => {
-    const result = resolveStage(
-      makeCard(),
-      null,
-      makeMr({
-        latestNoteAt: '2026-09-04T11:00:00.000Z',
-        noteCount: 1,
-        latestCommitAt: '2026-09-04T10:30:00.000Z',
-      })
-    );
-
-    expect(result.stage).toBe('ai-pr');
-  });
-
-  it('新しいコメントが来ると ai-pr-fixed から ai-pr へ戻る', () => {
-    const fixed = makeMr({
-      latestNoteAt: '2026-09-04T10:00:00.000Z',
-      noteCount: 1,
-      latestCommitAt: '2026-09-04T10:30:00.000Z',
-    });
-    expect(resolveStage(makeCard(), null, fixed).stage).toBe('ai-pr-fixed');
-
-    const reReviewed = { ...fixed, latestNoteAt: '2026-09-04T11:00:00.000Z', noteCount: 2 };
-    expect(resolveStage(makeCard(), null, reReviewed).stage).toBe('ai-pr');
-  });
-
-  it('同時刻なら修正とみなさない（厳密に後のコミットのみ）', () => {
-    const result = resolveStage(
-      makeCard(),
-      null,
-      makeMr({
-        latestNoteAt: '2026-09-04T10:00:00.000Z',
-        noteCount: 1,
-        latestCommitAt: '2026-09-04T10:00:00.000Z',
-      })
-    );
-
-    expect(result.stage).toBe('ai-pr');
-  });
-
-  it('日時が壊れていても例外にせず ai-pr のまま扱う', () => {
-    const result = resolveStage(
-      makeCard(),
-      null,
-      makeMr({ latestNoteAt: 'not-a-date', noteCount: 1, latestCommitAt: 'also-broken' })
-    );
-
-    expect(result.stage).toBe('ai-pr');
-  });
-
-  it('クローズされた MR は ai-pr にも done にもならず後段の実態に従う', () => {
-    const result = resolveStage(
-      makeCard({ implStartedAt: '2026-09-04T10:00:00.000Z' }),
-      null,
-      makeMr({ state: 'closed' })
-    );
-
-    expect(result.stage).toBe('impling');
-  });
-});
-
-// ============================================================
-// 手動上書きと乖離
-// ============================================================
-
-describe('resolveStage — 手動上書き', () => {
-  it('上書きがあれば自動導出より優先される', () => {
-    const result = resolveStage(makeCard({ stageOverride: 'done' }), null, null);
-
-    expect(result.stage).toBe('done');
-    expect(result.derived).toBe('idea');
-    expect(result.overridden).toBe(true);
-  });
-
-  it('上書きが自動導出と食い違えば diverged が立つ', () => {
-    const result = resolveStage(
-      makeCard({ stageOverride: 'done' }),
-      makeOpenSpec({
-        artifacts: { proposal: true, specs: false, design: false, tasks: false },
-      }),
-      null
-    );
-
-    expect(result.diverged).toBe(true);
-    expect(result.derived).toBe('proposed');
-  });
-
-  it('上書きと自動導出が一致すれば diverged は立たない', () => {
-    const result = resolveStage(
-      makeCard({ stageOverride: 'proposed' }),
-      makeOpenSpec({
-        artifacts: { proposal: true, specs: false, design: false, tasks: false },
-      }),
-      null
-    );
-
-    expect(result.overridden).toBe(true);
-    expect(result.diverged).toBe(false);
-  });
-
-  it('上書きが無ければ overridden も diverged も false', () => {
-    const result = resolveStage(makeCard(), null, null);
-
-    expect(result.overridden).toBe(false);
-    expect(result.diverged).toBe(false);
-  });
-
-  it('reason は上書きの有無にかかわらず自動導出の理由を返す', () => {
-    const result = resolveStage(
-      makeCard({ stageOverride: 'idea' }),
-      makeOpenSpec({ archived: true, archivedAs: '2026-09-01-refresh-token' }),
-      null
-    );
-
-    expect(result.reason).toContain('2026-09-01-refresh-token');
-  });
-});
-
-// ============================================================
-// tasks 進捗はステージ判定に使わない
-// ============================================================
-
-describe('resolveStage — tasks 進捗はステージに影響しない', () => {
-  it('tasks が全完了でも proposed のまま（impling へは進めない）', () => {
-    const result = resolveStage(
-      makeCard(),
-      makeOpenSpec({
-        artifacts: { proposal: true, specs: true, design: true, tasks: true },
-        tasks: { completed: 8, total: 8 },
-      }),
-      null
-    );
-
-    expect(result.stage).toBe('proposed');
-  });
-});
-
-// ============================================================
-// floorStage — AI の成果物が課す下限
-// ============================================================
-
-describe('resolveFloorStage', () => {
-  const cases: ReadonlyArray<{
-    name: string;
-    openspec: OpenSpecChangeState | null;
-    mr: MrState | null;
-    expected: Stage;
-  }> = [
-    { name: 'AI の成果物が何も無ければ idea', openspec: null, mr: null, expected: 'idea' },
-    {
-      name: 'proposal.md があれば proposed',
-      openspec: makeOpenSpec({
-        artifacts: { proposal: true, specs: false, design: false, tasks: false },
-      }),
-      mr: null,
-      expected: 'proposed',
-    },
-    { name: 'MR がオープンなら ai-pr', openspec: null, mr: makeMr(), expected: 'ai-pr' },
-    {
-      name: 'レビュー後の修正があれば ai-pr-fixed',
-      openspec: null,
-      mr: makeMr({
-        latestNoteAt: '2026-09-04T10:00:00.000Z',
-        noteCount: 1,
-        latestCommitAt: '2026-09-04T10:30:00.000Z',
-      }),
-      expected: 'ai-pr-fixed',
+      expected: 'merged',
     },
     {
-      name: 'archive にあれば done',
+      name: 'archive にあれば merged',
+      card: makeCard({ startedAt: T1 }),
       openspec: makeOpenSpec({ archived: true, archivedAs: '2026-09-01-refresh-token' }),
       mr: null,
-      expected: 'done',
+      expected: 'merged',
     },
   ];
 
-  it.each(cases)('$name', ({ openspec, mr, expected }) => {
-    expect(resolveFloorStage(makeCard(), openspec, mr)).toBe(expected);
+  for (const testCase of cases) {
+    it(testCase.name, () => {
+      expect(resolveStage(testCase.card, testCase.openspec, testCase.mr).stage).toBe(
+        testCase.expected
+      );
+    });
+  }
+
+  it('複数の条件が成り立つときは最も進んだステージを採る', () => {
+    const card = makeCard({ startedAt: T1, body: planApproved() });
+
+    expect(resolveStage(card, makeOpenSpec({ artifacts: PROPOSAL_ONLY }), makeMr()).stage).toBe(
+      'pr'
+    );
   });
 
-  it('カード側のフラグは下限に影響しない', () => {
-    const flagged = makeCard({ explored: true, implStartedAt: '2026-09-04T10:00:00.000Z' });
+  it('同じ実態からは同じステージが出る', () => {
+    const card = makeCard({ startedAt: T1, body: exploreApproved() });
+    const openspec = makeOpenSpec({ artifacts: PROPOSAL_ONLY });
 
-    expect(resolveFloorStage(flagged, null, null)).toBe('idea');
-  });
-
-  it('手動上書きは下限に影響しない', () => {
-    expect(resolveFloorStage(makeCard({ stageOverride: 'done' }), null, null)).toBe('idea');
+    expect(resolveStage(card, openspec, null)).toEqual(resolveStage(card, openspec, null));
   });
 });
 
 // ============================================================
-// droppableStages — 手で入れられる列
+// 中止 と ゲートの状態
 // ============================================================
 
-describe('droppableStages', () => {
-  const cases: ReadonlyArray<{ floor: Stage; expected: Stage[] }> = [
-    { floor: 'idea', expected: ['idea', 'explored', 'impling'] },
-    // AI が提案を書いたら、人は着手を指示できるがアイデアには戻せない
-    { floor: 'proposed', expected: ['impling'] },
-    // MR ができたら AI の領分
-    { floor: 'ai-pr', expected: [] },
-    { floor: 'ai-pr-fixed', expected: [] },
-    { floor: 'done', expected: [] },
-  ];
+describe('resolveStage — 中止', () => {
+  it('最新のエントリが 中止 なら aborted', () => {
+    const card = makeCard({
+      startedAt: T1,
+      body: makeBody({
+        exploreNote: true,
+        entries: [
+          { at: T2, gate: 'explore', kind: '承認' },
+          { at: T3, gate: 'plan', kind: '中止' },
+        ],
+      }),
+    });
 
-  it.each(cases)('下限が $floor なら $expected へ落とせる', ({ floor, expected }) => {
-    expect(droppableStages(floor)).toEqual(expected);
+    expect(resolveStage(card, null, null).aborted).toBe(true);
   });
 
-  it('AI が決める列は決してドロップ先にならない', () => {
-    const aiStages: Stage[] = ['proposed', 'ai-pr', 'ai-pr-fixed', 'done'];
+  it('中止のあとに再提出があれば aborted ではない', () => {
+    const card = makeCard({
+      startedAt: T1,
+      body: makeBody({
+        exploreNote: true,
+        entries: [
+          { at: T2, gate: 'explore', kind: '中止' },
+          { at: T3, gate: 'explore', kind: '再提出' },
+        ],
+      }),
+    });
 
-    for (const floor of ['idea', 'proposed', 'ai-pr', 'done'] as Stage[]) {
-      for (const target of droppableStages(floor)) {
-        expect(aiStages).not.toContain(target);
-      }
-    }
+    expect(resolveStage(card, null, null).aborted).toBe(false);
   });
 
-  it('人の列は explored フラグと implStartedAt で表せるものだけ', () => {
-    expect(HUMAN_STAGES).toEqual(['idea', 'explored', 'impling']);
+  it('中止してもステージは巻き戻らない', () => {
+    const card = makeCard({
+      startedAt: T1,
+      body: makeBody({
+        exploreNote: true,
+        entries: [
+          { at: T2, gate: 'explore', kind: '承認' },
+          { at: T3, gate: 'explore', kind: '中止' },
+        ],
+      }),
+    });
+
+    const resolution = resolveStage(card, null, null);
+
+    expect(resolution.stage).toBe('planning');
+    expect(resolution.aborted).toBe(true);
+  });
+
+  it('中止でなければ aborted は false', () => {
+    expect(resolveStage(makeCard(), null, null).aborted).toBe(false);
+  });
+});
+
+describe('resolveStage — ゲートの状態', () => {
+  it('gates に explore / plan の状態を載せる', () => {
+    const card = makeCard({
+      startedAt: T1,
+      skipGates: ['plan'],
+      body: makeBody({
+        exploreNote: true,
+        entries: [{ at: T2, gate: 'explore', kind: '否決' }],
+      }),
+    });
+
+    expect(resolveStage(card, null, null).gates).toEqual({
+      explore: 'rejected',
+      plan: 'approved',
+    });
+  });
+
+  it('スキップを両方宣言したカードはレビュー列に留まらない', () => {
+    const card = makeCard({
+      startedAt: T1,
+      skipGates: ['explore', 'plan'],
+      body: makeBody({ exploreNote: true }),
+    });
+
+    const stage = resolveStage(card, makeOpenSpec({ artifacts: PROPOSAL_ONLY }), null).stage;
+
+    expect(stage).not.toBe('explore-review');
+    expect(stage).not.toBe('plan-review');
+  });
+});
+
+// ============================================================
+// 人が動かせる範囲
+// ============================================================
+
+describe('resolveFloorStage / droppableStages', () => {
+  it('人の列は idea と exploring の 2 つだけ', () => {
+    expect(HUMAN_STAGES).toEqual(['idea', 'exploring']);
+  });
+
+  it('何も成果物が無いカードは idea と exploring の間を動かせる', () => {
+    const card = makeCard({ startedAt: T1 });
+    const floor = resolveFloorStage(card, null, null);
+
+    expect(floor).toBe('idea');
+    expect(droppableStages(floor)).toEqual(['idea', 'exploring']);
+  });
+
+  it('探索メモが書かれたら手では動かせない', () => {
+    const card = makeCard({ startedAt: T1, body: makeBody({ exploreNote: true }) });
+    const floor = resolveFloorStage(card, null, null);
+
+    expect(floor).toBe('explore-review');
+    expect(droppableStages(floor)).toEqual([]);
+  });
+
+  it('MR があれば手では動かせない', () => {
+    const card = makeCard({ startedAt: T1 });
+    const floor = resolveFloorStage(card, null, makeMr({ state: 'opened' }));
+
+    expect(floor).toBe('pr');
+    expect(droppableStages(floor)).toEqual([]);
+  });
+});
+
+// ============================================================
+// レビュー後の修正
+// ============================================================
+
+describe('hasFixAfterReview', () => {
+  it('レビューコメントより後にコミットがあれば true', () => {
+    expect(hasFixAfterReview(makeMr({ latestNoteAt: T1, latestCommitAt: T2 }))).toBe(true);
+  });
+
+  it('コメントのほうが新しければ false', () => {
+    expect(hasFixAfterReview(makeMr({ latestNoteAt: T2, latestCommitAt: T1 }))).toBe(false);
+  });
+
+  it('コメントが 1 件も無ければ false', () => {
+    expect(hasFixAfterReview(makeMr({ latestNoteAt: null, latestCommitAt: T2 }))).toBe(false);
+  });
+
+  it('再レビュー待ちでもステージは pr のまま', () => {
+    const card = makeCard({ startedAt: T1 });
+    const mr = makeMr({ state: 'opened', latestNoteAt: T1, latestCommitAt: T2, noteCount: 1 });
+
+    const resolution = resolveStage(card, null, mr);
+
+    expect(resolution.stage).toBe('pr');
+    expect(resolution.reason).toContain('再レビュー待ち');
   });
 });

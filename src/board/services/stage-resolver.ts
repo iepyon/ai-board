@@ -1,5 +1,12 @@
 import { stageRank, type Stage } from '../../shared/schemas/common.js';
 import type { Card } from '../../cards/models/card.js';
+import type { GateState, ReviewGate } from '../../cards/models/review.js';
+import {
+  gateState,
+  hasExploreNote,
+  isAborted,
+  parseReviewLog,
+} from '../../cards/services/review-log.js';
 import type { OpenSpecChangeState } from '../models/openspec-state.js';
 import type { MrState } from '../models/mr-state.js';
 
@@ -8,76 +15,70 @@ import type { MrState } from '../models/mr-state.js';
 // ============================================================
 
 /**
- * 人が直接動かせるステージ。
+ * 人が直接ドラッグで動かせるステージ。
  *
- * いずれもカードファイルのフラグ（`explored` / `implStartedAt`）で決まる。
- * 残りの proposed / ai-pr / ai-pr-fixed / done は openspec と GitLab の
- * 実態から導出されるため、人が手で置いても実態は変わらない＝AI の領分。
+ * `startedAt` の打刻と取り消しに対応する 1 遷移だけ。
+ * 残りは AI の成果物（openspec / GitLab）か、本文のレビューログが立てる。
+ * レビューログへの書き込みはドラッグではなくボタンで行う。
  */
-export const HUMAN_STAGES = ['idea', 'explored', 'impling'] as const satisfies readonly Stage[];
+export const HUMAN_STAGES = ['idea', 'exploring'] as const satisfies readonly Stage[];
 
 export interface StageResolution {
-  /** 実際に表示する列。手動上書きがあればそれ、無ければ derived */
+  /** 表示する列 */
   readonly stage: Stage;
-  /** 実態から自動導出したステージ */
-  readonly derived: Stage;
-  /** stageOverride が設定されているか */
-  readonly overridden: boolean;
-  /** 手動上書きと自動導出が食い違っているか（UI で警告バッジを出す） */
-  readonly diverged: boolean;
-  /** derived がその値になった理由。UI のツールチップに出す */
+  /** そのステージになった理由。UI のツールチップに出す */
   readonly reason: string;
+  /** 最新のレビューエントリが 中止 か。UI は既定でこのカードを畳む */
+  readonly aborted: boolean;
+  /** 各ゲートの通過状況。UI のボタン表示に使う */
+  readonly gates: Readonly<Record<ReviewGate, GateState>>;
 }
 
 /**
  * カードのステージを決める純関数。副作用なし。
  *
- * 自動導出は下記を上から評価し、最初に真になったものを採用する
- * （＝最も進んだステージ）。`card.stageOverride` があればそれを最優先。
+ * 下記を上から評価し、最初に真になったものを採用する（＝最も進んだステージ）。
+ * `stage` はどこにも保存しない。ここが唯一の決定点である。
  *
- * | # | stage       | 条件                                                        |
- * |---|-------------|-------------------------------------------------------------|
- * | 1 | done        | archive に存在、または MR が merged                          |
- * | 2 | ai-pr-fixed | MR opened かつ 最新コミット > 最新レビューコメント            |
- * | 3 | ai-pr       | MR が存在し opened                                           |
- * | 4 | impling     | implStartedAt が非 null                                      |
- * | 5 | proposed    | openspec の proposal.md が存在                               |
- * | 6 | explored    | explored フラグが true                                       |
- * | 7 | idea        | 既定                                                         |
+ * | # | stage          | 条件                                                    |
+ * |---|----------------|---------------------------------------------------------|
+ * | 1 | merged         | archive に存在、または MR が merged                      |
+ * | 2 | pr             | MR が opened                                             |
+ * | 3 | verifying      | plan 承認済み かつ tasks が total > 0 で全完了            |
+ * | 4 | impling        | plan 承認済み                                            |
+ * | 5 | plan-review    | proposal.md が存在し plan ゲートが none / submitted       |
+ * | 6 | planning       | explore 承認済み                                         |
+ * | 7 | explore-review | 本文に `## 探索メモ` があり explore が none / submitted   |
+ * | 8 | exploring      | startedAt が非 null                                      |
+ * | 9 | idea           | 既定                                                     |
+ *
+ * 否決の差し戻しは専用ルールを持たない。`gate = rejected` のとき
+ * その工程のレビュー行と承認行が両方外れ、1 つ手前の AI 列へ自然に落ちる。
  */
 export function resolveStage(
   card: Card,
   openspec: OpenSpecChangeState | null,
   mr: MrState | null
 ): StageResolution {
-  const { stage: derived, reason } = deriveStage(card, openspec, mr);
+  const facts = toFacts(card, openspec, mr);
+  const { stage, reason } = deriveStage(facts);
 
-  if (card.stageOverride === null) {
-    return { stage: derived, derived, overridden: false, diverged: false, reason };
-  }
-
-  return {
-    stage: card.stageOverride,
-    derived,
-    overridden: true,
-    diverged: card.stageOverride !== derived,
-    reason,
-  };
+  return { stage, reason, aborted: facts.aborted, gates: facts.gates };
 }
 
 /**
- * カードのフラグをすべて外したときに残るステージ＝AI の成果物が課す下限。
+ * カードの `startedAt` を外したときに残るステージ＝AI の成果物と
+ * 人のレビュー記録が課す下限。
  *
- * `proposal.md` があれば proposed より前には戻せないし、MR があれば
- * 人はもう動かせない。導出ルールを二重に持たないよう、フラグを落とした
- * カードで同じ `deriveStage` を呼ぶ。
+ * 導出ルールを二重に持たないよう、`startedAt` を落としたカードで
+ * 同じ `deriveStage` を呼ぶ。
  */
 export function resolveFloorStage(
   card: Card,
   openspec: OpenSpecChangeState | null,
   mr: MrState | null
 ): Stage {
-  return deriveStage({ ...card, explored: false, implStartedAt: null }, openspec, mr).stage;
+  return deriveStage(toFacts({ ...card, startedAt: null }, openspec, mr)).stage;
 }
 
 /**
@@ -95,11 +96,30 @@ interface Derivation {
   readonly reason: string;
 }
 
-/** 判定に必要な 3 ソースをまとめたもの */
+/** 判定に必要な事実をまとめたもの */
 interface Facts {
   readonly card: Card;
   readonly openspec: OpenSpecChangeState | null;
   readonly mr: MrState | null;
+  readonly gates: Readonly<Record<ReviewGate, GateState>>;
+  readonly exploreNote: boolean;
+  readonly aborted: boolean;
+}
+
+function toFacts(card: Card, openspec: OpenSpecChangeState | null, mr: MrState | null): Facts {
+  const entries = parseReviewLog(card.body);
+
+  return {
+    card,
+    openspec,
+    mr,
+    gates: {
+      explore: gateState(entries, 'explore', card.skipGates),
+      plan: gateState(entries, 'plan', card.skipGates),
+    },
+    exploreNote: hasExploreNote(card.body),
+    aborted: isAborted(entries),
+  };
 }
 
 /**
@@ -109,70 +129,75 @@ interface Facts {
  * 制御構造ではなく配列の順序で表す。
  */
 const RULES: ReadonlyArray<(facts: Facts) => Derivation | null> = [
-  // 1. done — archive されたか、MR がマージされたか
+  // 1. merged — archive されたか、MR がマージされたか
   ({ openspec }) =>
     openspec?.archived === true
       ? {
-          stage: 'done',
+          stage: 'merged',
           reason: `openspec/changes/archive/${openspec.archivedAs ?? openspec.name} に移動済み`,
         }
       : null,
 
   ({ mr }) =>
-    mr?.state === 'merged' ? { stage: 'done', reason: `MR !${mr.iid} がマージ済み` } : null,
+    mr?.state === 'merged' ? { stage: 'merged', reason: `MR !${mr.iid} がマージ済み` } : null,
 
-  // 2. ai-pr-fixed — レビュー指摘のあとに修正コミットが push された（＝再レビュー待ち）
-  //    GitLab の resolved フラグはレビュアーの操作なので使わない。
-  ({ mr }) =>
-    mr?.state === 'opened' && hasFixAfterReview(mr)
-      ? {
-          stage: 'ai-pr-fixed',
-          reason: `MR !${mr.iid} にレビュー後の修正コミットあり（再レビュー待ち）`,
-        }
-      : null,
-
-  // 3. ai-pr
+  // 2. pr — MR が出ている。レビュー後の修正 push はバッジで示す
   ({ mr }) =>
     mr?.state === 'opened'
       ? {
-          stage: 'ai-pr',
-          reason:
-            mr.noteCount > 0
-              ? `MR !${mr.iid} がオープン（未対応のレビューコメント ${mr.noteCount} 件）`
-              : `MR !${mr.iid} がオープン`,
+          stage: 'pr',
+          reason: hasFixAfterReview(mr)
+            ? `MR !${mr.iid} にレビュー後の修正コミットあり（再レビュー待ち）`
+            : `MR !${mr.iid} がオープン`,
         }
       : null,
 
-  // 4. impling — ファイルからは観測できないため明示マーカーでのみ立つ
-  ({ card }) =>
-    card.implStartedAt !== null
-      ? { stage: 'impling', reason: `${card.implStartedAt} に実装開始が記録されている` }
+  // 3. verifying — タスクを全部倒したが MR はまだ無い＝品質ゲートを回している
+  ({ gates, openspec }) =>
+    gates.plan === 'approved' && openspec !== null && isTasksComplete(openspec)
+      ? {
+          stage: 'verifying',
+          reason: `tasks が ${openspec.tasks.total} 件すべて完了し、MR はまだ無い`,
+        }
       : null,
 
-  // 5. proposed
-  ({ openspec }) =>
-    openspec?.artifacts.proposal === true
-      ? { stage: 'proposed', reason: `openspec/changes/${openspec.name}/proposal.md が存在` }
+  // 4. impling
+  ({ gates }) =>
+    gates.plan === 'approved' ? { stage: 'impling', reason: '計画が承認されている' } : null,
+
+  // 5. plan-review — 成果物があることを正とし、ログの欠落で人待ちを取りこぼさない
+  ({ gates, openspec }) =>
+    openspec?.artifacts.proposal === true && (gates.plan === 'none' || gates.plan === 'submitted')
+      ? {
+          stage: 'plan-review',
+          reason: `openspec/changes/${openspec.name}/proposal.md が人の承認を待っている`,
+        }
       : null,
 
-  // 6. explored
+  // 6. planning
+  ({ gates }) =>
+    gates.explore === 'approved' ? { stage: 'planning', reason: '探索が承認されている' } : null,
+
+  // 7. explore-review
+  ({ exploreNote, gates }) =>
+    exploreNote && (gates.explore === 'none' || gates.explore === 'submitted')
+      ? { stage: 'explore-review', reason: '探索メモが人の承認を待っている' }
+      : null,
+
+  // 8. exploring
   ({ card }) =>
-    card.explored ? { stage: 'explored', reason: 'explored フラグが立っている' } : null,
+    card.startedAt !== null
+      ? { stage: 'exploring', reason: `${card.startedAt} に着手が指示されている` }
+      : null,
 ];
 
-/** 7. idea — どのルールにも当てはまらなかったとき */
+/** 9. idea — どのルールにも当てはまらなかったとき */
 const DEFAULT_DERIVATION: Derivation = {
   stage: 'idea',
-  reason: '実態を示す情報がまだない',
+  reason: 'まだ着手が指示されていない',
 };
 
-function deriveStage(
-  card: Card,
-  openspec: OpenSpecChangeState | null,
-  mr: MrState | null
-): Derivation {
-  const facts: Facts = { card, openspec, mr };
-
+function deriveStage(facts: Facts): Derivation {
   for (const rule of RULES) {
     const derivation = rule(facts);
     if (derivation !== null) {
@@ -184,12 +209,24 @@ function deriveStage(
 }
 
 /**
+ * tasks を全部倒したか。
+ *
+ * `total === 0` を全完了扱いにしない。tasks.md がまだ無いだけの change を
+ * 検証中へ飛ばしてしまうため。
+ */
+function isTasksComplete(openspec: OpenSpecChangeState): boolean {
+  return openspec.tasks.total > 0 && openspec.tasks.completed === openspec.tasks.total;
+}
+
+/**
  * 「AI が指摘を受けて修正を push した」か。
  *
  * レビューコメントが 1 件も無い新規 MR では成立しない。
- * 新しいコメントが来れば日時が逆転し、自然に ai-pr へ戻る。
+ * 新しいコメントが来れば日時が逆転し、自然に false へ戻る。
+ *
+ * かつては `ai-pr-fixed` 列を立てていたが、いまは `pr` 列内のバッジに使う。
  */
-function hasFixAfterReview(mr: MrState): boolean {
+export function hasFixAfterReview(mr: MrState): boolean {
   if (mr.latestNoteAt === null || mr.latestCommitAt === null) {
     return false;
   }
