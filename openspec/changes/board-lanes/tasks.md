@@ -3,9 +3,9 @@
 
 ## 1. レビューログ
 
-- [ ] 1.1 `src/cards/models/review.ts` に `ReviewGate` / `ReviewKind` / `ReviewEntry` / `GateState` を定義し、`npm run typecheck` が通ることを確認する
-- [ ] 1.2 `src/cards/services/review-log.ts` に `parseReviewLog` / `gateState` / `isAborted` / `hasExploreNote` を実装し、`npx vitest run src/cards/services/__tests__/review-log.test.ts` が通ることを確認する（書式の壊れた見出しを無視するケース、他ゲートが混ざらないケース、`skipGates` で通過扱いになるケースを含む）
-- [ ] 1.3 `appendReviewEntry` を実装し、追記した結果を `parseReviewLog` が読み戻せることをテストで確認する（レビュー見出しが無い本文、既存セクションへの追記、後ろに別セクションがある場合の 3 経路）
+- [x] 1.1 `src/cards/models/review.ts` に `ReviewGate` / `ReviewKind` / `ReviewEntry` / `GateState` を定義し、`npm run typecheck` が通ることを確認する
+- [x] 1.2 `src/cards/services/review-log.ts` に `parseReviewLog` / `gateState` / `isAborted` / `hasExploreNote` を実装し、`npx vitest run src/cards/services/__tests__/review-log.test.ts` が通ることを確認する（書式の壊れた見出しを無視するケース、他ゲートが混ざらないケース、`skipGates` で通過扱いになるケースを含む）
+- [x] 1.3 `appendReviewEntry` を実装し、追記した結果を `parseReviewLog` が読み戻せることをテストで確認する（レビュー見出しが無い本文、既存セクションへの追記、後ろに別セクションがある場合の 3 経路）
 
 ## 2. カードスキーマ
 
