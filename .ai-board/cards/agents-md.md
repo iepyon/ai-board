@@ -2,12 +2,11 @@
 id: agents-md
 title: AGENTS.md / CLAUDE.md でリポジトリの規約を明文化する
 created: '2026-09-04T06:48:23.409Z'
-explored: false
-implStartedAt: null
+startedAt: null
+skipGates: []
 change: null
 branch: add-claude-md
 mr: 2
-stageOverride: null
 ---
 
 ## アイデア

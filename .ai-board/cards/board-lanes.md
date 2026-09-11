@@ -2,12 +2,11 @@
 id: board-lanes
 title: レーンを HIL ゲート付きの 9 列に作り直す
 created: '2026-09-11T00:00:00.000Z'
-explored: true
-implStartedAt: null
+startedAt: '2026-09-11T00:00:00.000Z'
+skipGates: []
 change: board-lanes
 branch: board-lanes
 mr: null
-stageOverride: null
 ---
 
 ## アイデア
@@ -40,3 +39,7 @@ stageOverride: null
 - `検証中` は `TaskProgress`（`completed` / `total`）から導出できる。この既存フィールドは現在どのルールも使っていない
 - 既存 16 枚は全て `explored: false` / `implStartedAt: null` なので実質的な移行は起きない
 - 依存: 列内の並び順は `card-ordering`、検証失敗の表示は `loop-activity`、MR 作成手順は `gitlab-mr-loop` に委ねる
+
+## レビュー
+
+### 2026-09-11T00:00:00.000Z explore 承認

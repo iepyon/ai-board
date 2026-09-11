@@ -536,6 +536,26 @@ describe('POST /api/cards/:id/reviews', () => {
     expect(response.body.cards[0].aborted).toBe(true);
   });
 
+  it('承認済みのカードを中止してもステージは巻き戻らない', async () => {
+    const app = buildApp();
+
+    await request(app)
+      .post('/api/cards/awaiting/reviews')
+      .send({ gate: 'explore', kind: '承認' })
+      .expect(200);
+
+    await request(app)
+      .post('/api/cards/awaiting/reviews')
+      .send({ gate: 'explore', kind: '中止', reason: 'やめる' })
+      .expect(200);
+
+    const response = await request(app).get('/api/board').expect(200);
+    const card = response.body.cards[0];
+
+    expect(card.stage).toBe('planning');
+    expect(card.aborted).toBe(true);
+  });
+
   it('規定外のゲートは 400', async () => {
     await request(buildApp())
       .post('/api/cards/awaiting/reviews')

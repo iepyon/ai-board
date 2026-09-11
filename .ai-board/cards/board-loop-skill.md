@@ -2,12 +2,11 @@
 id: board-loop-skill
 title: AI ループの中核スキルを作る
 created: '2026-09-04T06:48:23.403Z'
-explored: false
-implStartedAt: null
+startedAt: null
+skipGates: []
 change: null
 branch: null
 mr: null
-stageOverride: null
 ---
 
 ## アイデア

@@ -2,12 +2,11 @@
 id: lefthook-gate
 title: lefthook の pre-commit で品質ゲートをかける
 created: '2026-09-04T06:48:23.410Z'
-explored: false
-implStartedAt: null
+startedAt: null
+skipGates: []
 change: null
 branch: null
 mr: null
-stageOverride: null
 ---
 
 ## アイデア

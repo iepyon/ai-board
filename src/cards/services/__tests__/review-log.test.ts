@@ -122,12 +122,21 @@ describe('gateState', () => {
     expect(gateState(shuffled, 'plan', [])).toBe('approved');
   });
 
-  it('中止はゲートの状態を動かさない', () => {
+  it('中止だけのゲートは未提出のまま', () => {
     const aborted: ReviewEntry[] = [
       { at: '2026-09-11T04:00:00.000Z', gate: 'plan', kind: '中止', reason: 'やめる' },
     ];
 
     expect(gateState(aborted, 'plan', [])).toBe('none');
+  });
+
+  it('中止は承認済みのゲートを巻き戻さない', () => {
+    const aborted: ReviewEntry[] = [
+      { at: '2026-09-11T04:00:00.000Z', gate: 'explore', kind: '承認', reason: '' },
+      { at: '2026-09-11T05:00:00.000Z', gate: 'explore', kind: '中止', reason: 'やめる' },
+    ];
+
+    expect(gateState(aborted, 'explore', [])).toBe('approved');
   });
 });
 

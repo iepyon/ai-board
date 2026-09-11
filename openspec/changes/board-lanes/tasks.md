@@ -32,10 +32,10 @@
 - [x] 6.1 `src/web/types.ts` の `Stage` / `STAGE_LABELS` / `STAGE_OWNER` / `STAGE_SOURCE` / `GATE_OF_STAGE` / `BoardCard` を差し替え、`api.ts` に `appendReview` を足す
 - [x] 6.2 `Board.tsx` の `patchForStage` を `idea ⇄ exploring` の 1 遷移へ縮め、`stageOverride` の解除処理を消す。`Column.tsx` の列見出しを `STAGE_OWNER` ベースにする
 - [x] 6.3 `ReviewActions.tsx` を新設して `ProgressActions.tsx` を削除し、`CardDetail.tsx` / `StageSection.tsx` / `CardBadges.tsx` / `App.tsx`（中止カードの折り畳み）を追従させる。`npm run typecheck && npm run lint && npm test` が全部通ることを確認する
-- [ ] 6.4 `npm run dev` と `npm run dev:web` を立てて目視で確認する。9 列が並ぶこと / アイデア ⇄ 探索中 のドラッグが往復できること / 探索メモを書くと探索レビューへ移り掴めなくなること / 否決すると探索中へ戻り理由が本文に残ること / 中止するとカードが畳まれトグルで戻せること
+- [x] 6.4 `npm run dev` と `npm run dev:web` を立てて目視で確認する。9 列が並ぶこと / アイデア ⇄ 探索中 のドラッグが往復できること / 探索メモを書くと探索レビューへ移り掴めなくなること / 否決すると探索中へ戻り理由が本文に残ること / 中止するとカードが畳まれトグルで戻せること
 
 ## 7. 移行とドキュメント
 
-- [ ] 7.1 `.ai-board/cards/*.md` 16 枚の frontmatter を移行し、`grep -l 'explored\|implStartedAt\|stageOverride' .ai-board/cards/*.md` が何も返さないことを確認する
+- [x] 7.1 `.ai-board/cards/*.md` 16 枚の frontmatter を移行し、`grep -l 'explored\|implStartedAt\|stageOverride' .ai-board/cards/*.md` が何も返さないことを確認する
 - [ ] 7.2 `.ai-board/cards/board-loop-skill.md` のハードルールを書き換える（`startedAt` を自分で打たない / `## レビュー` に書いてよいのは提出と再提出だけ / `skipGates` を自分で足さない）
 - [ ] 7.3 `CLAUDE.md` と `README.md` のステージ導出の節・書き込み境界の表・API の表を 9 列に合わせて書き換え、`npm run typecheck && npm run lint && npm test` が通ることを確認する

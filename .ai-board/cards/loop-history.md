@@ -2,12 +2,11 @@
 id: loop-history
 title: AI ループの実行履歴を追えるようにする
 created: '2026-09-04T06:48:23.408Z'
-explored: false
-implStartedAt: null
+startedAt: null
+skipGates: []
 change: null
 branch: null
 mr: null
-stageOverride: null
 ---
 
 ## アイデア

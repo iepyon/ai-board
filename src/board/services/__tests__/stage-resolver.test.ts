@@ -315,6 +315,24 @@ describe('resolveStage — 中止', () => {
     expect(resolveStage(card, null, null).aborted).toBe(false);
   });
 
+  it('中止してもステージは巻き戻らない', () => {
+    const card = makeCard({
+      startedAt: T1,
+      body: makeBody({
+        exploreNote: true,
+        entries: [
+          { at: T2, gate: 'explore', kind: '承認' },
+          { at: T3, gate: 'explore', kind: '中止' },
+        ],
+      }),
+    });
+
+    const resolution = resolveStage(card, null, null);
+
+    expect(resolution.stage).toBe('planning');
+    expect(resolution.aborted).toBe(true);
+  });
+
   it('中止でなければ aborted は false', () => {
     expect(resolveStage(makeCard(), null, null).aborted).toBe(false);
   });

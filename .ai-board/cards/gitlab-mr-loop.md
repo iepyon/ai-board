@@ -2,12 +2,11 @@
 id: gitlab-mr-loop
 title: ai-board 自身の開発を GitLab の MR で回す
 created: '2026-09-04T07:32:00.000Z'
-explored: false
-implStartedAt: null
+startedAt: null
+skipGates: []
 change: null
 branch: null
 mr: null
-stageOverride: null
 ---
 
 ## アイデア

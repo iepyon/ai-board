@@ -96,6 +96,10 @@ function extractSection(body: string, heading: string): string[] | null {
  *
  * `skipGates` に宣言されたゲートはログを見ずに通過扱いにする。
  * 人が事前に「このカードのこのゲートは見ない」と決めた意思表示だからである。
+ *
+ * 中止のエントリは判定から除く。中止は工程の進捗とは直交する終端の軸であり、
+ * 承認済みのゲートを未通過へ巻き戻してはならない（それをするとカードを
+ * 中止した瞬間にステージが前の列へ戻る）。
  */
 export function gateState(
   entries: readonly ReviewEntry[],
@@ -104,7 +108,7 @@ export function gateState(
 ): GateState {
   if (skipGates.includes(gate)) return 'approved';
 
-  const latest = latestOf(entries.filter((entry) => entry.gate === gate));
+  const latest = latestOf(entries.filter((entry) => entry.gate === gate && entry.kind !== '中止'));
   if (latest === null) return 'none';
 
   switch (latest.kind) {
@@ -116,7 +120,7 @@ export function gateState(
     case '再提出':
       return 'submitted';
     case '中止':
-      // 中止は列ではなく終端フラグで表す。ゲートの状態は動かさない
+      // 上でフィルタ済み。網羅性のために残す
       return 'none';
   }
 }

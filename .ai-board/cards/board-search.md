@@ -2,12 +2,11 @@
 id: board-search
 title: カードを絞り込めるようにする
 created: '2026-09-04T06:48:23.416Z'
-explored: false
-implStartedAt: null
+startedAt: null
+skipGates: []
 change: null
 branch: null
 mr: null
-stageOverride: null
 ---
 
 ## アイデア
