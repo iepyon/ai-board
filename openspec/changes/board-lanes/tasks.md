@@ -24,8 +24,8 @@
 
 ## 5. レビュー API
 
-- [ ] 5.1 `append-review.command.ts` を実装し、composition root に登録する。`npx vitest run -t appendReviewCommand` が通ることを確認する
-- [ ] 5.2 `POST /api/cards/:id/reviews` を足し、e2e で確認する（承認で `planning` へ進む / 理由なし否決が 400 / 理由付き否決で `exploring` へ戻り本文に理由が残る / 中止で `aborted` になる / 存在しないカードが 404）
+- [x] 5.1 `append-review.command.ts` を実装し、composition root に登録する。`npx vitest run -t appendReviewCommand` が通ることを確認する
+- [x] 5.2 `POST /api/cards/:id/reviews` を足し、e2e で確認する（承認で `planning` へ進む / 理由なし否決が 400 / 理由付き否決で `exploring` へ戻り本文に理由が残る / 中止で `aborted` になる / 存在しないカードが 404）
 
 ## 6. ボード UI
 

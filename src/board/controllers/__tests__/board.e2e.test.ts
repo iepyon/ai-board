@@ -451,3 +451,113 @@ describe('stageOverride はもう存在しない', () => {
     expect(reverted.body.cards[0].stage).toBe('idea');
   });
 });
+
+// ============================================================
+// レビュー API
+// ============================================================
+
+describe('POST /api/cards/:id/reviews', () => {
+  const AWAITING_CARD = [
+    '---',
+    'id: awaiting',
+    'title: レビュー待ちのカード',
+    'created: 2026-09-01T00:00:00.000Z',
+    'startedAt: 2026-09-05T00:00:00.000Z',
+    '---',
+    '',
+    '## アイデア',
+    '',
+    'なにかする。',
+    '',
+    '## 探索メモ',
+    '',
+    '- 調べた',
+    '',
+  ].join('\n');
+
+  beforeEach(async () => {
+    await writeFile('.ai-board/cards/awaiting.md', AWAITING_CARD);
+  });
+
+  it('探索レビュー待ちから始まる', async () => {
+    const response = await request(buildApp()).get('/api/board').expect(200);
+
+    expect(response.body.cards[0].stage).toBe('explore-review');
+  });
+
+  it('承認を追記するとステージが進む', async () => {
+    const app = buildApp();
+
+    await request(app)
+      .post('/api/cards/awaiting/reviews')
+      .send({ gate: 'explore', kind: '承認' })
+      .expect(200);
+
+    const response = await request(app).get('/api/board').expect(200);
+
+    expect(response.body.cards[0].stage).toBe('planning');
+  });
+
+  it('否決を追記すると探索中へ戻り、理由が本文に残る', async () => {
+    const app = buildApp();
+
+    await request(app)
+      .post('/api/cards/awaiting/reviews')
+      .send({ gate: 'explore', kind: '否決', reason: 'まだ浅い' })
+      .expect(200);
+
+    const response = await request(app).get('/api/board').expect(200);
+    const card = response.body.cards[0];
+
+    expect(card.stage).toBe('exploring');
+    expect(card.body).toContain('まだ浅い');
+  });
+
+  it('理由の無い否決は 400', async () => {
+    const response = await request(buildApp())
+      .post('/api/cards/awaiting/reviews')
+      .send({ gate: 'explore', kind: '否決' });
+
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('VALIDATION_ERROR');
+    expect(response.body.message).toContain('否決には理由を書いてください');
+  });
+
+  it('中止を追記すると aborted になる', async () => {
+    const app = buildApp();
+
+    await request(app)
+      .post('/api/cards/awaiting/reviews')
+      .send({ gate: 'explore', kind: '中止', reason: 'やめる' })
+      .expect(200);
+
+    const response = await request(app).get('/api/board').expect(200);
+
+    expect(response.body.cards[0].aborted).toBe(true);
+  });
+
+  it('規定外のゲートは 400', async () => {
+    await request(buildApp())
+      .post('/api/cards/awaiting/reviews')
+      .send({ gate: 'pr', kind: '承認' })
+      .expect(400);
+  });
+
+  it('存在しないカードなら 404', async () => {
+    await request(buildApp())
+      .post('/api/cards/nope/reviews')
+      .send({ gate: 'plan', kind: '承認' })
+      .expect(404);
+  });
+
+  it('openspec には一切書き込まない', async () => {
+    const app = buildApp();
+
+    await request(app)
+      .post('/api/cards/awaiting/reviews')
+      .send({ gate: 'explore', kind: '承認' })
+      .expect(200);
+
+    await expect(fs.readdir(path.join(root, 'openspec'))).rejects.toThrow();
+  });
+});

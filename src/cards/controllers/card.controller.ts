@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import type { z } from 'zod';
 import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
 import {
+  AppendReviewInputSchema,
   CreateCardInputSchema,
   UpdateCardBodyInputSchema,
   UpdateCardMetaInputSchema,
@@ -63,7 +64,13 @@ function parseCardId(req: Request, res: Response): CardId | null {
 
 export function createCardRouter(deps: CardDependencies): Router {
   const router = Router();
-  const { createCardCommand, updateCardMetaCommand, updateCardBodyCommand, cardRepository } = deps;
+  const {
+    createCardCommand,
+    updateCardMetaCommand,
+    updateCardBodyCommand,
+    appendReviewCommand,
+    cardRepository,
+  } = deps;
 
   /** GET /api/cards/:id — カード 1 件 */
   router.get('/:id', async (req: Request, res: Response): Promise<void> => {
@@ -137,6 +144,34 @@ export function createCardRouter(deps: CardDependencies): Router {
     }
 
     const result = await updateCardBodyCommand({ id, body: input.data.body });
+
+    if (!result.ok) {
+      const { status, response } = mapUpdateCardErrorToResponse(result.error);
+      res.status(status).json(response);
+      return;
+    }
+
+    res.json(toCardResponse(result.value));
+  });
+
+  /** POST /api/cards/:id/reviews — レビューエントリの追記 */
+  router.post('/:id/reviews', async (req: Request, res: Response): Promise<void> => {
+    const id = parseCardId(req, res);
+    if (id === null) return;
+
+    const input = AppendReviewInputSchema.safeParse(req.body);
+    if (!input.success) {
+      respondValidationError(res, input.error);
+      return;
+    }
+
+    const result = await appendReviewCommand({
+      id,
+      gate: input.data.gate,
+      kind: input.data.kind,
+      reason: input.data.reason,
+      at: new Date(),
+    });
 
     if (!result.ok) {
       const { status, response } = mapUpdateCardErrorToResponse(result.error);
