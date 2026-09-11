@@ -14,8 +14,8 @@
 
 ## 3. ステージ導出
 
-- [ ] 3.1 `src/shared/schemas/common.ts` の `STAGES` を 9 段へ入れ替える
-- [ ] 3.2 `stage-resolver.ts` の `RULES` を差し替え、`HUMAN_STAGES` を `['idea','exploring']` へ縮め、`hasFixAfterReview` を export する。`npx vitest run src/board/services/` が通ることを確認する（9 段すべての導出、否決による差し戻し 2 経路、tasks 0 件を全完了扱いしないこと、`droppableStages` が下限で空になることを含む）
+- [x] 3.1 `src/shared/schemas/common.ts` の `STAGES` を 9 段へ入れ替える
+- [x] 3.2 `stage-resolver.ts` の `RULES` を差し替え、`HUMAN_STAGES` を `['idea','exploring']` へ縮め、`hasFixAfterReview` を export する。`npx vitest run src/board/services/` が通ることを確認する（9 段すべての導出、否決による差し戻し 2 経路、tasks 0 件を全完了扱いしないこと、`droppableStages` が下限で空になることを含む）
 
 ## 4. ボード読み取り
 
