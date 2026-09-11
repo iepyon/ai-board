@@ -4,7 +4,7 @@ title: レーンを HIL ゲート付きの 9 列に作り直す
 created: '2026-09-11T00:00:00.000Z'
 explored: true
 implStartedAt: null
-change: null
+change: board-lanes
 branch: board-lanes
 mr: null
 stageOverride: null
