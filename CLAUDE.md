@@ -111,11 +111,11 @@ UI のドラッグは `startedAt` を書き換える 1 遷移だけ。承認 / �
 
 `openspec/` は CLI をサブプロセス起動せずディレクトリを直接読む
 （`src/board/repositories/openspec.repository.ts`）。archive の日付プレフィックスや
-tasks の行パターンは `@fission-ai/openspec` **v1.12.0** の実装から移植したもので、
+tasks の行パターンは `@fission-ai/openspec` **v1.13.0** の実装から移植したもので、
 参照元の定数名がコメントに残っている（行番号は腐るので書かない）。
 **openspec を上げたときは参照先の定数を突き合わせる。**
 
-既知の未追従: change 名自体が `YYYY-MM-DD-` で始まる場合、1.12.0 は接頭辞を重ねず
+既知の未追従: change 名自体が `YYYY-MM-DD-` で始まる場合、1.13.0 は接頭辞を重ねず
 既存名のまま archive する（#1309）ため、日付を剥がす前提の完了判定が外れる。
 
 ## レイヤー構成と規約
