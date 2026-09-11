@@ -37,5 +37,5 @@
 ## 7. 移行とドキュメント
 
 - [x] 7.1 `.ai-board/cards/*.md` 16 枚の frontmatter を移行し、`grep -l 'explored\|implStartedAt\|stageOverride' .ai-board/cards/*.md` が何も返さないことを確認する
-- [ ] 7.2 `.ai-board/cards/board-loop-skill.md` のハードルールを書き換える（`startedAt` を自分で打たない / `## レビュー` に書いてよいのは提出と再提出だけ / `skipGates` を自分で足さない）
-- [ ] 7.3 `CLAUDE.md` と `README.md` のステージ導出の節・書き込み境界の表・API の表を 9 列に合わせて書き換え、`npm run typecheck && npm run lint && npm test` が通ることを確認する
+- [x] 7.2 `.ai-board/cards/board-loop-skill.md` のハードルールを書き換える（`startedAt` を自分で打たない / `## レビュー` に書いてよいのは提出と再提出だけ / `skipGates` を自分で足さない）
+- [x] 7.3 `CLAUDE.md` と `README.md` のステージ導出の節・書き込み境界の表・API の表を 9 列に合わせて書き換え、`npm run typecheck && npm run lint && npm test` が通ることを確認する

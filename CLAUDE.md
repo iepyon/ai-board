@@ -5,12 +5,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## このリポジトリは何か
 
 OpenSpec 駆動開発のためのローカル Web カンバン。
-カードのステージは `openspec/` ディレクトリと GitLab の実態から**導出**され、
-実態から観測できない部分（`explored` / `implStartedAt`）だけがカードファイルに保存される。
+カードのステージは `openspec/` ディレクトリ・GitLab・カードファイルの実態から**導出**される。
+`stage` という値はどこにも保存しない。人の判断（着手・承認・否決・中止）も
+カードファイル上の痕跡として残り、それも導出の入力になる。
 
 ```
-アイデア → 探索済み → 提案済み → 実装中 → AI-PR → AI-PR 修正済み → 完了
+[ アイデア ] [ 探索中 ] [ 探索レビュー ] [ 計画提案中 ] [ 計画レビュー ] [ 実装中 ] [ 検証中 ] [ PR中 ] [ マージ済み ]
+     人          AI          人 ★           AI            人 ★          AI        AI      人 ★        —
 ```
+
+★ が人の判断を待つ HIL ゲート。人がドラッグで動かすのは `アイデア ⇄ 探索中` の 1 遷移だけ。
 
 スタックは TypeScript (ESM, Node >= 20) / Express 5 + React 19 + Vite / Vitest。
 サーバは `127.0.0.1:5673` にのみ bind するローカル専用ツールで、認証やレート制限は持たない。
@@ -40,14 +44,16 @@ npm run typecheck && npm run lint && npm test
 id: board-search        # 不変。生成後は変えない。ファイル名と一致する kebab-case
 title: カードを絞り込めるようにする
 created: '2026-09-04T06:48:23.416Z'
-explored: false         # 探索済みへ昇格させる明示フラグ（人が立てる）
-implStartedAt: null     # 実装中へ昇格させる明示マーカー（人が立てる）
+startedAt: null         # 人が探索の着手を指示した時刻（人が打つ）
+skipGates: []           # 人が事前に見ないと宣言したゲート（explore / plan）
 change: null            # openspec の change 名
 branch: null
 mr: null                # GitLab MR iid（branch から自動解決して書き戻す）
-stageOverride: null
 ---
 ```
+
+本文の見出しにも意味がある。`## 探索メモ` は探索工程の成果物、
+`## レビュー` は人の判断を残す追記専用ログ。どちらもステージ導出の入力になる。
 
 `id` が不変で `change` / `branch` / `mr` が進行に応じて後から埋まることで、
 アイデアメモ → change → ブランチ → MR → archive が 1 本の線につながる。
@@ -64,34 +70,45 @@ stageOverride: null
 
 エージェントが**やってはいけないこと**（`.ai-board/cards/board-loop-skill.md` のハードルール）:
 
-- `explored` / `implStartedAt` を自分で立てて進捗を偽装しない。これは人が着手を指示する合図。
-- 提案済み / AI-PR 系のカードのステージに触らない。
+- `startedAt` を自分で打たない。これは人が着手を指示する合図。
+- `## レビュー` に書いてよいのは 提出 / 再提出 だけ。承認 / 否決 / 中止 は人が書く。
+- `skipGates` を自分で足さない。
+- 探索レビュー / 計画レビュー / PR中 のカードのステージに触らない。
 - 品質ゲートを通らないままコミットしない。
 
-`stageOverride` は API では値の指定を 400 で拒否し、`null`（解除）だけを受け付ける。
-ステージは実態から導出するものなので、ツール自身が実態と食い違う値を書かない。
-ファイルに手で書かれた上書きは読み取り側では尊重し、UI に乖離バッジを出す。
+ステージを直接指定する入力口は存在しない。列を動かしたければ、その列を成立させる実態
+（`startedAt` の打刻、`## 探索メモ` の記述、`## レビュー` への承認追記）を作る。
 
 ## ステージ導出
 
 核は `src/board/services/stage-resolver.ts` の純関数。
-7 段の判定表と各ルールの理由はそのファイルの docstring にある（README にも同じ表がある）。
+9 段の判定表と各ルールの理由はそのファイルの docstring にある（README にも同じ表がある）。
 **変更するならまずここを読む。** ルールは制御構造ではなく `RULES` 配列の順序で表現され、
 「上から評価して最初に真になったものが勝つ（＝最も進んだステージ）」を意味する。
 
+ゲートの状態は `src/cards/services/review-log.ts` が本文の `## レビュー` から読む。
+`gateState()` はゲートごとの最新エントリ 1 件で決まり、中止のエントリは判定から除く
+（中止は工程の進捗と直交する終端の軸で、通過済みのゲートを巻き戻さない）。
+
 守るべきは列の所有権の分割。
 
-| 列                        | ステージを立てるもの   | 領分 |
-| ------------------------- | ---------------------- | ---- |
-| アイデア / 探索済み       | `explored` フラグ      | 人   |
-| 実装中                    | `implStartedAt` の打刻 | 人   |
-| 提案済み                  | `proposal.md` の存在   | AI   |
-| AI-PR / AI-PR 修正済み    | GitLab の MR 状態      | AI   |
-| 完了                      | archive / merged       | AI   |
+| 列                        | ステージを立てるもの                       | 領分 |
+| ------------------------- | ------------------------------------------ | ---- |
+| アイデア / 探索中         | `startedAt` の打刻                         | 人   |
+| 探索レビュー              | 本文の `## 探索メモ`                       | AI   |
+| 計画提案中                | `## レビュー` の explore 承認              | 人   |
+| 計画レビュー              | `proposal.md` の存在                       | AI   |
+| 実装中 / 検証中           | `## レビュー` の plan 承認 と tasks の進捗 | 人 → AI |
+| PR中                      | GitLab の MR 状態                          | AI   |
+| マージ済み                | archive / merged                           | AI   |
 
-UI のドラッグは `stageOverride` ではなく実フラグを書き換える。
-さらに「フラグを両方外したときに残るステージ」（AI の成果物が課す下限）より前へは戻せない
-（`resolveFloorStage` / `droppableStages`）。
+UI のドラッグは `startedAt` を書き換える 1 遷移だけ。承認 / 否決 / 中止はボタンで
+`POST /api/cards/:id/reviews` を呼び、本文への追記になる。
+「`startedAt` を外したときに残るステージ」（AI の成果物とレビュー記録が課す下限）より
+前へは戻せない（`resolveFloorStage` / `droppableStages`）。
+
+否決の差し戻しに専用ルールは無い。ゲートが差し戻し中のときレビュー行と承認行が両方外れ、
+1 つ手前の AI 列へ自然に落ちる。**ここに `if` を足したくなったら設計を疑う。**
 
 `openspec/` は CLI をサブプロセス起動せずディレクトリを直接読む
 （`src/board/repositories/openspec.repository.ts`）。archive の日付プレフィックスや
@@ -173,6 +190,7 @@ MR 一覧の全件取得はページングで取りこぼすため使わず、�
 | `POST`   | `/api/cards`          | 新規アイデアカード作成                     |
 | `PATCH`  | `/api/cards/:id`      | frontmatter の部分更新                     |
 | `PUT`    | `/api/cards/:id/body` | 本文の差し替え                             |
+| `POST`   | `/api/cards/:id/reviews` | `## レビュー` へのエントリ追記（承認 / 否決 / 中止） |
 | `GET`    | `/api/events`         | SSE。ファイル変更・ポーリング結果を push   |
 
 ## OpenSpec ワークフロー
@@ -188,6 +206,6 @@ change は `/opsx:explore` → `/opsx:propose` → `/opsx:apply` → `/opsx:arch
 
 ```
 feat: ローカル GitLab を compose で立ててボードから疎通させる
-chore: 未着手カードの explored フラグを false に戻す
+chore: 未着手カードの startedAt を null に戻す
 docs: ローカル GitLab 疎通の change を起票する
 ```
