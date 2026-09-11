@@ -29,12 +29,11 @@ export function createCreateCardCommand(cardRepository: CardRepository): CreateC
       id: idResult.value,
       title: input.title,
       created: input.createdAt.toISOString(),
-      explored: false,
-      implStartedAt: null,
+      startedAt: null,
+      skipGates: [],
       change: null,
       branch: null,
       mr: null,
-      stageOverride: null,
       body: input.body ?? '',
     };
 

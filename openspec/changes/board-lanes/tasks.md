@@ -9,8 +9,8 @@
 
 ## 2. カードスキーマ
 
-- [ ] 2.1 `Card` から `explored` / `implStartedAt` / `stageOverride` を外し `startedAt` / `skipGates` を足す。`CardFrontmatterSchema` と `UpdateCardMetaInputSchema` を追従させ、`AppendReviewInputSchema`（否決に理由文を必須とする refine 付き）を足す
-- [ ] 2.2 `fs-card.repository.ts` と `create-card.command.ts` を追従させ、`npx vitest run src/cards/` が通ることを確認する。`skipGates` の往復と、`skipGates` を持たない既存ファイルが空配列として読めることをテストで確認する
+- [x] 2.1 `Card` から `explored` / `implStartedAt` / `stageOverride` を外し `startedAt` / `skipGates` を足す。`CardFrontmatterSchema` と `UpdateCardMetaInputSchema` を追従させ、`AppendReviewInputSchema`（否決に理由文を必須とする refine 付き）を足す
+- [x] 2.2 `fs-card.repository.ts` と `create-card.command.ts` を追従させ、`npx vitest run src/cards/` が通ることを確認する。`skipGates` の往復と、`skipGates` を持たない既存ファイルが空配列として読めることをテストで確認する
 
 ## 3. ステージ導出
 

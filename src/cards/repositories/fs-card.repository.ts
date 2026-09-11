@@ -148,12 +148,11 @@ export function parseCard(filePath: string, raw: string): Card | null {
     id: frontmatter.id as CardId,
     title: frontmatter.title,
     created: frontmatter.created,
-    explored: frontmatter.explored,
-    implStartedAt: frontmatter.implStartedAt,
+    startedAt: frontmatter.startedAt,
+    skipGates: frontmatter.skipGates,
     change: frontmatter.change as ChangeName | null,
     branch: frontmatter.branch,
     mr: frontmatter.mr as MergeRequestIid | null,
-    stageOverride: frontmatter.stageOverride,
     // 前後の改行は正規化する。これで読み書きを往復しても本文が育たない
     body: parsed.content.replace(/^\n+/, '').replace(/\n+$/, ''),
   };
@@ -165,12 +164,11 @@ export function serializeCard(card: Card): string {
     id: card.id,
     title: card.title,
     created: card.created,
-    explored: card.explored,
-    implStartedAt: card.implStartedAt,
+    startedAt: card.startedAt,
+    skipGates: card.skipGates,
     change: card.change,
     branch: card.branch,
     mr: card.mr,
-    stageOverride: card.stageOverride,
   };
 
   const body = card.body.endsWith('\n') || card.body === '' ? card.body : `${card.body}\n`;

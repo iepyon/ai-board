@@ -57,7 +57,7 @@ describe('createCardCommand', () => {
     if (result.ok) {
       expect(result.value.id).toBe('refresh-token-support');
       expect(result.value.created).toBe('2026-09-04T10:00:00.000Z');
-      expect(result.value.stageOverride).toBeNull();
+      expect(result.value.startedAt).toBeNull();
     }
   });
 
@@ -107,8 +107,8 @@ describe('createCardCommand', () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.value.explored).toBe(false);
-      expect(result.value.implStartedAt).toBeNull();
+      expect(result.value.startedAt).toBeNull();
+      expect(result.value.skipGates).toEqual([]);
       expect(result.value.change).toBeNull();
       expect(result.value.mr).toBeNull();
     }
@@ -127,30 +127,33 @@ describe('updateCardMetaCommand', () => {
   it('指定したフィールドだけを変える', async () => {
     const result = await createUpdateCardMetaCommand(repository)({
       id: 'target' as CardId,
-      patch: { explored: true },
+      patch: { startedAt: '2026-09-05T00:00:00.000Z' },
     });
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.value.explored).toBe(true);
+      expect(result.value.startedAt).toBe('2026-09-05T00:00:00.000Z');
       expect(result.value.title).toBe('target');
     }
   });
 
-  it('null を送ると値を消せる（上書きの解除）', async () => {
+  it('null を送ると値を消せる（着手の取り消し）', async () => {
     const command = createUpdateCardMetaCommand(repository);
-    await command({ id: 'target' as CardId, patch: { stageOverride: 'done' } });
+    await command({ id: 'target' as CardId, patch: { startedAt: '2026-09-05T00:00:00.000Z' } });
 
-    const result = await command({ id: 'target' as CardId, patch: { stageOverride: null } });
+    const result = await command({ id: 'target' as CardId, patch: { startedAt: null } });
 
-    expect(result.ok && result.value.stageOverride).toBeNull();
+    expect(result.ok && result.value.startedAt).toBeNull();
   });
 
   it('undefined のフィールドは現在値を維持する', async () => {
     const command = createUpdateCardMetaCommand(repository);
     await command({ id: 'target' as CardId, patch: { change: 'my-change' } });
 
-    const result = await command({ id: 'target' as CardId, patch: { explored: true } });
+    const result = await command({
+      id: 'target' as CardId,
+      patch: { startedAt: '2026-09-05T00:00:00.000Z' },
+    });
 
     expect(result.ok && result.value.change).toBe('my-change');
   });
@@ -172,7 +175,7 @@ describe('updateCardMetaCommand', () => {
   it('存在しないカードは CardNotFound', async () => {
     const result = await createUpdateCardMetaCommand(repository)({
       id: 'missing' as CardId,
-      patch: { explored: true },
+      patch: { startedAt: '2026-09-05T00:00:00.000Z' },
     });
 
     expect(result.ok).toBe(false);

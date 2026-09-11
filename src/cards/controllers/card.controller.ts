@@ -23,12 +23,11 @@ function toCardResponse(card: Card): Record<string, unknown> {
     id: card.id,
     title: card.title,
     created: card.created,
-    explored: card.explored,
-    implStartedAt: card.implStartedAt,
+    startedAt: card.startedAt,
+    skipGates: card.skipGates,
     change: card.change,
     branch: card.branch,
     mr: card.mr,
-    stageOverride: card.stageOverride,
     body: card.body,
   };
 }
