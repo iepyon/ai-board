@@ -6,6 +6,8 @@
     "moduleResolution": "Bundler",
     "module": "ESNext",
     "noEmit": true,
+    // include に並ぶ eslint.config.js を project に載せるため（型検査はしない）
+    "allowJs": true,
     "types": ["node", "vite/client"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "*.config.ts", "eslint.config.js"],
