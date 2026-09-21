@@ -104,6 +104,15 @@ describe('GlabForgeClient', () => {
     expect(mr?.latestCommitAt).toBe('2026-09-04T10:30:00.000Z');
   });
 
+  it('取得先を gitlab として返す', async () => {
+    // 番号の接頭辞（GitLab は !、GitHub は #）の出し分けに使う
+    const { runner } = stubRunner({ '/merge_requests/42': openMr });
+
+    const mr = await new GlabForgeClient(config, runner).fetchByIid(42 as MergeRequestIid);
+
+    expect(mr?.forge).toBe('gitlab');
+  });
+
   it('GITLAB_HOST で設定のホストを明示的に固定する', async () => {
     const { runner, calls } = stubRunner({ '/merge_requests/42': openMr });
 

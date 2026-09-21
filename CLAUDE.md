@@ -192,7 +192,9 @@ GitHub の PR は `state` が `open` / `closed` の 2 値しかなく、**マー
 区別は `merged_at` の有無で付ける（`toLifecycleState`）。ここを取り違えるとカードが
 `merged` へ進まない。レビューコメントは issue comment と review comment の 2 か所に
 分かれるため、合算して GitLab の「system でないノート」と意味を揃える。
-どちらの一覧も既定は古い順の 1 ページ目だけなので `direction=desc` で引き、
+どちらの一覧も既定は古い順の 1 ページ目だけで、`issues/{n}/comments` は `sort` /
+`direction` を受け付けない（受けるのはリポジトリ単位の `issues/comments` の方）。
+並び順に頼らず `gh api --paginate` で全ページ引いて最大値を取る。
 最新コミットは `pulls/{n}/commits` ではなく `head.sha` を直接引く（件数で取り逃がさない）。
 自動生成のコメントは GitLab の `system` に相当するものが無く、`user.type === 'Bot'` で外す。
 

@@ -9,6 +9,13 @@ export const MR_STATES = ['opened', 'closed', 'locked', 'merged'] as const;
 export type MrLifecycleState = (typeof MR_STATES)[number];
 
 export interface MrState {
+  /**
+   * どの取得先から引いた状態か。
+   *
+   * 識別番号の書き方が取得先ごとに違う（GitLab は `!1`、GitHub は `#1`）ため、
+   * 表示側が接続状態を見に行かずに済むよう、状態そのものに持たせる。
+   */
+  readonly forge: ForgeKind;
   readonly iid: MergeRequestIid;
   readonly state: MrLifecycleState;
   readonly sourceBranch: string;

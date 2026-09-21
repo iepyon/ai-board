@@ -109,6 +109,7 @@ describe('GET /api/board', () => {
     );
 
     const mr: MrState = {
+      forge: 'gitlab',
       iid: 38 as MergeRequestIid,
       state: 'opened',
       sourceBranch: 'feat/s3',
@@ -386,6 +387,7 @@ describe('移動できる先の制限', () => {
     );
 
     const mr: MrState = {
+      forge: 'gitlab',
       iid: 42 as MergeRequestIid,
       state: 'opened',
       sourceBranch: 'feat/x',

@@ -15,6 +15,9 @@ import {
 
 export const GH = 'gh';
 
+/** 一覧 1 ページあたりの件数。GitHub の上限 */
+const PER_PAGE = 100;
+
 interface RawPullRequest {
   number: number;
   state: string;
@@ -83,23 +86,25 @@ export class GhForgeClient implements ForgeClient {
    * コード行への指摘は review comment で、エンドポイントが別。GitLab の
    * 「system でない最新ノート」1 か所と意味を揃えるには両方が要る。
    *
-   * どちらの一覧も既定では古い順に返り、1 ページ目しか読まない。
-   * 最終時刻が要るので新しい順に並べ替えて取る（既定のままだと、コメントが
-   * 100 件を超えた PR で最新ではなく 100 件目の時刻を最終時刻にしてしまう）。
+   * どちらの一覧も既定では古い順に 1 ページ目だけを返す。
+   * `issues/{n}/comments` は `sort` / `direction` を受け付けない
+   * （並べ替えを受けるのは同名のリポジトリ単位のエンドポイントの方）ため、
+   * 並び順に頼ると 100 件を超えた PR で最新ではなく 100 件目を最終時刻にしてしまう。
+   * 順序ではなく全ページを読んで最大値を取る（`latestOf` が最大値を選ぶので
+   * 並び順は問わない）。件数も同じ理由で全ページを数えないと頭打ちになる。
    */
   private async enrich(pr: RawPullRequest): Promise<MrState> {
-    const newestFirst = 'per_page=100&sort=created&direction=desc';
-
     const [issueComments, reviewComments, headCommit] = await Promise.all([
-      this.get<RawComment[]>(`issues/${pr.number}/comments?${newestFirst}`),
-      this.get<RawComment[]>(`pulls/${pr.number}/comments?${newestFirst}`),
+      this.getAll<RawComment>(`issues/${pr.number}/comments`),
+      this.getAll<RawComment>(`pulls/${pr.number}/comments`),
       this.get<RawCommit>(`commits/${pr.head.sha}`),
     ]);
 
     // 自動生成のコメントは人のレビューではない。GitLab の system note に対応する
-    const comments = [...asArray(issueComments), ...asArray(reviewComments)].filter(isHumanComment);
+    const comments = [...issueComments, ...reviewComments].filter(isHumanComment);
 
     return {
+      forge: this.kind,
       iid: toMergeRequestIid(pr.number),
       state: toLifecycleState(pr.state, pr.merged_at),
       sourceBranch: pr.head.ref,
@@ -116,6 +121,19 @@ export class GhForgeClient implements ForgeClient {
     const result = await this.runner.run(GH, ['api', `${this.base}/${endpoint}`]);
 
     return unwrap(result.ok ? parseJson<T>(GH, result.value) : result);
+  }
+
+  /**
+   * 一覧を全ページ取得する。
+   *
+   * `gh api --paginate` は Link ヘッダを辿り、JSON 配列を 1 つの配列へ繋いで返す。
+   * ページ数を呼び出し側で数えずに済む。
+   */
+  private async getAll<T>(endpoint: string): Promise<T[]> {
+    const path = `${this.base}/${endpoint}?per_page=${PER_PAGE}`;
+    const result = await this.runner.run(GH, ['api', '--paginate', path]);
+
+    return asArray(unwrap(result.ok ? parseJson<T[]>(GH, result.value) : result));
   }
 }
 

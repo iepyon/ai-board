@@ -17,6 +17,7 @@ interface RouteMap {
 
 function stubRunner(routes: RouteMap, notFound: readonly string[] = []) {
   const paths: string[] = [];
+  const argv: string[][] = [];
 
   const runner: CliRunner = {
     run: vi.fn(async (_command: string, args: readonly string[]) => {
@@ -24,6 +25,7 @@ function stubRunner(routes: RouteMap, notFound: readonly string[] = []) {
 
       const path = args[args.length - 1] ?? '';
       paths.push(path);
+      argv.push([...args]);
 
       if (notFound.some((suffix) => path.includes(suffix))) {
         return err({
@@ -42,7 +44,7 @@ function stubRunner(routes: RouteMap, notFound: readonly string[] = []) {
     }),
   };
 
-  return { runner, paths };
+  return { runner, paths, argv };
 }
 
 const openPr = {
@@ -150,16 +152,41 @@ describe('GhForgeClient', () => {
     expect(pr?.latestNoteAt).toBe('2026-09-04T10:00:00.000Z');
   });
 
-  it('コメントは新しい順に取る', async () => {
-    // 既定は古い順で 1 ページ目しか読まないため、
+  it('コメントは全ページ取る', async () => {
+    // issues/{n}/comments は sort / direction を受け付けない（受けるのは
+    // リポジトリ単位の方）。既定は古い順の 1 ページ目なので、並び順に頼ると
     // 100 件を超えた PR で最終時刻が最新でなくなる
-    const { runner, paths } = stubRunner({ 'pulls/7': openPr });
+    const { runner, argv } = stubRunner({ 'pulls/7': openPr });
 
     await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
 
-    const commentPaths = paths.filter((path) => path.includes('comments'));
-    expect(commentPaths).toHaveLength(2);
-    for (const path of commentPaths) expect(path).toContain('direction=desc');
+    const commentCalls = argv.filter((args) => args.join(' ').includes('comments'));
+    expect(commentCalls).toHaveLength(2);
+    for (const args of commentCalls) expect(args).toContain('--paginate');
+  });
+
+  it('最終コメント時刻はページ内の並び順に依らず最大を取る', async () => {
+    const { runner } = stubRunner({
+      'pulls/7': openPr,
+      'issues/7/comments': [
+        { created_at: '2026-09-04T09:00:00.000Z' },
+        { created_at: '2026-09-04T12:00:00.000Z' },
+        { created_at: '2026-09-04T10:00:00.000Z' },
+      ],
+    });
+
+    const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+
+    expect(pr?.latestNoteAt).toBe('2026-09-04T12:00:00.000Z');
+  });
+
+  it('取得先を github として返す', async () => {
+    // 番号の接頭辞（GitLab は !、GitHub は #）の出し分けに使う
+    const { runner } = stubRunner({ 'pulls/7': openPr });
+
+    const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+
+    expect(pr?.forge).toBe('github');
   });
 
   it('マージ済みの PR を merged として返す', async () => {

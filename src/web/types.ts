@@ -34,6 +34,7 @@ export interface BoardCardOpenSpec {
 }
 
 export interface BoardCardMr {
+  forge: ForgeKind;
   iid: number;
   state: 'opened' | 'closed' | 'locked' | 'merged';
   title: string;

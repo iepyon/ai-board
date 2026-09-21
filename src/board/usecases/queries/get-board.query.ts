@@ -102,6 +102,7 @@ function toBoardCardMr(mr: MrState | null): BoardCardMr | null {
   if (mr === null) return null;
 
   return {
+    forge: mr.forge,
     iid: mr.iid,
     state: mr.state,
     title: mr.title,

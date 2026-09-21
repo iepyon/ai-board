@@ -92,6 +92,7 @@ export class GlabForgeClient implements ForgeClient {
     const humanNotes = asArray(notes).filter((note) => !note.system);
 
     return {
+      forge: this.kind,
       iid: toMergeRequestIid(mr.iid),
       state: toLifecycleState(mr.state),
       sourceBranch: mr.source_branch,
