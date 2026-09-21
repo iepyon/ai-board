@@ -4,8 +4,8 @@ title: GitHub の PR をボードに乗せる
 created: '2026-09-21T02:10:00.000Z'
 startedAt: '2026-09-21T02:34:51.243Z'
 skipGates: []
-change: null
-branch: null
+change: github-pr-provider
+branch: github-pr-provider
 mr: null
 ---
 
@@ -68,3 +68,12 @@ API 呼び出しは倍になるが、GitLab と GitHub で数字の意味がず�
   ポーラーは 1 つでよいか、実装ごとに分けるかは設計時に決める。
 - 公開したことで、他人が clone した環境では両方とも未設定になる。
   `disabled` の見え方が初見の人の最初の体験になるので、そこの文言も見ておきたい。
+
+## レビュー
+
+### 2026-09-21T03:24:55.924Z plan 提出
+
+proposal / specs / design / tasks を作成。`openspec validate --strict` 通過。
+判断待ちの点は 2 つ。取得先の問い合わせを `gh` / `glab` の実行に委ねトークンを
+廃止すること（CLI のログインが実行時の前提になる）と、`GET /api/board` の
+接続状態フィールドを `gitlab` から `forge` へ改名すること。
