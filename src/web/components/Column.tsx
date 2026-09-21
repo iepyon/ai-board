@@ -16,7 +16,7 @@ const OWNER_MARK: Record<'human' | 'ai' | 'none', { icon: string; title: string 
 const SOURCE_COLORS: Record<string, string> = {
   card: 'var(--src-card)',
   openspec: 'var(--src-openspec)',
-  gitlab: 'var(--src-gitlab)',
+  forge: 'var(--src-forge)',
   archive: 'var(--src-archive)',
 };
 

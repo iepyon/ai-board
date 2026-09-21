@@ -3,7 +3,7 @@ import type { Card } from '../../cards/models/card.js';
 import type { GateState, ReviewGate } from '../../cards/models/review.js';
 import type { StageResolution } from '../services/stage-resolver.js';
 import type { OpenSpecArtifacts, TaskProgress } from './openspec-state.js';
-import type { GitLabConnection, MrLifecycleState } from './mr-state.js';
+import type { ForgeConnection, ForgeKind, MrLifecycleState } from './mr-state.js';
 
 // ============================================================
 // ボードに表示するカード（3 ソースを束ねた読み取りモデル）
@@ -19,6 +19,8 @@ export interface BoardCardOpenSpec {
 }
 
 export interface BoardCardMr {
+  /** 番号の接頭辞を出し分けるために取得先を持つ（GitLab は `!`、GitHub は `#`） */
+  readonly forge: ForgeKind;
   readonly iid: number;
   readonly state: MrLifecycleState;
   readonly title: string;
@@ -58,7 +60,7 @@ export interface BoardCard {
 
 export interface Board {
   readonly cards: readonly BoardCard[];
-  readonly gitlab: GitLabConnection;
+  readonly forge: ForgeConnection;
   /** カードに紐付いていない openspec change の名前（紐付け漏れの発見に使う） */
   readonly orphanChanges: readonly string[];
   readonly generatedAt: string;

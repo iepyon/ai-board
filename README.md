@@ -166,7 +166,11 @@ mr: 42 # GitLab MR iid（branch から自動解決して書き戻す）
 **書き込みは `.ai-board/` 配下のみ。`openspec/` は read-only** に徹する
 （openspec CLI と AI エージェントの領分を侵さない）。
 
-## GitLab 連携
+## レビュー要求の取得先
+
+`PR中` / `マージ済み` の列は、カードに紐付いたレビュー要求
+（GitLab の Merge Request、GitHub の Pull Request）の状態で決まる。
+取得先は GitLab か GitHub の **どちらか一方** を選ぶ。
 
 `.ai-board/config.example.yaml` をコピーして書き換える。
 `config.yaml` は各自の接続先なので git の追跡外にしてある。
@@ -176,22 +180,66 @@ cp .ai-board/config.example.yaml .ai-board/config.yaml
 ```
 
 ```yaml
+# GitLab を使う場合
 gitlab:
   url: http://localhost:8929 # compose.yaml の external_url と一致させること
   projectId: 3 # 数値 id または "group/project"
 ```
 
-トークンは環境変数からのみ読む。設定ファイルには書かない。
-
-```bash
-export AI_BOARD_GITLAB_TOKEN=glpat-xxxxxxxxxxxx
+```yaml
+# GitHub を使う場合
+github:
+  repository: iepyon/ai-board # owner/repo
 ```
 
-`gitlab` セクションかトークンのどちらかが欠けていれば連携は無効になり、
-`PR中` / `マージ済み` の列が MR 由来の情報を失うだけでボードは動く。GitLab がダウンしても
-ボードは落ちず、直近のキャッシュを保ったまま「GitLab 未接続」を表示する。
+両方書かれていると起動を中止する。どちらが効いているか分からないまま動かさないため。
 
-MR 一覧の全件取得はページングで取りこぼすため使わず、カード単位で問い合わせる。
+### アクセストークンは要らない
+
+ai-board はトークンを受け取らない。問い合わせは `glab api` / `gh api` の実行として行い、
+**認証はログイン済みの CLI に委ねる。**
+
+```bash
+glab auth login   # GitLab を使う場合
+gh auth login     # GitHub を使う場合
+```
+
+CLI が入っていない、または未ログインなら連携は無効になり、理由が画面に出る。
+設定そのものが無い場合も同じく無効になり、`PR中` / `マージ済み` の列が
+レビュー要求由来の情報を失うだけでボードは動く。取得先がダウンしてもボードは落ちず、
+直近のキャッシュを保ったまま接続状態だけを error にする。
+
+CLI の有無とログイン状態は起動時に 1 度だけ確かめる。ログインし直したら ai-board を再起動する。
+
+GitLab のホストは `config.yaml` の `url` から決まり、`GITLAB_HOST` として glab へ渡す。
+複数インスタンスにログインしているとき、glab の既定ホストを引いて
+別インスタンスの MR を静かに取得するのを防ぐため。
+
+レビュー要求の一覧の全件取得はページングで取りこぼすため使わず、カード単位で問い合わせる。
+問い合わせるのは `branch` か `mr` が書かれたカードだけ。
+
+### 取得先を切り替えるとき
+
+識別番号は取得先ごとに独立している。GitLab の MR !1 と GitHub の PR #1 は別物だが、
+どちらも存在するので番号だけでは区別が付かず、そのまま引くと**列は正しく埋まったまま
+リンクだけが別のレビュー要求を指す**。画面上は何も壊れて見えない。
+
+そのためカードは番号を取得先と対で持つ。
+
+```yaml
+branch: setup-local-gitlab
+mr: 1
+forge: gitlab # この番号は GitLab のもの、という記録
+```
+
+`forge` が現在の取得先と違うカードは、番号を使わず `branch` から解決し直し、
+得られた番号と取得先を書き戻す。`branch` が無ければそのカードにレビュー要求は
+無いものとして扱う。`forge` が書かれていない古いカードは `branch` を優先する。
+
+切り替えのために手で何かを消す必要は無い。
+
+GitHub はレビューコメントが 2 か所（PR 全体への返信とコード行への指摘）に分かれるため、
+両方を合算して GitLab の「system でないノート」と意味を揃えている。
 
 ### ローカル GitLab
 
@@ -221,34 +269,31 @@ nginx と衝突し、puma だけが `EADDRINUSE` で無限に再起動する。�
 `web_url` に載せ、ai-board はそれをそのままカードのリンクにする。ずれていても API は 200 を
 返すため、**列は埋まったままリンクだけが静かに壊れる**。
 
-アクセストークンの発行:
+glab のログイン:
 
 ```bash
-docker compose exec -T gitlab gitlab-rails runner "
-u = User.find_by_username('root')
-t = u.personal_access_tokens.build(scopes: ['api'], name: 'ai-board', expires_at: 365.days.from_now)
-t.set_token('glpat-xxxxxxxxxxxxxxxxxxxx')
-t.save!
-"
+glab auth login --hostname localhost:8929
 ```
 
-動かない場合は Web UI（`/-/user_settings/personal_access_tokens`）から `api` スコープで発行する。
-発行したトークンは `.env` に `AI_BOARD_GITLAB_TOKEN=` として置き、起動時に読み込む。
+Web UI（`/-/user_settings/personal_access_tokens`）から `api` スコープのトークンを
+発行して glab に食わせる。ai-board 自身はトークンを受け取らず、以降は glab の
+ログイン状態だけを使う。
 
 疎通確認:
 
 ```bash
-set -a; . ./.env; set +a
-
 # GitLab が生きているか。/-/health は monitoring_whitelist により
 # コンテナ内からは 200、ホストからは 404 になるので疎通判定には使わない
 curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8929/users/sign_in      # 200
 
-# トークンが有効か
-curl -s -H "PRIVATE-TOKEN: $AI_BOARD_GITLAB_TOKEN" http://localhost:8929/api/v4/user
+# glab がログイン済みか
+GITLAB_HOST=localhost:8929 glab auth status
+
+# glab から API を叩けるか
+GITLAB_HOST=localhost:8929 glab api user
 
 # ボードが接続できているか
-curl -s localhost:5673/api/board | jq .gitlab                                      # {"status":"connected"}
+curl -s localhost:5673/api/board | jq .forge     # {"status":"connected","kind":"gitlab"}
 
 # カードの mr.webUrl に実際に到達できるか。列が埋まっていることを疎通の根拠にしない
 curl -s localhost:5673/api/board | jq -r '.cards[] | select(.mrState) | .mrState.webUrl'

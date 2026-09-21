@@ -1,61 +1,76 @@
 import { describe, it, expect, vi } from 'vitest';
-import { HttpGitLabClient } from '../gitlab-client.js';
-import type { GitLabConfig } from '../../../shared/config.js';
+import { GlabForgeClient } from '../gitlab-client.js';
+import type { ForgeConfig } from '../../../shared/config.js';
 import type { MergeRequestIid } from '../../../shared/schemas/common.js';
+import type { CliRunner, RunOptions } from '../../../infrastructure/cli-runner.js';
+import { ok, err } from '../../../shared/result.js';
 
-const config: GitLabConfig = {
-  url: 'http://localhost:8080',
+const config: Extract<ForgeConfig, { kind: 'gitlab' }> = {
+  kind: 'gitlab',
+  url: 'http://localhost:8929',
   projectId: 3,
-  token: 'test-token',
 };
 
 interface RouteMap {
   [pathSuffix: string]: unknown;
 }
 
-/**
- * fetch モック。
- *
- * notes / commits は MR 本体と URL の前方部分を共有するため、
- * 先に振り分けてから MR 本体のルートを探す。
- */
-function mockFetch(routes: RouteMap, notFound: readonly string[] = []) {
-  return vi.fn(async (input: string | URL | Request) => {
-    const url = String(input);
-
-    if (notFound.some((suffix) => url.includes(suffix))) {
-      return new Response('null', { status: 404 });
-    }
-
-    const body = resolveBody(url, routes);
-
-    return new Response(JSON.stringify(body), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }) as unknown as typeof fetch;
+interface Call {
+  readonly args: readonly string[];
+  readonly options: RunOptions | undefined;
 }
 
-function resolveBody(url: string, routes: RouteMap): unknown {
-  // notes / commits の URL は MR 本体の URL を前方に含むため、
-  // それぞれ専用のキーだけを照合対象にする
-  if (url.includes('/notes')) {
-    return findRoute(url, routes, (key) => key.includes('/notes')) ?? [];
+/**
+ * glab の実行モック。
+ *
+ * notes / commits は MR 本体とパスの前方部分を共有するため、
+ * 先に振り分けてから MR 本体のルートを探す。
+ */
+function stubRunner(routes: RouteMap, notFound: readonly string[] = []) {
+  const calls: Call[] = [];
+
+  const runner: CliRunner = {
+    run: vi.fn(async (_command: string, args: readonly string[], options?: RunOptions) => {
+      calls.push({ args, options });
+
+      const path = args[args.length - 1] ?? '';
+
+      if (args[0] === 'auth') return ok('logged in');
+
+      if (notFound.some((suffix) => path.includes(suffix))) {
+        return err({
+          type: 'Failed' as const,
+          command: 'glab',
+          message: '終了コード 1 で失敗した',
+          httpStatus: 404,
+        });
+      }
+
+      return ok(JSON.stringify(resolveBody(path, routes)));
+    }),
+  };
+
+  return { runner, calls };
+}
+
+function resolveBody(path: string, routes: RouteMap): unknown {
+  if (path.includes('/notes')) {
+    return findRoute(path, routes, (key) => key.includes('/notes')) ?? [];
   }
-  if (url.includes('/commits')) {
-    return findRoute(url, routes, (key) => key.includes('/commits')) ?? [];
+  if (path.includes('/commits')) {
+    return findRoute(path, routes, (key) => key.includes('/commits')) ?? [];
   }
 
   return (
-    findRoute(url, routes, (key) => !key.includes('/notes') && !key.includes('/commits')) ?? []
+    findRoute(path, routes, (key) => !key.includes('/notes') && !key.includes('/commits')) ?? []
   );
 }
 
-function findRoute(url: string, routes: RouteMap, keyFilter: (key: string) => boolean): unknown {
+function findRoute(path: string, routes: RouteMap, keyFilter: (key: string) => boolean): unknown {
   const key = Object.keys(routes)
     .filter(keyFilter)
     .sort((a, b) => b.length - a.length)
-    .find((suffix) => url.includes(suffix));
+    .find((suffix) => path.includes(suffix));
 
   return key === undefined ? undefined : routes[key];
 }
@@ -65,12 +80,12 @@ const openMr = {
   state: 'opened',
   source_branch: 'feat/refresh-token',
   title: 'リフレッシュトークン対応',
-  web_url: 'http://localhost:8080/g/p/-/merge_requests/42',
+  web_url: 'http://localhost:8929/g/p/-/merge_requests/42',
 };
 
-describe('HttpGitLabClient', () => {
+describe('GlabForgeClient', () => {
   it('iid から MR を取得しノートとコミットで補強する', async () => {
-    const fetchFn = mockFetch({
+    const { runner } = stubRunner({
       '/merge_requests/42/notes': [
         { system: false, created_at: '2026-09-04T10:00:00.000Z' },
         { system: true, created_at: '2026-09-04T12:00:00.000Z' },
@@ -79,7 +94,7 @@ describe('HttpGitLabClient', () => {
       '/merge_requests/42': openMr,
     });
 
-    const mr = await new HttpGitLabClient(config, fetchFn).fetchByIid(42 as MergeRequestIid);
+    const mr = await new GlabForgeClient(config, runner).fetchByIid(42 as MergeRequestIid);
 
     expect(mr?.iid).toBe(42);
     expect(mr?.state).toBe('opened');
@@ -89,44 +104,63 @@ describe('HttpGitLabClient', () => {
     expect(mr?.latestCommitAt).toBe('2026-09-04T10:30:00.000Z');
   });
 
-  it('PRIVATE-TOKEN ヘッダを付ける', async () => {
-    const fetchFn = mockFetch({ '/merge_requests/42': openMr });
+  it('取得先を gitlab として返す', async () => {
+    // 番号の接頭辞（GitLab は !、GitHub は #）の出し分けに使う
+    const { runner } = stubRunner({ '/merge_requests/42': openMr });
 
-    await new HttpGitLabClient(config, fetchFn).fetchByIid(42 as MergeRequestIid);
+    const mr = await new GlabForgeClient(config, runner).fetchByIid(42 as MergeRequestIid);
 
-    const [, init] = (fetchFn as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      string,
-      RequestInit,
-    ];
-    expect((init.headers as Record<string, string>)['PRIVATE-TOKEN']).toBe('test-token');
+    expect(mr?.forge).toBe('gitlab');
+  });
+
+  it('GITLAB_HOST で設定のホストを明示的に固定する', async () => {
+    const { runner, calls } = stubRunner({ '/merge_requests/42': openMr });
+
+    await new GlabForgeClient(config, runner).fetchByIid(42 as MergeRequestIid);
+
+    // 既定ホストに任せると、複数インスタンスにログインしているとき別の MR を引く
+    expect(calls[0]?.options?.env).toEqual({ GITLAB_HOST: 'localhost:8929' });
+  });
+
+  it('トークンを引数にも環境変数にも渡さない', async () => {
+    const { runner, calls } = stubRunner({ '/merge_requests/42': openMr });
+
+    await new GlabForgeClient(config, runner).fetchByIid(42 as MergeRequestIid);
+
+    expect(JSON.stringify(calls)).not.toMatch(/token/i);
   });
 
   it('404 は null を返す', async () => {
-    const fetchFn = mockFetch({}, ['/merge_requests/99']);
+    const { runner } = stubRunner({}, ['/merge_requests/99']);
 
-    expect(
-      await new HttpGitLabClient(config, fetchFn).fetchByIid(99 as MergeRequestIid)
-    ).toBeNull();
+    expect(await new GlabForgeClient(config, runner).fetchByIid(99 as MergeRequestIid)).toBeNull();
   });
 
   it('404 以外のエラーは例外にする', async () => {
-    const fetchFn = vi.fn(
-      async () => new Response('forbidden', { status: 403 })
-    ) as unknown as typeof fetch;
+    const runner: CliRunner = {
+      run: vi.fn(async () =>
+        err({
+          type: 'Failed' as const,
+          command: 'glab',
+          message: '終了コード 1 で失敗した',
+          httpStatus: 403,
+        })
+      ),
+    };
 
     await expect(
-      new HttpGitLabClient(config, fetchFn).fetchByIid(42 as MergeRequestIid)
-    ).rejects.toThrow(/403/);
+      new GlabForgeClient(config, runner).fetchByIid(42 as MergeRequestIid)
+    ).rejects.toThrow(/glab/);
   });
 
   it('ブランチから MR を解決する', async () => {
-    const fetchFn = mockFetch({
+    const { runner } = stubRunner({
       '/merge_requests?source_branch': [openMr],
       '/merge_requests/42/notes': [],
       '/merge_requests/42/commits': [{ committed_date: '2026-09-04T10:30:00.000Z' }],
     });
 
-    const mr = await new HttpGitLabClient(config, fetchFn).fetchByBranch('feat/refresh-token');
+    const mr = await new GlabForgeClient(config, runner).fetchByBranch('feat/refresh-token');
 
     expect(mr?.iid).toBe(42);
     expect(mr?.latestNoteAt).toBeNull();
@@ -134,27 +168,57 @@ describe('HttpGitLabClient', () => {
   });
 
   it('ブランチに対応する MR が無ければ null', async () => {
-    const fetchFn = mockFetch({ '/merge_requests?source_branch': [] });
+    const { runner } = stubRunner({ '/merge_requests?source_branch': [] });
 
-    expect(await new HttpGitLabClient(config, fetchFn).fetchByBranch('feat/nothing')).toBeNull();
+    expect(await new GlabForgeClient(config, runner).fetchByBranch('feat/nothing')).toBeNull();
   });
 
   it('未知の state は closed に丸める', async () => {
-    const fetchFn = mockFetch({ '/merge_requests/42': { ...openMr, state: 'unknown-state' } });
+    const { runner } = stubRunner({ '/merge_requests/42': { ...openMr, state: 'unknown-state' } });
 
-    const mr = await new HttpGitLabClient(config, fetchFn).fetchByIid(42 as MergeRequestIid);
+    const mr = await new GlabForgeClient(config, runner).fetchByIid(42 as MergeRequestIid);
 
     expect(mr?.state).toBe('closed');
   });
 
   it('プロジェクト ID がパス形式でも URL エンコードして使う', async () => {
-    const fetchFn = mockFetch({ '/merge_requests/42': openMr });
+    const { runner, calls } = stubRunner({ '/merge_requests/42': openMr });
 
-    await new HttpGitLabClient({ ...config, projectId: 'group/project' }, fetchFn).fetchByIid(
+    await new GlabForgeClient({ ...config, projectId: 'group/project' }, runner).fetchByIid(
       42 as MergeRequestIid
     );
 
-    const [url] = (fetchFn as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [string];
-    expect(url).toContain('/projects/group%2Fproject/');
+    expect(calls[0]?.args.at(-1)).toContain('projects/group%2Fproject/');
+  });
+});
+
+describe('GlabForgeClient.checkAuth', () => {
+  it('ログイン済みなら null を返す', async () => {
+    const { runner } = stubRunner({});
+
+    expect(await new GlabForgeClient(config, runner).checkAuth()).toBeNull();
+  });
+
+  it('glab が無ければ理由を返す', async () => {
+    const runner: CliRunner = {
+      run: vi.fn(async () => err({ type: 'NotInstalled' as const, command: 'glab' })),
+    };
+
+    expect(await new GlabForgeClient(config, runner).checkAuth()).toContain('見つからない');
+  });
+
+  it('未ログインなら理由を返す', async () => {
+    const runner: CliRunner = {
+      run: vi.fn(async () =>
+        err({
+          type: 'Failed' as const,
+          command: 'glab',
+          message: '終了コード 1 で失敗した',
+          httpStatus: null,
+        })
+      ),
+    };
+
+    expect(await new GlabForgeClient(config, runner).checkAuth()).toContain('glab');
   });
 });

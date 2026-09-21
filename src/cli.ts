@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { startServer, DEFAULT_PORT } from './server.js';
-import { BOARD_DIR, OPENSPEC_DIR } from './shared/config.js';
+import { BOARD_DIR, OPENSPEC_DIR, type AppConfig } from './shared/config.js';
 
 // ============================================================
 // ai-board CLI
@@ -25,7 +25,7 @@ Options:
   --port <n>      待ち受けポート (既定: ${DEFAULT_PORT}、使用中なら自動で繰り上げ)
   --no-open       ブラウザを自動で開かない
   --poll-interval <ms>
-                  GitLab のポーリング間隔 (既定: 30000)
+                  レビュー要求のポーリング間隔 (既定: 30000)
   -h, --help      このヘルプを表示
 `;
 
@@ -113,9 +113,7 @@ async function main(): Promise<void> {
 
   console.warn(`ai-board  ${server.url}`);
   console.warn(`  対象      ${server.config.paths.root}`);
-  console.warn(
-    `  GitLab    ${server.config.gitlab === null ? '未設定（ai-pr 系の列は空になります）' : server.config.gitlab.url}`
-  );
+  console.warn(`  取得先    ${describeForge(server.config.forge)}`);
 
   if (open) {
     openBrowser(server.url);
@@ -156,3 +154,12 @@ main().catch((error: unknown) => {
   console.error(`[ai-board] ${error instanceof Error ? error.message : String(error)}`);
   process.exit(1);
 });
+
+/** 起動ログに出す取得先の 1 行 */
+function describeForge(forge: AppConfig['forge']): string {
+  if (forge === null) return '未設定（PR 中 / マージ済みの列は空になります）';
+
+  return forge.kind === 'gitlab'
+    ? `GitLab ${forge.url}（glab のログインを使用）`
+    : `GitHub ${forge.owner}/${forge.repo}（gh のログインを使用）`;
+}

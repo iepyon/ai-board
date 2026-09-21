@@ -79,7 +79,7 @@ export function createGetBoardQuery(
 
     return ok({
       cards: boardCards,
-      gitlab: mrProvider.connection(),
+      forge: mrProvider.connection(),
       orphanChanges: orphanChanges.sort(),
       generatedAt: new Date().toISOString(),
     });
@@ -102,6 +102,7 @@ function toBoardCardMr(mr: MrState | null): BoardCardMr | null {
   if (mr === null) return null;
 
   return {
+    forge: mr.forge,
     iid: mr.iid,
     state: mr.state,
     title: mr.title,

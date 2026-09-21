@@ -7,6 +7,7 @@ skipGates: []
 change: drop-explore-lanes
 branch: drop-explore-lanes
 mr: 7
+forge: gitlab
 ---
 
 ## アイデア

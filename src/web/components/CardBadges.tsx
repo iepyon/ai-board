@@ -1,4 +1,4 @@
-import type { BoardCard } from '../types.js';
+import type { BoardCard, ForgeKind } from '../types.js';
 
 // ============================================================
 // カード上のバッジ列
@@ -6,7 +6,7 @@ import type { BoardCard } from '../types.js';
 
 /**
  * バッジは「その情報がどこから来たか」を色で示す。
- * openspec = 水色 / GitLab = 紫 / カードファイル = 橙 / archive = 緑
+ * openspec = 水色 / レビュー要求 = 紫 / カードファイル = 橙 / archive = 緑
  *
  * 情報源ごとに小さなコンポーネントへ分けている。1 つの関数に並べると
  * 条件が増えるたびに複雑度が上がり、どの行がどの情報源のものか読めなくなる。
@@ -15,7 +15,7 @@ export function CardBadges({ card }: { card: BoardCard }) {
   return (
     <div className="badges">
       <OpenSpecBadges card={card} />
-      <GitLabBadges card={card} />
+      <ForgeBadges card={card} />
       <CardFileBadges card={card} />
     </div>
   );
@@ -41,17 +41,21 @@ function OpenSpecBadges({ card }: { card: BoardCard }) {
   );
 }
 
-/** MR の状態。再提出済みは `pr` 列内での再レビュー待ちを示す */
-function GitLabBadges({ card }: { card: BoardCard }) {
+/** 番号の書き方は取得先ごとに違う。GitLab の MR は `!1`、GitHub の PR は `#1` */
+const NUMBER_PREFIX: Record<ForgeKind, string> = { gitlab: '!', github: '#' };
+
+/** レビュー要求の状態。再提出済みは `pr` 列内での再レビュー待ちを示す */
+function ForgeBadges({ card }: { card: BoardCard }) {
   if (card.mrState === null) return null;
 
   return (
     <>
-      <span className="badge gitlab">
-        !{card.mrState.iid} {card.mrState.state}
+      <span className="badge forge">
+        {NUMBER_PREFIX[card.mrState.forge]}
+        {card.mrState.iid} {card.mrState.state}
       </span>
 
-      {card.mrState.resubmitted && <span className="badge gitlab">再提出済み</span>}
+      {card.mrState.resubmitted && <span className="badge forge">再提出済み</span>}
     </>
   );
 }

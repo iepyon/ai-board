@@ -34,6 +34,7 @@ export function createCreateCardCommand(cardRepository: CardRepository): CreateC
       change: null,
       branch: null,
       mr: null,
+      forge: null,
       body: input.body ?? '',
     };
 

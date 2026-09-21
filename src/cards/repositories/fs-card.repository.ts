@@ -153,6 +153,7 @@ export function parseCard(filePath: string, raw: string): Card | null {
     change: frontmatter.change as ChangeName | null,
     branch: frontmatter.branch,
     mr: frontmatter.mr as MergeRequestIid | null,
+    forge: frontmatter.forge,
     // 前後の改行は正規化する。これで読み書きを往復しても本文が育たない
     body: parsed.content.replace(/^\n+/, '').replace(/\n+$/, ''),
   };
@@ -169,6 +170,7 @@ export function serializeCard(card: Card): string {
     change: card.change,
     branch: card.branch,
     mr: card.mr,
+    forge: card.forge,
   };
 
   const body = card.body.endsWith('\n') || card.body === '' ? card.body : `${card.body}\n`;

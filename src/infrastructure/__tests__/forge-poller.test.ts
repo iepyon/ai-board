@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { GitLabPoller } from '../gitlab-poller.js';
+import { ForgePoller } from '../forge-poller.js';
 import type { CardRepository } from '../../cards/repositories/card.repository.js';
-import type { GitLabClient } from '../../board/services/gitlab-client.js';
+import type { ForgeClient } from '../../board/services/forge-client.js';
 import type { Card } from '../../cards/models/card.js';
 import type { MrState } from '../../board/models/mr-state.js';
 import type { CardId, MergeRequestIid } from '../../shared/schemas/common.js';
@@ -45,6 +45,7 @@ function makeCard(overrides: Partial<Card> = {}): Card {
     change: null,
     branch: null,
     mr: null,
+    forge: null,
     stageOverride: null,
     body: '',
     ...overrides,
@@ -53,6 +54,7 @@ function makeCard(overrides: Partial<Card> = {}): Card {
 
 function makeMr(overrides: Partial<MrState> = {}): MrState {
   return {
+    forge: 'gitlab',
     iid: 42 as MergeRequestIid,
     state: 'opened',
     sourceBranch: 'feat/refresh-token',
@@ -65,10 +67,12 @@ function makeMr(overrides: Partial<MrState> = {}): MrState {
   };
 }
 
-function stubClient(overrides: Partial<GitLabClient> = {}): GitLabClient {
+function stubClient(overrides: Partial<ForgeClient> = {}): ForgeClient {
   return {
+    kind: 'gitlab',
     fetchByIid: vi.fn(async () => null),
     fetchByBranch: vi.fn(async () => null),
+    checkAuth: vi.fn(async () => null),
     ...overrides,
   };
 }
@@ -83,11 +87,11 @@ beforeEach(() => {
 // ポーリング
 // ============================================================
 
-describe('GitLabPoller', () => {
+describe('ForgePoller', () => {
   it('iid が既知なら iid で問い合わせる', async () => {
     const repository = new InMemoryCardRepository([makeCard({ mr: 42 as MergeRequestIid })]);
     const client = stubClient({ fetchByIid: vi.fn(async () => makeMr()) });
-    const poller = new GitLabPoller(repository, client, { onUpdate });
+    const poller = new ForgePoller(repository, client, { onUpdate });
 
     await poller.refresh();
 
@@ -100,7 +104,7 @@ describe('GitLabPoller', () => {
     const repository = new InMemoryCardRepository([makeCard({ branch: 'feat/refresh-token' })]);
     const client = stubClient({ fetchByBranch: vi.fn(async () => makeMr()) });
 
-    await new GitLabPoller(repository, client, { onUpdate }).refresh();
+    await new ForgePoller(repository, client, { onUpdate }).refresh();
 
     expect(client.fetchByBranch).toHaveBeenCalledWith('feat/refresh-token');
     expect(repository.cards.get('refresh-token')?.mr).toBe(42);
@@ -109,7 +113,7 @@ describe('GitLabPoller', () => {
   it('mr も branch も無いカードは問い合わせない', async () => {
     const client = stubClient();
 
-    await new GitLabPoller(new InMemoryCardRepository([makeCard()]), client, {
+    await new ForgePoller(new InMemoryCardRepository([makeCard()]), client, {
       onUpdate,
     }).refresh();
 
@@ -120,7 +124,7 @@ describe('GitLabPoller', () => {
   it('状態が変わったときだけ onUpdate を呼ぶ', async () => {
     const repository = new InMemoryCardRepository([makeCard({ mr: 42 as MergeRequestIid })]);
     const client = stubClient({ fetchByIid: vi.fn(async () => makeMr()) });
-    const poller = new GitLabPoller(repository, client, { onUpdate });
+    const poller = new ForgePoller(repository, client, { onUpdate });
 
     await poller.refresh();
     expect(onUpdate).toHaveBeenCalledTimes(1);
@@ -133,7 +137,7 @@ describe('GitLabPoller', () => {
     const repository = new InMemoryCardRepository([makeCard({ mr: 42 as MergeRequestIid })]);
     let state: MrState['state'] = 'opened';
     const client = stubClient({ fetchByIid: vi.fn(async () => makeMr({ state })) });
-    const poller = new GitLabPoller(repository, client, { onUpdate });
+    const poller = new ForgePoller(repository, client, { onUpdate });
 
     await poller.refresh();
     state = 'merged';
@@ -143,7 +147,7 @@ describe('GitLabPoller', () => {
     expect(poller.get('refresh-token')?.state).toBe('merged');
   });
 
-  it('GitLab が落ちてもキャッシュを保ったまま error 状態にする', async () => {
+  it('取得先が落ちてもキャッシュを保ったまま error 状態にする', async () => {
     const repository = new InMemoryCardRepository([makeCard({ mr: 42 as MergeRequestIid })]);
     let shouldFail = false;
     const client = stubClient({
@@ -152,15 +156,19 @@ describe('GitLabPoller', () => {
         return makeMr();
       }),
     });
-    const poller = new GitLabPoller(repository, client, { onUpdate });
+    const poller = new ForgePoller(repository, client, { onUpdate });
 
     await poller.refresh();
-    expect(poller.connection()).toEqual({ status: 'connected' });
+    expect(poller.connection()).toEqual({ status: 'connected', kind: 'gitlab' });
 
     shouldFail = true;
     await poller.refresh();
 
-    expect(poller.connection()).toEqual({ status: 'error', message: 'ECONNREFUSED' });
+    expect(poller.connection()).toEqual({
+      status: 'error',
+      kind: 'gitlab',
+      message: 'ECONNREFUSED',
+    });
     // 直近の値は残す。ボードを空にしない
     expect(poller.get('refresh-token')?.iid).toBe(42);
   });
@@ -169,7 +177,7 @@ describe('GitLabPoller', () => {
     const repository = new InMemoryCardRepository([makeCard({ mr: 42 as MergeRequestIid })]);
     let found = true;
     const client = stubClient({ fetchByIid: vi.fn(async () => (found ? makeMr() : null)) });
-    const poller = new GitLabPoller(repository, client, { onUpdate });
+    const poller = new ForgePoller(repository, client, { onUpdate });
 
     await poller.refresh();
     found = false;
@@ -189,7 +197,7 @@ describe('GitLabPoller', () => {
           })
       ),
     });
-    const poller = new GitLabPoller(repository, client, { onUpdate });
+    const poller = new ForgePoller(repository, client, { onUpdate });
 
     const first = poller.refresh();
     await poller.refresh(); // running 中なので即座に戻る
@@ -198,5 +206,93 @@ describe('GitLabPoller', () => {
 
     resolveFetch?.();
     await first;
+  });
+});
+
+describe('ForgePoller — 識別番号は取得先と対で扱う', () => {
+  it('取得先が一致すれば番号で問い合わせる', async () => {
+    const repository = new InMemoryCardRepository([
+      makeCard({ mr: 42 as MergeRequestIid, forge: 'gitlab', branch: 'feat/x' }),
+    ]);
+    const client = stubClient({ fetchByIid: vi.fn(async () => makeMr()) });
+
+    await new ForgePoller(repository, client, { onUpdate }).refresh();
+
+    expect(client.fetchByIid).toHaveBeenCalledWith(42);
+    expect(client.fetchByBranch).not.toHaveBeenCalled();
+  });
+
+  it('取得先が違えば番号を使わずブランチから引き直す', async () => {
+    // GitLab の !1 と GitHub の #1 は別物。番号をそのまま使うと静かに別の PR を引く
+    const repository = new InMemoryCardRepository([
+      makeCard({ mr: 1 as MergeRequestIid, forge: 'github', branch: 'feat/x' }),
+    ]);
+    const client = stubClient({ fetchByBranch: vi.fn(async () => makeMr()) });
+
+    await new ForgePoller(repository, client, { onUpdate }).refresh();
+
+    expect(client.fetchByIid).not.toHaveBeenCalled();
+    expect(client.fetchByBranch).toHaveBeenCalledWith('feat/x');
+  });
+
+  it('取得先が違いブランチも無ければ問い合わせない', async () => {
+    const repository = new InMemoryCardRepository([
+      makeCard({ mr: 1 as MergeRequestIid, forge: 'github', branch: null }),
+    ]);
+    const client = stubClient();
+
+    await new ForgePoller(repository, client, { onUpdate }).refresh();
+
+    expect(client.fetchByIid).not.toHaveBeenCalled();
+    expect(client.fetchByBranch).not.toHaveBeenCalled();
+  });
+
+  it('取得先の記録が無い古いカードはブランチを優先する', async () => {
+    const repository = new InMemoryCardRepository([
+      makeCard({ mr: 1 as MergeRequestIid, forge: null, branch: 'feat/x' }),
+    ]);
+    const client = stubClient({ fetchByBranch: vi.fn(async () => makeMr()) });
+
+    await new ForgePoller(repository, client, { onUpdate }).refresh();
+
+    expect(client.fetchByBranch).toHaveBeenCalledWith('feat/x');
+    expect(client.fetchByIid).not.toHaveBeenCalled();
+  });
+
+  it('取得先の記録もブランチも無ければ番号を現在の取得先のものとして扱う', async () => {
+    const repository = new InMemoryCardRepository([
+      makeCard({ mr: 42 as MergeRequestIid, forge: null, branch: null }),
+    ]);
+    const client = stubClient({ fetchByIid: vi.fn(async () => makeMr()) });
+
+    await new ForgePoller(repository, client, { onUpdate }).refresh();
+
+    expect(client.fetchByIid).toHaveBeenCalledWith(42);
+  });
+
+  it('書き戻しでは番号と取得先を必ず対にする', async () => {
+    const repository = new InMemoryCardRepository([
+      makeCard({ mr: null, forge: null, branch: 'feat/x' }),
+    ]);
+    const client = stubClient({ fetchByBranch: vi.fn(async () => makeMr()) });
+
+    await new ForgePoller(repository, client, { onUpdate }).refresh();
+
+    const saved = await repository.findById('refresh-token' as CardId);
+    expect(saved?.mr).toBe(42);
+    expect(saved?.forge).toBe('gitlab');
+  });
+
+  it('取得先が変わったカードは番号と取得先の両方を上書きする', async () => {
+    const repository = new InMemoryCardRepository([
+      makeCard({ mr: 1 as MergeRequestIid, forge: 'github', branch: 'feat/x' }),
+    ]);
+    const client = stubClient({ fetchByBranch: vi.fn(async () => makeMr()) });
+
+    await new ForgePoller(repository, client, { onUpdate }).refresh();
+
+    const saved = await repository.findById('refresh-token' as CardId);
+    expect(saved?.mr).toBe(42);
+    expect(saved?.forge).toBe('gitlab');
   });
 });

@@ -7,6 +7,7 @@ skipGates: []
 change: board-lanes
 branch: board-lanes
 mr: 4
+forge: gitlab
 ---
 
 ## アイデア

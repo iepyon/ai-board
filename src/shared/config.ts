@@ -12,22 +12,38 @@ export const CARDS_DIR = 'cards';
 export const CONFIG_FILE = 'config.yaml';
 export const OPENSPEC_DIR = 'openspec';
 
-/** GitLab トークンは設定ファイルではなく環境変数からのみ読む */
-export const GITLAB_TOKEN_ENV = 'AI_BOARD_GITLAB_TOKEN';
-
 const GitLabConfigSchema = z.object({
   url: z.string().url(),
   projectId: z.union([z.number().int().positive(), z.string().min(1)]),
 });
 
-const ConfigFileSchema = z.object({
-  gitlab: GitLabConfigSchema.optional(),
+/** GitHub は API パスが owner/repo 固定なので数値 id を受ける意味が無い */
+const GitHubConfigSchema = z.object({
+  repository: z.string().regex(/^[^/\s]+\/[^/\s]+$/, 'repository は owner/repo の形式で書く'),
 });
 
-export type GitLabConfig = z.infer<typeof GitLabConfigSchema> & {
-  /** 環境変数から読んだトークン。ブラウザには決して返さない */
-  readonly token: string;
-};
+const ConfigFileSchema = z
+  .object({
+    gitlab: GitLabConfigSchema.optional(),
+    github: GitHubConfigSchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.gitlab !== undefined && value.github !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'gitlab と github は同時に指定できない。どちらか一方だけを書く',
+      });
+    }
+  });
+
+/**
+ * レビュー要求の取得先。
+ *
+ * アクセストークンは持たない。認証は gh / glab CLI に委ねる。
+ */
+export type ForgeConfig =
+  | { readonly kind: 'gitlab'; readonly url: string; readonly projectId: number | string }
+  | { readonly kind: 'github'; readonly owner: string; readonly repo: string };
 
 export interface BoardPaths {
   /** 対象プロジェクトのルート */
@@ -42,8 +58,8 @@ export interface BoardPaths {
 
 export interface AppConfig {
   readonly paths: BoardPaths;
-  /** GitLab 未設定・トークン未設定なら null（ボードは openspec 由来の情報だけで動く） */
-  readonly gitlab: GitLabConfig | null;
+  /** 取得先が未設定なら null（ボードは openspec 由来の情報だけで動く） */
+  readonly forge: ForgeConfig | null;
 }
 
 export function resolvePaths(root: string): BoardPaths {
@@ -61,10 +77,12 @@ export function resolvePaths(root: string): BoardPaths {
 /**
  * 設定を読み込む。
  *
- * 設定ファイルが無い、gitlab セクションが無い、トークンが未設定の
- * いずれの場合も GitLab 連携は無効になるだけでエラーにはしない。
+ * 設定ファイルが無い、取得先のセクションが無いのいずれの場合も
+ * 連携は無効になるだけでエラーにはしない。
+ * gitlab と github が同時に書かれている場合だけは、どちらが効いているか
+ * 分からないまま動かさないために例外を投げる。
  */
-export function loadConfig(root: string, env: NodeJS.ProcessEnv = process.env): AppConfig {
+export function loadConfig(root: string): AppConfig {
   const paths = resolvePaths(root);
   const configPath = path.join(paths.boardDir, CONFIG_FILE);
 
@@ -80,13 +98,25 @@ export function loadConfig(root: string, env: NodeJS.ProcessEnv = process.env): 
     );
   }
 
-  const token = env[GITLAB_TOKEN_ENV];
-  const gitlabSection = parsed.data.gitlab;
+  return { paths, forge: toForgeConfig(parsed.data) };
+}
 
-  const gitlab: GitLabConfig | null =
-    gitlabSection && token
-      ? { url: gitlabSection.url.replace(/\/+$/, ''), projectId: gitlabSection.projectId, token }
-      : null;
+function toForgeConfig(data: z.infer<typeof ConfigFileSchema>): ForgeConfig | null {
+  if (data.gitlab !== undefined) {
+    return {
+      kind: 'gitlab',
+      url: data.gitlab.url.replace(/\/+$/, ''),
+      projectId: data.gitlab.projectId,
+    };
+  }
 
-  return { paths, gitlab };
+  if (data.github !== undefined) {
+    const [owner, repo] = data.github.repository.split('/');
+    // スキーマの正規表現が owner/repo を保証しているが、型の上では undefined を取り得る
+    if (owner !== undefined && repo !== undefined) {
+      return { kind: 'github', owner, repo };
+    }
+  }
+
+  return null;
 }

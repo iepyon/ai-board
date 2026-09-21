@@ -7,6 +7,7 @@ skipGates: []
 change: null
 branch: add-claude-md
 mr: 2
+forge: gitlab
 ---
 
 ## アイデア

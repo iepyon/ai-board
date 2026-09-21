@@ -43,6 +43,7 @@ function makeOpenSpec(overrides: Partial<OpenSpecChangeState> = {}): OpenSpecCha
 
 function makeMr(overrides: Partial<MrState> = {}): MrState {
   return {
+    forge: 'gitlab',
     iid: 42 as MergeRequestIid,
     state: 'opened',
     sourceBranch: 'feat/refresh-token',

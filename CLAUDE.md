@@ -48,7 +48,8 @@ startedAt: null         # 人が着手を指示した時刻（人が打つ）
 skipGates: []           # 人が事前に見ないと宣言したゲート（plan）
 change: null            # openspec の change 名
 branch: null
-mr: null                # GitLab MR iid（branch から自動解決して書き戻す）
+mr: null                # レビュー要求の番号（branch から自動解決して書き戻す）
+forge: null             # その番号がどの取得先のものか。mr と必ず対で書く
 ---
 ```
 
@@ -167,25 +168,55 @@ src/
   カバレッジからも除外され、jsdom も testing-library も入っていない。
   UI の変更は typecheck と lint で担保する。
 
-## GitLab 連携
+## レビュー要求の取得先
 
-`.ai-board/config.yaml` の `gitlab.url` / `gitlab.projectId` と、環境変数
-`AI_BOARD_GITLAB_TOKEN` の**両方**が揃ったときだけ有効になる。
-欠けていれば連携は無効になり `ai-pr` 系の列が空になるだけでボードは動く。
-**トークンは設定ファイルに書かず、ブラウザにも返さない。**
+`.ai-board/config.yaml` に `gitlab:` か `github:` の**どちらか一方**を書いたときだけ有効になる。
+両方書かれていれば起動時に例外を投げる（どちらが効いているか分からないまま動かさない）。
+欠けていれば連携は無効になり `PR中` / `マージ済み` の列が空になるだけでボードは動く。
+
+**アクセストークンは扱わない。** 問い合わせは `glab api` / `gh api` の実行として行い、
+認証はログイン済みの CLI に委ねる。トークンを設定ファイル・環境変数から読む経路は無い。
+CLI の有無とログイン状態は起動時に 1 度だけ確かめ（`ForgeClient.checkAuth`）、
+使えなければ理由付きで `disabled` にする。
+
+CLI の実行は `src/infrastructure/cli-runner.ts` に閉じる。**shell を介さず引数は配列で渡す。**
+カードの `branch` は人もエージェントも自由に書ける場所であり、文字列連結でコマンドを
+組み立てるとカードを書ける者が任意のコマンドを実行できる。
+stderr は本文を載せず `(HTTP 404)` の数字だけを取り出して 404 判定に使う。
+
+GitLab のホストは `url` から取り出して `GITLAB_HOST` で渡す。`--hostname` はポート付きの
+ホストを受け付けない。既定ホストに任せると、複数インスタンスにログインしているとき
+別インスタンスの MR を静かに引く。
+
+GitHub の PR は `state` が `open` / `closed` の 2 値しかなく、**マージ済みも `closed`** で返る。
+区別は `merged_at` の有無で付ける（`toLifecycleState`）。ここを取り違えるとカードが
+`merged` へ進まない。レビューコメントは issue comment と review comment の 2 か所に
+分かれるため、合算して GitLab の「system でないノート」と意味を揃える。
+どちらの一覧も既定は古い順の 1 ページ目だけで、`issues/{n}/comments` は `sort` /
+`direction` を受け付けない（受けるのはリポジトリ単位の `issues/comments` の方）。
+並び順に頼らず `gh api --paginate` で全ページ引いて最大値を取る。
+最新コミットは `pulls/{n}/commits` ではなく `head.sha` を直接引く（件数で取り逃がさない）。
+自動生成のコメントは GitLab の `system` に相当するものが無く、`user.type === 'Bot'` で外す。
 
 検証用 GitLab は `docker compose up -d`（`http://localhost:8929`、`.env` に `GITLAB_ROOT_PASSWORD`）。
 ポート 8080 は omnibus 内部の puma と衝突して静かに 502 になるため使えない。
 `external_url` は実際にブラウザで開く URL と一致させる（ずれると API は 200 のままリンクだけ壊れる）。
 詳細と疎通確認の手順は README の「ローカル GitLab」節にある。
 
-MR 一覧の全件取得はページングで取りこぼすため使わず、カード単位で問い合わせる。
+MR / PR 一覧の全件取得はページングで取りこぼすため使わず、カード単位で問い合わせる。
+
+**識別番号は取得先ごとに独立している。** GitLab の MR !1 と GitHub の PR #1 は別物で、
+どちらも存在するためエラーにならない。カードの `mr` は `forge` と対で持ち、
+`forge` が現在の取得先と違えば番号を使わず `branch` から解決し直す
+（`ForgePoller.fetchFor`）。`forge` が無い古いカードは `branch` を優先する。
+ここを対にしないと、取得先を切り替えたあと**列は正しく埋まったままリンクだけが別の
+レビュー要求を指す**。画面上は何も壊れて見えないので、リンクを開くまで気づけない。
 
 ## API
 
 | メソッド | パス                  | 用途                                       |
 | -------- | --------------------- | ------------------------------------------ |
-| `GET`    | `/api/board`          | 全カード＋導出ステージ＋openspec / GitLab 情報 |
+| `GET`    | `/api/board`          | 全カード＋導出ステージ＋openspec / レビュー要求の情報 |
 | `POST`   | `/api/cards`          | 新規アイデアカード作成                     |
 | `PATCH`  | `/api/cards/:id`      | frontmatter の部分更新                     |
 | `PUT`    | `/api/cards/:id/body` | 本文の差し替え                             |
