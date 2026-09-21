@@ -81,13 +81,20 @@ composition root で `gh auth status` / `glab auth status` を 1 度実行し、
 30 秒ごとにプロセスを 1 つ余計に起動する価値が無い。ログインし直した場合は
 ai-board の再起動で反映される。
 
-### GitLab のホストは設定の `url` から解決して `--hostname` で渡す
+### GitLab のホストは設定の `url` から解決し、環境変数 `GITLAB_HOST` で渡す
 
 `glab` は複数の GitLab インスタンスにログインでき、既定のホストを持つ。
 ai-board の設定が指すホストと `glab` の既定が食い違うと、別インスタンスの
 MR を静かに引く。`config.yaml` の `url` からホスト名を取り出して明示的に渡す。
 
+渡し方は当初 `--hostname` を想定していたが、**このフラグはポート付きのホストを
+受け付けない**（`glab api --hostname localhost:8929` は
+`Error parsing --hostname: invalid hostname.` で落ち、ポートを外すと :443 を叩きに行く）。
+検証用の GitLab は `localhost:8929` で動かすため、これでは指定できない。
+環境変数 `GITLAB_HOST` はポート付きを受け付けるので、そちらで固定する。
+
 GitHub 側は `gh` の既定ホスト（github.com）を使う。GitHub Enterprise は今回の対象外。
+
 
 ### 設定は排他とし、違反は起動時の例外にする
 

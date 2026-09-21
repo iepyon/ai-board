@@ -68,13 +68,17 @@ export interface BoardCard {
   mrState: BoardCardMr | null;
 }
 
-export type GitLabConnection =
-  { status: 'disabled' } | { status: 'connected' } | { status: 'error'; message: string };
+export type ForgeKind = 'gitlab' | 'github';
+
+export type ForgeConnection =
+  | { status: 'disabled'; kind: ForgeKind | null; reason: string | null }
+  | { status: 'connected'; kind: ForgeKind }
+  | { status: 'error'; kind: ForgeKind; message: string };
 
 export interface Board {
   stages: Stage[];
   cards: BoardCard[];
-  gitlab: GitLabConnection;
+  forge: ForgeConnection;
   orphanChanges: string[];
   generatedAt: string;
 }
@@ -112,13 +116,13 @@ export const STAGE_OWNER: Record<Stage, 'human' | 'ai' | 'none'> = {
 };
 
 /** 列の帯色 = そのステージを立てる情報源 */
-export const STAGE_SOURCE: Record<Stage, 'card' | 'openspec' | 'gitlab' | 'archive'> = {
+export const STAGE_SOURCE: Record<Stage, 'card' | 'openspec' | 'forge' | 'archive'> = {
   idea: 'card',
   planning: 'card',
   'plan-review': 'openspec',
   impling: 'openspec',
   verifying: 'openspec',
-  pr: 'gitlab',
+  pr: 'forge',
   merged: 'archive',
 };
 

@@ -12,10 +12,10 @@
     "dist"
   ],
   "scripts": {
-    "dev": "tsx watch --env-file-if-exists=.env src/index.ts",
+    "dev": "tsx watch src/index.ts",
     "dev:web": "vite",
     "build": "tsc && vite build",
-    "start": "node --env-file-if-exists=.env dist/cli.js",
+    "start": "node dist/cli.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

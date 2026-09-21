@@ -79,7 +79,7 @@ export function createGetBoardQuery(
 
     return ok({
       cards: boardCards,
-      gitlab: mrProvider.connection(),
+      forge: mrProvider.connection(),
       orphanChanges: orphanChanges.sort(),
       generatedAt: new Date().toISOString(),
     });

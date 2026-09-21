@@ -1,8 +1,24 @@
-# ローカル GitLab との接続設定。
-# トークンはここに書かない。環境変数 AI_BOARD_GITLAB_TOKEN からのみ読む。
+# レビュー要求（MR / PR）の取得先。
+# .ai-board/config.yaml にコピーして使う（config.yaml は git の追跡外）。
+#
+# gitlab と github は **どちらか一方だけ** を書く。
+# 両方書かれていると、どちらが効いているか分からないまま動かさないために起動を中止する。
+# どちらも書かなければ連携は無効になり、PR 中 / マージ済みの列が
+# レビュー要求由来の情報を持たないだけでボードは動く。
+#
+# アクセストークンは要らない。認証はログイン済みの CLI に委ねる。
+#   GitLab → glab auth login
+#   GitHub → gh auth login
+# CLI が入っていない、または未ログインなら連携は無効になり、理由が画面に出る。
+
 gitlab:
   # compose.yaml の external_url と一致させること。
   # ここがずれても API は 200 を返し、カードのリンクだけが静かに壊れる。
+  # ホストは glab の既定ではなくこの url から決まる。
   url: http://localhost:8929
   # 数値 id ではなくパス形式にする。GitLab を作り直しても変わらない。
   projectId: 'iepyon/ai-board'
+
+# github:
+#   # owner/repo の形式で書く。
+#   repository: 'iepyon/ai-board'

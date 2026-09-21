@@ -34,6 +34,7 @@ function makeCard(overrides: Partial<Card> = {}): Card {
     change: null,
     branch: null,
     mr: null,
+    forge: null,
     body: '',
     ...overrides,
   };
@@ -142,6 +143,7 @@ describe('serializeCard', () => {
       change: 'refresh-token' as ChangeName,
       branch: 'feat/refresh-token',
       mr: 42 as MergeRequestIid,
+      forge: 'gitlab',
       body: '## アイデア\n本文',
     });
 

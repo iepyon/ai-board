@@ -3,7 +3,7 @@ import { useBoard } from './hooks/useBoard.js';
 import { Board } from './components/Board.js';
 import { CardDetail } from './components/CardDetail.js';
 import { NewCardDialog } from './components/NewCardDialog.js';
-import type { Board as BoardData, GitLabConnection } from './types.js';
+import type { Board as BoardData, ForgeConnection, ForgeKind } from './types.js';
 
 // ============================================================
 // ai-board アプリケーション
@@ -33,7 +33,7 @@ export function App() {
     <div className="app">
       <TopBar
         cardCount={visible?.cards.length ?? null}
-        gitlab={board?.gitlab ?? null}
+        forge={board?.forge ?? null}
         abortedCount={abortedCount}
         showAborted={showAborted}
         onToggleAborted={() => setShowAborted((on) => !on)}
@@ -109,7 +109,7 @@ function Banners({ error, actionError, orphanChanges }: BannersProps) {
 
 interface TopBarProps {
   cardCount: number | null;
-  gitlab: GitLabConnection | null;
+  forge: ForgeConnection | null;
   abortedCount: number;
   showAborted: boolean;
   onToggleAborted: () => void;
@@ -119,7 +119,7 @@ interface TopBarProps {
 
 function TopBar({
   cardCount,
-  gitlab,
+  forge,
   abortedCount,
   showAborted,
   onToggleAborted,
@@ -136,7 +136,7 @@ function TopBar({
           {showAborted ? `中止 ${abortedCount} 件を隠す` : `中止 ${abortedCount} 件を表示`}
         </button>
       )}
-      {gitlab !== null && <GitLabStatus connection={gitlab} />}
+      {forge !== null && <ForgeStatus connection={forge} />}
       <button type="button" className="btn" onClick={onAdd}>
         ＋ アイデア
       </button>
@@ -147,13 +147,28 @@ function TopBar({
   );
 }
 
-function GitLabStatus({ connection }: { connection: GitLabConnection }) {
+const FORGE_LABELS: Record<ForgeKind, string> = { gitlab: 'GitLab', github: 'GitHub' };
+
+function ForgeStatus({ connection }: { connection: ForgeConnection }) {
   switch (connection.status) {
     case 'connected':
-      return <span className="status connected">GitLab 接続中</span>;
+      return <span className="status connected">{FORGE_LABELS[connection.kind]} 接続中</span>;
     case 'disabled':
-      return <span className="status disabled">GitLab 未設定</span>;
+      return <span className="status disabled">{describeDisabled(connection)}</span>;
     case 'error':
-      return <span className="status error">GitLab 未接続: {connection.message}</span>;
+      return (
+        <span className="status error">
+          {FORGE_LABELS[connection.kind]} 未接続: {connection.message}
+        </span>
+      );
   }
+}
+
+/** 未設定なのか、設定はあるが CLI が使えないのかを見分けられるようにする */
+function describeDisabled(connection: Extract<ForgeConnection, { status: 'disabled' }>): string {
+  if (connection.kind === null) return '取得先 未設定';
+
+  const label = FORGE_LABELS[connection.kind];
+
+  return connection.reason === null ? `${label} 未設定` : `${label} 利用不可: ${connection.reason}`;
 }

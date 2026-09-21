@@ -47,11 +47,11 @@ function GitLabBadges({ card }: { card: BoardCard }) {
 
   return (
     <>
-      <span className="badge gitlab">
+      <span className="badge forge">
         !{card.mrState.iid} {card.mrState.state}
       </span>
 
-      {card.mrState.resubmitted && <span className="badge gitlab">再提出済み</span>}
+      {card.mrState.resubmitted && <span className="badge forge">再提出済み</span>}
     </>
   );
 }

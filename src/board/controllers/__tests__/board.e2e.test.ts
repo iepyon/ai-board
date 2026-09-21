@@ -36,7 +36,7 @@ async function writeFile(relativePath: string, content: string): Promise<void> {
 function stubMrProvider(states: Record<string, MrState> = {}): MrStateProvider {
   return {
     get: (cardId) => states[cardId] ?? null,
-    connection: () => ({ status: 'connected' }),
+    connection: () => ({ status: 'connected', kind: 'github' }),
   };
 }
 
@@ -70,7 +70,7 @@ describe('GET /api/board', () => {
       'pr',
       'merged',
     ]);
-    expect(response.body.gitlab).toEqual({ status: 'disabled' });
+    expect(response.body.forge).toEqual({ status: 'disabled', kind: null, reason: null });
   });
 
   it('openspec の実態からステージを導出する', async () => {
@@ -126,7 +126,7 @@ describe('GET /api/board', () => {
     expect(response.body.cards[0].stage).toBe('pr');
     expect(response.body.cards[0].mrState.resubmitted).toBe(true);
     expect(response.body.cards[0].mrState.webUrl).toBe('http://localhost:8080/mr/38');
-    expect(response.body.gitlab).toEqual({ status: 'connected' });
+    expect(response.body.forge).toEqual({ status: 'connected', kind: 'github' });
   });
 
   it('カードに紐付いていない change を orphanChanges として返す', async () => {

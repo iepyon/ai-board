@@ -7,6 +7,7 @@ skipGates: []
 change: null
 branch: fix-vite-api-proxy
 mr: 3
+forge: gitlab
 ---
 
 ## アイデア

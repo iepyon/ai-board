@@ -17,8 +17,8 @@
   --src-card-bg: #fdf2e3;
   --src-openspec: #0e7490;
   --src-openspec-bg: #e0f0f5;
-  --src-gitlab: #7c3aed;
-  --src-gitlab-bg: #ede9fe;
+  --src-forge: #7c3aed;
+  --src-forge-bg: #ede9fe;
   --src-archive: #15803d;
   --src-archive-bg: #e3f3e8;
 
@@ -46,8 +46,8 @@
     --src-card-bg: #33240f;
     --src-openspec: #38bdd8;
     --src-openspec-bg: #123540;
-    --src-gitlab: #b79cf8;
-    --src-gitlab-bg: #271d45;
+    --src-forge: #b79cf8;
+    --src-forge-bg: #271d45;
     --src-archive: #6fce8b;
     --src-archive-bg: #12301c;
 
@@ -294,9 +294,9 @@ button {
   color: var(--src-openspec);
   background: var(--src-openspec-bg);
 }
-.badge.gitlab {
-  color: var(--src-gitlab);
-  background: var(--src-gitlab-bg);
+.badge.forge {
+  color: var(--src-forge);
+  background: var(--src-forge-bg);
 }
 /* 修飾子名は .card（カンバンカード本体）と衝突しないものにする */
 .badge.manual {
@@ -490,8 +490,8 @@ button {
 }
 
 .stage-chip.ai {
-  background: var(--src-gitlab-bg);
-  color: var(--src-gitlab);
+  background: var(--src-forge-bg);
+  color: var(--src-forge);
 }
 
 .stage-owner {
@@ -534,7 +534,7 @@ button {
 }
 
 .mr-link {
-  color: var(--src-gitlab);
+  color: var(--src-forge);
   font-size: 12.5px;
   overflow-wrap: anywhere;
 }

@@ -7,6 +7,7 @@ skipGates: []
 change: setup-local-gitlab
 branch: setup-local-gitlab
 mr: 1
+forge: gitlab
 ---
 
 ## アイデア
