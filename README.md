@@ -168,11 +168,16 @@ mr: 42 # GitLab MR iid（branch から自動解決して書き戻す）
 
 ## GitLab 連携
 
-`.ai-board/config.yaml`:
+`.ai-board/config.example.yaml` をコピーして書き換える。
+`config.yaml` は各自の接続先なので git の追跡外にしてある。
+
+```bash
+cp .ai-board/config.example.yaml .ai-board/config.yaml
+```
 
 ```yaml
 gitlab:
-  url: http://localhost:8080
+  url: http://localhost:8929 # compose.yaml の external_url と一致させること
   projectId: 3 # 数値 id または "group/project"
 ```
 
@@ -382,3 +387,7 @@ npm run build
 npm run dev           # サーバのみ（tsx watch）
 npm run dev:web       # Vite dev サーバ（/api を 5673 へプロキシ）
 ```
+
+## ライセンス
+
+MIT License. 詳細は [LICENSE](LICENSE) を参照。

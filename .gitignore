@@ -12,3 +12,6 @@ coverage/
 
 # アップグレード前に取り出す GitLab のバックアップと secrets。共有しない
 /gitlab-backup/
+
+# 各自の GitLab 接続設定。config.example.yaml をコピーして使う
+/.ai-board/config.yaml
