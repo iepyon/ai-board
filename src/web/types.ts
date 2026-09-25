@@ -2,14 +2,7 @@
 // API レスポンスの型（サーバの BoardCard と対応）
 // ============================================================
 
-export type Stage =
-  | 'idea'
-  | 'planning'
-  | 'plan-review'
-  | 'impling'
-  | 'verifying'
-  | 'pr'
-  | 'merged';
+export type Stage = 'idea' | 'planning' | 'plan-review' | 'impling' | 'pr' | 'merged';
 
 /** 人が判断するゲートのうち、レビューログに現れるもの */
 export type ReviewGate = 'plan';
@@ -100,7 +93,6 @@ export const STAGE_LABELS: Record<Stage, string> = {
   planning: '計画提案中',
   'plan-review': '計画レビュー',
   impling: '実装中',
-  verifying: '検証中',
   pr: 'PR中',
   merged: 'マージ済み',
 };
@@ -111,7 +103,6 @@ export const STAGE_OWNER: Record<Stage, 'human' | 'ai' | 'none'> = {
   planning: 'ai',
   'plan-review': 'human',
   impling: 'ai',
-  verifying: 'ai',
   pr: 'human',
   merged: 'none',
 };
@@ -122,7 +113,6 @@ export const STAGE_SOURCE: Record<Stage, 'card' | 'openspec' | 'forge' | 'archiv
   planning: 'card',
   'plan-review': 'openspec',
   impling: 'openspec',
-  verifying: 'openspec',
   pr: 'forge',
   merged: 'archive',
 };

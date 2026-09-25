@@ -66,7 +66,6 @@ describe('GET /api/board', () => {
       'planning',
       'plan-review',
       'impling',
-      'verifying',
       'pr',
       'merged',
     ]);

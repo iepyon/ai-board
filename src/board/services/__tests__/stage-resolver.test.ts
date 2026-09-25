@@ -186,17 +186,19 @@ describe('resolveStage — 自動導出', () => {
       expected: 'impling',
     },
     {
-      name: 'plan が承認され tasks が全完了なら verifying',
+      // 検証中の列は廃止した。AI レビューは実装中の内部工程であり、
+      // tasks の進捗はプログレスバーに出るだけでステージを立てない。
+      name: 'plan が承認されていれば tasks を全部倒しても impling のまま',
       card: makeCard({ startedAt: T1, body: planApproved() }),
       openspec: makeOpenSpec({
         artifacts: PROPOSAL_AND_TASKS,
         tasks: { completed: 10, total: 10 },
       }),
       mr: null,
-      expected: 'verifying',
+      expected: 'impling',
     },
     {
-      name: 'tasks が 0 件なら全完了扱いにせず impling',
+      name: 'tasks が 0 件でも impling',
       card: makeCard({ startedAt: T1, skipGates: ['plan'] }),
       openspec: makeOpenSpec({ tasks: { completed: 0, total: 0 } }),
       mr: null,
