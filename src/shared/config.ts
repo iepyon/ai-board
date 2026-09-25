@@ -10,6 +10,7 @@ import { z } from 'zod';
 export const BOARD_DIR = '.ai-board';
 export const CARDS_DIR = 'cards';
 export const CONFIG_FILE = 'config.yaml';
+export const PLANS_DIR = 'plans';
 export const OPENSPEC_DIR = 'openspec';
 
 const GitLabConfigSchema = z.object({
@@ -52,6 +53,8 @@ export interface BoardPaths {
   readonly boardDir: string;
   /** .ai-board/cards/ */
   readonly cardsDir: string;
+  /** .ai-board/plans/ */
+  readonly plansDir: string;
   /** openspec/ */
   readonly openspecDir: string;
 }
@@ -70,6 +73,7 @@ export function resolvePaths(root: string): BoardPaths {
     root: absoluteRoot,
     boardDir,
     cardsDir: path.join(boardDir, CARDS_DIR),
+    plansDir: path.join(boardDir, PLANS_DIR),
     openspecDir: path.join(absoluteRoot, OPENSPEC_DIR),
   };
 }
