@@ -223,6 +223,48 @@ describe('GET /api/board', () => {
 });
 
 // ============================================================
+// GET /api/plans/:id
+// ============================================================
+
+describe('GET /api/plans/:id', () => {
+  it('計画の本文と進捗を返す', async () => {
+    await writeFile('.ai-board/plans/refresh-token.md', '# 計画\n\n- [x] 1\n- [ ] 2');
+
+    const response = await request(buildApp()).get('/api/plans/refresh-token').expect(200);
+
+    expect(response.body).toEqual({
+      id: 'refresh-token',
+      body: '# 計画\n\n- [x] 1\n- [ ] 2',
+      tasks: { completed: 1, total: 2 },
+    });
+  });
+
+  it('archive 配下の計画も読める', async () => {
+    await writeFile('.ai-board/plans/archive/finished.md', '# 済んだ計画');
+
+    const response = await request(buildApp()).get('/api/plans/finished').expect(200);
+
+    expect(response.body.body).toBe('# 済んだ計画');
+  });
+
+  it('計画が無ければ 404', async () => {
+    const response = await request(buildApp()).get('/api/plans/missing').expect(404);
+
+    expect(response.body.code).toBe('PLAN_NOT_FOUND');
+  });
+
+  it('カード ID として不正な id は 404（パストラバーサルを通さない）', async () => {
+    await writeFile('.ai-board/secret.md', 'これは計画ではない');
+
+    const response = await request(buildApp())
+      .get(`/api/plans/${encodeURIComponent('../secret')}`)
+      .expect(404);
+
+    expect(response.body.code).toBe('PLAN_NOT_FOUND');
+  });
+});
+
+// ============================================================
 // カード API
 // ============================================================
 

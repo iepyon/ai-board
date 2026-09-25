@@ -12,7 +12,7 @@ export function createBoardRouter(deps: BoardDependencies): Router {
   const router = Router();
   const { getBoardQuery } = deps;
 
-  /** GET /api/board — 全カード＋導出ステージ＋openspec / GitLab 由来の情報 */
+  /** GET /api/board — 全カード＋導出ステージ＋計画 / レビュー要求 由来の情報 */
   router.get('/', async (_req: Request, res: Response): Promise<void> => {
     const result = await getBoardQuery();
 

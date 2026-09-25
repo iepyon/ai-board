@@ -9,6 +9,7 @@ import {
 } from './shared/middleware/error-handler.middleware.js';
 import { createCardRouter } from './cards/controllers/card.controller.js';
 import { createBoardRouter } from './board/controllers/board.controller.js';
+import { createPlanRouter } from './board/controllers/plan.controller.js';
 import type { CardDependencies } from './cards/composition.js';
 import type { BoardDependencies } from './board/composition.js';
 import type { SseHub } from './infrastructure/sse.js';
@@ -39,6 +40,7 @@ export function createApp(deps: AppDependencies): Application {
   });
 
   application.use('/api/board', createBoardRouter(deps.board));
+  application.use('/api/plans', createPlanRouter(deps.board));
   application.use('/api/cards', createCardRouter(deps.cards));
 
   if (deps.sse !== undefined) {
