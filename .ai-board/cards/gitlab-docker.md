@@ -4,7 +4,6 @@ title: Docker Compose で GitLab を立てて接続する
 created: '2026-09-04T06:48:23.390Z'
 startedAt: '2026-09-04T06:48:23.390Z'
 skipGates: []
-change: setup-local-gitlab
 branch: setup-local-gitlab
 mr: 1
 forge: gitlab

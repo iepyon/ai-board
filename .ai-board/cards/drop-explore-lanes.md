@@ -4,7 +4,6 @@ title: 探索中と探索レビューのレーンを削る
 created: '2026-09-11T04:20:00.000Z'
 startedAt: null
 skipGates: []
-change: drop-explore-lanes
 branch: drop-explore-lanes
 mr: 7
 forge: gitlab

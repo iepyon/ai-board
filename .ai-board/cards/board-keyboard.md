@@ -4,7 +4,6 @@ title: キーボード操作に対応する
 created: '2026-09-04T06:48:23.413Z'
 startedAt: null
 skipGates: []
-change: null
 branch: null
 mr: null
 ---

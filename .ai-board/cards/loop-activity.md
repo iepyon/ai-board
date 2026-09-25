@@ -4,7 +4,6 @@ title: AI ループの稼働状況をボードに出す
 created: '2026-09-04T06:48:23.406Z'
 startedAt: null
 skipGates: []
-change: null
 branch: null
 mr: null
 ---

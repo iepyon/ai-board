@@ -4,7 +4,6 @@ title: AI ループの実行履歴を追えるようにする
 created: '2026-09-04T06:48:23.408Z'
 startedAt: null
 skipGates: []
-change: null
 branch: null
 mr: null
 ---

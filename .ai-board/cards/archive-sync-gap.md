@@ -4,7 +4,6 @@ title: マージ済みと archive 済みを見分けられるようにする
 created: '2026-09-11T01:52:44.055Z'
 startedAt: null
 skipGates: []
-change: null
 branch: null
 mr: null
 ---

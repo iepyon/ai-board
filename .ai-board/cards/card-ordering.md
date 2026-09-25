@@ -4,7 +4,6 @@ title: 列内でカードを並び替えられるようにする
 created: '2026-09-04T06:48:23.419Z'
 startedAt: null
 skipGates: []
-change: null
 branch: null
 mr: null
 ---
