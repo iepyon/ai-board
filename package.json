@@ -1,7 +1,7 @@
 {
   "name": "ai-board",
   "version": "0.1.0",
-  "description": "OpenSpec 駆動開発をサポートするローカル Web カンバン",
+  "description": "計画ファイル駆動の開発をサポートするローカル Web カンバン",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",

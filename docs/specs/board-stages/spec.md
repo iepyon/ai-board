@@ -2,21 +2,21 @@
 
 ## Purpose
 
-カードが今どの工程にいて、次に動くのが人か AI かを、カードファイル・openspec・GitLab の
+カードが今どの工程にいて、次に動くのが人か AI かを、カードファイル・計画ファイル・レビュー要求の
 実態だけから決める。ステージという値はどこにも保存せず、常に導出の結果として与える。
 
 ## Requirements
 
 ### Requirement: ステージは保存せず導出する
 
-システムは カードのステージを保存 SHALL NOT、3 つの実態（カードファイル・openspec の
-change ディレクトリ・GitLab の MR）から毎回導出しなければならない (MUST)。
+システムは カードのステージを保存 SHALL NOT、3 つの実態（カードファイル・計画ファイル・
+レビュー要求の MR / PR）から毎回導出しなければならない (MUST)。
 
 同じ実態に対しては常に同じステージを返さなければならない (MUST)。
 
 #### Scenario: 同じ実態からは同じステージが出る
 
-- **WHEN** カードの内容と openspec と GitLab の状態が変わらないまま、ボードを 2 回取得する
+- **WHEN** カードの内容と計画ファイルとレビュー要求の状態が変わらないまま、ボードを 2 回取得する
 - **THEN** 2 回とも同じステージが返る
 
 #### Scenario: ステージを指定する入力口が無い
@@ -29,10 +29,10 @@ change ディレクトリ・GitLab の MR）から毎回導出しなければな
 システムは カードを次の 7 つのステージのいずれか 1 つに割り当てなければならない (MUST)。
 並びはそのまま進行度を表す。
 
-`idea` → `planning` → `plan-review` → `impling` → `verifying` → `pr` → `merged`
+`idea` → `planning` → `plan-review` → `impling` → `pr` → `merged`
 
 このうち `plan-review` / `pr` は人の判断を待つゲートであり、
-`planning` / `impling` / `verifying` は AI が自走する工程である。
+`planning` / `impling` は AI が自走する工程である。
 
 #### Scenario: 進行度の順序
 
@@ -62,7 +62,7 @@ change ディレクトリ・GitLab の MR）から毎回導出しなければな
 
 #### Scenario: 着手が指示されていない
 
-- **WHEN** カードに着手時刻が無く、レビュー記録も openspec も MR も無い
+- **WHEN** カードに着手時刻が無く、レビュー記録も計画ファイルも MR も無い
 - **THEN** ステージは `idea` になる
 
 #### Scenario: 着手が指示された
@@ -77,7 +77,7 @@ change ディレクトリ・GitLab の MR）から毎回導出しなければな
 
 ### Requirement: 計画レビューは proposal の存在で立つ
 
-システムは openspec の change に proposal が存在し、かつ plan ゲートがまだ通過も否決も
+システムは 計画ファイルが存在し、かつ plan ゲートがまだ通過も否決も
 されていないとき `plan-review` を返さなければならない (MUST)。
 
 plan ゲートのレビュー記録が 1 件も無い場合も `plan-review` を返さなければならない (MUST)。
@@ -85,41 +85,40 @@ plan ゲートのレビュー記録が 1 件も無い場合も `plan-review` を
 
 #### Scenario: proposal が出た
 
-- **WHEN** openspec の change に proposal が存在し、plan ゲートの記録が無い
+- **WHEN** 計画ファイルが存在し、plan ゲートの記録が無い
 - **THEN** ステージは `plan-review` になる
 
 #### Scenario: 計画が否決された
 
-- **WHEN** proposal が存在し、plan ゲートの最新の記録が否決である
+- **WHEN** 計画ファイルが存在し、plan ゲートの最新の記録が否決である
 - **THEN** ステージは `planning` に戻る
 
-### Requirement: 実装中と検証中はタスクの進捗で分かれる
+### Requirement: 実装中はタスクの進捗で分かれない
 
 システムは plan ゲートが通過済みのとき `impling` を返さなければならない (MUST)。
-ただし openspec の tasks が 1 件以上あり、そのすべてが完了している場合は
-`verifying` を返さなければならない (MUST)。
 
-tasks が 0 件の場合を全完了として扱っては SHALL NOT。tasks がまだ書かれていないだけの
-change を検証中へ進めてしまうためである。
+タスクの進捗を独立したステージとして扱っては SHALL NOT。AI レビューは実装中の
+内部工程であり、人が次に見るのは PR であってタスクの消化状況ではないためである。
+進捗はカード上の表示としてのみ示す。
 
 #### Scenario: タスクに未完がある
 
-- **WHEN** 計画が承認済みで、tasks が 10 件中 3 件完了である
+- **WHEN** 計画が承認済みで、タスクが 10 件中 3 件完了である
 - **THEN** ステージは `impling` になる
 
 #### Scenario: タスクを全部倒した
 
-- **WHEN** 計画が承認済みで、tasks が 10 件中 10 件完了し、MR はまだ無い
-- **THEN** ステージは `verifying` になる
+- **WHEN** 計画が承認済みで、タスクが 10 件中 10 件完了し、MR はまだ無い
+- **THEN** ステージは `impling` のままである
 
-#### Scenario: tasks がまだ無い
+#### Scenario: タスクがまだ無い
 
-- **WHEN** 計画が承認済みで、tasks が 0 件である
+- **WHEN** 計画が承認済みで、タスクが 0 件である
 - **THEN** ステージは `impling` になる
 
-### Requirement: PR 中とマージ済みは GitLab の実態で決まる
+### Requirement: PR 中とマージ済みはレビュー要求と archive で決まる
 
-システムは MR が opened のとき `pr`、MR が merged であるか change が archive に
+システムは MR が opened のとき `pr`、MR が merged であるか計画ファイルが archive に
 移動しているとき `merged` を返さなければならない (MUST)。
 
 #### Scenario: MR がオープン
@@ -132,9 +131,9 @@ change を検証中へ進めてしまうためである。
 - **WHEN** カードに紐付いた MR の状態が merged である
 - **THEN** ステージは `merged` になる
 
-#### Scenario: change が archive された
+#### Scenario: 計画が archive された
 
-- **WHEN** カードに紐付いた change が archive ディレクトリに移動している
+- **WHEN** カードの計画ファイルが archive ディレクトリに移動している
 - **THEN** ステージは `merged` になる
 
 ### Requirement: レビュー後の修正は PR 中のバッジで示す
@@ -163,12 +162,12 @@ change を検証中へ進めてしまうためである。
 
 #### Scenario: まだ何も成果物が無い
 
-- **WHEN** カードにレビュー記録も openspec も MR も無い
+- **WHEN** カードにレビュー記録も計画ファイルも MR も無い
 - **THEN** `idea` と `planning` の両方へ手で動かせる
 
 #### Scenario: proposal が出ている
 
-- **WHEN** カードの change に proposal が存在する
+- **WHEN** カードの計画ファイルが存在する
 - **THEN** 下限は `plan-review` となり、手で動かせる先は 1 つも無い
 
 #### Scenario: MR が出ている
