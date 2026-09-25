@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import matter from 'gray-matter';
-import type { CardId, ChangeName, MergeRequestIid } from '../../shared/schemas/common.js';
+import type { CardId, MergeRequestIid } from '../../shared/schemas/common.js';
 import { CardIdSchema } from '../../shared/schemas/common.js';
 import { CardFrontmatterSchema } from '../models/schemas/card.schema.js';
 import type { Card } from '../models/card.js';
@@ -16,7 +16,7 @@ const CARD_EXTENSION = '.md';
 /**
  * `.ai-board/cards/<id>.md` を読み書きする。
  *
- * 書き込みは常にこのディレクトリ配下に限られる（`openspec/` には一切触れない）。
+ * 書き込みは常にこのディレクトリ配下に限られる（`.ai-board/plans/` には一切触れない）。
  */
 export class FsCardRepository implements CardRepository {
   constructor(private readonly cardsDir: string) {}
@@ -150,7 +150,6 @@ export function parseCard(filePath: string, raw: string): Card | null {
     created: frontmatter.created,
     startedAt: frontmatter.startedAt,
     skipGates: frontmatter.skipGates,
-    change: frontmatter.change as ChangeName | null,
     branch: frontmatter.branch,
     mr: frontmatter.mr as MergeRequestIid | null,
     forge: frontmatter.forge,
@@ -167,7 +166,6 @@ export function serializeCard(card: Card): string {
     created: card.created,
     startedAt: card.startedAt,
     skipGates: card.skipGates,
-    change: card.change,
     branch: card.branch,
     mr: card.mr,
     forge: card.forge,

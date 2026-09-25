@@ -29,7 +29,7 @@ describe('resolvePaths', () => {
 
     expect(paths.boardDir).toBe(path.join(root, '.ai-board'));
     expect(paths.cardsDir).toBe(path.join(root, '.ai-board', 'cards'));
-    expect(paths.openspecDir).toBe(path.join(root, 'openspec'));
+    expect(paths.plansDir).toBe(path.join(root, '.ai-board', 'plans'));
   });
 
   it('相対パスを絶対パスにする', () => {

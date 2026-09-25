@@ -61,7 +61,7 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
     }
   }
 
-  const board = createBoardDependencies(config.paths.openspecDir, cards.cardRepository, mrProvider);
+  const board = createBoardDependencies(config.paths.plansDir, cards.cardRepository, mrProvider);
 
   const app = createApp({ cards, board, sse });
   const server = http.createServer(app);
@@ -69,7 +69,7 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
   const port = await listen(server, options.port ?? DEFAULT_PORT);
 
   const watcher: FSWatcher = startWatching({
-    paths: [config.paths.boardDir, config.paths.openspecDir],
+    paths: [config.paths.boardDir],
     onChange: () => sse.broadcast('board-changed'),
   });
 

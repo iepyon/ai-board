@@ -11,7 +11,6 @@ export const BOARD_DIR = '.ai-board';
 export const CARDS_DIR = 'cards';
 export const CONFIG_FILE = 'config.yaml';
 export const PLANS_DIR = 'plans';
-export const OPENSPEC_DIR = 'openspec';
 
 const GitLabConfigSchema = z.object({
   url: z.string().url(),
@@ -55,13 +54,11 @@ export interface BoardPaths {
   readonly cardsDir: string;
   /** .ai-board/plans/ */
   readonly plansDir: string;
-  /** openspec/ */
-  readonly openspecDir: string;
 }
 
 export interface AppConfig {
   readonly paths: BoardPaths;
-  /** 取得先が未設定なら null（ボードは openspec 由来の情報だけで動く） */
+  /** 取得先が未設定なら null（ボードはカードと計画ファイルだけで動く） */
   readonly forge: ForgeConfig | null;
 }
 
@@ -74,7 +71,6 @@ export function resolvePaths(root: string): BoardPaths {
     boardDir,
     cardsDir: path.join(boardDir, CARDS_DIR),
     plansDir: path.join(boardDir, PLANS_DIR),
-    openspecDir: path.join(absoluteRoot, OPENSPEC_DIR),
   };
 }
 

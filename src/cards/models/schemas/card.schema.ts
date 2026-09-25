@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CardIdSchema, ChangeNameSchema } from '../../../shared/schemas/common.js';
+import { CardIdSchema } from '../../../shared/schemas/common.js';
 import { REVIEW_GATES, REVIEW_KINDS } from '../review.js';
 import { FORGE_KINDS } from '../../../board/models/mr-state.js';
 
@@ -37,8 +37,6 @@ export const CardFrontmatterSchema = z.object({
   startedAt: nullableField(IsoDateTime).default(null),
   /** 人が事前に見ないと宣言したゲート */
   skipGates: z.array(ReviewGateSchema).default([]),
-  /** openspec の change ディレクトリ名 */
-  change: nullableField(ChangeNameSchema).default(null),
   /** Git のブランチ名。MR iid の自動解決に使う */
   branch: nullableField(z.string().min(1).max(200)).default(null),
   /** レビュー要求の識別番号（GitLab の MR iid / GitHub の PR number） */
@@ -75,7 +73,6 @@ export const UpdateCardMetaInputSchema = z
     title: z.string().min(1).max(200).optional(),
     startedAt: z.union([IsoDateTime, z.null()]).optional(),
     skipGates: z.array(ReviewGateSchema).optional(),
-    change: z.union([ChangeNameSchema, z.null()]).optional(),
     branch: z.union([z.string().min(1).max(200), z.null()]).optional(),
     mr: z.union([z.number().int().positive(), z.null()]).optional(),
     forge: z.union([ForgeKindSchema, z.null()]).optional(),

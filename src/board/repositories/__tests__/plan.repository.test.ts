@@ -36,9 +36,13 @@ function repository(): FsPlanRepository {
 
 describe('countTasks', () => {
   it('チェックボックス行だけを数える', () => {
-    const content = ['# 計画', '', '本文はタスクではない', '- [ ] やること', '- [x] やったこと'].join(
-      '\n'
-    );
+    const content = [
+      '# 計画',
+      '',
+      '本文はタスクではない',
+      '- [ ] やること',
+      '- [x] やったこと',
+    ].join('\n');
 
     expect(countTasks(content)).toEqual({ completed: 1, total: 2 });
   });

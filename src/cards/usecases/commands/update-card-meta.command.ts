@@ -1,5 +1,5 @@
 import { ok, err, type Result } from '../../../shared/result.js';
-import type { CardId, ChangeName, MergeRequestIid } from '../../../shared/schemas/common.js';
+import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
 import type { ReviewGate } from '../../models/review.js';
 import type { Card } from '../../models/card.js';
 import type { CardRepository } from '../../repositories/card.repository.js';
@@ -13,13 +13,12 @@ import type { UpdateCardError } from '../../errors/card-errors.js';
  * 部分更新のパッチ。
  *
  * `undefined` は「変更しない」、`null` は「値を消す」を意味する。
- * この 2 つを混同すると、着手の取り消しや change の紐付け解除ができなくなる。
+ * この 2 つを混同すると、着手の取り消しやブランチの紐付け解除ができなくなる。
  */
 export interface UpdateCardMetaPatch {
   readonly title?: string | undefined;
   readonly startedAt?: string | null | undefined;
   readonly skipGates?: readonly ReviewGate[] | undefined;
-  readonly change?: string | null | undefined;
   readonly branch?: string | null | undefined;
   readonly mr?: number | null | undefined;
 }
@@ -45,7 +44,6 @@ export function createUpdateCardMetaCommand(cardRepository: CardRepository): Upd
       title: patch.title ?? existing.title,
       startedAt: pick(patch.startedAt, existing.startedAt),
       skipGates: patch.skipGates ?? existing.skipGates,
-      change: pick(patch.change, existing.change) as ChangeName | null,
       branch: pick(patch.branch, existing.branch),
       mr: pick(patch.mr, existing.mr) as MergeRequestIid | null,
     };

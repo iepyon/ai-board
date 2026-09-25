@@ -14,7 +14,7 @@ export interface MrStateProvider {
   connection(): ForgeConnection;
 }
 
-/** 取得先が未設定のときの実装。ボードは openspec 由来の情報だけで動く */
+/** 取得先が未設定のときの実装。ボードはカードと計画ファイルだけで動く */
 export const disabledMrStateProvider: MrStateProvider = {
   get: () => null,
   connection: () => ({ status: 'disabled', kind: null, reason: null }),

@@ -2,7 +2,7 @@ import { stageRank, type Stage } from '../../shared/schemas/common.js';
 import type { Card } from '../../cards/models/card.js';
 import type { GateState, ReviewGate } from '../../cards/models/review.js';
 import { gateState, isAborted, parseReviewLog } from '../../cards/services/review-log.js';
-import type { OpenSpecChangeState } from '../models/openspec-state.js';
+import type { PlanDoc } from '../models/plan-state.js';
 import type { MrState } from '../models/mr-state.js';
 
 // ============================================================
@@ -13,7 +13,7 @@ import type { MrState } from '../models/mr-state.js';
  * 人が直接ドラッグで動かせるステージ。
  *
  * `startedAt` の打刻と取り消しに対応する 1 遷移だけ。
- * 残りは AI の成果物（openspec / GitLab）か、本文のレビューログが立てる。
+ * 残りは AI の成果物（計画ファイル / レビュー要求）か、本文のレビューログが立てる。
  * レビューログへの書き込みはドラッグではなくボタンで行う。
  */
 export const HUMAN_STAGES = ['idea', 'planning'] as const satisfies readonly Stage[];
@@ -37,10 +37,10 @@ export interface StageResolution {
  *
  * | # | stage       | 条件                                                 |
  * |---|-------------|------------------------------------------------------|
- * | 1 | merged      | archive に存在、または MR が merged                   |
+ * | 1 | merged      | 計画が archive 済み、または MR が merged               |
  * | 2 | pr          | MR が opened                                          |
  * | 3 | impling     | plan 承認済み                                         |
- * | 4 | plan-review | proposal.md が存在し plan ゲートが none / submitted    |
+ * | 4 | plan-review | 計画ファイルが存在し plan ゲートが none / submitted    |
  * | 5 | planning    | startedAt が非 null                                   |
  * | 6 | idea        | 既定                                                  |
  *
@@ -49,10 +49,10 @@ export interface StageResolution {
  */
 export function resolveStage(
   card: Card,
-  openspec: OpenSpecChangeState | null,
+  plan: PlanDoc | null,
   mr: MrState | null
 ): StageResolution {
-  const facts = toFacts(card, openspec, mr);
+  const facts = toFacts(card, plan, mr);
   const { stage, reason } = deriveStage(facts);
 
   return { stage, reason, aborted: facts.aborted, gates: facts.gates };
@@ -65,12 +65,8 @@ export function resolveStage(
  * 導出ルールを二重に持たないよう、`startedAt` を落としたカードで
  * 同じ `deriveStage` を呼ぶ。
  */
-export function resolveFloorStage(
-  card: Card,
-  openspec: OpenSpecChangeState | null,
-  mr: MrState | null
-): Stage {
-  return deriveStage(toFacts({ ...card, startedAt: null }, openspec, mr)).stage;
+export function resolveFloorStage(card: Card, plan: PlanDoc | null, mr: MrState | null): Stage {
+  return deriveStage(toFacts({ ...card, startedAt: null }, plan, mr)).stage;
 }
 
 /**
@@ -91,18 +87,18 @@ interface Derivation {
 /** 判定に必要な事実をまとめたもの */
 interface Facts {
   readonly card: Card;
-  readonly openspec: OpenSpecChangeState | null;
+  readonly plan: PlanDoc | null;
   readonly mr: MrState | null;
   readonly gates: Readonly<Record<ReviewGate, GateState>>;
   readonly aborted: boolean;
 }
 
-function toFacts(card: Card, openspec: OpenSpecChangeState | null, mr: MrState | null): Facts {
+function toFacts(card: Card, plan: PlanDoc | null, mr: MrState | null): Facts {
   const entries = parseReviewLog(card.body);
 
   return {
     card,
-    openspec,
+    plan,
     mr,
     gates: {
       plan: gateState(entries, 'plan', card.skipGates),
@@ -118,12 +114,12 @@ function toFacts(card: Card, openspec: OpenSpecChangeState | null, mr: MrState |
  * 制御構造ではなく配列の順序で表す。
  */
 const RULES: ReadonlyArray<(facts: Facts) => Derivation | null> = [
-  // 1. merged — archive されたか、MR がマージされたか
-  ({ openspec }) =>
-    openspec?.archived === true
+  // 1. merged — 計画が archive されたか、MR がマージされたか
+  ({ plan }) =>
+    plan?.archived === true
       ? {
           stage: 'merged',
-          reason: `openspec/changes/archive/${openspec.archivedAs ?? openspec.name} に移動済み`,
+          reason: `.ai-board/plans/archive/${plan.cardId}.md に移動済み`,
         }
       : null,
 
@@ -146,11 +142,11 @@ const RULES: ReadonlyArray<(facts: Facts) => Derivation | null> = [
     gates.plan === 'approved' ? { stage: 'impling', reason: '計画が承認されている' } : null,
 
   // 4. plan-review — 成果物があることを正とし、ログの欠落で人待ちを取りこぼさない
-  ({ gates, openspec }) =>
-    openspec?.artifacts.proposal === true && (gates.plan === 'none' || gates.plan === 'submitted')
+  ({ gates, plan }) =>
+    plan !== null && (gates.plan === 'none' || gates.plan === 'submitted')
       ? {
           stage: 'plan-review',
-          reason: `openspec/changes/${openspec.name}/proposal.md が人の承認を待っている`,
+          reason: `.ai-board/plans/${plan.cardId}.md が人の承認を待っている`,
         }
       : null,
 

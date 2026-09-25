@@ -2,7 +2,7 @@ import type { BoardCard } from '../../types.js';
 import type { CardMetaPatch } from '../../api.js';
 
 // ============================================================
-// change / branch / MR の紐付け
+// branch / MR の紐付け
 // ============================================================
 
 interface LinkFieldsProps {
@@ -12,12 +12,12 @@ interface LinkFieldsProps {
 }
 
 /**
- * カードは不変の id を軸に change / branch / mr を後から獲得していく。
- * ここがその紐付けを編集する唯一の場所。
+ * カードは不変の id を軸に branch / mr を後から獲得していく。
+ * ここがその紐付けを編集する唯一の場所。計画ファイルは id で決まるので現れない。
  */
 export function LinkFields({ card, saving, onPatch }: LinkFieldsProps) {
   /** 空文字は「紐付けを外す」として null に変換する */
-  const commitText = (key: 'change' | 'branch', raw: string): void => {
+  const commitText = (key: 'branch', raw: string): void => {
     const value = raw.trim();
     if (value === (card[key] ?? '')) return;
     onPatch({ [key]: value === '' ? null : value } as CardMetaPatch);
@@ -26,17 +26,6 @@ export function LinkFields({ card, saving, onPatch }: LinkFieldsProps) {
   return (
     <>
       <h3>紐付け</h3>
-
-      <div className="field">
-        <label htmlFor="field-change">change</label>
-        <input
-          id="field-change"
-          defaultValue={card.change ?? ''}
-          placeholder="openspec の change 名"
-          disabled={saving}
-          onBlur={(event) => commitText('change', event.target.value)}
-        />
-      </div>
 
       <div className="field">
         <label htmlFor="field-branch">branch</label>

@@ -5,7 +5,7 @@ import { createUpdateCardBodyCommand } from '../commands/update-card-body.comman
 import { createAppendReviewCommand } from '../commands/append-review.command.js';
 import type { CardRepository } from '../../repositories/card.repository.js';
 import type { Card } from '../../models/card.js';
-import type { CardId, ChangeName } from '../../../shared/schemas/common.js';
+import type { CardId } from '../../../shared/schemas/common.js';
 
 // ============================================================
 // インメモリのテストダブル
@@ -110,7 +110,6 @@ describe('createCardCommand', () => {
     if (result.ok) {
       expect(result.value.startedAt).toBeNull();
       expect(result.value.skipGates).toEqual([]);
-      expect(result.value.change).toBeNull();
       expect(result.value.mr).toBeNull();
     }
   });
@@ -149,25 +148,24 @@ describe('updateCardMetaCommand', () => {
 
   it('undefined のフィールドは現在値を維持する', async () => {
     const command = createUpdateCardMetaCommand(repository);
-    await command({ id: 'target' as CardId, patch: { change: 'my-change' } });
+    await command({ id: 'target' as CardId, patch: { branch: 'my-branch' } });
 
     const result = await command({
       id: 'target' as CardId,
       patch: { startedAt: '2026-09-05T00:00:00.000Z' },
     });
 
-    expect(result.ok && result.value.change).toBe('my-change');
+    expect(result.ok && result.value.branch).toBe('my-branch');
   });
 
-  it('change / branch / mr を紐付けられる', async () => {
+  it('branch / mr を紐付けられる', async () => {
     const result = await createUpdateCardMetaCommand(repository)({
       id: 'target' as CardId,
-      patch: { change: 'refresh-token', branch: 'feat/refresh-token', mr: 42 },
+      patch: { branch: 'feat/refresh-token', mr: 42 },
     });
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.value.change).toBe('refresh-token' as ChangeName);
       expect(result.value.branch).toBe('feat/refresh-token');
       expect(result.value.mr).toBe(42);
     }

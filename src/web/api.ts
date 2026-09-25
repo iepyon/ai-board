@@ -34,7 +34,6 @@ export interface CardMetaPatch {
   title?: string;
   startedAt?: string | null;
   skipGates?: ReviewGate[];
-  change?: string | null;
   branch?: string | null;
   mr?: number | null;
 }

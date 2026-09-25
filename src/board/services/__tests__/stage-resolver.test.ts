@@ -7,9 +7,9 @@ import {
   resolveStage,
 } from '../stage-resolver.js';
 import type { Card } from '../../../cards/models/card.js';
-import type { OpenSpecChangeState } from '../../models/openspec-state.js';
+import type { PlanDoc } from '../../models/plan-state.js';
 import type { MrState } from '../../models/mr-state.js';
-import type { CardId, ChangeName, MergeRequestIid, Stage } from '../../../shared/schemas/common.js';
+import type { CardId, MergeRequestIid, Stage } from '../../../shared/schemas/common.js';
 
 // ============================================================
 // テストデータビルダー
@@ -22,7 +22,6 @@ function makeCard(overrides: Partial<Card> = {}): Card {
     created: '2026-09-01T00:00:00.000Z',
     startedAt: null,
     skipGates: [],
-    change: 'refresh-token' as ChangeName,
     branch: null,
     mr: null,
     body: '',
@@ -30,13 +29,11 @@ function makeCard(overrides: Partial<Card> = {}): Card {
   };
 }
 
-function makeOpenSpec(overrides: Partial<OpenSpecChangeState> = {}): OpenSpecChangeState {
+function makePlan(overrides: Partial<PlanDoc> = {}): PlanDoc {
   return {
-    name: 'refresh-token' as ChangeName,
-    artifacts: { proposal: false, specs: false, design: false, tasks: false },
+    cardId: 'refresh-token' as CardId,
     tasks: { completed: 0, total: 0 },
     archived: false,
-    archivedAs: null,
     ...overrides,
   };
 }
@@ -87,44 +84,41 @@ const T1 = '2026-09-05T00:00:00.000Z';
 const T2 = '2026-09-06T00:00:00.000Z';
 const T3 = '2026-09-07T00:00:00.000Z';
 
-const PROPOSAL_ONLY = { proposal: true, specs: false, design: false, tasks: false };
-const PROPOSAL_AND_TASKS = { proposal: true, specs: false, design: false, tasks: true };
-
 /** plan を承認済みにした本文 */
 function planApproved(): string {
   return makeBody({ entries: [{ at: T3, gate: 'plan', kind: '承認' }] });
 }
 
 // ============================================================
-// 7 ステージの導出
+// 6 ステージの導出
 // ============================================================
 
 describe('resolveStage — 自動導出', () => {
   const cases: ReadonlyArray<{
     name: string;
     card: Card;
-    openspec: OpenSpecChangeState | null;
+    plan: PlanDoc | null;
     mr: MrState | null;
     expected: Stage;
   }> = [
     {
       name: '何も無ければ idea',
       card: makeCard(),
-      openspec: null,
+      plan: null,
       mr: null,
       expected: 'idea',
     },
     {
       name: 'startedAt が打たれていれば planning',
       card: makeCard({ startedAt: T1 }),
-      openspec: null,
+      plan: null,
       mr: null,
       expected: 'planning',
     },
     {
       name: '探索メモがあってもステージは動かない',
       card: makeCard({ startedAt: T1, body: makeBody({ exploreNote: true }) }),
-      openspec: null,
+      plan: null,
       mr: null,
       expected: 'planning',
     },
@@ -140,28 +134,28 @@ describe('resolveStage — 自動導出', () => {
           ],
         }),
       }),
-      openspec: null,
+      plan: null,
       mr: null,
       expected: 'planning',
     },
     {
       name: 'startedAt が無ければ探索メモがあっても idea',
       card: makeCard({ body: makeBody({ exploreNote: true }) }),
-      openspec: null,
+      plan: null,
       mr: null,
       expected: 'idea',
     },
     {
-      name: 'proposal.md があれば plan-review',
+      name: '計画ファイルがあれば plan-review',
       card: makeCard({ startedAt: T1 }),
-      openspec: makeOpenSpec({ artifacts: PROPOSAL_ONLY }),
+      plan: makePlan(),
       mr: null,
       expected: 'plan-review',
     },
     {
-      name: 'proposal.md があり plan のログが無くても plan-review に着地する',
+      name: '計画ファイルがあり plan のログが無くても plan-review に着地する',
       card: makeCard({ startedAt: T1, body: makeBody({ exploreNote: true }) }),
-      openspec: makeOpenSpec({ artifacts: PROPOSAL_ONLY }),
+      plan: makePlan(),
       mr: null,
       expected: 'plan-review',
     },
@@ -171,17 +165,14 @@ describe('resolveStage — 自動導出', () => {
         startedAt: T1,
         body: makeBody({ entries: [{ at: T3, gate: 'plan', kind: '否決' }] }),
       }),
-      openspec: makeOpenSpec({ artifacts: PROPOSAL_ONLY }),
+      plan: makePlan(),
       mr: null,
       expected: 'planning',
     },
     {
       name: 'plan が承認され tasks に未完があれば impling',
       card: makeCard({ startedAt: T1, body: planApproved() }),
-      openspec: makeOpenSpec({
-        artifacts: PROPOSAL_AND_TASKS,
-        tasks: { completed: 3, total: 10 },
-      }),
+      plan: makePlan({ tasks: { completed: 3, total: 10 } }),
       mr: null,
       expected: 'impling',
     },
@@ -190,38 +181,35 @@ describe('resolveStage — 自動導出', () => {
       // tasks の進捗はプログレスバーに出るだけでステージを立てない。
       name: 'plan が承認されていれば tasks を全部倒しても impling のまま',
       card: makeCard({ startedAt: T1, body: planApproved() }),
-      openspec: makeOpenSpec({
-        artifacts: PROPOSAL_AND_TASKS,
-        tasks: { completed: 10, total: 10 },
-      }),
+      plan: makePlan({ tasks: { completed: 10, total: 10 } }),
       mr: null,
       expected: 'impling',
     },
     {
       name: 'tasks が 0 件でも impling',
       card: makeCard({ startedAt: T1, skipGates: ['plan'] }),
-      openspec: makeOpenSpec({ tasks: { completed: 0, total: 0 } }),
+      plan: makePlan({ tasks: { completed: 0, total: 0 } }),
       mr: null,
       expected: 'impling',
     },
     {
       name: 'MR が opened なら pr',
       card: makeCard({ startedAt: T1 }),
-      openspec: null,
+      plan: null,
       mr: makeMr({ state: 'opened' }),
       expected: 'pr',
     },
     {
       name: 'MR が merged なら merged',
       card: makeCard({ startedAt: T1 }),
-      openspec: null,
+      plan: null,
       mr: makeMr({ state: 'merged' }),
       expected: 'merged',
     },
     {
-      name: 'archive にあれば merged',
+      name: '計画が archive されていれば merged',
       card: makeCard({ startedAt: T1 }),
-      openspec: makeOpenSpec({ archived: true, archivedAs: '2026-09-01-refresh-token' }),
+      plan: makePlan({ archived: true }),
       mr: null,
       expected: 'merged',
     },
@@ -229,25 +217,21 @@ describe('resolveStage — 自動導出', () => {
 
   for (const testCase of cases) {
     it(testCase.name, () => {
-      expect(resolveStage(testCase.card, testCase.openspec, testCase.mr).stage).toBe(
-        testCase.expected
-      );
+      expect(resolveStage(testCase.card, testCase.plan, testCase.mr).stage).toBe(testCase.expected);
     });
   }
 
   it('複数の条件が成り立つときは最も進んだステージを採る', () => {
     const card = makeCard({ startedAt: T1, body: planApproved() });
 
-    expect(resolveStage(card, makeOpenSpec({ artifacts: PROPOSAL_ONLY }), makeMr()).stage).toBe(
-      'pr'
-    );
+    expect(resolveStage(card, makePlan(), makeMr()).stage).toBe('pr');
   });
 
   it('同じ実態からは同じステージが出る', () => {
     const card = makeCard({ startedAt: T1, body: planApproved() });
-    const openspec = makeOpenSpec({ artifacts: PROPOSAL_ONLY });
+    const plan = makePlan();
 
-    expect(resolveStage(card, openspec, null)).toEqual(resolveStage(card, openspec, null));
+    expect(resolveStage(card, plan, null)).toEqual(resolveStage(card, plan, null));
   });
 });
 
@@ -328,7 +312,7 @@ describe('resolveStage — ゲートの状態', () => {
   it('スキップを宣言したカードはレビュー列に留まらない', () => {
     const card = makeCard({ startedAt: T1, skipGates: ['plan'] });
 
-    const stage = resolveStage(card, makeOpenSpec({ artifacts: PROPOSAL_ONLY }), null).stage;
+    const stage = resolveStage(card, makePlan(), null).stage;
 
     expect(stage).not.toBe('plan-review');
   });
@@ -361,7 +345,7 @@ describe('resolveFloorStage / droppableStages', () => {
 
   it('proposal が出ていれば手では動かせない', () => {
     const card = makeCard({ startedAt: T1 });
-    const floor = resolveFloorStage(card, makeOpenSpec({ artifacts: PROPOSAL_ONLY }), null);
+    const floor = resolveFloorStage(card, makePlan(), null);
 
     expect(floor).toBe('plan-review');
     expect(droppableStages(floor)).toEqual([]);

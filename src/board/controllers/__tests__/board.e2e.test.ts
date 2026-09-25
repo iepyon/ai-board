@@ -43,7 +43,7 @@ function stubMrProvider(states: Record<string, MrState> = {}): MrStateProvider {
 function buildApp(mrProvider?: MrStateProvider): Application {
   const cards = createCardDependencies(path.join(root, '.ai-board', 'cards'));
   const board = createBoardDependencies(
-    path.join(root, 'openspec'),
+    path.join(root, '.ai-board', 'plans'),
     cards.cardRepository,
     mrProvider
   );
@@ -72,33 +72,47 @@ describe('GET /api/board', () => {
     expect(response.body.forge).toEqual({ status: 'disabled', kind: null, reason: null });
   });
 
-  it('openspec の実態からステージを導出する', async () => {
+  it('計画ファイルの実態からステージを導出する', async () => {
     await writeFile(
       '.ai-board/cards/refresh-token.md',
-      '---\nid: refresh-token\ntitle: リフレッシュトークン対応\nchange: refresh-token\n---\n'
+      '---\nid: refresh-token\ntitle: リフレッシュトークン対応\n---\n'
     );
-    await writeFile('openspec/changes/refresh-token/proposal.md', '# Why');
-    await writeFile('openspec/changes/refresh-token/tasks.md', '- [x] 1.1 done\n- [ ] 1.2 todo');
+    await writeFile('.ai-board/plans/refresh-token.md', '# 計画\n\n- [x] 1.1 done\n- [ ] 1.2 todo');
 
     const response = await request(buildApp()).get('/api/board').expect(200);
     const card = response.body.cards[0];
 
     expect(card.stage).toBe('plan-review');
-    expect(card.openspec.tasks).toEqual({ completed: 1, total: 2 });
-    expect(card.openspec.artifacts.proposal).toBe(true);
+    expect(card.plan.tasks).toEqual({ completed: 1, total: 2 });
+    expect(card.plan.archived).toBe(false);
   });
 
-  it('archive にある change は merged になる', async () => {
+  it('archive された計画は merged になる', async () => {
     await writeFile(
       '.ai-board/cards/login-redesign.md',
-      '---\nid: login-redesign\ntitle: ログイン画面刷新\nchange: login-redesign\n---\n'
+      '---\nid: login-redesign\ntitle: ログイン画面刷新\n---\n'
     );
-    await writeFile('openspec/changes/archive/2026-09-01-login-redesign/proposal.md', '# Why');
+    await writeFile('.ai-board/plans/archive/login-redesign.md', '# 済んだ計画');
 
     const response = await request(buildApp()).get('/api/board').expect(200);
 
     expect(response.body.cards[0].stage).toBe('merged');
-    expect(response.body.cards[0].openspec.archivedAs).toBe('2026-09-01-login-redesign');
+    expect(response.body.cards[0].plan.archived).toBe(true);
+  });
+
+  it('ボードのレスポンスに計画の本文は含めない', async () => {
+    // 計画 1 本はカード本文より桁違いに大きく、SSE のたびに引き直される。
+    // 本文は詳細パネルを開いたときだけ取りに行く。
+    await writeFile('.ai-board/cards/heavy.md', '---\nid: heavy\ntitle: 重い\n---\n');
+    await writeFile('.ai-board/plans/heavy.md', '# 計画\n\nここに長い本文が入る');
+
+    const response = await request(buildApp()).get('/api/board').expect(200);
+
+    expect(response.body.cards[0].plan).toEqual({
+      tasks: { completed: 0, total: 0 },
+      archived: false,
+    });
+    expect(JSON.stringify(response.body)).not.toContain('ここに長い本文が入る');
   });
 
   it('MR の状態を反映する', async () => {
@@ -129,12 +143,12 @@ describe('GET /api/board', () => {
     expect(response.body.forge).toEqual({ status: 'connected', kind: 'github' });
   });
 
-  it('カードに紐付いていない change を orphanChanges として返す', async () => {
-    await writeFile('openspec/changes/orphan-change/proposal.md', '# Why');
+  it('カードが無い計画ファイルを orphanPlans として返す', async () => {
+    await writeFile('.ai-board/plans/orphan-plan.md', '# 計画');
 
     const response = await request(buildApp()).get('/api/board').expect(200);
 
-    expect(response.body.orphanChanges).toEqual(['orphan-change']);
+    expect(response.body.orphanPlans).toEqual(['orphan-plan']);
   });
 
   it('レビューログから計画の承認を読み取って impling にする', async () => {
@@ -252,13 +266,12 @@ describe('カード API', () => {
     const response = await request(app)
       .patch('/api/cards/target')
       .send({
-        change: 'refresh-token',
         branch: 'feat/refresh-token',
         startedAt: '2026-09-04T10:00:00.000Z',
       })
       .expect(200);
 
-    expect(response.body.change).toBe('refresh-token');
+    expect(response.body.branch).toBe('feat/refresh-token');
     expect(response.body.startedAt).toBe('2026-09-04T10:00:00.000Z');
   });
 
@@ -329,24 +342,18 @@ describe('カード API', () => {
 // ============================================================
 
 describe('書き込みは .ai-board/ 配下に限られる', () => {
-  it('カード操作で openspec/ が変化しない', async () => {
-    await writeFile('openspec/changes/refresh-token/proposal.md', '# Why');
-    const before = await fs.readFile(
-      path.join(root, 'openspec/changes/refresh-token/proposal.md'),
-      'utf-8'
-    );
+  it('カード操作で .ai-board/plans/ が変化しない', async () => {
+    await writeFile('.ai-board/plans/x.md', '# 計画');
+    const before = await fs.readFile(path.join(root, '.ai-board/plans/x.md'), 'utf-8');
 
     const app = buildApp();
     await request(app).post('/api/cards').send({ title: 'x', id: 'x' }).expect(201);
-    await request(app).patch('/api/cards/x').send({ change: 'refresh-token' }).expect(200);
+    await request(app).patch('/api/cards/x').send({ branch: 'feat/x' }).expect(200);
     await request(app).put('/api/cards/x/body').send({ body: 'メモ' }).expect(200);
 
-    const after = await fs.readFile(
-      path.join(root, 'openspec/changes/refresh-token/proposal.md'),
-      'utf-8'
-    );
+    const after = await fs.readFile(path.join(root, '.ai-board/plans/x.md'), 'utf-8');
     expect(after).toBe(before);
-    expect(await fs.readdir(path.join(root, 'openspec/changes'))).toEqual(['refresh-token']);
+    expect(await fs.readdir(path.join(root, '.ai-board/plans'))).toEqual(['x.md']);
   });
 });
 
@@ -365,12 +372,12 @@ describe('移動できる先の制限', () => {
     expect(card.droppableStages).toEqual(['idea', 'planning']);
   });
 
-  it('proposal.md があるカードはどこへも動かせない', async () => {
+  it('計画ファイルがあるカードはどこへも動かせない', async () => {
     await writeFile(
       '.ai-board/cards/proposed-card.md',
-      '---\nid: proposed-card\ntitle: 提案済み\nchange: proposed-card\n---\n'
+      '---\nid: proposed-card\ntitle: 提案済み\n---\n'
     );
-    await writeFile('openspec/changes/proposed-card/proposal.md', '# Why');
+    await writeFile('.ai-board/plans/proposed-card.md', '# 計画');
 
     const response = await request(buildApp()).get('/api/board').expect(200);
     const card = response.body.cards[0];
@@ -405,12 +412,9 @@ describe('移動できる先の制限', () => {
     expect(response.body.cards[0].droppableStages).toEqual([]);
   });
 
-  it('archive 済みのカードはどこへも動かせない', async () => {
-    await writeFile(
-      '.ai-board/cards/finished.md',
-      '---\nid: finished\ntitle: 完了\nchange: finished\n---\n'
-    );
-    await writeFile('openspec/changes/archive/2026-09-01-finished/proposal.md', '# Why');
+  it('計画が archive 済みのカードはどこへも動かせない', async () => {
+    await writeFile('.ai-board/cards/finished.md', '---\nid: finished\ntitle: 完了\n---\n');
+    await writeFile('.ai-board/plans/archive/finished.md', '# 済んだ計画');
 
     const response = await request(buildApp()).get('/api/board').expect(200);
 
@@ -610,7 +614,7 @@ describe('POST /api/cards/:id/reviews', () => {
       .expect(404);
   });
 
-  it('openspec には一切書き込まない', async () => {
+  it('計画ファイルには一切書き込まない', async () => {
     const app = buildApp();
 
     await request(app)
@@ -618,6 +622,6 @@ describe('POST /api/cards/:id/reviews', () => {
       .send({ gate: 'plan', kind: '承認' })
       .expect(200);
 
-    await expect(fs.readdir(path.join(root, 'openspec'))).rejects.toThrow();
+    await expect(fs.readdir(path.join(root, '.ai-board', 'plans'))).rejects.toThrow();
   });
 });

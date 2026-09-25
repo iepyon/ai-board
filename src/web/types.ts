@@ -11,19 +11,16 @@ export type ReviewKind = '提出' | '再提出' | '承認' | '否決' | '中止'
 
 export type GateState = 'none' | 'submitted' | 'approved' | 'rejected';
 
-export interface Artifacts {
-  proposal: boolean;
-  specs: boolean;
-  design: boolean;
-  tasks: boolean;
-}
-
-export interface BoardCardOpenSpec {
-  change: string;
-  artifacts: Artifacts;
+export interface BoardCardPlan {
   tasks: { completed: number; total: number };
   archived: boolean;
-  archivedAs: string | null;
+}
+
+/** `GET /api/plans/:id` のレスポンス。本文はボードには載らない */
+export interface PlanDocument {
+  id: string;
+  body: string;
+  tasks: { completed: number; total: number };
 }
 
 export interface BoardCardMr {
@@ -54,11 +51,10 @@ export interface BoardCard {
   droppableStages: Stage[];
   startedAt: string | null;
   skipGates: ReviewGate[];
-  change: string | null;
   branch: string | null;
   mr: number | null;
   body: string;
-  openspec: BoardCardOpenSpec | null;
+  plan: BoardCardPlan | null;
   mrState: BoardCardMr | null;
 }
 
@@ -73,7 +69,7 @@ export interface Board {
   stages: Stage[];
   cards: BoardCard[];
   forge: ForgeConnection;
-  orphanChanges: string[];
+  orphanPlans: string[];
   generatedAt: string;
 }
 
@@ -108,11 +104,11 @@ export const STAGE_OWNER: Record<Stage, 'human' | 'ai' | 'none'> = {
 };
 
 /** 列の帯色 = そのステージを立てる情報源 */
-export const STAGE_SOURCE: Record<Stage, 'card' | 'openspec' | 'forge' | 'archive'> = {
+export const STAGE_SOURCE: Record<Stage, 'card' | 'plan' | 'forge' | 'archive'> = {
   idea: 'card',
   planning: 'card',
-  'plan-review': 'openspec',
-  impling: 'openspec',
+  'plan-review': 'plan',
+  impling: 'plan',
   pr: 'forge',
   merged: 'archive',
 };

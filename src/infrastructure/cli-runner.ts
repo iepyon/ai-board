@@ -72,9 +72,7 @@ export function createCliRunner(options: CliRunnerOptions = {}): CliRunner {
           maxBuffer: options.maxBuffer ?? DEFAULT_MAX_BUFFER,
           // shell は使わない。既定が false であることに依存せず明示する
           shell: false,
-          ...(runOptions.env === undefined
-            ? {}
-            : { env: { ...process.env, ...runOptions.env } }),
+          ...(runOptions.env === undefined ? {} : { env: { ...process.env, ...runOptions.env } }),
         });
 
         return ok(stdout);
