@@ -134,7 +134,7 @@ describe('GET /api/board', () => {
     await writeCard('s3-upload', '---\nid: s3-upload\ntitle: S3 アップロード\nmr: 38\n---\n');
 
     const mr: MrState = {
-      forge: 'gitlab',
+      forge: 'github',
       iid: 38 as MergeRequestIid,
       state: 'opened',
       sourceBranch: 'feat/s3',
@@ -441,7 +441,7 @@ describe('移動できる先の制限', () => {
     await writeCard('in-review', '---\nid: in-review\ntitle: レビュー中\nmr: 42\n---\n');
 
     const mr: MrState = {
-      forge: 'gitlab',
+      forge: 'github',
       iid: 42 as MergeRequestIid,
       state: 'opened',
       sourceBranch: 'feat/x',

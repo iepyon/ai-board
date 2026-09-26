@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## このリポジトリは何か
 
 計画ファイル駆動の開発のためのローカル Web カンバン。
-カードのステージは計画ファイル・レビュー要求（GitLab / GitHub）・カードの実態から**導出**される。
+カードのステージは計画ファイル・レビュー要求（GitHub の PR）・カードの実態から**導出**される。
 `stage` という値はどこにも保存しない。人の判断（着手・承認・否決・中止）も
 カード上の痕跡として残り、それも導出の入力になる。
 
@@ -55,15 +55,15 @@ ai-board card create --title <t> [--id <id>] < body.md     # アイデアカー�
 
 ```yaml
 ---
-id: board-search        # 不変。生成後は変えない。ファイル名と一致する kebab-case
+id: board-search # 不変。生成後は変えない。ファイル名と一致する kebab-case
 title: カードを絞り込めるようにする
 created: '2026-09-04T06:48:23.416Z'
-startedAt: null         # 人が着手を指示した時刻（人が打つ）
-skipGates: []           # 人が事前に見ないと宣言したゲート（plan）
+startedAt: null # 人が着手を指示した時刻（人が打つ）
+skipGates: [] # 人が事前に見ないと宣言したゲート（plan）
 branch: null
-mr: null                # レビュー要求の番号（branch から自動解決して書き戻す）
-forge: null             # その番号がどの取得先のものか。mr と必ず対で書く
-rank: 1500              # 並び順（任意）。小さいほど上。人が並べ替えたときだけ書かれる
+mr: null # レビュー要求の番号（branch から自動解決して書き戻す）
+forge: null # その番号がどの取得先のものか（現在は github のみ）。mr と必ず対で書く
+rank: 1500 # 並び順（任意）。小さいほど上。人が並べ替えたときだけ書かれる
 ---
 ```
 
@@ -71,7 +71,7 @@ rank: 1500              # 並び順（任意）。小さいほど上。人が並
 ステージ導出の入力になる。`## 探索メモ` は自由記述であり、導出には効かない。
 
 `id` が不変で `branch` / `mr` が進行に応じて後から埋まることで、
-アイデアメモ → 計画 → ブランチ → MR → archive が 1 本の線につながる。
+アイデアメモ → 計画 → ブランチ → PR → archive が 1 本の線につながる。
 計画は `.ai-board/plans/<id>.md` に同じ名前で置かれる。ID がファイル名を決めるので、
 紐付けのためのフィールドは持たない。
 CLI の書き込みはサーバが `PRAGMA data_version` の変化で拾い、SSE 経由でブラウザへ即座に反映される
@@ -85,10 +85,10 @@ Markdown 表現（`card-markdown.ts`）はこの取り込みと `card show` の�
 
 「誰の書き込みか」で分かれる。混同しないこと。
 
-| 主体                | `.ai-board/plans/`                       | カード（`.ai-board/board.db`）              |
-| ------------------- | ---------------------------------------- | ------------------------------------------- |
-| ai-board サーバ     | **read-only**                            | 書く（画面の操作・MR 番号の書き戻し）        |
-| AI エージェント     | 書く（計画・タスクの更新・archive への移動） | `ai-board card` 経由で本文・ブランチ・提出のみ |
+| 主体            | `.ai-board/plans/`                           | カード（`.ai-board/board.db`）                 |
+| --------------- | -------------------------------------------- | ---------------------------------------------- |
+| ai-board サーバ | **read-only**                                | 書く（画面の操作・MR 番号の書き戻し）          |
+| AI エージェント | 書く（計画・タスクの更新・archive への移動） | `ai-board card` 経由で本文・ブランチ・提出のみ |
 
 エージェントが**やってはいけないこと**（`board-loop-skill` カードのハードルール）:
 
@@ -120,13 +120,13 @@ CLI には `startedAt` / `rank` / `skipGates` を書く入口も、承認 / 否�
 
 守るべきは列の所有権の分割。
 
-| 列                        | ステージを立てるもの                       | 領分 |
-| ------------------------- | ------------------------------------------ | ---- |
-| アイデア / 計画提案中     | `startedAt` の打刻                         | 人   |
-| 計画レビュー              | `.ai-board/plans/<id>.md` の存在           | AI   |
-| 実装中                    | `## レビュー` の plan 承認                 | 人   |
-| PR中                      | MR / PR が opened                          | AI   |
-| マージ済み                | 計画が archive 済み、または MR / PR が merged | AI |
+| 列                    | ステージを立てるもの                     | 領分 |
+| --------------------- | ---------------------------------------- | ---- |
+| アイデア / 計画提案中 | `startedAt` の打刻                       | 人   |
+| 計画レビュー          | `.ai-board/plans/<id>.md` の存在         | AI   |
+| 実装中                | `## レビュー` の plan 承認               | 人   |
+| PR中                  | PR が opened                             | AI   |
+| マージ済み            | 計画が archive 済み、または PR が merged | AI   |
 
 UI のドラッグは `startedAt` を書き換える 1 遷移だけ。承認 / 否決 / 中止はボタンで
 `POST /api/cards/:id/reviews` を呼び、本文への追記になる。
@@ -154,7 +154,7 @@ src/
   shared/               Result<T,E>・Branded Types・設定・ミドルウェア
   cards/                カードの CRUD コンテキスト
   board/                3ソース統合・ステージ導出コンテキスト
-  infrastructure/       ファイル監視・SSE・GitLab ポーリング
+  infrastructure/       ファイル監視・SSE・GitHub ポーリング
   web/                  React + Vite のカンバン UI
 ```
 
@@ -196,11 +196,11 @@ src/
 
 ## レビュー要求の取得先
 
-`.ai-board/config.yaml` に `gitlab:` か `github:` の**どちらか一方**を書いたときだけ有効になる。
-両方書かれていれば起動時に例外を投げる（どちらが効いているか分からないまま動かさない）。
+取得先は GitHub の Pull Request だけ（GitLab 連携は廃止した）。
+`.ai-board/config.yaml` に `github:` を書いたときだけ有効になる。
 欠けていれば連携は無効になり `PR中` / `マージ済み` の列が空になるだけでボードは動く。
 
-**アクセストークンは扱わない。** 問い合わせは `glab api` / `gh api` の実行として行い、
+**アクセストークンは扱わない。** 問い合わせは `gh api` の実行として行い、
 認証はログイン済みの CLI に委ねる。トークンを設定ファイル・環境変数から読む経路は無い。
 CLI の有無とログイン状態は起動時に 1 度だけ確かめ（`ForgeClient.checkAuth`）、
 使えなければ理由付きで `disabled` にする。
@@ -210,46 +210,36 @@ CLI の実行は `src/infrastructure/cli-runner.ts` に閉じる。**shell を�
 組み立てるとカードを書ける者が任意のコマンドを実行できる。
 stderr は本文を載せず `(HTTP 404)` の数字だけを取り出して 404 判定に使う。
 
-GitLab のホストは `url` から取り出して `GITLAB_HOST` で渡す。`--hostname` はポート付きの
-ホストを受け付けない。既定ホストに任せると、複数インスタンスにログインしているとき
-別インスタンスの MR を静かに引く。
-
 GitHub の PR は `state` が `open` / `closed` の 2 値しかなく、**マージ済みも `closed`** で返る。
 区別は `merged_at` の有無で付ける（`toLifecycleState`）。ここを取り違えるとカードが
 `merged` へ進まない。レビューコメントは issue comment と review comment の 2 か所に
-分かれるため、合算して GitLab の「system でないノート」と意味を揃える。
+分かれるため、合算して「人が書いた最新のコメント」とする。
 どちらの一覧も既定は古い順の 1 ページ目だけで、`issues/{n}/comments` は `sort` /
 `direction` を受け付けない（受けるのはリポジトリ単位の `issues/comments` の方）。
 並び順に頼らず `gh api --paginate` で全ページ引いて最大値を取る。
 最新コミットは `pulls/{n}/commits` ではなく `head.sha` を直接引く（件数で取り逃がさない）。
-自動生成のコメントは GitLab の `system` に相当するものが無く、`user.type === 'Bot'` で外す。
+自動生成のコメントを示すフラグは無く、`user.type === 'Bot'` で外す。
 
-検証用 GitLab は `docker compose up -d`（`http://localhost:8929`、`.env` に `GITLAB_ROOT_PASSWORD`）。
-ポート 8080 は omnibus 内部の puma と衝突して静かに 502 になるため使えない。
-`external_url` は実際にブラウザで開く URL と一致させる（ずれると API は 200 のままリンクだけ壊れる）。
-詳細と疎通確認の手順は README の「ローカル GitLab」節にある。
+PR 一覧の全件取得はページングで取りこぼすため使わず、カード単位で問い合わせる。
 
-MR / PR 一覧の全件取得はページングで取りこぼすため使わず、カード単位で問い合わせる。
-
-**識別番号は取得先ごとに独立している。** GitLab の MR !1 と GitHub の PR #1 は別物で、
-どちらも存在するためエラーにならない。カードの `mr` は `forge` と対で持ち、
-`forge` が現在の取得先と違えば番号を使わず `branch` から解決し直す
-（`ForgePoller.fetchFor`）。`forge` が無い古いカードは `branch` を優先する。
-ここを対にしないと、取得先を切り替えたあと**列は正しく埋まったままリンクだけが別の
-レビュー要求を指す**。画面上は何も壊れて見えないので、リンクを開くまで気づけない。
+カードの `mr` は `forge` と対で持ち、`forge` が現在の取得先と違えば番号を使わず
+`branch` から解決し直す（`ForgePoller.fetchFor`）。`forge` が無い古いカードは `branch` を優先する。
+GitLab 時代の `forge: gitlab` のカードは、DB のマイグレーション（v2）と `ai-board import` で
+`mr` / `forge` を消して `branch` から解決し直させる。GitLab の MR !1 と GitHub の PR #1 は別物で、
+番号をそのまま引くと**列は正しく埋まったままリンクだけが別の PR を指す**。
 
 ## API
 
-| メソッド | パス                  | 用途                                       |
-| -------- | --------------------- | ------------------------------------------ |
-| `GET`    | `/api/board`          | 全カード＋導出ステージ＋計画の進捗 / レビュー要求の情報 |
-| `GET`    | `/api/plans/:id`      | 計画の本文。ボードには載せず、詳細パネルが個別に引く |
-| `POST`   | `/api/cards`          | 新規アイデアカード作成                     |
-| `PATCH`  | `/api/cards/:id`      | frontmatter の部分更新                     |
-| `PUT`    | `/api/cards/:id/body` | 本文の差し替え                             |
-| `POST`   | `/api/cards/:id/reviews` | `## レビュー` へのエントリ追記（承認 / 否決 / 中止） |
-| `POST`   | `/api/cards/:id/move` | 直前・直後のカード（`after` / `before`）の間へ並べ替え |
-| `GET`    | `/api/events`         | SSE。ファイル変更・ポーリング結果を push   |
+| メソッド | パス                     | 用途                                                    |
+| -------- | ------------------------ | ------------------------------------------------------- |
+| `GET`    | `/api/board`             | 全カード＋導出ステージ＋計画の進捗 / レビュー要求の情報 |
+| `GET`    | `/api/plans/:id`         | 計画の本文。ボードには載せず、詳細パネルが個別に引く    |
+| `POST`   | `/api/cards`             | 新規アイデアカード作成                                  |
+| `PATCH`  | `/api/cards/:id`         | frontmatter の部分更新                                  |
+| `PUT`    | `/api/cards/:id/body`    | 本文の差し替え                                          |
+| `POST`   | `/api/cards/:id/reviews` | `## レビュー` へのエントリ追記（承認 / 否決 / 中止）    |
+| `POST`   | `/api/cards/:id/move`    | 直前・直後のカード（`after` / `before`）の間へ並べ替え  |
+| `GET`    | `/api/events`            | SSE。ファイル変更・ポーリング結果を push                |
 
 ## 計画ファイル
 
@@ -276,7 +266,7 @@ Plan モードで立てた計画をそのまま書き、タスクはチェック
 日本語の Conventional Commits。
 
 ```
-feat: ローカル GitLab を compose で立ててボードから疎通させる
+feat: GitHub の PR からレビューコメントの件数を引く
 chore: 未着手カードの startedAt を null に戻す
-docs: ローカル GitLab 疎通の change を起票する
+docs: GitHub 連携の change を起票する
 ```

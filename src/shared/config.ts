@@ -15,38 +15,25 @@ export const DB_FILE = 'board.db';
 export const CONFIG_FILE = 'config.yaml';
 export const PLANS_DIR = 'plans';
 
-const GitLabConfigSchema = z.object({
-  url: z.string().url(),
-  projectId: z.union([z.number().int().positive(), z.string().min(1)]),
-});
-
 /** GitHub は API パスが owner/repo 固定なので数値 id を受ける意味が無い */
 const GitHubConfigSchema = z.object({
   repository: z.string().regex(/^[^/\s]+\/[^/\s]+$/, 'repository は owner/repo の形式で書く'),
 });
 
-const ConfigFileSchema = z
-  .object({
-    gitlab: GitLabConfigSchema.optional(),
-    github: GitHubConfigSchema.optional(),
-  })
-  .superRefine((value, ctx) => {
-    if (value.gitlab !== undefined && value.github !== undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'gitlab と github は同時に指定できない。どちらか一方だけを書く',
-      });
-    }
-  });
+const ConfigFileSchema = z.object({
+  github: GitHubConfigSchema.optional(),
+});
 
 /**
  * レビュー要求の取得先。
  *
- * アクセストークンは持たない。認証は gh / glab CLI に委ねる。
+ * アクセストークンは持たない。認証は gh CLI に委ねる。
  */
-export type ForgeConfig =
-  | { readonly kind: 'gitlab'; readonly url: string; readonly projectId: number | string }
-  | { readonly kind: 'github'; readonly owner: string; readonly repo: string };
+export interface ForgeConfig {
+  readonly kind: 'github';
+  readonly owner: string;
+  readonly repo: string;
+}
 
 export interface BoardPaths {
   /** 対象プロジェクトのルート */
@@ -85,8 +72,6 @@ export function resolvePaths(root: string): BoardPaths {
  *
  * 設定ファイルが無い、取得先のセクションが無いのいずれの場合も
  * 連携は無効になるだけでエラーにはしない。
- * gitlab と github が同時に書かれている場合だけは、どちらが効いているか
- * 分からないまま動かさないために例外を投げる。
  */
 export function loadConfig(root: string): AppConfig {
   const paths = resolvePaths(root);
@@ -108,14 +93,6 @@ export function loadConfig(root: string): AppConfig {
 }
 
 function toForgeConfig(data: z.infer<typeof ConfigFileSchema>): ForgeConfig | null {
-  if (data.gitlab !== undefined) {
-    return {
-      kind: 'gitlab',
-      url: data.gitlab.url.replace(/\/+$/, ''),
-      projectId: data.gitlab.projectId,
-    };
-  }
-
   if (data.github !== undefined) {
     const [owner, repo] = data.github.repository.split('/');
     // スキーマの正規表現が owner/repo を保証しているが、型の上では undefined を取り得る

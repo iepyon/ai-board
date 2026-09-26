@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { openDatabase, watchDatabase, type DatabaseWatcher } from '../database.js';
 
 let dir: string;
@@ -23,7 +24,7 @@ describe('openDatabase', () => {
   it('置き場所のディレクトリが無ければ作り、スキーマを用意する', () => {
     const db = openDatabase(path.join(dir, 'nested', 'board.db'));
 
-    expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 1 });
+    expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 2 });
     expect(db.prepare('SELECT count(*) AS n FROM cards').get()).toEqual({ n: 0 });
     db.close();
   });
@@ -37,6 +38,27 @@ describe('openDatabase', () => {
     const second = openDatabase(dbPath);
     expect(second.prepare('SELECT id FROM cards').all()).toEqual([{ id: 'a' }]);
     second.close();
+  });
+
+  it('v1 の DB を開くと GitLab の MR 番号を消し、GitHub の番号は残す', () => {
+    const dbPath = path.join(dir, 'board.db');
+    const v1 = new DatabaseSync(dbPath);
+    v1.exec(`CREATE TABLE cards (
+      id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, created TEXT NOT NULL,
+      started_at TEXT, skip_gates TEXT NOT NULL DEFAULT '[]', branch TEXT,
+      mr INTEGER, forge TEXT, rank REAL, body TEXT NOT NULL DEFAULT ''
+    ) STRICT`);
+    v1.exec(`INSERT INTO cards (id, title, created, mr, forge) VALUES
+      ('gl', 'GL', 'x', 1, 'gitlab'), ('gh', 'GH', 'x', 2, 'github')`);
+    v1.exec('PRAGMA user_version = 1');
+    v1.close();
+
+    const db = openDatabase(dbPath);
+    expect(db.prepare('SELECT id, mr, forge FROM cards ORDER BY id').all()).toEqual([
+      { id: 'gh', mr: 2, forge: 'github' },
+      { id: 'gl', mr: null, forge: null },
+    ]);
+    db.close();
   });
 
   it('この版より新しいスキーマの DB は開かない', () => {

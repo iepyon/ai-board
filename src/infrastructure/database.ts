@@ -25,6 +25,9 @@ const MIGRATIONS: readonly string[] = [
      rank       REAL,
      body       TEXT NOT NULL DEFAULT ''
    ) STRICT`,
+  // GitLab 連携の廃止。GitLab の MR 番号を GitHub の PR 番号として引かないよう、
+  // 番号ごと消して branch から解決し直させる
+  `UPDATE cards SET mr = NULL, forge = NULL WHERE forge = 'gitlab'`,
 ];
 
 /** 別プロセスの書き込みでロックが取れないとき、失敗にする前に待つ時間 */

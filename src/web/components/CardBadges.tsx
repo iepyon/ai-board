@@ -32,8 +32,7 @@ function PlanBadges({ card }: { card: BoardCard }) {
   );
 }
 
-/** 番号の書き方は取得先ごとに違う。GitLab の MR は `!1`、GitHub の PR は `#1` */
-const NUMBER_PREFIX: Record<ForgeKind, string> = { gitlab: '!', github: '#' };
+const NUMBER_PREFIX: Record<ForgeKind, string> = { github: '#' };
 
 /** レビュー要求の状態。再提出済みは `pr` 列内での再レビュー待ちを示す */
 function ForgeBadges({ card }: { card: BoardCard }) {

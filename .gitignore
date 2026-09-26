@@ -11,11 +11,9 @@ coverage/
 # ループが書く実行状態。共有しない
 .ai-board/loop.json
 
-# GitLab の root パスワード。compose が読む。共有しない
+# 廃止した GitLab 連携の名残（.env / バックアップと secrets）。手元に残っていても共有しない
 .env
-
-# アップグレード前に取り出す GitLab のバックアップと secrets。共有しない
 /gitlab-backup/
 
-# 各自の GitLab 接続設定。config.example.yaml をコピーして使う
+# 各自の GitHub 接続設定。config.example.yaml をコピーして使う
 /.ai-board/config.yaml

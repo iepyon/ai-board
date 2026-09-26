@@ -37,8 +37,6 @@ interface RawCommit {
   commit?: { committer?: { date?: string } | null } | null;
 }
 
-type GitHubForge = Extract<ForgeConfig, { kind: 'github' }>;
-
 /**
  * `gh api` を実行して Pull Request を取得する。
  *
@@ -50,7 +48,7 @@ export class GhForgeClient implements ForgeClient {
   private readonly base: string;
 
   constructor(
-    private readonly config: GitHubForge,
+    private readonly config: ForgeConfig,
     private readonly runner: CliRunner
   ) {
     this.base = `repos/${config.owner}/${config.repo}`;
@@ -83,8 +81,8 @@ export class GhForgeClient implements ForgeClient {
    * PR 本体に加えてコメントと最新コミットを取得する。
    *
    * GitHub は人のコメントを 2 か所に分けて記録する。PR 全体への返信は issue comment、
-   * コード行への指摘は review comment で、エンドポイントが別。GitLab の
-   * 「system でない最新ノート」1 か所と意味を揃えるには両方が要る。
+   * コード行への指摘は review comment で、エンドポイントが別。
+   * 人が書いた最新のコメントを知るには両方が要る。
    *
    * どちらの一覧も既定では古い順に 1 ページ目だけを返す。
    * `issues/{n}/comments` は `sort` / `direction` を受け付けない
@@ -100,7 +98,7 @@ export class GhForgeClient implements ForgeClient {
       this.get<RawCommit>(`commits/${pr.head.sha}`),
     ]);
 
-    // 自動生成のコメントは人のレビューではない。GitLab の system note に対応する
+    // 自動生成のコメントは人のレビューではない
     const comments = [...issueComments, ...reviewComments].filter(isHumanComment);
 
     return {
@@ -155,7 +153,7 @@ export function toLifecycleState(raw: string, mergedAt: string | null): MrLifecy
 /**
  * bot のコメントを外す。
  *
- * GitLab は自動生成を `system` フラグで示すが、GitHub には無く、
+ * GitHub には自動生成を示すフラグが無く、
  * 代わりに GitHub App 由来のコメントの `user.type` が `Bot` になる。
  * CI の通知を人のレビューと数えると、再レビュー待ちの判定が狂う。
  */

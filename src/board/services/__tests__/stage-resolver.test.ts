@@ -40,7 +40,7 @@ function makePlan(overrides: Partial<PlanDoc> = {}): PlanDoc {
 
 function makeMr(overrides: Partial<MrState> = {}): MrState {
   return {
-    forge: 'gitlab',
+    forge: 'github',
     iid: 42 as MergeRequestIid,
     state: 'opened',
     sourceBranch: 'feat/refresh-token',

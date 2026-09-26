@@ -160,7 +160,7 @@ describe('serializeCard', () => {
       skipGates: ['plan'],
       branch: 'feat/refresh-token',
       mr: 42 as MergeRequestIid,
-      forge: 'gitlab',
+      forge: 'github',
       rank: 1500.5,
       body: '## アイデア\n本文',
     });
@@ -168,6 +168,15 @@ describe('serializeCard', () => {
     const restored = parseCard('/tmp/refresh-token.md', serializeCard(card));
 
     expect(restored).toEqual(card);
+  });
+
+  it('GitLab の MR 番号は番号ごと捨てる', () => {
+    const raw =
+      '---\nid: refresh-token\ntitle: T\ncreated: 2026-09-01T00:00:00.000Z\nbranch: feat/x\nmr: 42\nforge: gitlab\n---\n';
+
+    const card = parseCard('/tmp/refresh-token.md', raw);
+
+    expect(card).toMatchObject({ branch: 'feat/x', mr: null, forge: null });
   });
 
   it('null のフィールドを保ったまま書き出せる', () => {

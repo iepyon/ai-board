@@ -9,12 +9,7 @@ export const MR_STATES = ['opened', 'closed', 'locked', 'merged'] as const;
 export type MrLifecycleState = (typeof MR_STATES)[number];
 
 export interface MrState {
-  /**
-   * どの取得先から引いた状態か。
-   *
-   * 識別番号の書き方が取得先ごとに違う（GitLab は `!1`、GitHub は `#1`）ため、
-   * 表示側が接続状態を見に行かずに済むよう、状態そのものに持たせる。
-   */
+  /** どの取得先から引いた状態か */
   readonly forge: ForgeKind;
   readonly iid: MergeRequestIid;
   readonly state: MrLifecycleState;
@@ -22,18 +17,18 @@ export interface MrState {
   readonly title: string;
   readonly webUrl: string;
   /**
-   * system でない最新ノート（＝人が書いたレビューコメント）の作成日時。
-   * ノートが 1 件も無ければ null。
+   * 人が書いた最新のレビューコメント（bot を除く）の作成日時。
+   * コメントが 1 件も無ければ null。
    */
   readonly latestNoteAt: string | null;
-  /** 人が書いたノートの件数 */
+  /** 人が書いたコメントの件数 */
   readonly noteCount: number;
-  /** MR の最新コミットの committed_date */
+  /** PR の最新コミットの committed_date */
   readonly latestCommitAt: string | null;
 }
 
 /** 取得先の種類 */
-export const FORGE_KINDS = ['gitlab', 'github'] as const;
+export const FORGE_KINDS = ['github'] as const;
 
 export type ForgeKind = (typeof FORGE_KINDS)[number];
 

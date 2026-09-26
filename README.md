@@ -2,7 +2,7 @@
 
 計画ファイル駆動の開発のためのローカル Web カンバン。
 
-`.ai-board/plans/` とレビュー要求（GitLab / GitHub）を読んで各カードのステージを自動導出する。
+`.ai-board/plans/` とレビュー要求（GitHub の Pull Request）を読んで各カードのステージを自動導出する。
 `stage` という値はどこにも保存しない。人の判断（着手・承認・否決・中止）も
 カード上の痕跡として残り、それも導出の入力になる。
 
@@ -18,12 +18,12 @@
 
 AI エージェントと開発を回すとき、作業の実態は複数の場所に散らばる。
 
-| 情報               | 所在                            |
-| ------------------ | ------------------------------- |
-| アイデア・調査メモ | `.ai-board/board.db`（SQLite）  |
-| 計画とタスクの進捗 | `.ai-board/plans/<id>.md`       |
-| MR / PR のレビュー | GitLab / GitHub                 |
-| 完了               | `.ai-board/plans/archive/`      |
+| 情報               | 所在                           |
+| ------------------ | ------------------------------ |
+| アイデア・調査メモ | `.ai-board/board.db`（SQLite） |
+| 計画とタスクの進捗 | `.ai-board/plans/<id>.md`      |
+| PR のレビュー      | GitHub                         |
+| 完了               | `.ai-board/plans/archive/`     |
 
 どれも見ようと思えば見られるが、アイデアから完了までを一本のパイプラインとして
 俯瞰する手段がない。ai-board はその欠けたビューを埋める。
@@ -47,7 +47,7 @@ node dist/cli.js --root /path/to/your-project
   --root <path>          対象プロジェクトのルート (既定: カレントディレクトリ)
   --port <n>             待ち受けポート (既定: 5673、使用中なら自動で繰り上げ)
   --no-open              ブラウザを自動で開かない
-  --poll-interval <ms>   GitLab のポーリング間隔 (既定: 30000)
+  --poll-interval <ms>   GitHub のポーリング間隔 (既定: 30000)
   -h, --help             ヘルプを表示
 ```
 
@@ -58,14 +58,14 @@ node dist/cli.js --root /path/to/your-project
 以下を**上から評価し、最初に真になったもの**を採用する（＝最も進んだステージ）。
 手動上書きの仕組みは無い。
 
-| #   | stage         | 条件                                                                      |
-| --- | ------------- | ------------------------------------------------------------------------- |
-| 1   | `merged`      | 計画が `.ai-board/plans/archive/` にある、**または** MR が merged           |
-| 2   | `pr`          | MR が存在し opened                                                         |
-| 3   | `impling`     | plan ゲート通過済み                                                        |
-| 4   | `plan-review` | `.ai-board/plans/<id>.md` が存在し、plan ゲートが未判断                     |
-| 5   | `planning`    | `startedAt` が非 null                                                      |
-| 6   | `idea`        | 既定                                                                       |
+| #   | stage         | 条件                                                              |
+| --- | ------------- | ----------------------------------------------------------------- |
+| 1   | `merged`      | 計画が `.ai-board/plans/archive/` にある、**または** PR が merged |
+| 2   | `pr`          | PR が存在し opened                                                |
+| 3   | `impling`     | plan ゲート通過済み                                               |
+| 4   | `plan-review` | `.ai-board/plans/<id>.md` が存在し、plan ゲートが未判断           |
+| 5   | `planning`    | `startedAt` が非 null                                             |
+| 6   | `idea`        | 既定                                                              |
 
 **否決の差し戻しに専用のルールは無い。** ゲートが「差し戻し中」のとき
 その工程のレビュー行と承認行が両方外れ、1 つ手前の列へ自然に落ちる。
@@ -93,7 +93,7 @@ node dist/cli.js --root /path/to/your-project
 中止のエントリはゲートの判定から除く。中止は工程の進捗とは直交する終端の軸であり、
 通過済みのゲートを巻き戻さない。
 
-`pr` ゲートはレビューログを持たない。MR の承認とマージは GitLab 側の実態そのもので、
+`pr` ゲートはレビューログを持たない。PR の承認とマージは GitHub 側の実態そのもので、
 カード本文に写す必要が無いため。
 
 かつては `explore` ゲートもあったが、探索レビューの列とともに廃止した。
@@ -106,13 +106,13 @@ frontmatter の `skipGates` に書いたゲートは、ログを見ずに通過�
 
 ### 誰が動かせるか
 
-| 列                        | ステージを立てるもの          | 誰の領分か |
-| ------------------------- | ----------------------------- | ---------- |
-| アイデア / 計画提案中     | `startedAt` の打刻            | 人         |
-| 計画レビュー              | `.ai-board/plans/<id>.md` の存在 | AI      |
-| 実装中                    | `## レビュー` の plan 承認                 | 人         |
-| PR中                      | MR / PR が opened             | AI         |
-| マージ済み                | 計画の archive / MR の merged | AI         |
+| 列                    | ステージを立てるもの             | 誰の領分か |
+| --------------------- | -------------------------------- | ---------- |
+| アイデア / 計画提案中 | `startedAt` の打刻               | 人         |
+| 計画レビュー          | `.ai-board/plans/<id>.md` の存在 | AI         |
+| 実装中                | `## レビュー` の plan 承認       | 人         |
+| PR中                  | PR が opened                     | AI         |
+| マージ済み            | 計画の archive / PR の merged    | AI         |
 
 **人がドラッグで動かせるのは `アイデア ⇄ 計画提案中` の 1 遷移だけ。**
 承認 / 否決 / 中止 は詳細パネルのボタンから行い、`## レビュー` への追記になる。
@@ -121,10 +121,10 @@ frontmatter の `skipGates` に書いたゲートは、ログを見ずに通過�
 さらに、**動かせる先はカードごとに違う**。`startedAt` を外したときに残るステージ
 （AI の成果物と人のレビュー記録が課す下限）より前へは戻せない。
 
-| 下限                        | 手で入れられる列          |
-| --------------------------- | ------------------------- |
-| `idea`                      | アイデア / 計画提案中     |
-| `plan-review` 以降          | なし（カードを掴めない）  |
+| 下限               | 手で入れられる列         |
+| ------------------ | ------------------------ |
+| `idea`             | アイデア / 計画提案中    |
+| `plan-review` 以降 | なし（カードを掴めない） |
 
 ### その他の設計上の判断
 
@@ -132,7 +132,6 @@ frontmatter の `skipGates` に書いたゲートは、ログを見ずに通過�
   カード上のプログレスバーに出るだけで、ステージを立てる入力には使わない。
 - **レビュー後の修正は `pr` 列内のバッジ。** 「AI が指摘を受けて修正を push した」を
   最新コミットと最新レビューコメントの時刻比較で判定し、再提出済みとして示す。
-  GitLab の `resolved` フラグはレビュアーの操作なので使わない。
   新しいレビューコメントが来れば日時比較が逆転し、自然にバッジが消える。
 - **否決からの復帰は AI の「再提出」追記で表す。** ファイルの mtime 比較は成立しない
   （レビュー記録を書く行為そのもので mtime が動くため）。
@@ -144,7 +143,7 @@ frontmatter の `skipGates` に書いたゲートは、ログを見ずに通過�
 カードの正本は `.ai-board/board.db`（SQLite）の `cards` テーブルにあり、1 行が 1 カード。
 DB は git に載せず、各自のローカルに置く。
 `id` は不変で、`branch` / `mr` が進行に応じて後から埋まる。
-これによりアイデアメモ → 計画 → ブランチ → MR → archive が 1 本の線でつながる。
+これによりアイデアメモ → 計画 → ブランチ → PR → archive が 1 本の線でつながる。
 
 `ai-board card show <id>` は、カードを次の Markdown の形で出す。
 
@@ -156,7 +155,7 @@ created: 2026-09-01T09:00:00.000Z
 startedAt: '2026-09-01T10:00:00.000Z' # 人が着手を指示した時刻
 skipGates: [] # 人が事前に見ないと宣言したゲート（plan）
 branch: feat/refresh-token
-mr: 42 # GitLab MR iid（branch から自動解決して書き戻す）
+mr: 42 # GitHub の PR 番号（branch から自動解決して書き戻す）
 rank: 1500 # 並び順。小さいほど上。並べ替えたときだけ書かれる
 ---
 
@@ -233,9 +232,7 @@ CLI にはエージェントに許す操作しか無い。`startedAt`・`rank`�
 
 ## レビュー要求の取得先
 
-`PR中` / `マージ済み` の列は、カードに紐付いたレビュー要求
-（GitLab の Merge Request、GitHub の Pull Request）の状態で決まる。
-取得先は GitLab か GitHub の **どちらか一方** を選ぶ。
+`PR中` / `マージ済み` の列は、カードに紐付いた GitHub の Pull Request の状態で決まる。
 
 `.ai-board/config.example.yaml` をコピーして書き換える。
 `config.yaml` は各自の接続先なので git の追跡外にしてある。
@@ -245,28 +242,17 @@ cp .ai-board/config.example.yaml .ai-board/config.yaml
 ```
 
 ```yaml
-# GitLab を使う場合
-gitlab:
-  url: http://localhost:8929 # compose.yaml の external_url と一致させること
-  projectId: 3 # 数値 id または "group/project"
-```
-
-```yaml
-# GitHub を使う場合
 github:
   repository: iepyon/ai-board # owner/repo
 ```
 
-両方書かれていると起動を中止する。どちらが効いているか分からないまま動かさないため。
-
 ### アクセストークンは要らない
 
-ai-board はトークンを受け取らない。問い合わせは `glab api` / `gh api` の実行として行い、
+ai-board はトークンを受け取らない。問い合わせは `gh api` の実行として行い、
 **認証はログイン済みの CLI に委ねる。**
 
 ```bash
-glab auth login   # GitLab を使う場合
-gh auth login     # GitHub を使う場合
+gh auth login
 ```
 
 CLI が入っていない、または未ログインなら連携は無効になり、理由が画面に出る。
@@ -276,160 +262,20 @@ CLI が入っていない、または未ログインなら連携は無効にな�
 
 CLI の有無とログイン状態は起動時に 1 度だけ確かめる。ログインし直したら ai-board を再起動する。
 
-GitLab のホストは `config.yaml` の `url` から決まり、`GITLAB_HOST` として glab へ渡す。
-複数インスタンスにログインしているとき、glab の既定ホストを引いて
-別インスタンスの MR を静かに取得するのを防ぐため。
-
-レビュー要求の一覧の全件取得はページングで取りこぼすため使わず、カード単位で問い合わせる。
+PR 一覧の全件取得はページングで取りこぼすため使わず、カード単位で問い合わせる。
 問い合わせるのは `branch` か `mr` が書かれたカードだけ。
-
-### 取得先を切り替えるとき
-
-識別番号は取得先ごとに独立している。GitLab の MR !1 と GitHub の PR #1 は別物だが、
-どちらも存在するので番号だけでは区別が付かず、そのまま引くと**列は正しく埋まったまま
-リンクだけが別のレビュー要求を指す**。画面上は何も壊れて見えない。
-
-そのためカードは番号を取得先と対で持つ。
-
-```yaml
-branch: setup-local-gitlab
-mr: 1
-forge: gitlab # この番号は GitLab のもの、という記録
-```
-
-`forge` が現在の取得先と違うカードは、番号を使わず `branch` から解決し直し、
-得られた番号と取得先を書き戻す。`branch` が無ければそのカードにレビュー要求は
-無いものとして扱う。`forge` が書かれていない古いカードは `branch` を優先する。
-
-切り替えのために手で何かを消す必要は無い。
+`mr` が無ければ `branch` から PR を解決し、得られた番号と `forge: github` を対で書き戻す。
 
 GitHub はレビューコメントが 2 か所（PR 全体への返信とコード行への指摘）に分かれるため、
-両方を合算して GitLab の「system でないノート」と意味を揃えている。
+両方を合算して「人が書いた最新のコメント」とする。
 
-### ローカル GitLab
+### GitLab 連携の廃止
 
-検証用の GitLab を Docker Compose で立てられる。`compose.yaml` が起動するのは
-GitLab だけで、ai-board 本体は従来どおり npm で動かす。
-
-```bash
-cp .env.example .env       # GITLAB_ROOT_PASSWORD を書く（8 文字以上）
-docker compose up -d       # 初回はイメージ取得と初期化で数分かかる
-docker compose ps          # healthy になるまで待つ
-```
-
-| 項目 | 値 |
-| ---- | -- |
-| URL | http://localhost:8929 |
-| 管理ユーザー | `root` / `.env` の `GITLAB_ROOT_PASSWORD` |
-| SSH | `ssh://git@localhost:2222/<namespace>/<project>.git` |
-| 常駐メモリ | 約 2.4 GiB（実測。prometheus・registry を落とし puma を single mode にした状態） |
-
-**ポートに 8080 は使えない。** omnibus の puma が内部で `127.0.0.1:8080` に bind するため
-nginx と衝突し、puma だけが `EADDRINUSE` で無限に再起動する。このときコンテナは落ちないので
-`RestartCount` は 0、Docker の health も `starting` に張り付いたまま、外からは 502 が返り続ける。
-コンテナ層のシグナルは何も異常を示さないので、`gitlab-ctl status` で puma の pid 経過時間が
-毎回リセットされていないかを見る。8929 はこの衝突を避けるために GitLab 公式が例示するポート。
-
-`external_url` は必ず実際にブラウザで開く URL と一致させる。GitLab はこの値を API の
-`web_url` に載せ、ai-board はそれをそのままカードのリンクにする。ずれていても API は 200 を
-返すため、**列は埋まったままリンクだけが静かに壊れる**。
-
-glab のログイン:
-
-```bash
-glab auth login --hostname localhost:8929
-```
-
-Web UI（`/-/user_settings/personal_access_tokens`）から `api` スコープのトークンを
-発行して glab に食わせる。ai-board 自身はトークンを受け取らず、以降は glab の
-ログイン状態だけを使う。
-
-疎通確認:
-
-```bash
-# GitLab が生きているか。/-/health は monitoring_whitelist により
-# コンテナ内からは 200、ホストからは 404 になるので疎通判定には使わない
-curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8929/users/sign_in      # 200
-
-# glab がログイン済みか
-GITLAB_HOST=localhost:8929 glab auth status
-
-# glab から API を叩けるか
-GITLAB_HOST=localhost:8929 glab api user
-
-# ボードが接続できているか
-curl -s localhost:5673/api/board | jq .forge     # {"status":"connected","kind":"gitlab"}
-
-# カードの mr.webUrl に実際に到達できるか。列が埋まっていることを疎通の根拠にしない
-curl -s localhost:5673/api/board | jq -r '.cards[] | select(.mrState) | .mrState.webUrl'
-```
-
-#### アップグレード
-
-イメージのタグは `compose.yaml` に直接書いてある。
-上げるときはこの行を書き換えてコミットする。
-リポジトリの記述と実際に動いているものが常に一致し、`git log` がそのままアップグレードの履歴になる。
-
-稼働中のバージョンはコンテナの中を見る。
-
-```bash
-docker compose exec -T gitlab head -1 /opt/gitlab/version-manifest.txt   # gitlab-ce 19.3.2
-```
-
-`docker image inspect` のラベルは当てにならない。
-`org.opencontainers.image.version` が返すのはベースイメージの Ubuntu のバージョン（`24.04`）で、
-GitLab のバージョンではない。
-
-**required stop を飛ばすわけにはいかない。**
-GitLab は特定のバージョンを踏まないとマイグレーションが完走しない作りになっていて、
-しかもイメージを戻すだけのダウングレードができない（古いバージョンは移行済みの DB で起動しない）。
-失敗したときに戻る先はバックアップだけになる。
-上げる前に
-[upgrade_paths.md](https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/update/upgrade_paths.md)
-で現在のバージョンから次の stop を確認し、間の stop を順に踏む。
-
-バックアップを取る。
-捨ててよい検証用データなら飛ばしてよいが、MR とカードの紐付けを残したいなら取っておく。
-
-```bash
-mkdir -p gitlab-backup                                  # .gitignore 済み
-docker compose exec -T gitlab gitlab-backup create
-
-# gitlab-secrets.json はバックアップに含まれない。これを失うと DB 内の
-# 暗号化データ（アクセストークン、CI 変数）が復号できなくなるので別に退避する。
-docker compose cp gitlab:/etc/gitlab/gitlab-secrets.json ./gitlab-backup/
-
-# tar を取り出す。ファイル名は作成時刻を含むので一覧から拾う。
-docker compose exec -T gitlab sh -c 'ls -t /var/opt/gitlab/backups/*_gitlab_backup.tar | head -1'
-docker compose cp gitlab:/var/opt/gitlab/backups/<上で出たファイル名> ./gitlab-backup/
-```
-
-タグを書き換えてから入れ替える。
-
-```bash
-docker compose pull
-docker compose up -d
-docker compose logs -f gitlab   # reconfigure と db:migrate を見届ける
-docker compose ps               # healthy に戻るまで待つ（数分かかる）
-```
-
-`up -d` はコンテナを作り直すだけで、`gitlab-config` / `gitlab-logs` / `gitlab-data` の
-3 つの named volume には触らない。
-設定もログもリポジトリも残り、消えるのは `down -v` を打ったときだけ。
-
-healthy に戻ったら、上の疎通確認をもう一度通す。
-とくにカードの `mr.webUrl` に実際に到達できるかまで見る。
-マイグレーションが通ってボードの列が埋まっていても、`external_url` の扱いが変われば
-リンクだけが静かに壊れる。
-
-GitLab を停止してもボードは落ちず、接続状態が `error` になって列は直近のキャッシュを保つ。
-
-```bash
-docker compose stop     # ボードは HTTP 200 のまま、gitlab は {"status":"error"}
-docker compose start    # 復帰すると connected に戻る
-docker compose down -v  # データごと破棄
-```
-
+かつては GitLab の Merge Request も取得先に選べた。
+GitLab の MR !1 と GitHub の PR #1 は別物なので、GitLab 時代の番号を GitHub で引くと
+**列は正しく埋まったままリンクだけが別の PR を指す**。
+これを避けるため、`forge: gitlab` のカードは DB のマイグレーション（と `ai-board import`）で
+`mr` / `forge` を消し、`branch` から解決し直させる。
 
 ## 設計
 
@@ -457,8 +303,8 @@ src/
   board/                3ソース統合・ステージ導出コンテキスト
     services/stage-resolver.ts    ← 核となる純関数
     repositories/plan.repository.ts
-    services/gitlab-client.ts
-  infrastructure/       ファイル監視・SSE・GitLab ポーリング
+    services/github-client.ts
+  infrastructure/       ファイル監視・SSE・GitHub ポーリング
   web/                  React + Vite のカンバン UI
 ```
 
@@ -469,16 +315,16 @@ src/
 
 ### API
 
-| メソッド | パス                  | 用途                                                 |
-| -------- | --------------------- | ---------------------------------------------------- |
-| `GET`    | `/api/board`          | 全カード＋導出ステージ＋計画の進捗 / レビュー要求の情報 |
-| `GET`    | `/api/plans/:id`      | 計画の本文。ボードには載せず詳細パネルが個別に引く   |
-| `POST`   | `/api/cards`          | 新規アイデアカード作成                               |
-| `PATCH`  | `/api/cards/:id`      | frontmatter の部分更新                               |
-| `PUT`    | `/api/cards/:id/body` | 本文の差し替え                                       |
-| `POST`   | `/api/cards/:id/reviews` | `## レビュー` へのエントリ追記                    |
-| `POST`   | `/api/cards/:id/move` | 直前・直後のカード（`after` / `before`）の間へ並べ替え |
-| `GET`    | `/api/events`         | SSE。ファイル変更・ポーリング結果を push             |
+| メソッド | パス                     | 用途                                                    |
+| -------- | ------------------------ | ------------------------------------------------------- |
+| `GET`    | `/api/board`             | 全カード＋導出ステージ＋計画の進捗 / レビュー要求の情報 |
+| `GET`    | `/api/plans/:id`         | 計画の本文。ボードには載せず詳細パネルが個別に引く      |
+| `POST`   | `/api/cards`             | 新規アイデアカード作成                                  |
+| `PATCH`  | `/api/cards/:id`         | frontmatter の部分更新                                  |
+| `PUT`    | `/api/cards/:id/body`    | 本文の差し替え                                          |
+| `POST`   | `/api/cards/:id/reviews` | `## レビュー` へのエントリ追記                          |
+| `POST`   | `/api/cards/:id/move`    | 直前・直後のカード（`after` / `before`）の間へ並べ替え  |
+| `GET`    | `/api/events`            | SSE。ファイル変更・ポーリング結果を push                |
 
 `PATCH` では `undefined`（未指定＝変更しない）と `null`（値を消す）を区別する。
 

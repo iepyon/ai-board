@@ -222,7 +222,5 @@ main().catch((error: unknown) => {
 function describeForge(forge: AppConfig['forge']): string {
   if (forge === null) return '未設定（PR 中 / マージ済みの列は空になります）';
 
-  return forge.kind === 'gitlab'
-    ? `GitLab ${forge.url}（glab のログインを使用）`
-    : `GitHub ${forge.owner}/${forge.repo}（gh のログインを使用）`;
+  return `GitHub ${forge.owner}/${forge.repo}（gh のログインを使用）`;
 }
