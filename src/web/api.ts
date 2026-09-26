@@ -1,4 +1,4 @@
-import type { Board, BoardCard, ReviewGate, ReviewKind } from './types.js';
+import type { Board, BoardCard, PlanDocument, ReviewGate, ReviewKind } from './types.js';
 
 // ============================================================
 // API クライアント
@@ -22,6 +22,10 @@ export function fetchBoard(): Promise<Board> {
   return request<Board>('/api/board');
 }
 
+export function fetchPlan(id: string): Promise<PlanDocument> {
+  return request<PlanDocument>(`/api/plans/${encodeURIComponent(id)}`);
+}
+
 export function createCard(input: {
   title: string;
   id?: string;
@@ -34,7 +38,6 @@ export interface CardMetaPatch {
   title?: string;
   startedAt?: string | null;
   skipGates?: ReviewGate[];
-  change?: string | null;
   branch?: string | null;
   mr?: number | null;
 }

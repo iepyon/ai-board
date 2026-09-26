@@ -22,7 +22,7 @@ export function App() {
     [board, selectedId]
   );
 
-  const orphanChanges = board?.orphanChanges ?? [];
+  const orphanPlans = board?.orphanPlans ?? [];
 
   const { visible, abortedCount } = useMemo(
     () => splitAborted(board, showAborted),
@@ -41,7 +41,7 @@ export function App() {
         onReload={reload}
       />
 
-      <Banners error={error} actionError={actionError} orphanChanges={orphanChanges} />
+      <Banners error={error} actionError={actionError} orphanPlans={orphanPlans} />
 
       {loading && <p className="empty">読み込み中…</p>}
 
@@ -57,7 +57,12 @@ export function App() {
       )}
 
       {selected !== null && board !== null && (
-        <CardDetail card={selected} onClose={() => setSelectedId(null)} onChanged={reload} />
+        <CardDetail
+          key={selected.id}
+          card={selected}
+          onClose={() => setSelectedId(null)}
+          onChanged={reload}
+        />
       )}
 
       {adding && <NewCardDialog onClose={() => setAdding(false)} onCreated={reload} />}
@@ -88,19 +93,19 @@ function splitAborted(
 interface BannersProps {
   error: string | null;
   actionError: string | null;
-  orphanChanges: readonly string[];
+  orphanPlans: readonly string[];
 }
 
-function Banners({ error, actionError, orphanChanges }: BannersProps) {
+function Banners({ error, actionError, orphanPlans }: BannersProps) {
   return (
     <>
       {error !== null && <div className="banner error">ボードを読み込めません: {error}</div>}
       {actionError !== null && <div className="banner error">{actionError}</div>}
 
-      {orphanChanges.length > 0 && (
+      {orphanPlans.length > 0 && (
         <div className="banner info">
-          カードに紐付いていない change: {orphanChanges.join(', ')}
-          （カード詳細の change 欄で紐付けられます）
+          対応するカードが無い計画: {orphanPlans.join(', ')}
+          （カードを消したか、名前を変えた可能性があります）
         </div>
       )}
     </>

@@ -1,4 +1,4 @@
-import type { CardId, ChangeName, MergeRequestIid } from '../../shared/schemas/common.js';
+import type { CardId, MergeRequestIid } from '../../shared/schemas/common.js';
 import type { ReviewGate } from './review.js';
 import type { ForgeKind } from '../../board/models/mr-state.js';
 
@@ -9,12 +9,15 @@ import type { ForgeKind } from '../../board/models/mr-state.js';
 /**
  * カードは `.ai-board/cards/<id>.md` の 1 ファイルに対応する。
  *
- * `id` は不変で、`change` / `branch` / `mr` が進行に応じて後から埋まる。
+ * `id` は不変で、`branch` / `mr` が進行に応じて後から埋まる。
  * カードは全ステージを通じて存在し続ける（マージ済みでも削除しない）ため、
- * アイデアメモ → change → ブランチ → MR → archive を 1 本の線でつなげる。
+ * アイデアメモ → 計画 → ブランチ → MR → archive を 1 本の線でつなげる。
+ *
+ * 計画は `.ai-board/plans/<id>.md` に同じ ID で置かれる。ID がファイル名を
+ * 決めるので、紐付けのためのフィールドは持たない。
  *
  * ステージそのものは保存しない。`startedAt` と本文のレビューログ、
- * および openspec / レビュー要求の実態から純関数で導出する。
+ * および計画ファイル / レビュー要求の実態から純関数で導出する。
  */
 export interface Card {
   readonly id: CardId;
@@ -25,7 +28,6 @@ export interface Card {
   readonly startedAt: string | null;
   /** 人が事前に「見ない」と宣言したゲート。AI はここで止まらない */
   readonly skipGates: readonly ReviewGate[];
-  readonly change: ChangeName | null;
   readonly branch: string | null;
   readonly mr: MergeRequestIid | null;
   /**

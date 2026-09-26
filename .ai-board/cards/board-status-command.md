@@ -4,7 +4,6 @@ title: サーバ不要でボードを読む status サブコマンドを足す
 created: '2026-09-04T06:48:23.405Z'
 startedAt: null
 skipGates: []
-change: null
 branch: null
 mr: null
 ---

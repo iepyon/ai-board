@@ -15,8 +15,8 @@
 
   --src-card: #b45309;
   --src-card-bg: #fdf2e3;
-  --src-openspec: #0e7490;
-  --src-openspec-bg: #e0f0f5;
+  --src-plan: #0e7490;
+  --src-plan-bg: #e0f0f5;
   --src-forge: #7c3aed;
   --src-forge-bg: #ede9fe;
   --src-archive: #15803d;
@@ -44,8 +44,8 @@
 
     --src-card: #f0a860;
     --src-card-bg: #33240f;
-    --src-openspec: #38bdd8;
-    --src-openspec-bg: #123540;
+    --src-plan: #38bdd8;
+    --src-plan-bg: #123540;
     --src-forge: #b79cf8;
     --src-forge-bg: #271d45;
     --src-archive: #6fce8b;
@@ -290,9 +290,9 @@ button {
   white-space: nowrap;
 }
 
-.badge.openspec {
-  color: var(--src-openspec);
-  background: var(--src-openspec-bg);
+.badge.plan {
+  color: var(--src-plan);
+  background: var(--src-plan-bg);
 }
 .badge.forge {
   color: var(--src-forge);
@@ -310,26 +310,6 @@ button {
 .badge.warn {
   color: var(--warn);
   background: var(--warn-bg);
-}
-
-.artifacts {
-  display: flex;
-  gap: 3px;
-  margin-top: 5px;
-}
-
-.artifacts span {
-  font-family: 'SF Mono', Menlo, monospace;
-  font-size: 9.5px;
-  padding: 0 4px;
-  border-radius: 3px;
-  border: 1px solid var(--border);
-  color: var(--text-2);
-}
-
-.artifacts span.on {
-  color: var(--src-openspec);
-  border-color: var(--src-openspec);
 }
 
 .progress {
@@ -512,6 +492,22 @@ button {
   background: var(--surface-2);
   border-radius: 6px;
   padding: 7px 10px;
+  overflow-wrap: anywhere;
+}
+
+/* 計画の本文。Markdown は整形せず等幅のまま読ませる */
+.plan-body {
+  font-family: 'SF Mono', Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-2);
+  background: var(--surface-2);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 0;
+  max-height: 340px;
+  overflow-y: auto;
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 

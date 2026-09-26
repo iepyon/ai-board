@@ -4,7 +4,6 @@ title: バナーを閉じられるようにする
 created: '2026-09-04T06:48:23.418Z'
 startedAt: null
 skipGates: []
-change: null
 branch: null
 mr: null
 ---

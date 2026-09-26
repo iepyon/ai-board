@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StageSection } from './detail/StageSection.js';
+import { PlanSection } from './detail/PlanSection.js';
 import { ReviewActions } from './detail/ReviewActions.js';
 import { LinkFields } from './detail/LinkFields.js';
 import { BodyEditor } from './detail/BodyEditor.js';
@@ -53,6 +54,7 @@ export function CardDetail({ card, onClose, onChanged }: CardDetailProps) {
         {error !== null && <div className="divergence">{error}</div>}
 
         <StageSection card={card} />
+        <PlanSection card={card} />
         <ReviewActions card={card} saving={saving} onRun={run} />
         <LinkFields card={card} saving={saving} onPatch={patch} />
         <BodyEditor card={card} saving={saving} onRun={run} />

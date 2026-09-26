@@ -1,6 +1,6 @@
 import { ok, err, type Result } from '../../../shared/result.js';
 import type { CardRepository } from '../../../cards/repositories/card.repository.js';
-import type { OpenSpecRepository } from '../../repositories/openspec.repository.js';
+import type { PlanRepository } from '../../repositories/plan.repository.js';
 import type { MrStateProvider } from '../../services/mr-state-provider.js';
 import {
   droppableStages,
@@ -13,9 +13,9 @@ import {
   type Board,
   type BoardCard,
   type BoardCardMr,
-  type BoardCardOpenSpec,
+  type BoardCardPlan,
 } from '../../models/board-card.js';
-import type { OpenSpecChangeState } from '../../models/openspec-state.js';
+import type { PlanDoc } from '../../models/plan-state.js';
 import type { MrState } from '../../models/mr-state.js';
 import type { GetBoardError } from '../../errors/board-errors.js';
 
@@ -26,25 +26,22 @@ import type { GetBoardError } from '../../errors/board-errors.js';
 export type GetBoardQuery = () => Promise<Result<Board, GetBoardError>>;
 
 /**
- * カード・openspec・GitLab の 3 ソースを束ねてボードを組み立てる。
+ * カード・計画ファイル・レビュー要求の 3 ソースを束ねてボードを組み立てる。
  *
  * ステージ導出そのものは `resolveStage`（純関数）に委譲し、
  * ここは I/O と組み立てだけを担当する。
  */
 export function createGetBoardQuery(
   cardRepository: CardRepository,
-  openspecRepository: OpenSpecRepository,
+  planRepository: PlanRepository,
   mrProvider: MrStateProvider
 ): GetBoardQuery {
   return async () => {
     let cards;
-    let openspecState;
+    let planState;
 
     try {
-      [cards, openspecState] = await Promise.all([
-        cardRepository.findAll(),
-        openspecRepository.load(),
-      ]);
+      [cards, planState] = await Promise.all([cardRepository.findAll(), planRepository.load()]);
     } catch (error) {
       return err({
         type: 'BoardUnreadable',
@@ -52,50 +49,40 @@ export function createGetBoardQuery(
       });
     }
 
-    const linkedChanges = new Set<string>();
+    const cardIds = new Set<string>(cards.map((card) => card.id));
 
     const boardCards: BoardCard[] = cards.map((card) => {
-      const openspec = card.change === null ? null : (openspecState.get(card.change) ?? null);
+      const plan = planState.get(card.id) ?? null;
       const mr = mrProvider.get(card.id);
 
-      if (openspec !== null) {
-        linkedChanges.add(openspec.name);
-      }
-
-      const floorStage = resolveFloorStage(card, openspec, mr);
+      const floorStage = resolveFloorStage(card, plan, mr);
 
       return toBoardCard(
         card,
-        resolveStage(card, openspec, mr),
+        resolveStage(card, plan, mr),
         { floorStage, droppableStages: droppableStages(floorStage) },
-        toBoardCardOpenSpec(openspec),
+        toBoardCardPlan(plan),
         toBoardCardMr(mr)
       );
     });
 
-    // どのカードにも紐付いていない change は、紐付け漏れか
-    // ボードの外で作られた change。UI で気付けるように返す。
-    const orphanChanges = [...openspecState.keys()].filter((name) => !linkedChanges.has(name));
+    // カードが無いのに計画ファイルだけ残っているもの。カードを消したか
+    // 名前を変えたときに起きる。UI で気付けるように返す。
+    const orphanPlans = [...planState.keys()].filter((id) => !cardIds.has(id));
 
     return ok({
       cards: boardCards,
       forge: mrProvider.connection(),
-      orphanChanges: orphanChanges.sort(),
+      orphanPlans: orphanPlans.sort(),
       generatedAt: new Date().toISOString(),
     });
   };
 }
 
-function toBoardCardOpenSpec(state: OpenSpecChangeState | null): BoardCardOpenSpec | null {
-  if (state === null) return null;
+function toBoardCardPlan(plan: PlanDoc | null): BoardCardPlan | null {
+  if (plan === null) return null;
 
-  return {
-    change: state.name,
-    artifacts: state.artifacts,
-    tasks: state.tasks,
-    archived: state.archived,
-    archivedAs: state.archivedAs,
-  };
+  return { tasks: plan.tasks, archived: plan.archived };
 }
 
 function toBoardCardMr(mr: MrState | null): BoardCardMr | null {

@@ -9,9 +9,6 @@ export type Brand<T, B extends string> = T & { readonly __brand: B };
 /** カードの不変 ID（ファイル名と一致する kebab-case） */
 export type CardId = Brand<string, 'CardId'>;
 
-/** openspec の change ディレクトリ名 */
-export type ChangeName = Brand<string, 'ChangeName'>;
-
 /** GitLab の MR iid */
 export type MergeRequestIid = Brand<number, 'MergeRequestIid'>;
 
@@ -20,21 +17,13 @@ export type MergeRequestIid = Brand<number, 'MergeRequestIid'>;
 // ============================================================
 
 /**
- * カードが取りうる 7 つのステージ。
+ * カードが取りうる 6 つのステージ。
  * 配列の順序がそのまま「進行度」を表し、UI の列順にも使う。
  *
  * `plan-review` / `pr` は人の判断を待つ HIL ゲート、
- * `planning` / `impling` / `verifying` は AI が自走する列。
+ * `planning` / `impling` は AI が自走する列。
  */
-export const STAGES = [
-  'idea',
-  'planning',
-  'plan-review',
-  'impling',
-  'verifying',
-  'pr',
-  'merged',
-] as const;
+export const STAGES = ['idea', 'planning', 'plan-review', 'impling', 'pr', 'merged'] as const;
 
 export const StageSchema = z.enum(STAGES);
 
@@ -58,18 +47,8 @@ export const CardIdSchema = z
   .max(100)
   .regex(SLUG_PATTERN, 'id は kebab-case（英小文字・数字・ハイフン）で指定してください');
 
-export const ChangeNameSchema = z
-  .string()
-  .min(1)
-  .max(200)
-  .regex(SLUG_PATTERN, 'change 名は kebab-case で指定してください');
-
 export function createCardId(raw: string): CardId {
   return CardIdSchema.parse(raw) as CardId;
-}
-
-export function createChangeName(raw: string): ChangeName {
-  return ChangeNameSchema.parse(raw) as ChangeName;
 }
 
 export function createMergeRequestIid(raw: number): MergeRequestIid {

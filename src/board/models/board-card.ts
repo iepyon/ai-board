@@ -2,20 +2,17 @@ import type { Stage } from '../../shared/schemas/common.js';
 import type { Card } from '../../cards/models/card.js';
 import type { GateState, ReviewGate } from '../../cards/models/review.js';
 import type { StageResolution } from '../services/stage-resolver.js';
-import type { OpenSpecArtifacts, TaskProgress } from './openspec-state.js';
+import type { TaskProgress } from './plan-state.js';
 import type { ForgeConnection, ForgeKind, MrLifecycleState } from './mr-state.js';
 
 // ============================================================
 // ボードに表示するカード（3 ソースを束ねた読み取りモデル）
 // ============================================================
 
-export interface BoardCardOpenSpec {
-  readonly change: string;
-  readonly artifacts: OpenSpecArtifacts;
+export interface BoardCardPlan {
   /** ステージ判定には使わず、カード上のプログレスバーとして表示するだけ */
   readonly tasks: TaskProgress;
   readonly archived: boolean;
-  readonly archivedAs: string | null;
 }
 
 export interface BoardCardMr {
@@ -48,12 +45,11 @@ export interface BoardCard {
   readonly droppableStages: readonly Stage[];
   readonly startedAt: string | null;
   readonly skipGates: readonly ReviewGate[];
-  readonly change: string | null;
   readonly branch: string | null;
   readonly mr: number | null;
   readonly body: string;
-  /** change が openspec 側に見つからなければ null */
-  readonly openspec: BoardCardOpenSpec | null;
+  /** 計画ファイルがまだ無ければ null */
+  readonly plan: BoardCardPlan | null;
   /** MR が未紐付け、または GitLab 未接続なら null */
   readonly mrState: BoardCardMr | null;
 }
@@ -61,8 +57,8 @@ export interface BoardCard {
 export interface Board {
   readonly cards: readonly BoardCard[];
   readonly forge: ForgeConnection;
-  /** カードに紐付いていない openspec change の名前（紐付け漏れの発見に使う） */
-  readonly orphanChanges: readonly string[];
+  /** 対応するカードが無い計画ファイルのカード ID（消し忘れの発見に使う） */
+  readonly orphanPlans: readonly string[];
   readonly generatedAt: string;
 }
 
@@ -74,7 +70,7 @@ export function toBoardCard(
     floorStage: Stage;
     droppableStages: readonly Stage[];
   },
-  openspec: BoardCardOpenSpec | null,
+  plan: BoardCardPlan | null,
   mrState: BoardCardMr | null
 ): BoardCard {
   return {
@@ -89,11 +85,10 @@ export function toBoardCard(
     droppableStages: movement.droppableStages,
     startedAt: card.startedAt,
     skipGates: card.skipGates,
-    change: card.change,
     branch: card.branch,
     mr: card.mr,
     body: card.body,
-    openspec,
+    plan,
     mrState,
   };
 }

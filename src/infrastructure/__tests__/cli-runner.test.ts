@@ -85,9 +85,9 @@ describe('parseJson', () => {
 describe('describeCliError', () => {
   it('CLI 不在と実行失敗で文言が分かれる', () => {
     expect(describeCliError({ type: 'NotInstalled', command: 'gh' })).toContain('見つからない');
-    expect(describeCliError({ type: 'Failed', command: 'gh', message: '終了コード 1 で失敗した' })).toContain(
-      '終了コード 1'
-    );
+    expect(
+      describeCliError({ type: 'Failed', command: 'gh', message: '終了コード 1 で失敗した' })
+    ).toContain('終了コード 1');
   });
 });
 

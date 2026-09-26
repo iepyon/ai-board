@@ -1,6 +1,6 @@
 import type { DragEvent } from 'react';
 import { CardBadges } from './CardBadges.js';
-import type { Artifacts, BoardCard } from '../types.js';
+import type { BoardCard } from '../types.js';
 
 // ============================================================
 // カンバンのカード
@@ -21,7 +21,7 @@ export function Card({ card, selected, onSelect, onDragStart, onDragEnd }: CardP
     onDragStart(card);
   };
 
-  const tasks = card.openspec?.tasks;
+  const tasks = card.plan?.tasks;
 
   // AI の成果物で位置が決まるカードは掴めない
   const movable = card.droppableStages.length > 0;
@@ -47,31 +47,9 @@ export function Card({ card, selected, onSelect, onDragStart, onDragEnd }: CardP
 
       <CardBadges card={card} />
 
-      {card.openspec !== null && <ArtifactList artifacts={card.openspec.artifacts} />}
-
       {tasks !== undefined && tasks.total > 0 && (
         <Progress completed={tasks.completed} total={tasks.total} />
       )}
-    </div>
-  );
-}
-
-/** artifact の完了状況。ステージ判定には使わず、進み具合を示すだけ */
-function ArtifactList({ artifacts }: { artifacts: Artifacts }) {
-  const entries: ReadonlyArray<[string, boolean]> = [
-    ['proposal', artifacts.proposal],
-    ['specs', artifacts.specs],
-    ['design', artifacts.design],
-    ['tasks', artifacts.tasks],
-  ];
-
-  return (
-    <div className="artifacts">
-      {entries.map(([name, done]) => (
-        <span key={name} className={done ? 'on' : ''}>
-          {name}
-        </span>
-      ))}
     </div>
   );
 }

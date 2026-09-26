@@ -4,7 +4,6 @@ title: AI ループの中核スキルを作る
 created: '2026-09-04T06:48:23.403Z'
 startedAt: null
 skipGates: []
-change: null
 branch: null
 mr: null
 ---
@@ -15,12 +14,12 @@ mr: null
 
 1 周で行うのは優先順に 1 つだけ。進める先はいずれも AI の列で、★ の列では止まる。
 
-1. 実装中 / 検証中のカードがあれば → 実装を 1 ステップ進めてコミット
-2. 計画提案中のカードがあれば → 必要なら探索したうえで openspec change を起票し、
+1. 実装中のカードがあれば → 計画のタスクを 1 つ倒してコミットし、チェックを付ける
+2. 計画提案中のカードがあれば → Plan モードで計画を立てて `.ai-board/plans/<id>.md` に書き、
    `## レビュー` に plan 提出を書く
 3. どれも無ければ → 人待ちを報告して終わる
 
-openspec の書き方は自前で持たず、既にある `/opsx:propose` / `/opsx:apply` / `/opsx:archive` に委譲する。
+マージ済みまで進んだカードは、計画を `.ai-board/plans/archive/<id>.md` へ移す。
 
 **ハードルール**（人の承認を代行しない）
 

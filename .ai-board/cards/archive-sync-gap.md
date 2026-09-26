@@ -4,7 +4,6 @@ title: マージ済みと archive 済みを見分けられるようにする
 created: '2026-09-11T01:52:44.055Z'
 startedAt: null
 skipGates: []
-change: null
 branch: null
 mr: null
 ---
@@ -75,3 +74,15 @@ sync の規則は「`ADDED` の要件が既にあれば内容を delta に合わ
   ステップ 5 のディレクトリ移動はその後始末
 - 既知の未追従（CLAUDE.md）: change 名が `YYYY-MM-DD-` で始まる場合、
   openspec 1.12.0 は接頭辞を重ねないため、日付を剥がす前提の完了判定が外れる
+
+## レビュー
+
+### 2026-09-25T00:00:00.000Z plan 中止
+
+前提が無くなった。このカードが問題にしていたのは openspec の archive が
+`openspec/specs/` を書き換える操作であること、そして未 archive の change の delta を
+後続が踏むと遅れて sync した瞬間に巻き戻る、という構造だった。OpenSpec を剥がし、
+計画を `.ai-board/plans/<id>.md` 1 本に寄せたことで、archive は
+`archive/` へファイルを移すだけの操作になり、メイン spec も delta も同期も無い。
+「マージ済みと archive 済みを見分けられない」という元の困りごとも、
+archive が merged を立てる唯一の実態になったため成立しない。

@@ -4,7 +4,6 @@ title: GitHub の PR をボードに乗せる
 created: '2026-09-21T02:10:00.000Z'
 startedAt: '2026-09-21T02:34:51.243Z'
 skipGates: []
-change: github-pr-provider
 branch: github-pr-provider
 mr: null
 ---

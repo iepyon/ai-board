@@ -4,7 +4,7 @@ import { updateCardMeta, type CardMetaPatch } from '../api.js';
 import type { Board as BoardData, BoardCard, Stage } from '../types.js';
 
 // ============================================================
-// 7 列のカンバン
+// 6 列のカンバン
 // ============================================================
 
 interface BoardProps {

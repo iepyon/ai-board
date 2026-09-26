@@ -4,7 +4,6 @@ title: レビュー要求を MCP サーバ経由でも引けるようにする
 created: '2026-09-21T04:49:00.868Z'
 startedAt: null
 skipGates: []
-change: null
 branch: null
 mr: null
 forge: null

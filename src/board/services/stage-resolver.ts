@@ -2,7 +2,7 @@ import { stageRank, type Stage } from '../../shared/schemas/common.js';
 import type { Card } from '../../cards/models/card.js';
 import type { GateState, ReviewGate } from '../../cards/models/review.js';
 import { gateState, isAborted, parseReviewLog } from '../../cards/services/review-log.js';
-import type { OpenSpecChangeState } from '../models/openspec-state.js';
+import type { PlanDoc } from '../models/plan-state.js';
 import type { MrState } from '../models/mr-state.js';
 
 // ============================================================
@@ -13,7 +13,7 @@ import type { MrState } from '../models/mr-state.js';
  * 人が直接ドラッグで動かせるステージ。
  *
  * `startedAt` の打刻と取り消しに対応する 1 遷移だけ。
- * 残りは AI の成果物（openspec / GitLab）か、本文のレビューログが立てる。
+ * 残りは AI の成果物（計画ファイル / レビュー要求）か、本文のレビューログが立てる。
  * レビューログへの書き込みはドラッグではなくボタンで行う。
  */
 export const HUMAN_STAGES = ['idea', 'planning'] as const satisfies readonly Stage[];
@@ -37,23 +37,22 @@ export interface StageResolution {
  *
  * | # | stage       | 条件                                                 |
  * |---|-------------|------------------------------------------------------|
- * | 1 | merged      | archive に存在、または MR が merged                   |
+ * | 1 | merged      | 計画が archive 済み、または MR が merged               |
  * | 2 | pr          | MR が opened                                          |
- * | 3 | verifying   | plan 承認済み かつ tasks が total > 0 で全完了         |
- * | 4 | impling     | plan 承認済み                                         |
- * | 5 | plan-review | proposal.md が存在し plan ゲートが none / submitted    |
- * | 6 | planning    | startedAt が非 null                                   |
- * | 7 | idea        | 既定                                                  |
+ * | 3 | impling     | plan 承認済み                                         |
+ * | 4 | plan-review | 計画ファイルが存在し plan ゲートが none / submitted    |
+ * | 5 | planning    | startedAt が非 null                                   |
+ * | 6 | idea        | 既定                                                  |
  *
  * 否決の差し戻しは専用ルールを持たない。`gate = rejected` のとき
  * その工程のレビュー行と承認行が両方外れ、1 つ手前の列へ自然に落ちる。
  */
 export function resolveStage(
   card: Card,
-  openspec: OpenSpecChangeState | null,
+  plan: PlanDoc | null,
   mr: MrState | null
 ): StageResolution {
-  const facts = toFacts(card, openspec, mr);
+  const facts = toFacts(card, plan, mr);
   const { stage, reason } = deriveStage(facts);
 
   return { stage, reason, aborted: facts.aborted, gates: facts.gates };
@@ -66,12 +65,8 @@ export function resolveStage(
  * 導出ルールを二重に持たないよう、`startedAt` を落としたカードで
  * 同じ `deriveStage` を呼ぶ。
  */
-export function resolveFloorStage(
-  card: Card,
-  openspec: OpenSpecChangeState | null,
-  mr: MrState | null
-): Stage {
-  return deriveStage(toFacts({ ...card, startedAt: null }, openspec, mr)).stage;
+export function resolveFloorStage(card: Card, plan: PlanDoc | null, mr: MrState | null): Stage {
+  return deriveStage(toFacts({ ...card, startedAt: null }, plan, mr)).stage;
 }
 
 /**
@@ -92,18 +87,18 @@ interface Derivation {
 /** 判定に必要な事実をまとめたもの */
 interface Facts {
   readonly card: Card;
-  readonly openspec: OpenSpecChangeState | null;
+  readonly plan: PlanDoc | null;
   readonly mr: MrState | null;
   readonly gates: Readonly<Record<ReviewGate, GateState>>;
   readonly aborted: boolean;
 }
 
-function toFacts(card: Card, openspec: OpenSpecChangeState | null, mr: MrState | null): Facts {
+function toFacts(card: Card, plan: PlanDoc | null, mr: MrState | null): Facts {
   const entries = parseReviewLog(card.body);
 
   return {
     card,
-    openspec,
+    plan,
     mr,
     gates: {
       plan: gateState(entries, 'plan', card.skipGates),
@@ -119,12 +114,12 @@ function toFacts(card: Card, openspec: OpenSpecChangeState | null, mr: MrState |
  * 制御構造ではなく配列の順序で表す。
  */
 const RULES: ReadonlyArray<(facts: Facts) => Derivation | null> = [
-  // 1. merged — archive されたか、MR がマージされたか
-  ({ openspec }) =>
-    openspec?.archived === true
+  // 1. merged — 計画が archive されたか、MR がマージされたか
+  ({ plan }) =>
+    plan?.archived === true
       ? {
           stage: 'merged',
-          reason: `openspec/changes/archive/${openspec.archivedAs ?? openspec.name} に移動済み`,
+          reason: `.ai-board/plans/archive/${plan.cardId}.md に移動済み`,
         }
       : null,
 
@@ -142,36 +137,27 @@ const RULES: ReadonlyArray<(facts: Facts) => Derivation | null> = [
         }
       : null,
 
-  // 3. verifying — タスクを全部倒したが MR はまだ無い＝品質ゲートを回している
-  ({ gates, openspec }) =>
-    gates.plan === 'approved' && openspec !== null && isTasksComplete(openspec)
-      ? {
-          stage: 'verifying',
-          reason: `tasks が ${openspec.tasks.total} 件すべて完了し、MR はまだ無い`,
-        }
-      : null,
-
-  // 4. impling
+  // 3. impling
   ({ gates }) =>
     gates.plan === 'approved' ? { stage: 'impling', reason: '計画が承認されている' } : null,
 
-  // 5. plan-review — 成果物があることを正とし、ログの欠落で人待ちを取りこぼさない
-  ({ gates, openspec }) =>
-    openspec?.artifacts.proposal === true && (gates.plan === 'none' || gates.plan === 'submitted')
+  // 4. plan-review — 成果物があることを正とし、ログの欠落で人待ちを取りこぼさない
+  ({ gates, plan }) =>
+    plan !== null && (gates.plan === 'none' || gates.plan === 'submitted')
       ? {
           stage: 'plan-review',
-          reason: `openspec/changes/${openspec.name}/proposal.md が人の承認を待っている`,
+          reason: `.ai-board/plans/${plan.cardId}.md が人の承認を待っている`,
         }
       : null,
 
-  // 6. planning — 人が着手を指示した。ここが人の列の上限になる
+  // 5. planning — 人が着手を指示した。ここが人の列の上限になる
   ({ card }) =>
     card.startedAt !== null
       ? { stage: 'planning', reason: `${card.startedAt} に着手が指示されている` }
       : null,
 ];
 
-/** 7. idea — どのルールにも当てはまらなかったとき */
+/** 6. idea — どのルールにも当てはまらなかったとき */
 const DEFAULT_DERIVATION: Derivation = {
   stage: 'idea',
   reason: 'まだ着手が指示されていない',
@@ -186,16 +172,6 @@ function deriveStage(facts: Facts): Derivation {
   }
 
   return DEFAULT_DERIVATION;
-}
-
-/**
- * tasks を全部倒したか。
- *
- * `total === 0` を全完了扱いにしない。tasks.md がまだ無いだけの change を
- * 検証中へ飛ばしてしまうため。
- */
-function isTasksComplete(openspec: OpenSpecChangeState): boolean {
-  return openspec.tasks.total > 0 && openspec.tasks.completed === openspec.tasks.total;
 }
 
 /**

@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { FsCardRepository, parseCard, serializeCard } from '../fs-card.repository.js';
 import type { Card } from '../../models/card.js';
-import type { CardId, ChangeName, MergeRequestIid } from '../../../shared/schemas/common.js';
+import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
 
 let cardsDir: string;
 
@@ -31,7 +31,6 @@ function makeCard(overrides: Partial<Card> = {}): Card {
     created: '2026-09-01T00:00:00.000Z',
     startedAt: null,
     skipGates: [],
-    change: null,
     branch: null,
     mr: null,
     forge: null,
@@ -66,9 +65,28 @@ describe('parseCard', () => {
     expect(card).not.toBeNull();
     expect(card?.startedAt).toBe('2026-09-05T00:00:00.000Z');
     expect(card?.skipGates).toEqual(['plan']);
-    expect(card?.change).toBe('refresh-token');
     expect(card?.mr).toBe(42);
     expect(card?.body).toBe('## アイデア\n本文');
+  });
+
+  it('廃止した change 行が残っていてもカードを読める', () => {
+    // 計画ファイルへ移行する前のカードがそのまま残っていても壊れない。
+    // 規定外のキーは Zod が黙って落とし、次の書き込みで消える。
+    const raw = [
+      '---',
+      'id: legacy',
+      'title: 旧カード',
+      'created: 2026-09-01T00:00:00.000Z',
+      'change: some-change',
+      '---',
+      '',
+      '## アイデア',
+    ].join('\n');
+
+    const card = parseCard('/tmp/legacy.md', raw);
+
+    expect(card?.id).toBe('legacy');
+    expect(card).not.toHaveProperty('change');
   });
 
   it('YAML が Date に変換した日時を ISO 文字列へ戻す', () => {
@@ -91,7 +109,6 @@ describe('parseCard', () => {
 
     expect(card?.startedAt).toBeNull();
     expect(card?.skipGates).toEqual([]);
-    expect(card?.change).toBeNull();
   });
 
   it('frontmatter が無くてもファイル名から id を補って読める', () => {
@@ -140,7 +157,6 @@ describe('serializeCard', () => {
     const card = makeCard({
       startedAt: '2026-09-04T10:12:00.000Z',
       skipGates: ['plan'],
-      change: 'refresh-token' as ChangeName,
       branch: 'feat/refresh-token',
       mr: 42 as MergeRequestIid,
       forge: 'gitlab',
@@ -155,7 +171,6 @@ describe('serializeCard', () => {
   it('null のフィールドを保ったまま書き出せる', () => {
     const restored = parseCard('/tmp/refresh-token.md', serializeCard(makeCard()));
 
-    expect(restored?.change).toBeNull();
     expect(restored?.mr).toBeNull();
     expect(restored?.startedAt).toBeNull();
     expect(restored?.skipGates).toEqual([]);

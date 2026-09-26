@@ -2,14 +2,7 @@
 // API レスポンスの型（サーバの BoardCard と対応）
 // ============================================================
 
-export type Stage =
-  | 'idea'
-  | 'planning'
-  | 'plan-review'
-  | 'impling'
-  | 'verifying'
-  | 'pr'
-  | 'merged';
+export type Stage = 'idea' | 'planning' | 'plan-review' | 'impling' | 'pr' | 'merged';
 
 /** 人が判断するゲートのうち、レビューログに現れるもの */
 export type ReviewGate = 'plan';
@@ -18,19 +11,16 @@ export type ReviewKind = '提出' | '再提出' | '承認' | '否決' | '中止'
 
 export type GateState = 'none' | 'submitted' | 'approved' | 'rejected';
 
-export interface Artifacts {
-  proposal: boolean;
-  specs: boolean;
-  design: boolean;
-  tasks: boolean;
-}
-
-export interface BoardCardOpenSpec {
-  change: string;
-  artifacts: Artifacts;
+export interface BoardCardPlan {
   tasks: { completed: number; total: number };
   archived: boolean;
-  archivedAs: string | null;
+}
+
+/** `GET /api/plans/:id` のレスポンス。本文はボードには載らない */
+export interface PlanDocument {
+  id: string;
+  body: string;
+  tasks: { completed: number; total: number };
 }
 
 export interface BoardCardMr {
@@ -61,11 +51,10 @@ export interface BoardCard {
   droppableStages: Stage[];
   startedAt: string | null;
   skipGates: ReviewGate[];
-  change: string | null;
   branch: string | null;
   mr: number | null;
   body: string;
-  openspec: BoardCardOpenSpec | null;
+  plan: BoardCardPlan | null;
   mrState: BoardCardMr | null;
 }
 
@@ -80,7 +69,7 @@ export interface Board {
   stages: Stage[];
   cards: BoardCard[];
   forge: ForgeConnection;
-  orphanChanges: string[];
+  orphanPlans: string[];
   generatedAt: string;
 }
 
@@ -100,7 +89,6 @@ export const STAGE_LABELS: Record<Stage, string> = {
   planning: '計画提案中',
   'plan-review': '計画レビュー',
   impling: '実装中',
-  verifying: '検証中',
   pr: 'PR中',
   merged: 'マージ済み',
 };
@@ -111,18 +99,16 @@ export const STAGE_OWNER: Record<Stage, 'human' | 'ai' | 'none'> = {
   planning: 'ai',
   'plan-review': 'human',
   impling: 'ai',
-  verifying: 'ai',
   pr: 'human',
   merged: 'none',
 };
 
 /** 列の帯色 = そのステージを立てる情報源 */
-export const STAGE_SOURCE: Record<Stage, 'card' | 'openspec' | 'forge' | 'archive'> = {
+export const STAGE_SOURCE: Record<Stage, 'card' | 'plan' | 'forge' | 'archive'> = {
   idea: 'card',
   planning: 'card',
-  'plan-review': 'openspec',
-  impling: 'openspec',
-  verifying: 'openspec',
+  'plan-review': 'plan',
+  impling: 'plan',
   pr: 'forge',
   merged: 'archive',
 };

@@ -1,14 +1,14 @@
 # ai-board
 
-OpenSpec 駆動開発のためのローカル Web カンバン。
+計画ファイル駆動の開発のためのローカル Web カンバン。
 
-`openspec/` ディレクトリと GitLab を読んで各カードのステージを自動導出する。
+`.ai-board/plans/` とレビュー要求（GitLab / GitHub）を読んで各カードのステージを自動導出する。
 `stage` という値はどこにも保存しない。人の判断（着手・承認・否決・中止）も
 カードファイル上の痕跡として残り、それも導出の入力になる。
 
 ```
-[ アイデア ] [ 計画提案中 ] [ 計画レビュー ] [ 実装中 ] [ 検証中 ] [ PR中 ] [ マージ済み ]
-     人            AI            人 ★          AI        AI      人 ★        —
+[ アイデア ] [ 計画提案中 ] [ 計画レビュー ] [ 実装中 ] [ PR中 ] [ マージ済み ]
+     人            AI            人 ★          AI      人 ★        —
 ```
 
 ★ が人の判断を待つゲート。人がドラッグで動かすのは `アイデア ⇄ 計画提案中` の 1 遷移だけで、
@@ -16,17 +16,20 @@ OpenSpec 駆動開発のためのローカル Web カンバン。
 
 ## なぜ必要か
 
-OpenSpec で spec 駆動開発を回すとき、作業の実態は3つの場所に散らばる。
+AI エージェントと開発を回すとき、作業の実態は複数の場所に散らばる。
 
-| 情報               | 所在                        |
-| ------------------ | --------------------------- |
-| アイデア・調査メモ | **どこにもない**            |
-| change の進捗      | `openspec/changes/<id>/`    |
-| MR / レビュー状態  | GitLab                      |
-| 完了               | `openspec/changes/archive/` |
+| 情報               | 所在                            |
+| ------------------ | ------------------------------- |
+| アイデア・調査メモ | `.ai-board/cards/<id>.md`       |
+| 計画とタスクの進捗 | `.ai-board/plans/<id>.md`       |
+| MR / PR のレビュー | GitLab / GitHub                 |
+| 完了               | `.ai-board/plans/archive/`      |
 
-`openspec view` は specs と changes しか見せないため、アイデアから完了までを
-一本のパイプラインとして俯瞰する手段がない。ai-board はその欠けたビューを埋める。
+どれも見ようと思えば見られるが、アイデアから完了までを一本のパイプラインとして
+俯瞰する手段がない。ai-board はその欠けたビューを埋める。
+
+**そして「いま誰の番か」を可視化する。** 人が判断すべき 2 点（計画レビューと PR）で
+列が止まり、それ以外は AI が右へ進める。
 
 ## 使い方
 
@@ -34,7 +37,7 @@ OpenSpec で spec 駆動開発を回すとき、作業の実態は3つの場所�
 npm install
 npm run build
 
-# openspec/ を持つプロジェクトのルートで起動する
+# .ai-board/ を持つプロジェクトのルートで起動する
 node dist/cli.js --root /path/to/your-project
 ```
 
@@ -57,13 +60,12 @@ node dist/cli.js --root /path/to/your-project
 
 | #   | stage         | 条件                                                                      |
 | --- | ------------- | ------------------------------------------------------------------------- |
-| 1   | `merged`      | archive に `YYYY-MM-DD-<change>` が存在、**または** MR が merged           |
+| 1   | `merged`      | 計画が `.ai-board/plans/archive/` にある、**または** MR が merged           |
 | 2   | `pr`          | MR が存在し opened                                                         |
-| 3   | `verifying`   | plan ゲート通過済み、かつ tasks が 1 件以上あってすべて完了、MR はまだ無い |
-| 4   | `impling`     | plan ゲート通過済み                                                        |
-| 5   | `plan-review` | `openspec/changes/<change>/proposal.md` が存在し、plan ゲートが未判断       |
-| 6   | `planning`    | `startedAt` が非 null                                                      |
-| 7   | `idea`        | 既定                                                                       |
+| 3   | `impling`     | plan ゲート通過済み                                                        |
+| 4   | `plan-review` | `.ai-board/plans/<id>.md` が存在し、plan ゲートが未判断                     |
+| 5   | `planning`    | `startedAt` が非 null                                                      |
+| 6   | `idea`        | 既定                                                                       |
 
 **否決の差し戻しに専用のルールは無い。** ゲートが「差し戻し中」のとき
 その工程のレビュー行と承認行が両方外れ、1 つ手前の列へ自然に落ちる。
@@ -107,10 +109,10 @@ frontmatter の `skipGates` に書いたゲートは、ログを見ずに通過�
 | 列                        | ステージを立てるもの          | 誰の領分か |
 | ------------------------- | ----------------------------- | ---------- |
 | アイデア / 計画提案中     | `startedAt` の打刻            | 人         |
-| 計画レビュー              | `proposal.md` の存在          | AI         |
-| 実装中 / 検証中           | `## レビュー` の plan 承認 と tasks の進捗 | 人 → AI |
-| PR中                      | GitLab の MR 状態             | AI         |
-| マージ済み                | archive / merged              | AI         |
+| 計画レビュー              | `.ai-board/plans/<id>.md` の存在 | AI      |
+| 実装中                    | `## レビュー` の plan 承認                 | 人         |
+| PR中                      | MR / PR が opened             | AI         |
+| マージ済み                | 計画の archive / MR の merged | AI         |
 
 **人がドラッグで動かせるのは `アイデア ⇄ 計画提案中` の 1 遷移だけ。**
 承認 / 否決 / 中止 は詳細パネルのボタンから行い、`## レビュー` への追記になる。
@@ -126,9 +128,8 @@ frontmatter の `skipGates` に書いたゲートは、ログを見ずに通過�
 
 ### その他の設計上の判断
 
-- **`verifying` は tasks の全完了で立つ。** タスクを全部倒したのに MR がまだ無い状態＝
-  品質ゲートを回している最中。`total === 0` は全完了扱いにしない（tasks.md が
-  まだ書かれていないだけの change を検証中へ飛ばしてしまうため）。
+- **AI レビューに専用の列は作らない。** 実装中の内部工程として扱う。tasks の進捗は
+  カード上のプログレスバーに出るだけで、ステージを立てる入力には使わない。
 - **レビュー後の修正は `pr` 列内のバッジ。** 「AI が指摘を受けて修正を push した」を
   最新コミットと最新レビューコメントの時刻比較で判定し、再提出済みとして示す。
   GitLab の `resolved` フラグはレビュアーの操作なので使わない。
@@ -141,8 +142,8 @@ frontmatter の `skipGates` に書いたゲートは、ログを見ずに通過�
 ## カードファイル
 
 `.ai-board/cards/<id>.md` の 1 ファイルが 1 カード。
-`id` は不変で、`change` / `branch` / `mr` が進行に応じて後から埋まる。
-これによりアイデアメモ → change → ブランチ → MR → archive が 1 本の線でつながる。
+`id` は不変で、`branch` / `mr` が進行に応じて後から埋まる。
+これによりアイデアメモ → 計画 → ブランチ → MR → archive が 1 本の線でつながる。
 
 ```markdown
 ---
@@ -151,7 +152,6 @@ title: リフレッシュトークン対応
 created: 2026-09-01T09:00:00.000Z
 startedAt: '2026-09-01T10:00:00.000Z' # 人が着手を指示した時刻
 skipGates: [] # 人が事前に見ないと宣言したゲート（plan）
-change: refresh-token # openspec の change 名
 branch: feat/refresh-token
 mr: 42 # GitLab MR iid（branch から自動解決して書き戻す）
 ---
@@ -163,8 +163,38 @@ mr: 42 # GitLab MR iid（branch から自動解決して書き戻す）
 
 エディタで直接書き換えると、ファイル監視を通じてブラウザへ即座に反映される。
 
-**書き込みは `.ai-board/` 配下のみ。`openspec/` は read-only** に徹する
-（openspec CLI と AI エージェントの領分を侵さない）。
+## 計画ファイル
+
+`.ai-board/plans/<card-id>.md` の 1 ファイルがそのカードの計画。
+**ファイル名がカード ID と一致することで紐付く**ので、カードの frontmatter に
+紐付け用のフィールドは無い。
+
+```markdown
+# リフレッシュトークン対応
+
+## 方針
+
+...
+
+## タスク
+
+- [x] トークンの保存先を決める
+- [ ] 更新エンドポイントを足す
+```
+
+チェックボックス（`- [ ]` / `- [x]`）はカード上のプログレスバーになる。
+インデントされたサブタスクも親と同じように数える（列 0 に固定すると
+`  - [ ] 1.1.1 …` が進捗から消えるため）。**タスクの進捗はステージを立てない。**
+
+マージされたら `.ai-board/plans/archive/<card-id>.md` へ移す。これがマージ済みの実態になる。
+
+計画を書くのは AI エージェントで、**ai-board サーバは read-only** に徹する。
+本文は `GET /api/plans/:id` で個別に取りに行き、`GET /api/board` には載せない
+（計画はカード本文より桁違いに大きく、ファイル変更のたびに引き直されるため）。
+
+**計画ファイルが存在するだけで計画レビューの列が立つ。** エージェントが書き始めた時点で
+列が動くが、本来のゲートは本文の `## レビュー` に書かれる `plan 提出` であり、
+ファイルの存在は「ログの欠落で人待ちを取りこぼさない」ための保険である。
 
 ## レビュー要求の取得先
 
@@ -368,19 +398,17 @@ docker compose down -v  # データごと破棄
 
 ## 設計
 
-`openspec` CLI をサブプロセス起動せず、ディレクトリを直接読む。
+**ステージはどこにも保存しない。** 3 つの実態（カードファイル・計画ファイル・レビュー要求）
+から純関数で導出する。列を動かしたければ、その列を成立させる実態を作る。
+手動で上書きする入力口は無い。
 
-- `openspec list --json` は archive を除外するため完了列を作れない
-- change ごとに `openspec status` を呼ぶと N プロセス起動になる
-- 完了判定はファイル存在のみで、構造が単純かつ安定している
-- openspec 未インストールの環境でも動く
+計画ファイルはディレクトリを直接読む。ファイル名がそのままカード ID なので、
+ID として不正な名前のファイルは警告して読み飛ばす（ここで例外を投げるとボード全体が
+500 になり、置き場所を間違えた 1 ファイルで画面が死ぬ）。
 
-判定ロジックは `@fission-ai/openspec` v1.13.0 の実装に合わせてある
-（tasks の行パターン、archive の日付プレフィックス、artifact の存在判定）。
-openspec を上げたときは参照先の定数を突き合わせる。
-
-ただし change 名自体が `YYYY-MM-DD-` で始まる場合、1.13.0 は接頭辞を重ねず
-既存名のまま archive するため、日付を剥がす前提のこちらの完了判定が外れる。
+かつては OpenSpec の `openspec/changes/` を読んでいたが、Plan モードで立てた計画を
+そのまま成果物にするほうが工程が短いため、計画ファイル 1 本に寄せた。
+移行前の change は `.ai-board/plans/archive/` に計画として残してある。
 
 ### レイヤー構成
 
@@ -393,7 +421,7 @@ src/
     models/ errors/ repositories/ usecases/ controllers/ composition.ts
   board/                3ソース統合・ステージ導出コンテキスト
     services/stage-resolver.ts    ← 核となる純関数
-    repositories/openspec.repository.ts
+    repositories/plan.repository.ts
     services/gitlab-client.ts
   infrastructure/       ファイル監視・SSE・GitLab ポーリング
   web/                  React + Vite のカンバン UI
@@ -408,7 +436,8 @@ src/
 
 | メソッド | パス                  | 用途                                                 |
 | -------- | --------------------- | ---------------------------------------------------- |
-| `GET`    | `/api/board`          | 全カード＋導出ステージ＋openspec / GitLab 由来の情報 |
+| `GET`    | `/api/board`          | 全カード＋導出ステージ＋計画の進捗 / レビュー要求の情報 |
+| `GET`    | `/api/plans/:id`      | 計画の本文。ボードには載せず詳細パネルが個別に引く   |
 | `POST`   | `/api/cards`          | 新規アイデアカード作成                               |
 | `PATCH`  | `/api/cards/:id`      | frontmatter の部分更新                               |
 | `PUT`    | `/api/cards/:id/body` | 本文の差し替え                                       |

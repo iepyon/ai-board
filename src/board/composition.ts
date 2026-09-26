@@ -4,32 +4,32 @@ import type { CliRunner } from '../infrastructure/cli-runner.js';
 import type { ForgeClient } from './services/forge-client.js';
 import { GlabForgeClient } from './services/gitlab-client.js';
 import { GhForgeClient } from './services/github-client.js';
-import {
-  FsOpenSpecRepository,
-  type OpenSpecRepository,
-} from './repositories/openspec.repository.js';
+import { FsPlanRepository, type PlanRepository } from './repositories/plan.repository.js';
 import { disabledMrStateProvider, type MrStateProvider } from './services/mr-state-provider.js';
 import { createGetBoardQuery, type GetBoardQuery } from './usecases/queries/get-board.query.js';
+import { createGetPlanQuery, type GetPlanQuery } from './usecases/queries/get-plan.query.js';
 
 // ============================================================
 // Board コンテキスト 依存性構成
 // ============================================================
 
 export interface BoardDependencies {
-  readonly openspecRepository: OpenSpecRepository;
+  readonly planRepository: PlanRepository;
   readonly getBoardQuery: GetBoardQuery;
+  readonly getPlanQuery: GetPlanQuery;
 }
 
 export function createBoardDependencies(
-  openspecDir: string,
+  plansDir: string,
   cardRepository: CardRepository,
   mrProvider: MrStateProvider = disabledMrStateProvider
 ): BoardDependencies {
-  const openspecRepository = new FsOpenSpecRepository(openspecDir);
+  const planRepository = new FsPlanRepository(plansDir);
 
   return {
-    openspecRepository,
-    getBoardQuery: createGetBoardQuery(cardRepository, openspecRepository, mrProvider),
+    planRepository,
+    getBoardQuery: createGetBoardQuery(cardRepository, planRepository, mrProvider),
+    getPlanQuery: createGetPlanQuery(planRepository),
   };
 }
 

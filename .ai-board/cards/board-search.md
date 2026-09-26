@@ -4,7 +4,6 @@ title: カードを絞り込めるようにする
 created: '2026-09-04T06:48:23.416Z'
 startedAt: null
 skipGates: []
-change: null
 branch: null
 mr: null
 ---

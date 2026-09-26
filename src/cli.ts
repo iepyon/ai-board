@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { startServer, DEFAULT_PORT } from './server.js';
-import { BOARD_DIR, OPENSPEC_DIR, type AppConfig } from './shared/config.js';
+import { BOARD_DIR, type AppConfig } from './shared/config.js';
 
 // ============================================================
 // ai-board CLI
@@ -18,7 +18,7 @@ interface CliOptions {
 
 const USAGE = `使い方: ai-board [options]
 
-OpenSpec 駆動開発のためのローカル Web カンバンを起動します。
+計画ファイル駆動のローカル Web カンバンを起動します。
 
 Options:
   --root <path>   対象プロジェクトのルート (既定: カレントディレクトリ)
@@ -126,14 +126,11 @@ async function main(): Promise<void> {
   process.on('SIGTERM', shutdown);
 }
 
-/** openspec も .ai-board も無いディレクトリで起動されたときに気付けるようにする */
+/** .ai-board が無いディレクトリで起動されたときに気付けるようにする */
 function warnIfNothingToShow(root: string): void {
-  const hasOpenSpec = fs.existsSync(path.join(root, OPENSPEC_DIR));
-  const hasBoard = fs.existsSync(path.join(root, BOARD_DIR));
-
-  if (!hasOpenSpec && !hasBoard) {
+  if (!fs.existsSync(path.join(root, BOARD_DIR))) {
     console.warn(
-      `[ai-board] ${root} に ${OPENSPEC_DIR}/ も ${BOARD_DIR}/ もありません。\n` +
+      `[ai-board] ${root} に ${BOARD_DIR}/ がありません。\n` +
         `           空のボードを表示します。--root で対象を指定できます。`
     );
   }

@@ -4,7 +4,6 @@ title: Claude Code hooks で編集直後に品質を検出する
 created: '2026-09-04T06:48:23.412Z'
 startedAt: null
 skipGates: []
-change: null
 branch: null
 mr: null
 ---

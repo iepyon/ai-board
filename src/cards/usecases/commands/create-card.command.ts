@@ -31,7 +31,6 @@ export function createCreateCardCommand(cardRepository: CardRepository): CreateC
       created: input.createdAt.toISOString(),
       startedAt: null,
       skipGates: [],
-      change: null,
       branch: null,
       mr: null,
       forge: null,

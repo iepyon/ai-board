@@ -26,7 +26,6 @@ function toCardResponse(card: Card): Record<string, unknown> {
     created: card.created,
     startedAt: card.startedAt,
     skipGates: card.skipGates,
-    change: card.change,
     branch: card.branch,
     mr: card.mr,
     body: card.body,

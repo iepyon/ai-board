@@ -4,7 +4,6 @@ title: AGENTS.md / CLAUDE.md でリポジトリの規約を明文化する
 created: '2026-09-04T06:48:23.409Z'
 startedAt: null
 skipGates: []
-change: null
 branch: add-claude-md
 mr: 2
 forge: gitlab

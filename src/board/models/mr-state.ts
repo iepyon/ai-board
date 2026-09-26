@@ -40,7 +40,7 @@ export type ForgeKind = (typeof FORGE_KINDS)[number];
 /**
  * レビュー要求の取得先への接続状態。
  *
- * ボードは未接続でも openspec 由来の情報だけで動く。
+ * ボードは未接続でもカードと計画ファイルだけで動く。
  * `disabled` は設定が無い場合と、CLI が無い・未ログインの場合の両方を表し、
  * どちらであるかは `reason` に出す。
  */
