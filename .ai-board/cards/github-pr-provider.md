@@ -5,7 +5,8 @@ created: '2026-09-21T02:10:00.000Z'
 startedAt: '2026-09-21T02:34:51.243Z'
 skipGates: []
 branch: github-pr-provider
-mr: null
+mr: 2
+forge: github
 ---
 
 ## アイデア
