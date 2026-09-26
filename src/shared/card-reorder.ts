@@ -49,3 +49,9 @@ export function applyMove<T extends { readonly id: string }>(
   const index = target.after !== null ? found + 1 : found;
   return [...rest.slice(0, index), moving, ...rest.slice(index)];
 }
+
+/**
+ * アイデアの表の区切り線を、並べ替えの中でカードと同じ 1 項目として指す ID。
+ * `:` はカード ID（kebab-case）に使えない文字なので、どのカードとも衝突しない。
+ */
+export const DIVIDER_ID = ':divider';

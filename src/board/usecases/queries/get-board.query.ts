@@ -1,5 +1,6 @@
 import { ok, err, type Result } from '../../../shared/result.js';
 import type { CardRepository } from '../../../cards/repositories/card.repository.js';
+import type { IdeaDividerRepository } from '../../../cards/repositories/idea-divider.repository.js';
 import type { PlanRepository } from '../../repositories/plan.repository.js';
 import type { MrStateProvider } from '../../services/mr-state-provider.js';
 import {
@@ -36,15 +37,21 @@ export type GetBoardQuery = () => Promise<Result<Board, GetBoardError>>;
  */
 export function createGetBoardQuery(
   cardRepository: CardRepository,
+  ideaDividerRepository: IdeaDividerRepository,
   planRepository: PlanRepository,
   mrProvider: MrStateProvider
 ): GetBoardQuery {
   return async () => {
     let cards;
     let planState;
+    let ideaDivider;
 
     try {
-      [cards, planState] = await Promise.all([cardRepository.findAll(), planRepository.load()]);
+      [cards, planState, ideaDivider] = await Promise.all([
+        cardRepository.findAll(),
+        planRepository.load(),
+        ideaDividerRepository.get(),
+      ]);
     } catch (error) {
       return err({
         type: 'BoardUnreadable',
@@ -78,6 +85,7 @@ export function createGetBoardQuery(
       cards: boardCards,
       forge: mrProvider.connection(),
       orphanPlans: orphanPlans.sort(),
+      ideaDivider,
       generatedAt: new Date().toISOString(),
     });
   };

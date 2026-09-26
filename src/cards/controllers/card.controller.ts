@@ -6,6 +6,7 @@ import {
   AppendReviewInputSchema,
   CreateCardInputSchema,
   MoveCardInputSchema,
+  MoveIdeaDividerInputSchema,
   UpdateCardBodyInputSchema,
   UpdateCardMetaInputSchema,
 } from '../models/schemas/card.schema.js';
@@ -17,6 +18,7 @@ import {
 import type { Card } from '../models/card.js';
 import type { CardDependencies } from '../composition.js';
 import type { MoveCardCommand } from '../usecases/commands/move-card.command.js';
+import type { OrderRef } from '../usecases/commands/move-in-order.js';
 
 // ============================================================
 // カードレスポンス変換
@@ -214,8 +216,8 @@ function createMoveHandler(moveCardCommand: MoveCardCommand) {
 
     const result = await moveCardCommand({
       id,
-      after: after as CardId | null,
-      before: before as CardId | null,
+      after: after as OrderRef | null,
+      before: before as OrderRef | null,
     });
 
     if (!result.ok) {
@@ -226,4 +228,37 @@ function createMoveHandler(moveCardCommand: MoveCardCommand) {
 
     res.json(toCardResponse(result.value));
   };
+}
+
+// ============================================================
+// 区切り線ルーターファクトリ
+// ============================================================
+
+export function createIdeaDividerRouter(deps: CardDependencies): Router {
+  const router = Router();
+  const { moveIdeaDividerCommand } = deps;
+
+  /** POST /api/idea-divider/move — アイデアの表の区切り線を直前・直後のカードの間へ動かす */
+  router.post('/move', async (req: Request, res: Response): Promise<void> => {
+    const input = MoveIdeaDividerInputSchema.safeParse(req.body);
+    if (!input.success) {
+      respondValidationError(res, input.error);
+      return;
+    }
+
+    const result = await moveIdeaDividerCommand({
+      after: input.data.after as CardId | null,
+      before: input.data.before as CardId | null,
+    });
+
+    if (!result.ok) {
+      const { status, response } = mapMoveCardErrorToResponse(result.error);
+      res.status(status).json(response);
+      return;
+    }
+
+    res.json(result.value);
+  });
+
+  return router;
 }

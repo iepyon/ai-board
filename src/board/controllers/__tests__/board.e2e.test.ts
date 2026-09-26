@@ -63,6 +63,7 @@ function buildApp(mrProvider?: MrStateProvider): Application {
   const board = createBoardDependencies(
     path.join(root, '.ai-board', 'plans'),
     cards.cardRepository,
+    cards.ideaDividerRepository,
     mrProvider
   );
 
@@ -832,5 +833,72 @@ describe('POST /api/cards/:id/move', () => {
 
     await request(app).post('/api/cards/a/move').send({ after: 'b' }).expect(400);
     await request(app).post('/api/cards/a/move').send({ after: 'a', before: null }).expect(400);
+  });
+});
+
+// ============================================================
+// POST /api/idea-divider/move
+// ============================================================
+
+describe('POST /api/idea-divider/move', () => {
+  async function writeCards(): Promise<void> {
+    await writeCard('a', "---\nid: a\ntitle: A\ncreated: '2026-09-01T00:00:00.000Z'\n---\n");
+    await writeCard('b', "---\nid: b\ntitle: B\ncreated: '2026-09-02T00:00:00.000Z'\n---\n");
+    await writeCard('c', "---\nid: c\ntitle: C\ncreated: '2026-09-03T00:00:00.000Z'\n---\n");
+  }
+
+  it('一度も動かしていなければボードの ideaDivider は null', async () => {
+    const response = await request(buildApp()).get('/api/board').expect(200);
+
+    expect(response.body.ideaDivider).toBeNull();
+  });
+
+  it('区切り線を動かすと、その位置がボードの ideaDivider に出る', async () => {
+    await writeCards();
+    const app = buildApp();
+
+    const moved = await request(app)
+      .post('/api/idea-divider/move')
+      .send({ after: 'a', before: 'b' })
+      .expect(200);
+
+    const board = await request(app).get('/api/board').expect(200);
+    const rankOf = (id: string): number => {
+      const card = board.body.cards.find((c: { id: string }) => c.id === id);
+      return card.rank ?? Date.parse(card.created);
+    };
+
+    expect(board.body.ideaDivider).toBe(moved.body.rank);
+    expect(rankOf('a')).toBeLessThan(board.body.ideaDivider);
+    expect(rankOf('b')).toBeGreaterThan(board.body.ideaDivider);
+  });
+
+  it('カードの move で区切り線を隣に指定できる', async () => {
+    await writeCards();
+    const app = buildApp();
+    await request(app).post('/api/idea-divider/move').send({ after: 'a', before: 'b' }).expect(200);
+
+    const response = await request(app)
+      .post('/api/cards/c/move')
+      .send({ after: 'a', before: ':divider' })
+      .expect(200);
+
+    const board = await request(app).get('/api/board').expect(200);
+    expect(response.body.rank).toBeLessThan(board.body.ideaDivider);
+  });
+
+  it('隣のカードが無ければ 404、逆順なら 409、不正な入力は 400', async () => {
+    await writeCards();
+    const app = buildApp();
+
+    await request(app)
+      .post('/api/idea-divider/move')
+      .send({ after: 'nope', before: null })
+      .expect(404);
+    await request(app).post('/api/idea-divider/move').send({ after: 'c', before: 'a' }).expect(409);
+    await request(app)
+      .post('/api/idea-divider/move')
+      .send({ after: ':divider', before: null })
+      .expect(400);
   });
 });

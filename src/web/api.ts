@@ -81,3 +81,14 @@ export function moveCard(id: string, target: MoveTarget): Promise<BoardCard> {
     body: JSON.stringify(target),
   });
 }
+
+/**
+ * アイデアの表の区切り線を、直前・直後のカードの間へ動かす。
+ * 区切り線より上が「次にやる」、下が「あとで考える」。
+ */
+export function moveIdeaDivider(target: MoveTarget): Promise<{ rank: number | null }> {
+  return request<{ rank: number | null }>('/api/idea-divider/move', {
+    method: 'POST',
+    body: JSON.stringify(target),
+  });
+}

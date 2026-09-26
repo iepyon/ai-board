@@ -3,9 +3,9 @@ import { InboxSection } from './InboxSection.js';
 import { WorkSection } from './WorkSection.js';
 import { IdeaTable } from './IdeaTable.js';
 import { AbortedTable, MergedTable } from './FoldedTables.js';
-import { moveCard, updateCardMeta, type CardMetaPatch } from '../../api.js';
-import { applyMove, type MoveTarget } from '../../../shared/card-reorder.js';
-import { groupBySection } from '../../../shared/dashboard-sections.js';
+import { moveCard, moveIdeaDivider, updateCardMeta, type CardMetaPatch } from '../../api.js';
+import { applyMove, DIVIDER_ID, type MoveTarget } from '../../../shared/card-reorder.js';
+import { groupBySection, ideaRows } from '../../../shared/dashboard-sections.js';
 import type { Board as BoardData, BoardCard } from '../../types.js';
 
 // ============================================================
@@ -19,7 +19,10 @@ interface DashboardProps {
   onError: (message: string) => void;
 }
 
-/** 応答を待たずに見せている並べ替え。`base` のボードを表示している間だけ効く */
+/**
+ * 応答を待たずに見せている並べ替え。`base` のボードを表示している間だけ効く。
+ * `id` はアイデアのカード ID か、区切り線の `DIVIDER_ID`。
+ */
 interface PendingMove {
   readonly base: BoardData;
   readonly id: string;
@@ -36,13 +39,16 @@ interface PendingMove {
 export function Dashboard({ board, onSelect, onChanged, onError }: DashboardProps) {
   const [pending, setPending] = useState<PendingMove | null>(null);
 
-  // ボードを取り直したら（SSE か応答後の再取得）、サーバの並びをそのまま信じる
-  const cards =
-    pending !== null && pending.base === board
-      ? applyMove(board.cards, pending.id, pending.target)
-      : board.cards;
+  const sections = useMemo(() => groupBySection(board.cards), [board.cards]);
+  const rows = useMemo(
+    () => ideaRows(sections.idea, board.ideaDivider),
+    [sections.idea, board.ideaDivider]
+  );
 
-  const sections = useMemo(() => groupBySection(cards), [cards]);
+  // 並べ替えられるのはアイデアの表だけ。ボードを取り直したら（SSE か応答後の再取得）、
+  // サーバの並びをそのまま信じる
+  const visibleRows =
+    pending !== null && pending.base === board ? applyMove(rows, pending.id, pending.target) : rows;
 
   const reportError = (cause: unknown): void => {
     onError(cause instanceof Error ? cause.message : String(cause));
@@ -52,17 +58,16 @@ export function Dashboard({ board, onSelect, onChanged, onError }: DashboardProp
     updateCardMeta(card.id, values).then(onChanged).catch(reportError);
   };
 
-  const handleReorder = (card: BoardCard, target: MoveTarget): void => {
-    setPending({ base: board, id: card.id, target });
+  const handleReorder = (id: string, target: MoveTarget): void => {
+    setPending({ base: board, id, target });
 
-    moveCard(card.id, target)
-      .then(onChanged)
-      .catch((cause: unknown) => {
-        // 並びが古かった（409）ときも含め、先行表示を捨ててサーバの並びに戻す
-        setPending(null);
-        reportError(cause);
-        onChanged();
-      });
+    const request = id === DIVIDER_ID ? moveIdeaDivider(target) : moveCard(id, target);
+    request.then(onChanged).catch((cause: unknown) => {
+      // 並びが古かった（409）ときも含め、先行表示を捨ててサーバの並びに戻す
+      setPending(null);
+      reportError(cause);
+      onChanged();
+    });
   };
 
   return (
@@ -74,7 +79,7 @@ export function Dashboard({ board, onSelect, onChanged, onError }: DashboardProp
         onUnstart={(card) => patch(card, { startedAt: null })}
       />
       <IdeaTable
-        cards={sections.idea}
+        rows={visibleRows}
         onSelect={onSelect}
         onStart={(card) => patch(card, { startedAt: new Date().toISOString() })}
         onReorder={handleReorder}

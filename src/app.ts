@@ -7,7 +7,7 @@ import {
   errorHandlerMiddleware,
   notFoundMiddleware,
 } from './shared/middleware/error-handler.middleware.js';
-import { createCardRouter } from './cards/controllers/card.controller.js';
+import { createCardRouter, createIdeaDividerRouter } from './cards/controllers/card.controller.js';
 import { createBoardRouter } from './board/controllers/board.controller.js';
 import { createPlanRouter } from './board/controllers/plan.controller.js';
 import type { CardDependencies } from './cards/composition.js';
@@ -42,6 +42,7 @@ export function createApp(deps: AppDependencies): Application {
   application.use('/api/board', createBoardRouter(deps.board));
   application.use('/api/plans', createPlanRouter(deps.board));
   application.use('/api/cards', createCardRouter(deps.cards));
+  application.use('/api/idea-divider', createIdeaDividerRouter(deps.cards));
 
   if (deps.sse !== undefined) {
     application.get('/api/events', deps.sse.handler());

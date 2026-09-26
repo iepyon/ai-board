@@ -24,8 +24,9 @@ describe('openDatabase', () => {
   it('置き場所のディレクトリが無ければ作り、スキーマを用意する', () => {
     const db = openDatabase(path.join(dir, 'nested', 'board.db'));
 
-    expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 3 });
+    expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 4 });
     expect(db.prepare('SELECT count(*) AS n FROM cards').get()).toEqual({ n: 0 });
+    expect(db.prepare('SELECT count(*) AS n FROM idea_divider').get()).toEqual({ n: 0 });
     db.close();
   });
 

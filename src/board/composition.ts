@@ -1,4 +1,5 @@
 import type { CardRepository } from '../cards/repositories/card.repository.js';
+import type { IdeaDividerRepository } from '../cards/repositories/idea-divider.repository.js';
 import type { ForgeConfig } from '../shared/config.js';
 import type { CliRunner } from '../infrastructure/cli-runner.js';
 import type { ForgeClient } from './services/forge-client.js';
@@ -21,13 +22,19 @@ export interface BoardDependencies {
 export function createBoardDependencies(
   plansDir: string,
   cardRepository: CardRepository,
+  ideaDividerRepository: IdeaDividerRepository,
   mrProvider: MrStateProvider = disabledMrStateProvider
 ): BoardDependencies {
   const planRepository = new FsPlanRepository(plansDir);
 
   return {
     planRepository,
-    getBoardQuery: createGetBoardQuery(cardRepository, planRepository, mrProvider),
+    getBoardQuery: createGetBoardQuery(
+      cardRepository,
+      ideaDividerRepository,
+      planRepository,
+      mrProvider
+    ),
     getPlanQuery: createGetPlanQuery(planRepository),
   };
 }

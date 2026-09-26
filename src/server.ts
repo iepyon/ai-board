@@ -63,7 +63,12 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
     }
   }
 
-  const board = createBoardDependencies(config.paths.plansDir, cards.cardRepository, mrProvider);
+  const board = createBoardDependencies(
+    config.paths.plansDir,
+    cards.cardRepository,
+    cards.ideaDividerRepository,
+    mrProvider
+  );
 
   const app = createApp({ cards, board, sse });
   const server = http.createServer(app);
