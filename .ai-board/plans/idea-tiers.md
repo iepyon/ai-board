@@ -126,4 +126,4 @@
 
 - [x] 5.1 `README.md` / `CLAUDE.md` の API 表と書き込み境界の表を直す
 - [x] 5.2 `npm run typecheck && npm run lint && npm test` を通す
-- [ ] 5.3 `npm run dev` と `npm run dev:web` で実際の画面を確かめる（ドラッグ、ライト / ダーク）
+- [x] 5.3 `npm run dev` と `npm run dev:web` で実際の画面を確かめる（ドラッグ、ライト / ダーク）

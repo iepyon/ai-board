@@ -227,6 +227,13 @@ describe('区切り線をまたぐ並べ替え', () => {
     expect(orderWithDivider()).toEqual(['b', 'c', 'a', DIVIDER_ID]);
   });
 
+  it('対象のカードが無ければ、未設定の区切り線を書かない', async () => {
+    const result = await move('nope', 'a', DIVIDER_ID);
+
+    expect(result).toEqual({ ok: false, error: { type: 'CardNotFound', id: 'nope' } });
+    expect(divider.writes).toBe(0);
+  });
+
   it('隙間が尽きたら区切り線も一緒に振り直し、上下を入れ替えない', async () => {
     repository.cards.clear();
     addCard('a', 1, 10);

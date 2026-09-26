@@ -42,6 +42,10 @@ export async function moveInOrder(
   before: OrderRef | null
 ): Promise<Result<Map<string, number>, MoveCardError>> {
   const cards = await repositories.cards.findAll();
+  if (target !== DIVIDER_ID && !cards.some((card) => card.id === target)) {
+    return err({ type: 'CardNotFound', id: target });
+  }
+
   const divider = await dividerRank(repositories, cards, [after, before].includes(DIVIDER_ID));
 
   const items: Rankable[] = [...cards];
@@ -49,7 +53,6 @@ export async function moveInOrder(
   items.sort(compareCards);
 
   const byId = new Map<string, Rankable>(items.map((item) => [item.id, item]));
-  if (target !== DIVIDER_ID && !byId.has(target)) return err({ type: 'CardNotFound', id: target });
 
   const prev = resolveNeighbor(byId, after);
   if (!prev.ok) return prev;
