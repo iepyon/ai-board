@@ -57,7 +57,12 @@ export function App() {
       )}
 
       {selected !== null && board !== null && (
-        <CardDetail card={selected} onClose={() => setSelectedId(null)} onChanged={reload} />
+        <CardDetail
+          key={selected.id}
+          card={selected}
+          onClose={() => setSelectedId(null)}
+          onChanged={reload}
+        />
       )}
 
       {adding && <NewCardDialog onClose={() => setAdding(false)} onCreated={reload} />}
