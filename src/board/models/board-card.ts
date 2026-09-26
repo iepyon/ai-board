@@ -16,7 +16,6 @@ export interface BoardCardPlan {
 }
 
 export interface BoardCardMr {
-  /** 番号の接頭辞を出し分けるために取得先を持つ（GitLab は `!`、GitHub は `#`） */
   readonly forge: ForgeKind;
   readonly iid: number;
   readonly state: MrLifecycleState;
@@ -52,7 +51,7 @@ export interface BoardCard {
   readonly body: string;
   /** 計画ファイルがまだ無ければ null */
   readonly plan: BoardCardPlan | null;
-  /** MR が未紐付け、または GitLab 未接続なら null */
+  /** PR が未紐付け、または GitHub 未接続なら null */
   readonly mrState: BoardCardMr | null;
 }
 

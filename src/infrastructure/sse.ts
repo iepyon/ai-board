@@ -7,7 +7,7 @@ import type { Request, Response, RequestHandler } from 'express';
 const HEARTBEAT_INTERVAL_MS = 25_000;
 
 /**
- * ファイル変更と GitLab ポーリング結果をブラウザへ push する。
+ * ファイル変更と GitHub ポーリング結果をブラウザへ push する。
  *
  * 送るのはイベント名だけで、ボードの中身は含めない。
  * 受け取ったブラウザが `/api/board` を取り直す。

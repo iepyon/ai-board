@@ -5,7 +5,7 @@ import type { MergeRequestIid } from '../../../shared/schemas/common.js';
 import type { CliRunner } from '../../../infrastructure/cli-runner.js';
 import { ok, err } from '../../../shared/result.js';
 
-const config: Extract<ForgeConfig, { kind: 'github' }> = {
+const config: ForgeConfig = {
   kind: 'github',
   owner: 'iepyon',
   repo: 'ai-board',
@@ -181,7 +181,6 @@ describe('GhForgeClient', () => {
   });
 
   it('取得先を github として返す', async () => {
-    // 番号の接頭辞（GitLab は !、GitHub は #）の出し分けに使う
     const { runner } = stubRunner({ 'pulls/7': openPr });
 
     const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);

@@ -54,7 +54,7 @@ function makeCard(overrides: Partial<Card> = {}): Card {
 
 function makeMr(overrides: Partial<MrState> = {}): MrState {
   return {
-    forge: 'gitlab',
+    forge: 'github',
     iid: 42 as MergeRequestIid,
     state: 'opened',
     sourceBranch: 'feat/refresh-token',
@@ -69,7 +69,7 @@ function makeMr(overrides: Partial<MrState> = {}): MrState {
 
 function stubClient(overrides: Partial<ForgeClient> = {}): ForgeClient {
   return {
-    kind: 'gitlab',
+    kind: 'github',
     fetchByIid: vi.fn(async () => null),
     fetchByBranch: vi.fn(async () => null),
     checkAuth: vi.fn(async () => null),
@@ -159,14 +159,14 @@ describe('ForgePoller', () => {
     const poller = new ForgePoller(repository, client, { onUpdate });
 
     await poller.refresh();
-    expect(poller.connection()).toEqual({ status: 'connected', kind: 'gitlab' });
+    expect(poller.connection()).toEqual({ status: 'connected', kind: 'github' });
 
     shouldFail = true;
     await poller.refresh();
 
     expect(poller.connection()).toEqual({
       status: 'error',
-      kind: 'gitlab',
+      kind: 'github',
       message: 'ECONNREFUSED',
     });
     // 直近の値は残す。ボードを空にしない
@@ -212,38 +212,13 @@ describe('ForgePoller', () => {
 describe('ForgePoller — 識別番号は取得先と対で扱う', () => {
   it('取得先が一致すれば番号で問い合わせる', async () => {
     const repository = new InMemoryCardRepository([
-      makeCard({ mr: 42 as MergeRequestIid, forge: 'gitlab', branch: 'feat/x' }),
+      makeCard({ mr: 42 as MergeRequestIid, forge: 'github', branch: 'feat/x' }),
     ]);
     const client = stubClient({ fetchByIid: vi.fn(async () => makeMr()) });
 
     await new ForgePoller(repository, client, { onUpdate }).refresh();
 
     expect(client.fetchByIid).toHaveBeenCalledWith(42);
-    expect(client.fetchByBranch).not.toHaveBeenCalled();
-  });
-
-  it('取得先が違えば番号を使わずブランチから引き直す', async () => {
-    // GitLab の !1 と GitHub の #1 は別物。番号をそのまま使うと静かに別の PR を引く
-    const repository = new InMemoryCardRepository([
-      makeCard({ mr: 1 as MergeRequestIid, forge: 'github', branch: 'feat/x' }),
-    ]);
-    const client = stubClient({ fetchByBranch: vi.fn(async () => makeMr()) });
-
-    await new ForgePoller(repository, client, { onUpdate }).refresh();
-
-    expect(client.fetchByIid).not.toHaveBeenCalled();
-    expect(client.fetchByBranch).toHaveBeenCalledWith('feat/x');
-  });
-
-  it('取得先が違いブランチも無ければ問い合わせない', async () => {
-    const repository = new InMemoryCardRepository([
-      makeCard({ mr: 1 as MergeRequestIid, forge: 'github', branch: null }),
-    ]);
-    const client = stubClient();
-
-    await new ForgePoller(repository, client, { onUpdate }).refresh();
-
-    expect(client.fetchByIid).not.toHaveBeenCalled();
     expect(client.fetchByBranch).not.toHaveBeenCalled();
   });
 
@@ -280,19 +255,6 @@ describe('ForgePoller — 識別番号は取得先と対で扱う', () => {
 
     const saved = await repository.findById('refresh-token' as CardId);
     expect(saved?.mr).toBe(42);
-    expect(saved?.forge).toBe('gitlab');
-  });
-
-  it('取得先が変わったカードは番号と取得先の両方を上書きする', async () => {
-    const repository = new InMemoryCardRepository([
-      makeCard({ mr: 1 as MergeRequestIid, forge: 'github', branch: 'feat/x' }),
-    ]);
-    const client = stubClient({ fetchByBranch: vi.fn(async () => makeMr()) });
-
-    await new ForgePoller(repository, client, { onUpdate }).refresh();
-
-    const saved = await repository.findById('refresh-token' as CardId);
-    expect(saved?.mr).toBe(42);
-    expect(saved?.forge).toBe('gitlab');
+    expect(saved?.forge).toBe('github');
   });
 });

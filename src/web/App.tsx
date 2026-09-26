@@ -152,7 +152,7 @@ function TopBar({
   );
 }
 
-const FORGE_LABELS: Record<ForgeKind, string> = { gitlab: 'GitLab', github: 'GitHub' };
+const FORGE_LABELS: Record<ForgeKind, string> = { github: 'GitHub' };
 
 function ForgeStatus({ connection }: { connection: ForgeConnection }) {
   switch (connection.status) {

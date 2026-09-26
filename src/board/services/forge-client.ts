@@ -6,7 +6,7 @@ import type { ForgeKind, MrState } from '../models/mr-state.js';
 // ============================================================
 
 /**
- * GitLab の Merge Request / GitHub の Pull Request を取得する。
+ * GitHub の Pull Request を取得する。
  *
  * カード単位で問い合わせる。一覧の全件取得はページングで取りこぼすため使わない。
  * 認証は持たない。実装は利用者の環境にログイン済みの CLI へ委ねる。

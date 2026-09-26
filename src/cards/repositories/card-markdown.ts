@@ -65,7 +65,7 @@ export function parseCard(filePath: string, raw: string): Card | null {
     return null;
   }
 
-  const data = parsed.data as Record<string, unknown>;
+  const data = dropGitLabMr(parsed.data as Record<string, unknown>);
   const candidate = {
     ...data,
     id: data['id'] ?? fileId,
@@ -104,6 +104,16 @@ export function parseCard(filePath: string, raw: string): Card | null {
     // 前後の改行は正規化する。これで読み書きを往復しても本文が育たない
     body: parsed.content.replace(/^\n+/, '').replace(/\n+$/, ''),
   };
+}
+
+/**
+ * GitLab 連携を廃止する前のカードは `forge: gitlab` と MR 番号を持っている。
+ * その番号を GitHub の PR 番号として引かないよう、番号ごと捨てて branch から解決し直させる。
+ */
+function dropGitLabMr(data: Record<string, unknown>): Record<string, unknown> {
+  if (data['forge'] !== 'gitlab') return data;
+
+  return { ...data, mr: null, forge: null };
 }
 
 /** Card を Markdown 文字列に戻す。frontmatter のキー順は安定させる */

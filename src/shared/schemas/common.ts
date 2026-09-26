@@ -9,7 +9,7 @@ export type Brand<T, B extends string> = T & { readonly __brand: B };
 /** カードの不変 ID（ファイル名と一致する kebab-case） */
 export type CardId = Brand<string, 'CardId'>;
 
-/** GitLab の MR iid */
+/** GitHub の PR number */
 export type MergeRequestIid = Brand<number, 'MergeRequestIid'>;
 
 // ============================================================

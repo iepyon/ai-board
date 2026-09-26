@@ -60,7 +60,7 @@ export interface BoardCard {
   mrState: BoardCardMr | null;
 }
 
-export type ForgeKind = 'gitlab' | 'github';
+export type ForgeKind = 'github';
 
 export type ForgeConnection =
   | { status: 'disabled'; kind: ForgeKind | null; reason: string | null }

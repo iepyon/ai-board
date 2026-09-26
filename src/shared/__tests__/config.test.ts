@@ -20,7 +20,6 @@ async function writeConfig(yaml: string): Promise<void> {
   await fs.writeFile(path.join(dir, 'config.yaml'), yaml, 'utf-8');
 }
 
-const gitlabYaml = 'gitlab:\n  url: http://localhost:8929\n  projectId: 3\n';
 const githubYaml = 'github:\n  repository: iepyon/ai-board\n';
 
 describe('resolvePaths', () => {
@@ -48,16 +47,6 @@ describe('loadConfig', () => {
     expect(loadConfig(root).forge).toBeNull();
   });
 
-  it('gitlab が書かれていればトークン無しでも有効にする', async () => {
-    await writeConfig(gitlabYaml);
-
-    expect(loadConfig(root).forge).toEqual({
-      kind: 'gitlab',
-      url: 'http://localhost:8929',
-      projectId: 3,
-    });
-  });
-
   it('github が書かれていれば owner と repo に分けて有効にする', async () => {
     await writeConfig(githubYaml);
 
@@ -68,26 +57,8 @@ describe('loadConfig', () => {
     });
   });
 
-  it('URL 末尾のスラッシュを取り除く', async () => {
-    await writeConfig('gitlab:\n  url: http://localhost:8929///\n  projectId: 3\n');
-
-    expect(loadConfig(root).forge).toMatchObject({ url: 'http://localhost:8929' });
-  });
-
-  it('projectId はパス形式の文字列も受け付ける', async () => {
-    await writeConfig('gitlab:\n  url: http://localhost:8929\n  projectId: group/project\n');
-
-    expect(loadConfig(root).forge).toMatchObject({ projectId: 'group/project' });
-  });
-
-  it('gitlab と github を同時に書いたらエラーにする', async () => {
-    await writeConfig(`${gitlabYaml}${githubYaml}`);
-
-    expect(() => loadConfig(root)).toThrow(/同時に指定できない/);
-  });
-
   it('設定ファイルにトークンを書いても読み取らない', async () => {
-    await writeConfig(`${gitlabYaml}  token: written-in-file\n`);
+    await writeConfig(`${githubYaml}  token: written-in-file\n`);
 
     const forge = loadConfig(root).forge;
 
@@ -96,14 +67,20 @@ describe('loadConfig', () => {
   });
 
   it('環境変数にトークンがあっても設定には現れない', async () => {
-    await writeConfig(gitlabYaml);
-    process.env.AI_BOARD_GITLAB_TOKEN = 'secret';
+    await writeConfig(githubYaml);
+    process.env.AI_BOARD_GITHUB_TOKEN = 'secret';
 
     try {
       expect(JSON.stringify(loadConfig(root).forge)).not.toContain('secret');
     } finally {
-      delete process.env.AI_BOARD_GITLAB_TOKEN;
+      delete process.env.AI_BOARD_GITHUB_TOKEN;
     }
+  });
+
+  it('gitlab のセクションは読まない', async () => {
+    await writeConfig('gitlab:\n  url: http://localhost:8929\n  projectId: 3\n');
+
+    expect(loadConfig(root).forge).toBeNull();
   });
 
   it('repository が owner/repo の形でなければエラーにする', async () => {
@@ -113,14 +90,8 @@ describe('loadConfig', () => {
   });
 
   it('不正な設定はエラーにする', async () => {
-    await writeConfig('gitlab:\n  url: not-a-url\n  projectId: 3\n');
+    await writeConfig('github:\n  repository: 3\n');
 
     expect(() => loadConfig(root)).toThrow(/config.yaml/);
-  });
-
-  it('url が欠けていればエラーにする', async () => {
-    await writeConfig('gitlab:\n  projectId: 3\n');
-
-    expect(() => loadConfig(root)).toThrow();
   });
 });

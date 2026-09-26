@@ -39,7 +39,7 @@ export const CardFrontmatterSchema = z.object({
   skipGates: z.array(ReviewGateSchema).default([]),
   /** Git のブランチ名。MR iid の自動解決に使う */
   branch: nullableField(z.string().min(1).max(200)).default(null),
-  /** レビュー要求の識別番号（GitLab の MR iid / GitHub の PR number） */
+  /** レビュー要求の識別番号（GitHub の PR number） */
   mr: nullableField(z.number().int().positive()).default(null),
   /** `mr` がどの取得先の番号か。番号は取得先ごとに独立しているため対で持つ */
   forge: nullableField(ForgeKindSchema).default(null),
