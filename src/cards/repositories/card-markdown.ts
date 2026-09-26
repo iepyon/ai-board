@@ -99,7 +99,6 @@ export function parseCard(filePath: string, raw: string): Card | null {
     skipGates: frontmatter.skipGates,
     branch: frontmatter.branch,
     mr: frontmatter.mr as MergeRequestIid | null,
-    forge: frontmatter.forge,
     rank: frontmatter.rank,
     // 前後の改行は正規化する。これで読み書きを往復しても本文が育たない
     body: parsed.content.replace(/^\n+/, '').replace(/\n+$/, ''),
@@ -108,12 +107,11 @@ export function parseCard(filePath: string, raw: string): Card | null {
 
 /**
  * GitLab 連携を廃止する前のカードは `forge: gitlab` と MR 番号を持っている。
- * その番号を GitHub の PR 番号として引かないよう、番号ごと捨てて branch から解決し直させる。
+ * その番号を GitHub の PR 番号として引かないよう、番号を捨てて branch から解決し直させる。
+ * `forge` の無いカードの番号は捨てない（`card show` の出力を取り込み直したときに番号を失う）。
  */
 function dropGitLabMr(data: Record<string, unknown>): Record<string, unknown> {
-  if (data['forge'] !== 'gitlab') return data;
-
-  return { ...data, mr: null, forge: null };
+  return data['forge'] === 'gitlab' ? { ...data, mr: null } : data;
 }
 
 /** Card を Markdown 文字列に戻す。frontmatter のキー順は安定させる */
@@ -126,7 +124,6 @@ export function serializeCard(card: Card): string {
     skipGates: card.skipGates,
     branch: card.branch,
     mr: card.mr,
-    forge: card.forge,
     // 並べ替えたことの無いカードに null の行を足さない（保存し直しても差分を生まない）
     ...(card.rank === null ? {} : { rank: card.rank }),
   };

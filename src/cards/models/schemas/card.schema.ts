@@ -1,10 +1,8 @@
 import { z } from 'zod';
 import { CardIdSchema } from '../../../shared/schemas/common.js';
 import { REVIEW_GATES, REVIEW_KINDS } from '../review.js';
-import { FORGE_KINDS } from '../../../board/models/mr-state.js';
 
 const ReviewGateSchema = z.enum(REVIEW_GATES);
-const ForgeKindSchema = z.enum(FORGE_KINDS);
 
 // ============================================================
 // カード frontmatter のスキーマ
@@ -41,8 +39,6 @@ export const CardFrontmatterSchema = z.object({
   branch: nullableField(z.string().min(1).max(200)).default(null),
   /** レビュー要求の識別番号（GitHub の PR number） */
   mr: nullableField(z.number().int().positive()).default(null),
-  /** `mr` がどの取得先の番号か。番号は取得先ごとに独立しているため対で持つ */
-  forge: nullableField(ForgeKindSchema).default(null),
   /** 並び順。無ければ created から補う */
   rank: nullableField(z.number().finite()).default(null),
 });
@@ -77,7 +73,6 @@ export const UpdateCardMetaInputSchema = z
     skipGates: z.array(ReviewGateSchema).optional(),
     branch: z.union([z.string().min(1).max(200), z.null()]).optional(),
     mr: z.union([z.number().int().positive(), z.null()]).optional(),
-    forge: z.union([ForgeKindSchema, z.null()]).optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: '更新するフィールドを 1 つ以上指定してください',

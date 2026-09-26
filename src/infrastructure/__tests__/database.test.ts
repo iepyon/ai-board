@@ -24,7 +24,7 @@ describe('openDatabase', () => {
   it('置き場所のディレクトリが無ければ作り、スキーマを用意する', () => {
     const db = openDatabase(path.join(dir, 'nested', 'board.db'));
 
-    expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 2 });
+    expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 3 });
     expect(db.prepare('SELECT count(*) AS n FROM cards').get()).toEqual({ n: 0 });
     db.close();
   });
@@ -40,7 +40,7 @@ describe('openDatabase', () => {
     second.close();
   });
 
-  it('v1 の DB を開くと GitLab の MR 番号を消し、GitHub の番号は残す', () => {
+  it('v1 の DB を開くと forge 列を落とし、GitHub と確かめられない番号を消す', () => {
     const dbPath = path.join(dir, 'board.db');
     const v1 = new DatabaseSync(dbPath);
     v1.exec(`CREATE TABLE cards (
@@ -48,16 +48,23 @@ describe('openDatabase', () => {
       started_at TEXT, skip_gates TEXT NOT NULL DEFAULT '[]', branch TEXT,
       mr INTEGER, forge TEXT, rank REAL, body TEXT NOT NULL DEFAULT ''
     ) STRICT`);
-    v1.exec(`INSERT INTO cards (id, title, created, mr, forge) VALUES
-      ('gl', 'GL', 'x', 1, 'gitlab'), ('gh', 'GH', 'x', 2, 'github')`);
+    v1.exec(`INSERT INTO cards (id, title, created, branch, mr, forge) VALUES
+      ('gitlab', 'A', 'x', 'feat/a', 1, 'gitlab'),
+      ('github', 'B', 'x', 'feat/b', 2, 'github'),
+      ('legacy-with-branch', 'C', 'x', 'feat/c', 3, NULL),
+      ('legacy-without-branch', 'D', 'x', NULL, 4, NULL)`);
     v1.exec('PRAGMA user_version = 1');
     v1.close();
 
     const db = openDatabase(dbPath);
-    expect(db.prepare('SELECT id, mr, forge FROM cards ORDER BY id').all()).toEqual([
-      { id: 'gh', mr: 2, forge: 'github' },
-      { id: 'gl', mr: null, forge: null },
+    expect(db.prepare('SELECT id, mr FROM cards ORDER BY id').all()).toEqual([
+      { id: 'github', mr: 2 },
+      { id: 'gitlab', mr: null },
+      { id: 'legacy-with-branch', mr: null },
+      { id: 'legacy-without-branch', mr: 4 },
     ]);
+    const columns = db.prepare('PRAGMA table_info(cards)').all() as Array<{ name: string }>;
+    expect(columns.map((column) => column.name)).not.toContain('forge');
     db.close();
   });
 

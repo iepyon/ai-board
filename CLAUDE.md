@@ -62,7 +62,6 @@ startedAt: null # 人が着手を指示した時刻（人が打つ）
 skipGates: [] # 人が事前に見ないと宣言したゲート（plan）
 branch: null
 mr: null # レビュー要求の番号（branch から自動解決して書き戻す）
-forge: null # その番号がどの取得先のものか（現在は github のみ）。mr と必ず対で書く
 rank: 1500 # 並び順（任意）。小さいほど上。人が並べ替えたときだけ書かれる
 ---
 ```
@@ -222,11 +221,14 @@ GitHub の PR は `state` が `open` / `closed` の 2 値しかなく、**マー
 
 PR 一覧の全件取得はページングで取りこぼすため使わず、カード単位で問い合わせる。
 
-カードの `mr` は `forge` と対で持ち、`forge` が現在の取得先と違えば番号を使わず
-`branch` から解決し直す（`ForgePoller.fetchFor`）。`forge` が無い古いカードは `branch` を優先する。
-GitLab 時代の `forge: gitlab` のカードは、DB のマイグレーション（v2）と `ai-board import` で
-`mr` / `forge` を消して `branch` から解決し直させる。GitLab の MR !1 と GitHub の PR #1 は別物で、
-番号をそのまま引くと**列は正しく埋まったままリンクだけが別の PR を指す**。
+カードの `mr` が分かっていれば番号で、無ければ `branch` から解決して書き戻す（`ForgePoller.fetchFor`）。
+
+かつてはカードに番号の出どころ（GitLab / GitHub）を記録する `forge` 列があった。
+GitLab の MR !1 と GitHub の PR #1 は別物で、番号をそのまま引くと
+**列は正しく埋まったままリンクだけが別の PR を指す**。
+そのため DB のマイグレーション（v2・v3）で、GitHub のものと確かめられない番号
+（`forge: gitlab`、および `forge` が無く `branch` があるもの）を消してから列を落とし、
+`branch` から解決し直させている。`ai-board import` も `forge: gitlab` の番号は捨てる。
 
 ## API
 

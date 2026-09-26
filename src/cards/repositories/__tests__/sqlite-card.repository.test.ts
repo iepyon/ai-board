@@ -26,7 +26,6 @@ function makeCard(overrides: Partial<Card> = {}): Card {
     skipGates: [],
     branch: null,
     mr: null,
-    forge: null,
     rank: null,
     body: '',
     ...overrides,
@@ -45,7 +44,6 @@ describe('SqliteCardRepository', () => {
       skipGates: ['plan'],
       branch: 'feat/refresh-token',
       mr: 42 as MergeRequestIid,
-      forge: 'github',
       rank: 1500,
       body: '## アイデア\n本文',
     });

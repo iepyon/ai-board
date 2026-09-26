@@ -9,9 +9,9 @@ import { compareCards } from '../services/card-order.js';
 // SQLite によるカードリポジトリ実装
 // ============================================================
 
-const COLUMNS = 'id, title, created, started_at, skip_gates, branch, mr, forge, rank, body';
+const COLUMNS = 'id, title, created, started_at, skip_gates, branch, mr, rank, body';
 
-const VALUES = ':id, :title, :created, :startedAt, :skipGates, :branch, :mr, :forge, :rank, :body';
+const VALUES = ':id, :title, :created, :startedAt, :skipGates, :branch, :mr, :rank, :body';
 
 /**
  * `.ai-board/board.db` の `cards` テーブルを読み書きする。
@@ -53,7 +53,7 @@ export class SqliteCardRepository implements CardRepository {
       .prepare(
         `UPDATE cards SET
            title = :title, created = :created, started_at = :startedAt,
-           skip_gates = :skipGates, branch = :branch, mr = :mr, forge = :forge,
+           skip_gates = :skipGates, branch = :branch, mr = :mr,
            rank = :rank, body = :body
          WHERE id = :id`
       )
@@ -84,7 +84,6 @@ function toParams(card: Card): Record<string, SQLInputValue> {
     skipGates: JSON.stringify(card.skipGates),
     branch: card.branch,
     mr: card.mr,
-    forge: card.forge,
     rank: card.rank,
     body: card.body,
   };
@@ -105,7 +104,6 @@ function toCard(row: Record<string, unknown>): Card | null {
     skipGates: parseJsonArray(row['skip_gates']),
     branch: row['branch'],
     mr: row['mr'],
-    forge: row['forge'],
     rank: row['rank'],
   });
 
@@ -127,7 +125,6 @@ function toCard(row: Record<string, unknown>): Card | null {
     skipGates: fields.skipGates,
     branch: fields.branch,
     mr: fields.mr as MergeRequestIid | null,
-    forge: fields.forge,
     rank: fields.rank,
     body: row['body'],
   };

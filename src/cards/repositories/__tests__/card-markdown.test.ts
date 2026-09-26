@@ -33,7 +33,6 @@ function makeCard(overrides: Partial<Card> = {}): Card {
     skipGates: [],
     branch: null,
     mr: null,
-    forge: null,
     rank: null,
     body: '',
     ...overrides,
@@ -160,7 +159,6 @@ describe('serializeCard', () => {
       skipGates: ['plan'],
       branch: 'feat/refresh-token',
       mr: 42 as MergeRequestIid,
-      forge: 'github',
       rank: 1500.5,
       body: '## アイデア\n本文',
     });
@@ -176,7 +174,15 @@ describe('serializeCard', () => {
 
     const card = parseCard('/tmp/refresh-token.md', raw);
 
-    expect(card).toMatchObject({ branch: 'feat/x', mr: null, forge: null });
+    expect(card).toMatchObject({ branch: 'feat/x', mr: null });
+  });
+
+  it('GitHub の番号と取得先の記録が無い番号は残す', () => {
+    const head =
+      '---\nid: refresh-token\ntitle: T\ncreated: 2026-09-01T00:00:00.000Z\nbranch: feat/x\n';
+
+    expect(parseCard('/tmp/refresh-token.md', `${head}mr: 42\n---\n`)?.mr).toBe(42);
+    expect(parseCard('/tmp/refresh-token.md', `${head}mr: 42\nforge: github\n---\n`)?.mr).toBe(42);
   });
 
   it('null のフィールドを保ったまま書き出せる', () => {
