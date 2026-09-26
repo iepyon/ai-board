@@ -50,7 +50,6 @@ function addCard(id: string, day: number, rank: number | null = null): void {
     skipGates: [],
     branch: null,
     mr: null,
-    forge: null,
     rank,
     body: '',
   });

@@ -28,6 +28,10 @@ const MIGRATIONS: readonly string[] = [
   // GitLab 連携の廃止。GitLab の MR 番号を GitHub の PR 番号として引かないよう、
   // 番号ごと消して branch から解決し直させる
   `UPDATE cards SET mr = NULL, forge = NULL WHERE forge = 'gitlab'`,
+  // 取得先が GitHub だけになり、番号の出どころを記録する forge 列は要らなくなった。
+  // 出どころの記録が無い番号は、これまでどおり branch があればそちらから解決し直させる
+  `UPDATE cards SET mr = NULL WHERE forge IS NULL AND branch IS NOT NULL;
+   ALTER TABLE cards DROP COLUMN forge`,
 ];
 
 /** 別プロセスの書き込みでロックが取れないとき、失敗にする前に待つ時間 */

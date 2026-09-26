@@ -1,6 +1,5 @@
 import type { CardId, MergeRequestIid } from '../../shared/schemas/common.js';
 import type { ReviewGate } from './review.js';
-import type { ForgeKind } from '../../board/models/mr-state.js';
 
 // ============================================================
 // カード — アイデアから マージ済み までを貫く唯一の join テーブル
@@ -30,13 +29,6 @@ export interface Card {
   readonly skipGates: readonly ReviewGate[];
   readonly branch: string | null;
   readonly mr: MergeRequestIid | null;
-  /**
-   * `mr` がどの取得先の番号かを示す。
-   *
-   * 識別番号は取得先ごとに独立していて、同じ番号が両方に存在し得る。
-   * これが無いと、取得先を切り替えたあと別のレビュー要求を静かに引く。
-   */
-  readonly forge: ForgeKind | null;
   /**
    * 並び順。小さいほど上に並ぶ。null なら `created` のエポックミリ秒とみなす
    * （`services/card-order.ts`）。優先度は人の判断であり、エージェントは書かない。

@@ -119,34 +119,21 @@ export class ForgePoller implements MrStateProvider {
       this.cache.set(card.id, mr);
     }
 
-    // 番号と取得先は必ず対で書き戻す。
-    // 片方だけ残っていると、取得先を切り替えたときに別のレビュー要求を引く。
-    if (card.mr !== mr.iid || card.forge !== this.client.kind) {
-      await this.cardRepository.save({ ...card, mr: mr.iid, forge: this.client.kind });
+    if (card.mr !== mr.iid) {
+      await this.cardRepository.save({ ...card, mr: mr.iid });
     }
 
     return changed;
   }
 
-  /**
-   * カードから問い合わせ方を決める。
-   *
-   * 識別番号は取得先ごとに独立していて、同じ番号が両方に存在し得る。
-   * カードの `forge` が現在の取得先と違えば、その番号は別物なので使わない。
-   * `forge` が無い古いカードは、ブランチがあればそちらを正とする。
-   */
+  /** 番号が分かっていれば番号で、無ければブランチから解決する */
   private async fetchFor(card: Card): Promise<MrState | null> {
-    if (card.forge === this.client.kind && card.mr !== null) {
+    if (card.mr !== null) {
       return this.client.fetchByIid(card.mr);
     }
 
     if (card.branch !== null) {
       return this.client.fetchByBranch(card.branch);
-    }
-
-    // 取得先の記録が無く、ブランチも無い。番号を現在の取得先のものとして扱う
-    if (card.forge === null && card.mr !== null) {
-      return this.client.fetchByIid(card.mr);
     }
 
     return null;

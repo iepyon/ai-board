@@ -45,7 +45,6 @@ function makeCard(overrides: Partial<Card> = {}): Card {
     change: null,
     branch: null,
     mr: null,
-    forge: null,
     stageOverride: null,
     body: '',
     ...overrides,
@@ -206,55 +205,5 @@ describe('ForgePoller', () => {
 
     resolveFetch?.();
     await first;
-  });
-});
-
-describe('ForgePoller — 識別番号は取得先と対で扱う', () => {
-  it('取得先が一致すれば番号で問い合わせる', async () => {
-    const repository = new InMemoryCardRepository([
-      makeCard({ mr: 42 as MergeRequestIid, forge: 'github', branch: 'feat/x' }),
-    ]);
-    const client = stubClient({ fetchByIid: vi.fn(async () => makeMr()) });
-
-    await new ForgePoller(repository, client, { onUpdate }).refresh();
-
-    expect(client.fetchByIid).toHaveBeenCalledWith(42);
-    expect(client.fetchByBranch).not.toHaveBeenCalled();
-  });
-
-  it('取得先の記録が無い古いカードはブランチを優先する', async () => {
-    const repository = new InMemoryCardRepository([
-      makeCard({ mr: 1 as MergeRequestIid, forge: null, branch: 'feat/x' }),
-    ]);
-    const client = stubClient({ fetchByBranch: vi.fn(async () => makeMr()) });
-
-    await new ForgePoller(repository, client, { onUpdate }).refresh();
-
-    expect(client.fetchByBranch).toHaveBeenCalledWith('feat/x');
-    expect(client.fetchByIid).not.toHaveBeenCalled();
-  });
-
-  it('取得先の記録もブランチも無ければ番号を現在の取得先のものとして扱う', async () => {
-    const repository = new InMemoryCardRepository([
-      makeCard({ mr: 42 as MergeRequestIid, forge: null, branch: null }),
-    ]);
-    const client = stubClient({ fetchByIid: vi.fn(async () => makeMr()) });
-
-    await new ForgePoller(repository, client, { onUpdate }).refresh();
-
-    expect(client.fetchByIid).toHaveBeenCalledWith(42);
-  });
-
-  it('書き戻しでは番号と取得先を必ず対にする', async () => {
-    const repository = new InMemoryCardRepository([
-      makeCard({ mr: null, forge: null, branch: 'feat/x' }),
-    ]);
-    const client = stubClient({ fetchByBranch: vi.fn(async () => makeMr()) });
-
-    await new ForgePoller(repository, client, { onUpdate }).refresh();
-
-    const saved = await repository.findById('refresh-token' as CardId);
-    expect(saved?.mr).toBe(42);
-    expect(saved?.forge).toBe('github');
   });
 });
