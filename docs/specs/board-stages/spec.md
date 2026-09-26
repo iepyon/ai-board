@@ -75,7 +75,7 @@
 - **WHEN** 着手時刻のあるカードで plan ゲートの最新の記録が否決である
 - **THEN** ステージは `planning` に戻る
 
-### Requirement: 計画レビューは proposal の存在で立つ
+### Requirement: 計画レビューは計画ファイルの存在で立つ
 
 システムは 計画ファイルが存在し、かつ plan ゲートがまだ通過も否決も
 されていないとき `plan-review` を返さなければならない (MUST)。
@@ -83,7 +83,7 @@
 plan ゲートのレビュー記録が 1 件も無い場合も `plan-review` を返さなければならない (MUST)。
 成果物が存在する事実を正とし、記録の欠落によって人待ちを取りこぼさないためである。
 
-#### Scenario: proposal が出た
+#### Scenario: 計画が出た
 
 - **WHEN** 計画ファイルが存在し、plan ゲートの記録が無い
 - **THEN** ステージは `plan-review` になる
@@ -165,7 +165,7 @@ plan ゲートのレビュー記録が 1 件も無い場合も `plan-review` を
 - **WHEN** カードにレビュー記録も計画ファイルも MR も無い
 - **THEN** `idea` と `planning` の両方へ手で動かせる
 
-#### Scenario: proposal が出ている
+#### Scenario: 計画が出ている
 
 - **WHEN** カードの計画ファイルが存在する
 - **THEN** 下限は `plan-review` となり、手で動かせる先は 1 つも無い
