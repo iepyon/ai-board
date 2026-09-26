@@ -5,8 +5,8 @@ created: '2026-09-10T23:57:51.124Z'
 startedAt: null
 skipGates: []
 branch: order-card
-mr: null
-forge: null
+mr: 6
+forge: github
 ---
 
 ## レビュー
