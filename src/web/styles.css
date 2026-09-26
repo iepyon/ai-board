@@ -958,3 +958,30 @@ details.fold[open] > summary h2::before {
 textarea.reason-input {
   min-height: 4.5rem;
 }
+
+/* アイデアの表の区切り線。上が「次にやる」、下が「あとで考える」 */
+tr.tier-head td,
+tr.tier-divider td {
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  background: var(--surface-2);
+}
+
+tr.tier-divider td {
+  border-top: 2px dashed var(--accent);
+}
+
+tr.tier-divider {
+  cursor: grab;
+}
+
+tr.tier-divider.dragging td {
+  background: var(--accent-soft);
+}
+
+.tier-count {
+  margin-left: 6px;
+  font-weight: 400;
+}

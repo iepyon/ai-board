@@ -32,6 +32,11 @@ const MIGRATIONS: readonly string[] = [
   // 出どころの記録が無い番号は、これまでどおり branch があればそちらから解決し直させる
   `UPDATE cards SET mr = NULL WHERE forge IS NULL AND branch IS NOT NULL;
    ALTER TABLE cards DROP COLUMN forge`,
+  // アイデアの表の区切り線。rank と同じ物差しの値を 1 行だけ持つ（無ければ未設定）
+  `CREATE TABLE idea_divider (
+     id   INTEGER PRIMARY KEY NOT NULL CHECK (id = 1),
+     rank REAL NOT NULL
+   ) STRICT`,
 ];
 
 /** 別プロセスの書き込みでロックが取れないとき、失敗にする前に待つ時間 */

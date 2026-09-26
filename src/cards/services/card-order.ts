@@ -1,4 +1,3 @@
-import type { CardId } from '../../shared/schemas/common.js';
 import type { Card } from '../models/card.js';
 
 // ============================================================
@@ -8,7 +7,13 @@ import type { Card } from '../models/card.js';
 /** 端へ動かすときのずらし幅と、振り直しの刻み幅 */
 export const RANK_STEP = 1000;
 
-type Rankable = Pick<Card, 'id' | 'rank' | 'created'>;
+/**
+ * 並びに入る項目。カードのほか、アイデアの表の区切り線も同じ物差しで並ぶ。
+ * 区切り線は `rank` を必ず持つので `created` は使われない。
+ */
+export interface Rankable extends Pick<Card, 'rank' | 'created'> {
+  readonly id: string;
+}
 
 /**
  * 並び順の実効値。小さいほど上に並ぶ。
@@ -49,7 +54,43 @@ export function rankBetween(prev: number | null, next: number | null): number | 
  * 振り直した値はエポックミリ秒よりはるかに小さいので、その後に作られた
  * `rank` の無いカードも末尾に付く。
  */
-export function rebalance(cards: readonly Rankable[]): Map<CardId, number> {
-  const sorted = [...cards].sort(compareCards);
-  return new Map(sorted.map((card, index) => [card.id, (index + 1) * RANK_STEP]));
+export function rebalance(items: readonly Rankable[]): Map<string, number> {
+  const sorted = [...items].sort(compareCards);
+  return new Map(sorted.map((item, index) => [item.id, (index + 1) * RANK_STEP]));
+}
+
+/**
+ * `targetId` を直前 `prev`・直後 `next` の間へ動かすときに書き換える値（項目の ID → 新しい rank）。
+ *
+ * 隙間があれば動かす項目 1 つだけになる。隙間が尽きたときに限り、残りの項目を
+ * 振り直した上で差し込み、値が変わる項目をすべて返す。`items` に `targetId` が
+ * 含まれていなくてもよい（まだ位置を持たない区切り線を初めて置くとき）。
+ */
+export function planMove(
+  items: readonly Rankable[],
+  targetId: string,
+  prev: Rankable | null,
+  next: Rankable | null
+): Map<string, number> {
+  const rank = rankBetween(
+    prev === null ? null : effectiveRank(prev),
+    next === null ? null : effectiveRank(next)
+  );
+  if (rank !== null) return new Map([[targetId, rank]]);
+
+  const others = items.filter((item) => item.id !== targetId);
+  const ranks = rebalance(others);
+  const rankOf = (item: Rankable | null): number | null =>
+    item === null ? null : (ranks.get(item.id) as number);
+
+  // 振り直し後は隣どうしの間に必ず RANK_STEP 以上の隙間がある
+  const updates = new Map([[targetId, rankBetween(rankOf(prev), rankOf(next)) as number]]);
+
+  for (const item of others) {
+    const rebalanced = ranks.get(item.id) as number;
+    // 振り直しても値が変わらない項目は書かない
+    if (rebalanced !== item.rank) updates.set(item.id, rebalanced);
+  }
+
+  return updates;
 }

@@ -84,6 +84,8 @@ export interface Board {
   cards: BoardCard[];
   forge: ForgeConnection;
   orphanPlans: string[];
+  /** アイデアの表の区切り線の rank。未設定なら null（すべて「次にやる」） */
+  ideaDivider: number | null;
   generatedAt: string;
 }
 

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CardIdSchema } from '../../../shared/schemas/common.js';
+import { DIVIDER_ID } from '../../../shared/card-reorder.js';
 import { REVIEW_GATES, REVIEW_KINDS } from '../review.js';
 
 const ReviewGateSchema = z.enum(REVIEW_GATES);
@@ -88,17 +89,23 @@ export type UpdateCardBodyInput = z.infer<typeof UpdateCardBodyInputSchema>;
 
 /**
  * 並べ替え。移動先で直前（`after`）・直後（`before`）に来るカードを指定する。
- * `null` はその側が列の端であることを表す。
+ * `null` はその側が列の端であることを表す。アイデアの表の区切り線が隣なら `DIVIDER_ID` を送る。
  *
  * 列はサーバに実体が無い（ステージは導出される）ため、位置は列内の添字ではなく
  * 隣のカードで伝える。
  */
 export const MoveCardInputSchema = z.object({
-  after: z.union([CardIdSchema, z.null()]),
-  before: z.union([CardIdSchema, z.null()]),
+  after: z.union([CardIdSchema, z.literal(DIVIDER_ID), z.null()]),
+  before: z.union([CardIdSchema, z.literal(DIVIDER_ID), z.null()]),
 });
 
 export type MoveCardInput = z.infer<typeof MoveCardInputSchema>;
+
+/** 区切り線の移動。隣はカードだけ（区切り線は 1 本なので自分自身しかありえない） */
+export const MoveIdeaDividerInputSchema = z.object({
+  after: z.union([CardIdSchema, z.null()]),
+  before: z.union([CardIdSchema, z.null()]),
+});
 
 /**
  * レビューエントリの追記。
