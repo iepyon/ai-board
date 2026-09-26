@@ -23,7 +23,7 @@ const USAGE = `使い方: ai-board [options]
        ai-board import [--from <dir>] [--root <path>]
                                                   .ai-board/cards/*.md を DB に取り込む
 
-計画ファイル駆動のローカル Web カンバンを起動します。
+計画ファイル駆動のローカル Web ダッシュボードを起動します。
 
 Options:
   --root <path>   対象プロジェクトのルート (既定: カレントディレクトリ)
