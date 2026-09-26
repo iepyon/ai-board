@@ -20,6 +20,11 @@ export interface PlanDoc {
   readonly tasks: TaskProgress;
   /** `archive/` 配下へ移動済みか。マージ済みの列を立てる */
   readonly archived: boolean;
+  /**
+   * ファイルの最終更新時刻（mtime、ISO 8601）。AI がタスクを倒すたびに進むので、
+   * 「しばらく動きが無い」ことの目安に使う。ステージ導出には使わない
+   */
+  readonly updatedAt: string;
 }
 
 /** カード ID をキーにした全計画の状態 */

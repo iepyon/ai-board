@@ -49,6 +49,7 @@ function makeMr(overrides: Partial<MrState> = {}): MrState {
     latestNoteAt: null,
     noteCount: 0,
     latestCommitAt: null,
+    mergedAt: null,
     ...overrides,
   };
 }

@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { appendReviewEntry, gateState, isAborted, parseReviewLog } from '../review-log.js';
+import {
+  appendReviewEntry,
+  gateState,
+  isAborted,
+  latestGateEntry,
+  parseReviewLog,
+} from '../review-log.js';
 import type { ReviewEntry } from '../../models/review.js';
 
 const BODY_WITH_LOG = `## アイデア
@@ -143,6 +149,31 @@ describe('gateState', () => {
     ];
 
     expect(gateState(aborted, 'plan', [])).toBe('approved');
+  });
+});
+
+describe('latestGateEntry', () => {
+  it('ゲートの最新エントリを理由ごと返す', () => {
+    const entries: ReviewEntry[] = [
+      { at: '2026-09-11T04:00:00.000Z', gate: 'plan', kind: '提出', reason: '判断待ちの点は 2 つ' },
+      { at: '2026-09-11T05:00:00.000Z', gate: 'plan', kind: '否決', reason: 'だめ' },
+      { at: '2026-09-11T06:00:00.000Z', gate: 'plan', kind: '再提出', reason: '直した' },
+    ];
+
+    expect(latestGateEntry(entries, 'plan')).toEqual(entries[2]);
+  });
+
+  it('中止のエントリは選ばない', () => {
+    const entries: ReviewEntry[] = [
+      { at: '2026-09-11T04:00:00.000Z', gate: 'plan', kind: '提出', reason: '' },
+      { at: '2026-09-11T05:00:00.000Z', gate: 'plan', kind: '中止', reason: 'やめる' },
+    ];
+
+    expect(latestGateEntry(entries, 'plan')?.kind).toBe('提出');
+  });
+
+  it('エントリが無ければ null', () => {
+    expect(latestGateEntry([], 'plan')).toBeNull();
   });
 });
 

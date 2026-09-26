@@ -8,12 +8,15 @@ import {
   resolveFloorStage,
   resolveStage,
 } from '../../services/stage-resolver.js';
+import { latestGateEntry, parseReviewLog } from '../../../cards/services/review-log.js';
+import type { Card } from '../../../cards/models/card.js';
 import {
   toBoardCard,
   type Board,
   type BoardCard,
   type BoardCardMr,
   type BoardCardPlan,
+  type BoardCardReview,
 } from '../../models/board-card.js';
 import type { PlanDoc } from '../../models/plan-state.js';
 import type { MrState } from '../../models/mr-state.js';
@@ -61,6 +64,7 @@ export function createGetBoardQuery(
         card,
         resolveStage(card, plan, mr),
         { floorStage, droppableStages: droppableStages(floorStage) },
+        latestPlanReview(card),
         toBoardCardPlan(plan),
         toBoardCardMr(mr)
       );
@@ -82,7 +86,14 @@ export function createGetBoardQuery(
 function toBoardCardPlan(plan: PlanDoc | null): BoardCardPlan | null {
   if (plan === null) return null;
 
-  return { tasks: plan.tasks, archived: plan.archived };
+  return { tasks: plan.tasks, archived: plan.archived, updatedAt: plan.updatedAt };
+}
+
+function latestPlanReview(card: Card): BoardCardReview | null {
+  const entry = latestGateEntry(parseReviewLog(card.body), 'plan');
+  if (entry === null) return null;
+
+  return { at: entry.at, kind: entry.kind, reason: entry.reason };
 }
 
 function toBoardCardMr(mr: MrState | null): BoardCardMr | null {
@@ -98,5 +109,6 @@ function toBoardCardMr(mr: MrState | null): BoardCardMr | null {
     latestNoteAt: mr.latestNoteAt,
     latestCommitAt: mr.latestCommitAt,
     resubmitted: hasFixAfterReview(mr),
+    mergedAt: mr.mergedAt,
   };
 }

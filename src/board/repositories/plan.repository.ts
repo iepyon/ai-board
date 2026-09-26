@@ -123,10 +123,14 @@ async function readPlanDoc(
     return null;
   }
 
-  const content = await readFileOrNull(path.join(dir, fileName));
-  if (content === null) return null;
+  const filePath = path.join(dir, fileName);
+  const [content, updatedAt] = await Promise.all([
+    readFileOrNull(filePath),
+    modifiedAtOrNull(filePath),
+  ]);
+  if (content === null || updatedAt === null) return null;
 
-  return { cardId: parsed.data as CardId, tasks: countTasks(content), archived };
+  return { cardId: parsed.data as CardId, tasks: countTasks(content), archived, updatedAt };
 }
 
 // ============================================================
@@ -142,6 +146,14 @@ async function listPlanFiles(dir: string): Promise<string[]> {
       .sort();
   } catch {
     return [];
+  }
+}
+
+async function modifiedAtOrNull(filePath: string): Promise<string | null> {
+  try {
+    return (await fs.stat(filePath)).mtime.toISOString();
+  } catch {
+    return null;
   }
 }
 
