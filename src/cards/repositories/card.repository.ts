@@ -10,7 +10,7 @@ import type { Card } from '../models/card.js';
  * usecase はこのインターフェースにのみ依存する。
  */
 export interface CardRepository {
-  /** 壊れたファイルは警告として skip し、読めたカードだけを返す */
+  /** 壊れたファイルは警告として skip し、読めたカードだけを並び順（`compareCards`）で返す */
   findAll(): Promise<Card[]>;
   findById(id: CardId): Promise<Card | null>;
   /** 既存 ID があれば false を返し、何も書かない */

@@ -1,5 +1,5 @@
 import type { ErrorResponse } from '../../shared/controllers/error-response.js';
-import type { CreateCardError, UpdateCardError } from '../errors/card-errors.js';
+import type { CreateCardError, MoveCardError, UpdateCardError } from '../errors/card-errors.js';
 
 // ============================================================
 // カードエラー → HTTP レスポンス マッピング
@@ -31,6 +31,21 @@ export function mapUpdateCardErrorToResponse(error: UpdateCardError): ErrorRespo
         response: {
           code: 'CARD_NOT_FOUND',
           message: `カードが見つかりません: ${error.id}`,
+        },
+      };
+  }
+}
+
+export function mapMoveCardErrorToResponse(error: MoveCardError): ErrorResponse {
+  switch (error.type) {
+    case 'CardNotFound':
+      return mapUpdateCardErrorToResponse(error);
+    case 'StaleOrder':
+      return {
+        status: 409,
+        response: {
+          code: 'STALE_ORDER',
+          message: `並び順が変わっています（${error.after} が ${error.before} より後ろにあります）。ボードを読み直してください`,
         },
       };
   }

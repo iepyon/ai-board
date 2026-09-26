@@ -5,15 +5,18 @@ import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
 import {
   AppendReviewInputSchema,
   CreateCardInputSchema,
+  MoveCardInputSchema,
   UpdateCardBodyInputSchema,
   UpdateCardMetaInputSchema,
 } from '../models/schemas/card.schema.js';
 import {
   mapCreateCardErrorToResponse,
+  mapMoveCardErrorToResponse,
   mapUpdateCardErrorToResponse,
 } from './card-error-mappings.js';
 import type { Card } from '../models/card.js';
 import type { CardDependencies } from '../composition.js';
+import type { MoveCardCommand } from '../usecases/commands/move-card.command.js';
 
 // ============================================================
 // カードレスポンス変換
@@ -28,6 +31,7 @@ function toCardResponse(card: Card): Record<string, unknown> {
     skipGates: card.skipGates,
     branch: card.branch,
     mr: card.mr,
+    rank: card.rank,
     body: card.body,
   };
 }
@@ -68,6 +72,7 @@ export function createCardRouter(deps: CardDependencies): Router {
     updateCardMetaCommand,
     updateCardBodyCommand,
     appendReviewCommand,
+    moveCardCommand,
     cardRepository,
   } = deps;
 
@@ -181,5 +186,44 @@ export function createCardRouter(deps: CardDependencies): Router {
     res.json(toCardResponse(result.value));
   });
 
+  /** POST /api/cards/:id/move — 直前・直後のカードの間へ並べ替える */
+  router.post('/:id/move', createMoveHandler(moveCardCommand));
+
   return router;
+}
+
+function createMoveHandler(moveCardCommand: MoveCardCommand) {
+  return async (req: Request, res: Response): Promise<void> => {
+    const id = parseCardId(req, res);
+    if (id === null) return;
+
+    const input = MoveCardInputSchema.safeParse(req.body);
+    if (!input.success) {
+      respondValidationError(res, input.error);
+      return;
+    }
+
+    const { after, before } = input.data;
+    if (after === id || before === id) {
+      res.status(400).json({
+        code: 'VALIDATION_ERROR',
+        message: '自分自身を隣のカードに指定することはできません',
+      });
+      return;
+    }
+
+    const result = await moveCardCommand({
+      id,
+      after: after as CardId | null,
+      before: before as CardId | null,
+    });
+
+    if (!result.ok) {
+      const { status, response } = mapMoveCardErrorToResponse(result.error);
+      res.status(status).json(response);
+      return;
+    }
+
+    res.json(toCardResponse(result.value));
+  };
 }

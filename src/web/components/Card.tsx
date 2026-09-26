@@ -23,16 +23,21 @@ export function Card({ card, selected, onSelect, onDragStart, onDragEnd }: CardP
 
   const tasks = card.plan?.tasks;
 
-  // AI の成果物で位置が決まるカードは掴めない
+  // 列の中での並べ替えはどのカードでもできる。列をまたげるかは droppableStages が決める
   const movable = card.droppableStages.length > 0;
 
   return (
     <div
-      className={`card${selected ? ' selected' : ''}${movable ? '' : ' pinned'}`}
-      draggable={movable}
+      className={`card${selected ? ' selected' : ''}`}
+      draggable
+      data-card-id={card.id}
       role="button"
       tabIndex={0}
-      title={movable ? card.reason : `${card.reason}（AI の領分のため手では動かせません）`}
+      title={
+        movable
+          ? card.reason
+          : `${card.reason}（AI の領分のため列は手では動かせません。並べ替えはできます）`
+      }
       onClick={() => onSelect(card)}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {

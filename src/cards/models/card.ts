@@ -37,6 +37,11 @@ export interface Card {
    * これが無いと、取得先を切り替えたあと別のレビュー要求を静かに引く。
    */
   readonly forge: ForgeKind | null;
+  /**
+   * 並び順。小さいほど上に並ぶ。null なら `created` のエポックミリ秒とみなす
+   * （`services/card-order.ts`）。優先度は人の判断であり、エージェントは書かない。
+   */
+  readonly rank: number | null;
   /** frontmatter を除いた Markdown 本文。レビューログと探索メモを含む */
   readonly body: string;
 }

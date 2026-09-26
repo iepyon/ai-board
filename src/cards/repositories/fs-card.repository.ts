@@ -6,6 +6,7 @@ import { CardIdSchema } from '../../shared/schemas/common.js';
 import { CardFrontmatterSchema } from '../models/schemas/card.schema.js';
 import type { Card } from '../models/card.js';
 import type { CardRepository } from './card.repository.js';
+import { compareCards } from '../services/card-order.js';
 
 // ============================================================
 // Markdown ファイルによるカードリポジトリ実装
@@ -26,9 +27,7 @@ export class FsCardRepository implements CardRepository {
 
     const cards = await Promise.all(files.map((file) => this.readCardFile(file)));
 
-    return cards
-      .filter((card): card is Card => card !== null)
-      .sort((a, b) => a.created.localeCompare(b.created) || a.id.localeCompare(b.id));
+    return cards.filter((card): card is Card => card !== null).sort(compareCards);
   }
 
   async findById(id: CardId): Promise<Card | null> {
@@ -153,6 +152,7 @@ export function parseCard(filePath: string, raw: string): Card | null {
     branch: frontmatter.branch,
     mr: frontmatter.mr as MergeRequestIid | null,
     forge: frontmatter.forge,
+    rank: frontmatter.rank,
     // 前後の改行は正規化する。これで読み書きを往復しても本文が育たない
     body: parsed.content.replace(/^\n+/, '').replace(/\n+$/, ''),
   };
@@ -169,6 +169,8 @@ export function serializeCard(card: Card): string {
     branch: card.branch,
     mr: card.mr,
     forge: card.forge,
+    // 並べ替えたことの無いカードに null の行を足さない（保存し直しても差分を生まない）
+    ...(card.rank === null ? {} : { rank: card.rank }),
   };
 
   const body = card.body.endsWith('\n') || card.body === '' ? card.body : `${card.body}\n`;

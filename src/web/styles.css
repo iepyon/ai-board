@@ -257,9 +257,12 @@ button {
   cursor: grabbing;
 }
 
-/* AI の成果物で位置が決まるカードは掴めない */
-.card.pinned {
-  cursor: pointer;
+/* 並べ替えの挿入位置 */
+.drop-line {
+  height: 3px;
+  margin: -6px 0 -5px;
+  border-radius: 2px;
+  background: var(--accent);
 }
 
 .card.selected {
