@@ -667,3 +667,99 @@ describe('POST /api/cards/:id/reviews', () => {
     await expect(fs.readdir(path.join(root, '.ai-board', 'plans'))).rejects.toThrow();
   });
 });
+
+// ============================================================
+// POST /api/cards/:id/move
+// ============================================================
+
+describe('POST /api/cards/:id/move', () => {
+  async function writeCards(): Promise<void> {
+    await writeFile(
+      '.ai-board/cards/a.md',
+      "---\nid: a\ntitle: A\ncreated: '2026-09-01T00:00:00.000Z'\n---\n"
+    );
+    await writeFile(
+      '.ai-board/cards/b.md',
+      "---\nid: b\ntitle: B\ncreated: '2026-09-02T00:00:00.000Z'\n---\n"
+    );
+    await writeFile(
+      '.ai-board/cards/c.md',
+      "---\nid: c\ntitle: C\ncreated: '2026-09-03T00:00:00.000Z'\n---\n"
+    );
+  }
+
+  async function boardOrder(app: Application): Promise<string[]> {
+    const response = await request(app).get('/api/board').expect(200);
+    return response.body.cards.map((card: { id: string }) => card.id);
+  }
+
+  it('rank が無ければ作成順に並ぶ', async () => {
+    await writeCards();
+
+    expect(await boardOrder(buildApp())).toEqual(['a', 'b', 'c']);
+  });
+
+  it('先頭・中間・末尾へ動かした結果がボードの順序に出る', async () => {
+    await writeCards();
+    const app = buildApp();
+
+    await request(app).post('/api/cards/c/move').send({ after: null, before: 'a' }).expect(200);
+    expect(await boardOrder(app)).toEqual(['c', 'a', 'b']);
+
+    await request(app).post('/api/cards/b/move').send({ after: 'c', before: 'a' }).expect(200);
+    expect(await boardOrder(app)).toEqual(['c', 'b', 'a']);
+
+    const response = await request(app)
+      .post('/api/cards/c/move')
+      .send({ after: 'a', before: null })
+      .expect(200);
+    expect(await boardOrder(app)).toEqual(['b', 'a', 'c']);
+    expect(typeof response.body.rank).toBe('number');
+  });
+
+  it('動かしたカードのファイルにだけ rank が書かれる', async () => {
+    await writeCards();
+
+    await request(buildApp())
+      .post('/api/cards/c/move')
+      .send({ after: 'a', before: 'b' })
+      .expect(200);
+
+    const c = await fs.readFile(path.join(root, '.ai-board/cards/c.md'), 'utf-8');
+    const a = await fs.readFile(path.join(root, '.ai-board/cards/a.md'), 'utf-8');
+    expect(c).toMatch(/^rank: /m);
+    expect(a).not.toContain('rank');
+  });
+
+  it('存在しないカードは 404', async () => {
+    await writeCards();
+
+    await request(buildApp())
+      .post('/api/cards/nope/move')
+      .send({ after: 'a', before: null })
+      .expect(404);
+    await request(buildApp())
+      .post('/api/cards/a/move')
+      .send({ after: 'nope', before: null })
+      .expect(404);
+  });
+
+  it('隣が逆順なら 409 を返す', async () => {
+    await writeCards();
+
+    const response = await request(buildApp())
+      .post('/api/cards/a/move')
+      .send({ after: 'c', before: 'b' })
+      .expect(409);
+
+    expect(response.body.code).toBe('STALE_ORDER');
+  });
+
+  it('入力が不正なら 400', async () => {
+    await writeCards();
+    const app = buildApp();
+
+    await request(app).post('/api/cards/a/move').send({ after: 'b' }).expect(400);
+    await request(app).post('/api/cards/a/move').send({ after: 'a', before: null }).expect(400);
+  });
+});

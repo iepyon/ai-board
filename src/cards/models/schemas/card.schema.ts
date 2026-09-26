@@ -43,6 +43,8 @@ export const CardFrontmatterSchema = z.object({
   mr: nullableField(z.number().int().positive()).default(null),
   /** `mr` がどの取得先の番号か。番号は取得先ごとに独立しているため対で持つ */
   forge: nullableField(ForgeKindSchema).default(null),
+  /** 並び順。無ければ created から補う */
+  rank: nullableField(z.number().finite()).default(null),
 });
 
 export type CardFrontmatter = z.infer<typeof CardFrontmatterSchema>;
@@ -88,6 +90,20 @@ export const UpdateCardBodyInputSchema = z.object({
 });
 
 export type UpdateCardBodyInput = z.infer<typeof UpdateCardBodyInputSchema>;
+
+/**
+ * 並べ替え。移動先で直前（`after`）・直後（`before`）に来るカードを指定する。
+ * `null` はその側が列の端であることを表す。
+ *
+ * 列はサーバに実体が無い（ステージは導出される）ため、位置は列内の添字ではなく
+ * 隣のカードで伝える。
+ */
+export const MoveCardInputSchema = z.object({
+  after: z.union([CardIdSchema, z.null()]),
+  before: z.union([CardIdSchema, z.null()]),
+});
+
+export type MoveCardInput = z.infer<typeof MoveCardInputSchema>;
 
 /**
  * レビューエントリの追記。

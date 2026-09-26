@@ -1,3 +1,4 @@
+import type { MoveTarget } from '../shared/card-reorder.js';
 import type { Board, BoardCard, PlanDocument, ReviewGate, ReviewKind } from './types.js';
 
 // ============================================================
@@ -67,5 +68,16 @@ export function appendReview(
   return request<BoardCard>(`/api/cards/${encodeURIComponent(id)}/reviews`, {
     method: 'POST',
     body: JSON.stringify(input),
+  });
+}
+
+/**
+ * 列の中で直前・直後のカードの間へ並べ替える。
+ * 位置は添字ではなく隣のカードで伝える（列はサーバに実体が無い）。
+ */
+export function moveCard(id: string, target: MoveTarget): Promise<BoardCard> {
+  return request<BoardCard>(`/api/cards/${encodeURIComponent(id)}/move`, {
+    method: 'POST',
+    body: JSON.stringify(target),
   });
 }

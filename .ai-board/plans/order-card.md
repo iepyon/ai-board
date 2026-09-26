@@ -151,45 +151,45 @@ web は再取得して終える。
 
 ### 1. 並び順の純関数
 
-- [ ] 1.1 `src/cards/services/card-order.ts` に `effectiveRank(card)` と
+- [x] 1.1 `src/cards/services/card-order.ts` に `effectiveRank(card)` と
       `compareCards(a, b)`（実効値 → `id`）を作る
-- [ ] 1.2 `rankBetween(prev: number | null, next: number | null): number | null` を作る。
+- [x] 1.2 `rankBetween(prev: number | null, next: number | null): number | null` を作る。
       端は ±1000、精度切れは `null` を返す
-- [ ] 1.3 `rebalance(cards): Map<CardId, number>` を作る（現在の順序で 1000 刻み）
-- [ ] 1.4 ユニットテスト: `rank` 無しが `created` 順になること、新規カードが末尾に付くこと、
+- [x] 1.3 `rebalance(cards): Map<CardId, number>` を作る（現在の順序で 1000 刻み）
+- [x] 1.4 ユニットテスト: `rank` 無しが `created` 順になること、新規カードが末尾に付くこと、
       中点・両端・同値・精度切れ・振り直し後の順序保存
 
 ### 2. モデルとリポジトリ
 
-- [ ] 2.1 `Card` と `CardFrontmatterSchema` に `rank: number | null`（任意、既定 `null`）を足す
-- [ ] 2.2 `serializeCard` は `rank` が `null` のときキーを書かない
+- [x] 2.1 `Card` と `CardFrontmatterSchema` に `rank: number | null`（任意、既定 `null`）を足す
+- [x] 2.2 `serializeCard` は `rank` が `null` のときキーを書かない
       （既存カードを保存し直しても差分を生まない）
-- [ ] 2.3 `findAll` のソートを `compareCards` に差し替える
-- [ ] 2.4 リポジトリのテスト: `rank` の往復、`rank` 無しファイルの保存で行が増えないこと
+- [x] 2.3 `findAll` のソートを `compareCards` に差し替える
+- [x] 2.4 リポジトリのテスト: `rank` の往復、`rank` 無しファイルの保存で行が増えないこと
 
 ### 3. move コマンドと API
 
-- [ ] 3.1 `StaleOrder` エラーを足し、`MoveCardError = CardNotFound | StaleOrder` を定義する
-- [ ] 3.2 `move-card.command.ts` を作る。隣の実効値の検証、`rankBetween`、
+- [x] 3.1 `StaleOrder` エラーを足し、`MoveCardError = CardNotFound | StaleOrder` を定義する
+- [x] 3.2 `move-card.command.ts` を作る。隣の実効値の検証、`rankBetween`、
       精度切れなら `rebalance` して再計算、変わったカードだけ `save`
-- [ ] 3.3 `MoveCardInputSchema`（`after` / `before` は `CardId | null`、自分自身は不可）
-- [ ] 3.4 `POST /api/cards/:id/move` を controller と `composition.ts` に配線し、
+- [x] 3.3 `MoveCardInputSchema`（`after` / `before` は `CardId | null`、自分自身は不可）
+- [x] 3.4 `POST /api/cards/:id/move` を controller と `composition.ts` に配線し、
       `card-error-mappings.ts` の `switch` に 409 を足す
-- [ ] 3.5 e2e: 列の先頭・中間・末尾への移動、`GET /api/board` の順序への反映、
+- [x] 3.5 e2e: 列の先頭・中間・末尾への移動、`GET /api/board` の順序への反映、
       404 / 409 / 400
 
 ### 4. UI
 
-- [ ] 4.1 `web/types.ts` の `BoardCard` に `rank` を、`api.ts` に `moveCard` を足す
-- [ ] 4.2 `Card.tsx` を常に `draggable` にし、`Column.tsx` で
+- [x] 4.1 `web/types.ts` の `BoardCard` に `rank` を、`api.ts` に `moveCard` を足す
+- [x] 4.2 `Card.tsx` を常に `draggable` にし、`Column.tsx` で
       同じ列の受け入れと挿入位置の計算・線の表示を行う
-- [ ] 4.3 `Board.tsx` で同じ列へのドロップを `moveCard` に、別の列へのドロップを
+- [x] 4.3 `Board.tsx` で同じ列へのドロップを `moveCard` に、別の列へのドロップを
       今どおり `patchForStage` に振り分ける。楽観的更新と `StaleOrder` 時の再取得
 - [ ] 4.4 ブラウザで確認する: 各列での並べ替え、別の列へのドラッグが今どおり動くこと、
       エディタで `rank` を書き換えたときに SSE で反映されること
 
 ### 5. ドキュメントと仕上げ
 
-- [ ] 5.1 `README.md` / `CLAUDE.md` の frontmatter 例に `rank` を、API 表に `move` を足す
-- [ ] 5.2 `board-loop-skill.md` に「優先順は列の上から」と「`rank` を書かない」を足す
-- [ ] 5.3 `npm run typecheck && npm run lint && npm test` を通す
+- [x] 5.1 `README.md` / `CLAUDE.md` の frontmatter 例に `rank` を、API 表に `move` を足す
+- [x] 5.2 `board-loop-skill.md` に「優先順は列の上から」と「`rank` を書かない」を足す
+- [x] 5.3 `npm run typecheck && npm run lint && npm test` を通す

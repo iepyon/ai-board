@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Column } from './Column.js';
-import { updateCardMeta, type CardMetaPatch } from '../api.js';
+import { moveCard, updateCardMeta, type CardMetaPatch } from '../api.js';
+import { applyMove, type MoveTarget } from '../../shared/card-reorder.js';
 import type { Board as BoardData, BoardCard, Stage } from '../types.js';
 
 // ============================================================
@@ -37,8 +38,26 @@ function patchForStage(stage: Stage): CardMetaPatch | null {
   }
 }
 
+/** 応答を待たずに見せている並べ替え。`base` のボードを表示している間だけ効く */
+interface PendingMove {
+  readonly base: BoardData;
+  readonly id: string;
+  readonly target: MoveTarget;
+}
+
 export function Board({ board, selectedId, onSelect, onChanged, onAddCard, onError }: BoardProps) {
   const [dragging, setDragging] = useState<BoardCard | null>(null);
+  const [pending, setPending] = useState<PendingMove | null>(null);
+
+  // ボードを取り直したら（SSE か応答後の再取得）、サーバの並びをそのまま信じる
+  const cards =
+    pending !== null && pending.base === board
+      ? applyMove(board.cards, pending.id, pending.target)
+      : board.cards;
+
+  const reportError = (cause: unknown): void => {
+    onError(cause instanceof Error ? cause.message : String(cause));
+  };
 
   const handleDrop = (stage: Stage): void => {
     const card = dragging;
@@ -50,10 +69,20 @@ export function Board({ board, selectedId, onSelect, onChanged, onAddCard, onErr
     const patch = patchForStage(stage);
     if (patch === null) return;
 
-    updateCardMeta(card.id, patch)
+    updateCardMeta(card.id, patch).then(onChanged).catch(reportError);
+  };
+
+  const handleReorder = (card: BoardCard, target: MoveTarget): void => {
+    setDragging(null);
+    setPending({ base: board, id: card.id, target });
+
+    moveCard(card.id, target)
       .then(onChanged)
       .catch((cause: unknown) => {
-        onError(cause instanceof Error ? cause.message : String(cause));
+        // 並びが古かった（409）ときも含め、先行表示を捨ててサーバの並びに戻す
+        setPending(null);
+        reportError(cause);
+        onChanged();
       });
   };
 
@@ -63,13 +92,14 @@ export function Board({ board, selectedId, onSelect, onChanged, onAddCard, onErr
         <Column
           key={stage}
           stage={stage}
-          cards={board.cards.filter((card) => card.stage === stage)}
+          cards={cards.filter((card) => card.stage === stage)}
           selectedId={selectedId}
           dragging={dragging}
           onSelect={onSelect}
           onDragStart={setDragging}
           onDragEnd={() => setDragging(null)}
           onDrop={handleDrop}
+          onReorder={handleReorder}
           onAdd={stage === 'idea' ? onAddCard : undefined}
         />
       ))}

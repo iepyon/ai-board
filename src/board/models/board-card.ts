@@ -47,6 +47,8 @@ export interface BoardCard {
   readonly skipGates: readonly ReviewGate[];
   readonly branch: string | null;
   readonly mr: number | null;
+  /** 並び順。`cards` はこの実効値の順に並んで届く */
+  readonly rank: number | null;
   readonly body: string;
   /** 計画ファイルがまだ無ければ null */
   readonly plan: BoardCardPlan | null;
@@ -87,6 +89,7 @@ export function toBoardCard(
     skipGates: card.skipGates,
     branch: card.branch,
     mr: card.mr,
+    rank: card.rank,
     body: card.body,
     plan,
     mrState,

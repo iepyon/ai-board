@@ -34,6 +34,7 @@ function makeCard(overrides: Partial<Card> = {}): Card {
     branch: null,
     mr: null,
     forge: null,
+    rank: null,
     body: '',
     ...overrides,
   };
@@ -160,6 +161,7 @@ describe('serializeCard', () => {
       branch: 'feat/refresh-token',
       mr: 42 as MergeRequestIid,
       forge: 'gitlab',
+      rank: 1500.5,
       body: '## アイデア\n本文',
     });
 
@@ -174,6 +176,14 @@ describe('serializeCard', () => {
     expect(restored?.mr).toBeNull();
     expect(restored?.startedAt).toBeNull();
     expect(restored?.skipGates).toEqual([]);
+  });
+
+  it('rank が null なら行を書かない', () => {
+    // 並べ替えたことの無いカードを保存し直しても差分を生まないため
+    const raw = serializeCard(makeCard());
+
+    expect(raw).not.toContain('rank');
+    expect(parseCard('/tmp/refresh-token.md', raw)?.rank).toBeNull();
   });
 });
 
@@ -246,6 +256,18 @@ describe('FsCardRepository', () => {
     );
 
     expect((await repository.findAll()).map((card) => card.id)).toEqual(['earlier', 'later']);
+  });
+
+  it('rank があればそれに従って並べる', async () => {
+    const repository = new FsCardRepository(cardsDir);
+    await repository.create(
+      makeCard({ id: 'earlier' as CardId, created: '2026-09-01T00:00:00.000Z' })
+    );
+    await repository.create(
+      makeCard({ id: 'later' as CardId, created: '2026-09-05T00:00:00.000Z', rank: 1000 })
+    );
+
+    expect((await repository.findAll()).map((card) => card.id)).toEqual(['later', 'earlier']);
   });
 
   it('存在しない ID には null を返す', async () => {

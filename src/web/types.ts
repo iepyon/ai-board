@@ -53,6 +53,8 @@ export interface BoardCard {
   skipGates: ReviewGate[];
   branch: string | null;
   mr: number | null;
+  /** 並び順。`cards` はこの順に並んで届くので、画面は受け取った順に出せばよい */
+  rank: number | null;
   body: string;
   plan: BoardCardPlan | null;
   mrState: BoardCardMr | null;
