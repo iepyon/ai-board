@@ -13,9 +13,9 @@ export interface WatchOptions {
 }
 
 /**
- * `.ai-board/` を監視して変更を通知する（カードと計画ファイルの両方）。
+ * `.ai-board/` を監視して変更を通知する（計画ファイルと設定）。
  *
- * エディタで直接カードを書き換えたときもボードへ即座に反映させるため。
+ * エージェントが計画ファイルを書いたときにボードへ即座に反映させるため。
  * 保存が複数イベントに分かれることがあるのでデバウンスする。
  */
 export function startWatching({
@@ -25,8 +25,10 @@ export function startWatching({
 }: WatchOptions): FSWatcher {
   const watcher = chokidar.watch([...paths], {
     ignoreInitial: true,
-    // エディタの一時ファイルで無駄に発火させない
-    ignored: (target) => /(^|[/\\])\..*\.swp$|~$|\.tmp$/.test(target),
+    // エディタの一時ファイルで無駄に発火させない。
+    // カードの DB は `watchDatabase` が拾う。WAL はチェックポイントでも書かれるので見ない
+    ignored: (target) =>
+      /(^|[/\\])\..*\.swp$|~$|\.tmp$/.test(target) || /\.db(-wal|-shm|-journal)?$/.test(target),
     awaitWriteFinish: { stabilityThreshold: 80, pollInterval: 20 },
   });
 

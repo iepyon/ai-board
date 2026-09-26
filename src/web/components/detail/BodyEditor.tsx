@@ -47,7 +47,7 @@ export function BodyEditor({ card, saving, onRun }: BodyEditorProps) {
           </button>
         )}
 
-        <span className="status">{`.ai-board/cards/${card.id}.md`}</span>
+        <span className="status">{`.ai-board/board.db · ${card.id}`}</span>
       </div>
     </>
   );

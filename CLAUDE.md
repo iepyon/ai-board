@@ -5,9 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## このリポジトリは何か
 
 計画ファイル駆動の開発のためのローカル Web カンバン。
-カードのステージは計画ファイル・レビュー要求（GitLab / GitHub）・カードファイルの実態から**導出**される。
+カードのステージは計画ファイル・レビュー要求（GitLab / GitHub）・カードの実態から**導出**される。
 `stage` という値はどこにも保存しない。人の判断（着手・承認・否決・中止）も
-カードファイル上の痕跡として残り、それも導出の入力になる。
+カード上の痕跡として残り、それも導出の入力になる。
 
 ```
 [ アイデア ] [ 計画提案中 ] [ 計画レビュー ] [ 実装中 ] [ PR中 ] [ マージ済み ]
@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ★ が人の判断を待つ HIL ゲート。人がドラッグで動かすのは `アイデア ⇄ 計画提案中` の 1 遷移だけ。
 
-スタックは TypeScript (ESM, Node >= 20) / Express 5 + React 19 + Vite / Vitest。
+スタックは TypeScript (ESM, Node >= 22.13。カードの保存に組み込みの `node:sqlite` を使う) / Express 5 + React 19 + Vite / Vitest。
 サーバは `127.0.0.1:5673` にのみ bind するローカル専用ツールで、認証やレート制限は持たない。
 
 ## 品質ゲート
@@ -34,10 +34,24 @@ npm run typecheck && npm run lint && npm test
 - ビルドは `npm run build`（tsc → `dist/`、vite → `dist/web/`）。
 - 開発時は `npm run dev`（サーバのみ、tsx watch）と `npm run dev:web`（Vite、`/api` を 5673 へプロキシ）。
 
-## タスクは `.ai-board/cards/` にある
+## タスクは `.ai-board/board.db` にある
 
-**このリポジトリ自身のバックログはボードのカードとして `.ai-board/cards/<id>.md` に置かれている。**
-何に着手するかを判断するときは、まずここを読む。1 ファイル = 1 カード。
+**このリポジトリ自身のバックログはボードのカードとして `.ai-board/board.db`（SQLite）に置かれている。**
+何に着手するかを判断するときは、まずここを読む。1 行 = 1 カード。DB は git に載せない。
+
+**読み書きは `ai-board card` の CLI で行う。DB を sqlite3 などで直接触らない。**
+（開発中は `node dist/cli.js card ...`。先に `npm run build` が要る）
+
+```bash
+ai-board card list                 # 一覧（JSON、本文なし、rank 順）
+ai-board card show <id>            # 1 枚を下の Markdown の形で
+ai-board card body <id> < body.md  # 本文の差し替え（## レビュー のエントリは変えられない）
+ai-board card branch <id> <name>   # ブランチの紐付け（--clear で外す）
+ai-board card submit <id> [--resubmit] [--reason <text>]   # plan 提出 / 再提出
+ai-board card create --title <t> [--id <id>] < body.md     # アイデアカードの起票
+```
+
+`card show` の出力（DB の列を frontmatter の形で表したもの）:
 
 ```yaml
 ---
@@ -60,18 +74,23 @@ rank: 1500              # 並び順（任意）。小さいほど上。人が並
 アイデアメモ → 計画 → ブランチ → MR → archive が 1 本の線につながる。
 計画は `.ai-board/plans/<id>.md` に同じ名前で置かれる。ID がファイル名を決めるので、
 紐付けのためのフィールドは持たない。
-カードはエディタで直接編集してよく、ファイル監視 → SSE 経由でブラウザへ即座に反映される。
+CLI の書き込みはサーバが `PRAGMA data_version` の変化で拾い、SSE 経由でブラウザへ即座に反映される
+（`src/infrastructure/database.ts` の `watchDatabase`）。サーバ自身の書き込みは
+`data_version` に現れないので、リポジトリの `onWrite` から通知する。
+
+移行前の `.ai-board/cards/<id>.md` は `ai-board import` で取り込む。
+Markdown 表現（`card-markdown.ts`）はこの取り込みと `card show` の出力にだけ使う。
 
 ## 書き込み境界
 
 「誰の書き込みか」で分かれる。混同しないこと。
 
-| 主体                | `.ai-board/plans/`                       | `.ai-board/cards/`               |
-| ------------------- | ---------------------------------------- | -------------------------------- |
-| ai-board サーバ     | **read-only**                            | 書く（カードファイルの唯一の書き手） |
-| AI エージェント     | 書く（計画・タスクの更新・archive への移動） | 本文・リンク欄のみ                |
+| 主体                | `.ai-board/plans/`                       | カード（`.ai-board/board.db`）              |
+| ------------------- | ---------------------------------------- | ------------------------------------------- |
+| ai-board サーバ     | **read-only**                            | 書く（画面の操作・MR 番号の書き戻し）        |
+| AI エージェント     | 書く（計画・タスクの更新・archive への移動） | `ai-board card` 経由で本文・ブランチ・提出のみ |
 
-エージェントが**やってはいけないこと**（`.ai-board/cards/board-loop-skill.md` のハードルール）:
+エージェントが**やってはいけないこと**（`board-loop-skill` カードのハードルール）:
 
 - `startedAt` を自分で打たない。これは人が着手を指示する合図。
 - `## レビュー` に書いてよいのは 提出 / 再提出 だけ。承認 / 否決 / 中止 は人が書く。
@@ -79,6 +98,10 @@ rank: 1500              # 並び順（任意）。小さいほど上。人が並
 - `rank` を書かない。並び順は人が決める優先度で、エージェントは上から読むだけ。
 - 計画レビュー / PR中 のカードのステージに触らない。
 - 品質ゲートを通らないままコミットしない。
+
+このうちカードに関わるものは `ai-board card`（`src/cards/cli/card-cli.ts`）が構造で強制する。
+CLI には `startedAt` / `rank` / `skipGates` を書く入口も、承認 / 否決 / 中止を追記する入口も無く、
+`body` は `## レビュー` のエントリが変わる差し替えを拒否する。**CLI に入口を足すときはこの境界を崩さない。**
 
 ステージを直接指定する入力口は存在しない。列を動かしたければ、その列を成立させる実態
 （`startedAt` の打刻、計画ファイルの作成、`## レビュー` への承認追記）を作る。
@@ -241,7 +264,7 @@ Plan モードで立てた計画をそのまま書き、タスクはチェック
 
 1. 人が `startedAt` を打つ（＝計画提案中へ）
 2. AI が Plan モードで計画を立て、`.ai-board/plans/<id>.md` に書き、
-   カード本文の `## レビュー` に `plan 提出` を追記する（＝計画レビューへ）
+   `ai-board card submit <id>` でカード本文の `## レビュー` に `plan 提出` を追記する（＝計画レビューへ）
 3. 人が計画を読み、詳細パネルのボタンで承認 / 否決する（＝実装中へ）
 4. AI がタスクを倒し、AI レビューまで済ませてから PR を出す（＝PR中へ）
 5. マージされたら計画を `.ai-board/plans/archive/<id>.md` へ移す（＝マージ済みへ）

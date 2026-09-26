@@ -2,97 +2,45 @@ import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import matter from 'gray-matter';
 import type { CardId, MergeRequestIid } from '../../shared/schemas/common.js';
-import { CardIdSchema } from '../../shared/schemas/common.js';
 import { CardFrontmatterSchema } from '../models/schemas/card.schema.js';
 import type { Card } from '../models/card.js';
-import type { CardRepository } from './card.repository.js';
 import { compareCards } from '../services/card-order.js';
 
 // ============================================================
-// Markdown ファイルによるカードリポジトリ実装
+// カードの Markdown 表現
 // ============================================================
 
 const CARD_EXTENSION = '.md';
 
 /**
- * `.ai-board/cards/<id>.md` を読み書きする。
+ * カードの正本は SQLite にある。Markdown 表現は次の 2 か所でだけ使う。
  *
- * 書き込みは常にこのディレクトリ配下に限られる（`.ai-board/plans/` には一切触れない）。
+ * - 移行前の `.ai-board/cards/<id>.md` の取り込み（`ai-board import`）
+ * - `ai-board card show` の出力（エージェントが読む形を移行前と揃える）
+ *
+ * ここから `.ai-board/` へ書き込むことは無い。
  */
-export class FsCardRepository implements CardRepository {
-  constructor(private readonly cardsDir: string) {}
+export async function readCardFiles(cardsDir: string): Promise<Card[]> {
+  const files = await listCardFiles(cardsDir);
 
-  async findAll(): Promise<Card[]> {
-    const files = await this.listCardFiles();
+  const cards = await Promise.all(
+    files.map(async (file) => parseCard(file, await fs.readFile(file, 'utf-8')))
+  );
 
-    const cards = await Promise.all(files.map((file) => this.readCardFile(file)));
+  return cards.filter((card): card is Card => card !== null).sort(compareCards);
+}
 
-    return cards.filter((card): card is Card => card !== null).sort(compareCards);
-  }
-
-  async findById(id: CardId): Promise<Card | null> {
-    return this.readCardFile(this.filePathFor(id));
-  }
-
-  async create(card: Card): Promise<boolean> {
-    await fs.mkdir(this.cardsDir, { recursive: true });
-    const filePath = this.filePathFor(card.id);
-
-    try {
-      // wx は既存ファイルがあれば EEXIST で失敗する（チェックと書き込みの競合を避ける）
-      await fs.writeFile(filePath, serializeCard(card), { encoding: 'utf-8', flag: 'wx' });
-      return true;
-    } catch (error) {
-      if (isErrnoException(error) && error.code === 'EEXIST') {
-        return false;
-      }
-      throw error;
+async function listCardFiles(cardsDir: string): Promise<string[]> {
+  try {
+    const entries = await fs.readdir(cardsDir, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isFile() && entry.name.endsWith(CARD_EXTENSION))
+      .map((entry) => path.join(cardsDir, entry.name));
+  } catch (error) {
+    if (isErrnoException(error) && error.code === 'ENOENT') {
+      return [];
     }
-  }
-
-  async save(card: Card): Promise<boolean> {
-    const filePath = this.filePathFor(card.id);
-
-    if (!(await exists(filePath))) {
-      return false;
-    }
-
-    await fs.writeFile(filePath, serializeCard(card), 'utf-8');
-    return true;
-  }
-
-  private filePathFor(id: CardId): string {
-    // id は kebab-case として検証済みなので、パストラバーサルは起こり得ない
-    return path.join(this.cardsDir, `${id}${CARD_EXTENSION}`);
-  }
-
-  private async listCardFiles(): Promise<string[]> {
-    try {
-      const entries = await fs.readdir(this.cardsDir, { withFileTypes: true });
-      return entries
-        .filter((entry) => entry.isFile() && entry.name.endsWith(CARD_EXTENSION))
-        .map((entry) => path.join(this.cardsDir, entry.name));
-    } catch (error) {
-      if (isErrnoException(error) && error.code === 'ENOENT') {
-        return [];
-      }
-      throw error;
-    }
-  }
-
-  /** 壊れたファイルは警告して null を返す（ボード全体を落とさない） */
-  private async readCardFile(filePath: string): Promise<Card | null> {
-    let raw: string;
-    try {
-      raw = await fs.readFile(filePath, 'utf-8');
-    } catch (error) {
-      if (isErrnoException(error) && error.code === 'ENOENT') {
-        return null;
-      }
-      throw error;
-    }
-
-    return parseCard(filePath, raw);
+    throw error;
   }
 }
 
@@ -178,11 +126,6 @@ export function serializeCard(card: Card): string {
   return matter.stringify(`\n${body}`, frontmatter);
 }
 
-/** ファイル名として使える kebab-case か */
-export function isValidCardId(raw: string): boolean {
-  return CardIdSchema.safeParse(raw).success;
-}
-
 // ============================================================
 // ヘルパー
 // ============================================================
@@ -193,13 +136,4 @@ function warnMalformed(filePath: string, reason: string): void {
 
 function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && 'code' in error;
-}
-
-async function exists(filePath: string): Promise<boolean> {
-  try {
-    await fs.access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
 }
