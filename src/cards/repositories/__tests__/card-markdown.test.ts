@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { FsCardRepository, parseCard, serializeCard } from '../fs-card.repository.js';
+import { parseCard, readCardFiles, serializeCard } from '../card-markdown.js';
 import type { Card } from '../../models/card.js';
 import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
 
@@ -188,51 +188,19 @@ describe('serializeCard', () => {
 });
 
 // ============================================================
-// リポジトリ
+// 移行前のカードファイルの読み取り
 // ============================================================
 
-describe('FsCardRepository', () => {
+describe('readCardFiles', () => {
   it('ディレクトリが無ければ空配列を返す', async () => {
-    expect(await new FsCardRepository(cardsDir).findAll()).toEqual([]);
-  });
-
-  it('作成したカードを読み戻せる', async () => {
-    const repository = new FsCardRepository(cardsDir);
-    const card = makeCard();
-
-    expect(await repository.create(card)).toBe(true);
-    expect(await repository.findById(card.id)).toEqual(card);
-  });
-
-  it('同じ ID では二重に作成できない', async () => {
-    const repository = new FsCardRepository(cardsDir);
-
-    expect(await repository.create(makeCard())).toBe(true);
-    expect(await repository.create(makeCard({ title: '別のタイトル' }))).toBe(false);
-    expect((await repository.findById('refresh-token' as CardId))?.title).toBe(
-      'リフレッシュトークン対応'
-    );
-  });
-
-  it('存在しないカードは保存できない', async () => {
-    expect(await new FsCardRepository(cardsDir).save(makeCard())).toBe(false);
-  });
-
-  it('保存で内容を更新できる', async () => {
-    const repository = new FsCardRepository(cardsDir);
-    await repository.create(makeCard());
-
-    expect(await repository.save(makeCard({ startedAt: '2026-09-05T00:00:00.000Z' }))).toBe(true);
-    expect((await repository.findById('refresh-token' as CardId))?.startedAt).toBe(
-      '2026-09-05T00:00:00.000Z'
-    );
+    expect(await readCardFiles(cardsDir)).toEqual([]);
   });
 
   it('壊れたファイルは読み飛ばして残りを返す', async () => {
     await writeCardFile('good.md', '---\nid: good\ntitle: 正常\n---\n');
     await writeCardFile('broken.md', '---\nid: mismatched-id\ntitle: 壊れ\n---\n');
 
-    const cards = await new FsCardRepository(cardsDir).findAll();
+    const cards = await readCardFiles(cardsDir);
 
     expect(cards.map((card) => card.id)).toEqual(['good']);
   });
@@ -241,36 +209,15 @@ describe('FsCardRepository', () => {
     await writeCardFile('note.txt', 'ただのテキスト');
     await writeCardFile('real.md', '---\nid: real\ntitle: カード\n---\n');
 
-    const cards = await new FsCardRepository(cardsDir).findAll();
+    const cards = await readCardFiles(cardsDir);
 
     expect(cards.map((card) => card.id)).toEqual(['real']);
   });
 
-  it('作成日時の昇順で返す', async () => {
-    const repository = new FsCardRepository(cardsDir);
-    await repository.create(
-      makeCard({ id: 'later' as CardId, created: '2026-09-05T00:00:00.000Z' })
-    );
-    await repository.create(
-      makeCard({ id: 'earlier' as CardId, created: '2026-09-01T00:00:00.000Z' })
-    );
+  it('書き出したカードを読み戻せる', async () => {
+    const card = makeCard({ rank: 1500, body: '## アイデア\n本文' });
+    await writeCardFile('refresh-token.md', serializeCard(card));
 
-    expect((await repository.findAll()).map((card) => card.id)).toEqual(['earlier', 'later']);
-  });
-
-  it('rank があればそれに従って並べる', async () => {
-    const repository = new FsCardRepository(cardsDir);
-    await repository.create(
-      makeCard({ id: 'earlier' as CardId, created: '2026-09-01T00:00:00.000Z' })
-    );
-    await repository.create(
-      makeCard({ id: 'later' as CardId, created: '2026-09-05T00:00:00.000Z', rank: 1000 })
-    );
-
-    expect((await repository.findAll()).map((card) => card.id)).toEqual(['later', 'earlier']);
-  });
-
-  it('存在しない ID には null を返す', async () => {
-    expect(await new FsCardRepository(cardsDir).findById('missing' as CardId)).toBeNull();
+    expect(await readCardFiles(cardsDir)).toEqual([card]);
   });
 });

@@ -12,6 +12,7 @@ import { createCliRunner } from './infrastructure/cli-runner.js';
 import { ForgePoller } from './infrastructure/forge-poller.js';
 import { SseHub } from './infrastructure/sse.js';
 import { startWatching } from './infrastructure/watch.js';
+import { openDatabase, watchDatabase } from './infrastructure/database.js';
 import { createApp } from './app.js';
 
 // ============================================================
@@ -39,7 +40,8 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
   const config = loadConfig(options.root);
   const sse = new SseHub();
 
-  const cards = createCardDependencies(config.paths.cardsDir);
+  const db = openDatabase(config.paths.dbPath);
+  const cards = createCardDependencies(db, () => sse.broadcast('board-changed'));
 
   let poller: ForgePoller | null = null;
   let mrProvider: MrStateProvider = disabledMrStateProvider;
@@ -68,10 +70,12 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
 
   const port = await listen(server, options.port ?? DEFAULT_PORT);
 
+  // 計画ファイルはファイル監視、カードは DB の data_version で拾う
   const watcher: FSWatcher = startWatching({
     paths: [config.paths.boardDir],
     onChange: () => sse.broadcast('board-changed'),
   });
+  const dbWatcher = watchDatabase(db, () => sse.broadcast('board-changed'));
 
   poller?.start();
 
@@ -82,8 +86,10 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
     close: async () => {
       poller?.stop();
       sse.close();
+      dbWatcher.close();
       await watcher.close();
       await new Promise<void>((resolve) => server.close(() => resolve()));
+      db.close();
     },
   };
 }

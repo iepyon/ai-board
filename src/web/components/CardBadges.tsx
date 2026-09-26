@@ -6,7 +6,7 @@ import type { BoardCard, ForgeKind } from '../types.js';
 
 /**
  * バッジは「その情報がどこから来たか」を色で示す。
- * 計画ファイル = 水色 / レビュー要求 = 紫 / カードファイル = 橙 / archive = 緑
+ * 計画ファイル = 水色 / レビュー要求 = 紫 / カード自身 = 橙 / archive = 緑
  *
  * 情報源ごとに小さなコンポーネントへ分けている。1 つの関数に並べると
  * 条件が増えるたびに複雑度が上がり、どの行がどの情報源のものか読めなくなる。
@@ -16,7 +16,7 @@ export function CardBadges({ card }: { card: BoardCard }) {
     <div className="badges">
       <PlanBadges card={card} />
       <ForgeBadges card={card} />
-      <CardFileBadges card={card} />
+      <CardOwnBadges card={card} />
     </div>
   );
 }
@@ -51,8 +51,8 @@ function ForgeBadges({ card }: { card: BoardCard }) {
   );
 }
 
-/** カードファイル自身が持つ情報 */
-function CardFileBadges({ card }: { card: BoardCard }) {
+/** カード自身が持つ情報 */
+function CardOwnBadges({ card }: { card: BoardCard }) {
   return (
     <>
       {card.skipGates.length > 0 && (

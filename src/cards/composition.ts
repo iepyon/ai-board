@@ -1,5 +1,6 @@
+import type { DatabaseSync } from 'node:sqlite';
 import type { CardRepository } from './repositories/card.repository.js';
-import { FsCardRepository } from './repositories/fs-card.repository.js';
+import { SqliteCardRepository } from './repositories/sqlite-card.repository.js';
 import {
   createCreateCardCommand,
   type CreateCardCommand,
@@ -35,8 +36,9 @@ export interface CardDependencies {
   readonly moveCardCommand: MoveCardCommand;
 }
 
-export function createCardDependencies(cardsDir: string): CardDependencies {
-  const cardRepository = new FsCardRepository(cardsDir);
+/** `onWrite` はサーバ自身の書き込みの後に呼ばれる（SSE で画面へ知らせるため） */
+export function createCardDependencies(db: DatabaseSync, onWrite?: () => void): CardDependencies {
+  const cardRepository = new SqliteCardRepository(db, onWrite);
 
   return {
     cardRepository,

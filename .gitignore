@@ -4,6 +4,10 @@ coverage/
 *.log
 .DS_Store
 
+# カードの正本（SQLite）。各自のローカルに置き、共有しない
+/.ai-board/board.db
+/.ai-board/board.db-*
+
 # ループが書く実行状態。共有しない
 .ai-board/loop.json
 

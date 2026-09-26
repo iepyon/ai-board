@@ -10,20 +10,27 @@ import { createBoardDependencies } from '../../composition.js';
 import type { MrStateProvider } from '../../services/mr-state-provider.js';
 import type { MrState } from '../../models/mr-state.js';
 import type { MergeRequestIid } from '../../../shared/schemas/common.js';
+import type { DatabaseSync } from 'node:sqlite';
+import { openDatabase } from '../../../infrastructure/database.js';
+import { parseCard } from '../../../cards/repositories/card-markdown.js';
+import { SqliteCardRepository } from '../../../cards/repositories/sqlite-card.repository.js';
 
 // ============================================================
 // テスト用プロジェクトの組み立て
 // ============================================================
 
 let root: string;
+let db: DatabaseSync;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-board-e2e-'));
+  db = openDatabase(':memory:');
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 });
 
 afterEach(async () => {
   vi.restoreAllMocks();
+  db.close();
   await fs.rm(root, { recursive: true, force: true });
 });
 
@@ -31,6 +38,17 @@ async function writeFile(relativePath: string, content: string): Promise<void> {
   const target = path.join(root, relativePath);
   await fs.mkdir(path.dirname(target), { recursive: true });
   await fs.writeFile(target, content, 'utf-8');
+}
+
+/** カードを Markdown で書いて DB に入れる。移行前のカードファイルと同じ書式で用意できる */
+async function writeCard(id: string, content: string): Promise<void> {
+  const card = parseCard(`${id}.md`, content);
+  if (card === null) throw new Error(`テスト用のカードが読めません: ${id}`);
+  await new SqliteCardRepository(db).create(card);
+}
+
+async function readCard(id: string): Promise<Record<string, unknown> | undefined> {
+  return db.prepare('SELECT * FROM cards WHERE id = ?').get(id);
 }
 
 function stubMrProvider(states: Record<string, MrState> = {}): MrStateProvider {
@@ -41,7 +59,7 @@ function stubMrProvider(states: Record<string, MrState> = {}): MrStateProvider {
 }
 
 function buildApp(mrProvider?: MrStateProvider): Application {
-  const cards = createCardDependencies(path.join(root, '.ai-board', 'cards'));
+  const cards = createCardDependencies(db);
   const board = createBoardDependencies(
     path.join(root, '.ai-board', 'plans'),
     cards.cardRepository,
@@ -73,8 +91,8 @@ describe('GET /api/board', () => {
   });
 
   it('計画ファイルの実態からステージを導出する', async () => {
-    await writeFile(
-      '.ai-board/cards/refresh-token.md',
+    await writeCard(
+      'refresh-token',
       '---\nid: refresh-token\ntitle: リフレッシュトークン対応\n---\n'
     );
     await writeFile('.ai-board/plans/refresh-token.md', '# 計画\n\n- [x] 1.1 done\n- [ ] 1.2 todo');
@@ -88,10 +106,7 @@ describe('GET /api/board', () => {
   });
 
   it('archive された計画は merged になる', async () => {
-    await writeFile(
-      '.ai-board/cards/login-redesign.md',
-      '---\nid: login-redesign\ntitle: ログイン画面刷新\n---\n'
-    );
+    await writeCard('login-redesign', '---\nid: login-redesign\ntitle: ログイン画面刷新\n---\n');
     await writeFile('.ai-board/plans/archive/login-redesign.md', '# 済んだ計画');
 
     const response = await request(buildApp()).get('/api/board').expect(200);
@@ -103,7 +118,7 @@ describe('GET /api/board', () => {
   it('ボードのレスポンスに計画の本文は含めない', async () => {
     // 計画 1 本はカード本文より桁違いに大きく、SSE のたびに引き直される。
     // 本文は詳細パネルを開いたときだけ取りに行く。
-    await writeFile('.ai-board/cards/heavy.md', '---\nid: heavy\ntitle: 重い\n---\n');
+    await writeCard('heavy', '---\nid: heavy\ntitle: 重い\n---\n');
     await writeFile('.ai-board/plans/heavy.md', '# 計画\n\nここに長い本文が入る');
 
     const response = await request(buildApp()).get('/api/board').expect(200);
@@ -116,10 +131,7 @@ describe('GET /api/board', () => {
   });
 
   it('MR の状態を反映する', async () => {
-    await writeFile(
-      '.ai-board/cards/s3-upload.md',
-      '---\nid: s3-upload\ntitle: S3 アップロード\nmr: 38\n---\n'
-    );
+    await writeCard('s3-upload', '---\nid: s3-upload\ntitle: S3 アップロード\nmr: 38\n---\n');
 
     const mr: MrState = {
       forge: 'gitlab',
@@ -152,8 +164,8 @@ describe('GET /api/board', () => {
   });
 
   it('レビューログから計画の承認を読み取って impling にする', async () => {
-    await writeFile(
-      '.ai-board/cards/gated.md',
+    await writeCard(
+      'gated',
       [
         '---',
         'id: gated',
@@ -182,8 +194,8 @@ describe('GET /api/board', () => {
   });
 
   it('廃止された explore のエントリはゲートにもステージにも現れない', async () => {
-    await writeFile(
-      '.ai-board/cards/legacy.md',
+    await writeCard(
+      'legacy',
       [
         '---',
         'id: legacy',
@@ -210,7 +222,7 @@ describe('GET /api/board', () => {
   });
 
   it('BoardCard に上書き関連のフィールドは現れない', async () => {
-    await writeFile('.ai-board/cards/plain.md', '---\nid: plain\ntitle: 素\n---\n');
+    await writeCard('plain', '---\nid: plain\ntitle: 素\n---\n');
 
     const response = await request(buildApp()).get('/api/board').expect(200);
     const card = response.body.cards[0];
@@ -269,7 +281,7 @@ describe('GET /api/plans/:id', () => {
 // ============================================================
 
 describe('カード API', () => {
-  it('POST /api/cards でカードを作りファイルに残す', async () => {
+  it('POST /api/cards でカードを作り DB に残す', async () => {
     const app = buildApp();
 
     const response = await request(app)
@@ -279,9 +291,9 @@ describe('カード API', () => {
 
     expect(response.body.id).toBe('audit-log');
 
-    const written = await fs.readFile(path.join(root, '.ai-board/cards/audit-log.md'), 'utf-8');
-    expect(written).toContain('id: audit-log');
-    expect(written).toContain('監査ログを出したい');
+    const written = await readCard('audit-log');
+    expect(written?.['title']).toBe('Audit Log');
+    expect(written?.['body']).toContain('監査ログを出したい');
   });
 
   it('POST /api/cards は ID 重複を 409 で拒む', async () => {
@@ -318,8 +330,8 @@ describe('カード API', () => {
   });
 
   it('PATCH で null を送ると着手を取り消せる', async () => {
-    await writeFile(
-      '.ai-board/cards/hand-written.md',
+    await writeCard(
+      'hand-written',
       '---\nid: hand-written\ntitle: 手書き\nstartedAt: 2026-09-05T00:00:00.000Z\n---\n'
     );
 
@@ -405,7 +417,7 @@ describe('書き込みは .ai-board/ 配下に限られる', () => {
 
 describe('移動できる先の制限', () => {
   it('AI の成果物が無いカードは人の 2 列へ動かせる', async () => {
-    await writeFile('.ai-board/cards/free.md', '---\nid: free\ntitle: 自由\n---\n');
+    await writeCard('free', '---\nid: free\ntitle: 自由\n---\n');
 
     const response = await request(buildApp()).get('/api/board').expect(200);
     const card = response.body.cards[0];
@@ -415,10 +427,7 @@ describe('移動できる先の制限', () => {
   });
 
   it('計画ファイルがあるカードはどこへも動かせない', async () => {
-    await writeFile(
-      '.ai-board/cards/proposed-card.md',
-      '---\nid: proposed-card\ntitle: 提案済み\n---\n'
-    );
+    await writeCard('proposed-card', '---\nid: proposed-card\ntitle: 提案済み\n---\n');
     await writeFile('.ai-board/plans/proposed-card.md', '# 計画');
 
     const response = await request(buildApp()).get('/api/board').expect(200);
@@ -429,10 +438,7 @@ describe('移動できる先の制限', () => {
   });
 
   it('MR があるカードはどこへも動かせない', async () => {
-    await writeFile(
-      '.ai-board/cards/in-review.md',
-      '---\nid: in-review\ntitle: レビュー中\nmr: 42\n---\n'
-    );
+    await writeCard('in-review', '---\nid: in-review\ntitle: レビュー中\nmr: 42\n---\n');
 
     const mr: MrState = {
       forge: 'gitlab',
@@ -455,7 +461,7 @@ describe('移動できる先の制限', () => {
   });
 
   it('計画が archive 済みのカードはどこへも動かせない', async () => {
-    await writeFile('.ai-board/cards/finished.md', '---\nid: finished\ntitle: 完了\n---\n');
+    await writeCard('finished', '---\nid: finished\ntitle: 完了\n---\n');
     await writeFile('.ai-board/plans/archive/finished.md', '# 済んだ計画');
 
     const response = await request(buildApp()).get('/api/board').expect(200);
@@ -464,8 +470,8 @@ describe('移動できる先の制限', () => {
   });
 
   it('着手が打刻済みでも下限は変わらない', async () => {
-    await writeFile(
-      '.ai-board/cards/started.md',
+    await writeCard(
+      'started',
       '---\nid: started\ntitle: 着手済み\nstartedAt: 2026-09-04T10:00:00.000Z\n---\n'
     );
 
@@ -496,8 +502,8 @@ describe('stageOverride はもう存在しない', () => {
   });
 
   it('手で書かれた上書きも読み取り側で無視される', async () => {
-    await writeFile(
-      '.ai-board/cards/hand-override.md',
+    await writeCard(
+      'hand-override',
       '---\nid: hand-override\ntitle: 手書き上書き\nstageOverride: merged\n---\n'
     );
 
@@ -507,7 +513,7 @@ describe('stageOverride はもう存在しない', () => {
   });
 
   it('ドラッグ相当の PATCH で idea と planning を往復できる', async () => {
-    await writeFile('.ai-board/cards/drag-me.md', '---\nid: drag-me\ntitle: 移動\n---\n');
+    await writeCard('drag-me', '---\nid: drag-me\ntitle: 移動\n---\n');
     const app = buildApp();
 
     await request(app)
@@ -549,7 +555,7 @@ describe('POST /api/cards/:id/reviews', () => {
   ].join('\n');
 
   beforeEach(async () => {
-    await writeFile('.ai-board/cards/awaiting.md', AWAITING_CARD);
+    await writeCard('awaiting', AWAITING_CARD);
   });
 
   it('着手済みのカードは計画提案中から始まる', async () => {
@@ -674,18 +680,9 @@ describe('POST /api/cards/:id/reviews', () => {
 
 describe('POST /api/cards/:id/move', () => {
   async function writeCards(): Promise<void> {
-    await writeFile(
-      '.ai-board/cards/a.md',
-      "---\nid: a\ntitle: A\ncreated: '2026-09-01T00:00:00.000Z'\n---\n"
-    );
-    await writeFile(
-      '.ai-board/cards/b.md',
-      "---\nid: b\ntitle: B\ncreated: '2026-09-02T00:00:00.000Z'\n---\n"
-    );
-    await writeFile(
-      '.ai-board/cards/c.md',
-      "---\nid: c\ntitle: C\ncreated: '2026-09-03T00:00:00.000Z'\n---\n"
-    );
+    await writeCard('a', "---\nid: a\ntitle: A\ncreated: '2026-09-01T00:00:00.000Z'\n---\n");
+    await writeCard('b', "---\nid: b\ntitle: B\ncreated: '2026-09-02T00:00:00.000Z'\n---\n");
+    await writeCard('c', "---\nid: c\ntitle: C\ncreated: '2026-09-03T00:00:00.000Z'\n---\n");
   }
 
   async function boardOrder(app: Application): Promise<string[]> {
@@ -717,7 +714,7 @@ describe('POST /api/cards/:id/move', () => {
     expect(typeof response.body.rank).toBe('number');
   });
 
-  it('動かしたカードのファイルにだけ rank が書かれる', async () => {
+  it('動かしたカードにだけ rank が書かれる', async () => {
     await writeCards();
 
     await request(buildApp())
@@ -725,10 +722,8 @@ describe('POST /api/cards/:id/move', () => {
       .send({ after: 'a', before: 'b' })
       .expect(200);
 
-    const c = await fs.readFile(path.join(root, '.ai-board/cards/c.md'), 'utf-8');
-    const a = await fs.readFile(path.join(root, '.ai-board/cards/a.md'), 'utf-8');
-    expect(c).toMatch(/^rank: /m);
-    expect(a).not.toContain('rank');
+    expect(typeof (await readCard('c'))?.['rank']).toBe('number');
+    expect((await readCard('a'))?.['rank']).toBeNull();
   });
 
   it('存在しないカードは 404', async () => {
