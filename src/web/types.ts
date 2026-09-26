@@ -14,6 +14,15 @@ export type GateState = 'none' | 'submitted' | 'approved' | 'rejected';
 export interface BoardCardPlan {
   tasks: { completed: number; total: number };
   archived: boolean;
+  /** 計画ファイルの最終更新時刻。「しばらく動きが無い」ことの目安 */
+  updatedAt: string;
+}
+
+/** plan ゲートの最新エントリ（中止を除く）。提出の本文が判断待ちの点になる */
+export interface BoardCardReview {
+  at: string;
+  kind: ReviewKind;
+  reason: string;
 }
 
 /** `GET /api/plans/:id` のレスポンス。本文はボードには載らない */
@@ -34,6 +43,8 @@ export interface BoardCardMr {
   latestCommitAt: string | null;
   /** レビュー指摘のあとに修正コミットが push されたか＝再レビュー待ち */
   resubmitted: boolean;
+  /** マージされた日時。マージされていなければ null */
+  mergedAt: string | null;
 }
 
 export interface BoardCard {
@@ -45,6 +56,7 @@ export interface BoardCard {
   /** 最新のレビューエントリが 中止 か */
   aborted: boolean;
   gates: Record<ReviewGate, GateState>;
+  latestReview: BoardCardReview | null;
   /** 着手を取り消しても残るステージ＝AI の成果物とレビュー記録が課す下限 */
   floorStage: Stage;
   /** 人が手でドロップできる列。空なら AI の領分でドラッグ不可 */

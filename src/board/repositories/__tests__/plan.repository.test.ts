@@ -83,6 +83,16 @@ describe('FsPlanRepository.load', () => {
     expect(doc?.archived).toBe(false);
   });
 
+  it('ファイルの mtime を updatedAt として返す', async () => {
+    await writeFile('.ai-board/plans/refresh-token.md', '- [ ] 1');
+    const mtime = new Date('2026-09-20T01:02:03.000Z');
+    await fs.utimes(path.join(root, '.ai-board/plans/refresh-token.md'), mtime, mtime);
+
+    const doc = (await repository().load()).get('refresh-token' as CardId);
+
+    expect(doc?.updatedAt).toBe('2026-09-20T01:02:03.000Z');
+  });
+
   it('.md 以外とディレクトリは無視する', async () => {
     await writeFile('.ai-board/plans/notes.txt', 'x');
     await writeFile('.ai-board/plans/subdir/inner.md', 'x');

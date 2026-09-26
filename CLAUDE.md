@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## このリポジトリは何か
 
-計画ファイル駆動の開発のためのローカル Web カンバン。
+計画ファイル駆動の開発のためのローカル Web ダッシュボード（横幅固定・縦スクロール）。
 カードのステージは計画ファイル・レビュー要求（GitHub の PR）・カードの実態から**導出**される。
 `stage` という値はどこにも保存しない。人の判断（着手・承認・否決・中止）も
 カード上の痕跡として残り、それも導出の入力になる。
@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      人            AI            人 ★          AI       人 ★        —
 ```
 
-★ が人の判断を待つ HIL ゲート。人がドラッグで動かすのは `アイデア ⇄ 計画提案中` の 1 遷移だけ。
+★ が人の判断を待つ HIL ゲート。人が動かすのは `アイデア ⇄ 計画提案中` の 1 遷移だけ（「着手」「着手を戻す」ボタン）。
 
 スタックは TypeScript (ESM, Node >= 22.13。カードの保存に組み込みの `node:sqlite` を使う) / Express 5 + React 19 + Vite / Vitest。
 サーバは `127.0.0.1:5673` にのみ bind するローカル専用ツールで、認証やレート制限は持たない。
@@ -127,8 +127,13 @@ CLI には `startedAt` / `rank` / `skipGates` を書く入口も、承認 / 否�
 | PR中                  | PR が opened                             | AI   |
 | マージ済み            | 計画が archive 済み、または PR が merged | AI   |
 
-UI のドラッグは `startedAt` を書き換える 1 遷移だけ。承認 / 否決 / 中止はボタンで
+UI が `startedAt` を書き換えるのは「着手」「着手を戻す」のボタンだけ。列をまたぐドラッグは無く、
+ドラッグはアイデアの表の中の並べ替え（`rank`）にだけ使う。承認 / 否決 / 中止はボタンで
 `POST /api/cards/:id/reviews` を呼び、本文への追記になる。
+
+画面の区画（判断待ち / AI 作業中 / アイデア / マージ済み / 中止）への振り分けと並び順は
+`src/shared/dashboard-sections.ts` の純関数にある。ステージの導出とは別物で、見せ方だけを決める。
+`src/web/` はテストの対象外なので、画面のロジックを足すときはここへ切り出してテストを書く。
 「`startedAt` を外したときに残るステージ」（AI の成果物とレビュー記録が課す下限）より
 前へは戻せない（`resolveFloorStage` / `droppableStages`）。
 
@@ -154,7 +159,7 @@ src/
   cards/                カードの CRUD コンテキスト
   board/                3ソース統合・ステージ導出コンテキスト
   infrastructure/       ファイル監視・SSE・GitHub ポーリング
-  web/                  React + Vite のカンバン UI
+  web/                  React + Vite のダッシュボード UI
 ```
 
 各コンテキストは `models/ errors/ repositories/ usecases/ controllers/ composition.ts` を持つ。
@@ -235,7 +240,7 @@ GitLab の MR !1 と GitHub の PR #1 は別物で、番号をそのまま引く
 | メソッド | パス                     | 用途                                                    |
 | -------- | ------------------------ | ------------------------------------------------------- |
 | `GET`    | `/api/board`             | 全カード＋導出ステージ＋計画の進捗 / レビュー要求の情報 |
-| `GET`    | `/api/plans/:id`         | 計画の本文。ボードには載せず、詳細パネルが個別に引く    |
+| `GET`    | `/api/plans/:id`         | 計画の本文。ボードには載せず、開いたときに個別に引く    |
 | `POST`   | `/api/cards`             | 新規アイデアカード作成                                  |
 | `PATCH`  | `/api/cards/:id`         | frontmatter の部分更新                                  |
 | `PUT`    | `/api/cards/:id/body`    | 本文の差し替え                                          |
@@ -257,7 +262,7 @@ Plan モードで立てた計画をそのまま書き、タスクはチェック
 1. 人が `startedAt` を打つ（＝計画提案中へ）
 2. AI が Plan モードで計画を立て、`.ai-board/plans/<id>.md` に書き、
    `ai-board card submit <id>` でカード本文の `## レビュー` に `plan 提出` を追記する（＝計画レビューへ）
-3. 人が計画を読み、詳細パネルのボタンで承認 / 否決する（＝実装中へ）
+3. 人が計画を読み、判断待ちの区画のボタンで承認 / 否決する（＝実装中へ）
 4. AI がタスクを倒し、AI レビューまで済ませてから PR を出す（＝PR中へ）
 5. マージされたら計画を `.ai-board/plans/archive/<id>.md` へ移す（＝マージ済みへ）
 

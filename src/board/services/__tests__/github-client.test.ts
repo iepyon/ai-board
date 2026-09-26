@@ -196,6 +196,15 @@ describe('GhForgeClient', () => {
     const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
 
     expect(pr?.state).toBe('merged');
+    expect(pr?.mergedAt).toBe('2026-09-20T00:00:00Z');
+  });
+
+  it('マージされていない PR の mergedAt は null', async () => {
+    const { runner } = stubRunner({ 'pulls/7': openPr });
+
+    const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+
+    expect(pr?.mergedAt).toBeNull();
   });
 
   it('ブランチから PR を解決するとき head に owner 接頭辞を付ける', async () => {

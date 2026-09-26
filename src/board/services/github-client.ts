@@ -111,6 +111,7 @@ export class GhForgeClient implements ForgeClient {
       latestNoteAt: latestOf(comments.map((comment) => comment.created_at)),
       noteCount: comments.length,
       latestCommitAt: commitDate(headCommit),
+      mergedAt: pr.merged_at,
     };
   }
 

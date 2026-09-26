@@ -126,6 +126,7 @@ describe('GET /api/board', () => {
     expect(response.body.cards[0].plan).toEqual({
       tasks: { completed: 0, total: 0 },
       archived: false,
+      updatedAt: expect.any(String),
     });
     expect(JSON.stringify(response.body)).not.toContain('ここに長い本文が入る');
   });
@@ -143,6 +144,7 @@ describe('GET /api/board', () => {
       latestNoteAt: '2026-09-04T10:00:00.000Z',
       noteCount: 1,
       latestCommitAt: '2026-09-04T10:30:00.000Z',
+      mergedAt: null,
     };
 
     const response = await request(buildApp(stubMrProvider({ 's3-upload': mr })))
@@ -153,6 +155,41 @@ describe('GET /api/board', () => {
     expect(response.body.cards[0].mrState.resubmitted).toBe(true);
     expect(response.body.cards[0].mrState.webUrl).toBe('http://localhost:8080/mr/38');
     expect(response.body.forge).toEqual({ status: 'connected', kind: 'github' });
+  });
+
+  it('計画ファイルの mtime を plan.updatedAt として返す', async () => {
+    await writeCard('dated', '---\nid: dated\ntitle: 日付\n---\n');
+    await writeFile('.ai-board/plans/dated.md', '- [ ] 1');
+    const mtime = new Date('2026-09-20T01:02:03.000Z');
+    await fs.utimes(path.join(root, '.ai-board/plans/dated.md'), mtime, mtime);
+
+    const response = await request(buildApp()).get('/api/board').expect(200);
+
+    expect(response.body.cards[0].plan.updatedAt).toBe('2026-09-20T01:02:03.000Z');
+  });
+
+  it('マージ済みの PR は mrState.mergedAt に日時を持つ', async () => {
+    await writeCard('shipped', '---\nid: shipped\ntitle: 出荷\nmr: 40\n---\n');
+
+    const mr: MrState = {
+      forge: 'github',
+      iid: 40 as MergeRequestIid,
+      state: 'merged',
+      sourceBranch: 'feat/shipped',
+      title: '出荷',
+      webUrl: 'http://localhost:8080/mr/40',
+      latestNoteAt: null,
+      noteCount: 0,
+      latestCommitAt: null,
+      mergedAt: '2026-09-25T03:00:00.000Z',
+    };
+
+    const response = await request(buildApp(stubMrProvider({ shipped: mr })))
+      .get('/api/board')
+      .expect(200);
+
+    expect(response.body.cards[0].stage).toBe('merged');
+    expect(response.body.cards[0].mrState.mergedAt).toBe('2026-09-25T03:00:00.000Z');
   });
 
   it('カードが無い計画ファイルを orphanPlans として返す', async () => {
@@ -191,6 +228,44 @@ describe('GET /api/board', () => {
     expect(card.gates).toEqual({ plan: 'approved' });
     expect(card.aborted).toBe(false);
     expect(card.droppableStages).toEqual([]);
+  });
+
+  it('plan ゲートの最新エントリを latestReview として返す（中止は除く）', async () => {
+    await writeCard(
+      'waiting',
+      [
+        '---',
+        'id: waiting',
+        'title: 判断待ち',
+        'startedAt: 2026-09-05T00:00:00.000Z',
+        '---',
+        '',
+        '## レビュー',
+        '',
+        '### 2026-09-06T00:00:00.000Z plan 提出',
+        '',
+        '判断待ちの点は 1 つ。',
+        '',
+        '### 2026-09-07T00:00:00.000Z plan 中止',
+        '',
+      ].join('\n')
+    );
+    await writeCard('fresh', '---\nid: fresh\ntitle: 未提出\n---\n');
+
+    const response = await request(buildApp()).get('/api/board').expect(200);
+    const byId = new Map(
+      (response.body.cards as { id: string; latestReview: unknown }[]).map((card) => [
+        card.id,
+        card.latestReview,
+      ])
+    );
+
+    expect(byId.get('waiting')).toEqual({
+      at: '2026-09-06T00:00:00.000Z',
+      kind: '提出',
+      reason: '判断待ちの点は 1 つ。',
+    });
+    expect(byId.get('fresh')).toBeNull();
   });
 
   it('廃止された explore のエントリはゲートにもステージにも現れない', async () => {
@@ -450,6 +525,7 @@ describe('移動できる先の制限', () => {
       latestNoteAt: null,
       noteCount: 0,
       latestCommitAt: null,
+      mergedAt: null,
     };
 
     const response = await request(buildApp(stubMrProvider({ 'in-review': mr })))

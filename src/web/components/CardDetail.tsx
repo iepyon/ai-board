@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { StageSection } from './detail/StageSection.js';
 import { PlanSection } from './detail/PlanSection.js';
 import { ReviewActions } from './detail/ReviewActions.js';
 import { LinkFields } from './detail/LinkFields.js';
 import { BodyEditor } from './detail/BodyEditor.js';
 import { updateCardMeta, type CardMetaPatch } from '../api.js';
+import { useAction } from '../hooks/useAction.js';
 import type { BoardCard } from '../types.js';
 
 // ============================================================
@@ -18,25 +19,10 @@ interface CardDetailProps {
 }
 
 export function CardDetail({ card, onClose, onChanged }: CardDetailProps) {
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { saving, error, run, clearError } = useAction(onChanged);
 
   // 別のカードを選び直したらエラー表示を消す
-  useEffect(() => setError(null), [card.id]);
-
-  /** 保存処理を包む。成功したらボードを取り直す */
-  const run = async (action: () => Promise<unknown>): Promise<void> => {
-    setSaving(true);
-    setError(null);
-    try {
-      await action();
-      onChanged();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setSaving(false);
-    }
-  };
+  useEffect(clearError, [card.id, clearError]);
 
   const patch = (values: CardMetaPatch): Promise<void> =>
     run(() => updateCardMeta(card.id, values));

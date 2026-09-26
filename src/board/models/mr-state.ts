@@ -25,6 +25,8 @@ export interface MrState {
   readonly noteCount: number;
   /** PR の最新コミットの committed_date */
   readonly latestCommitAt: string | null;
+  /** マージされた日時。マージされていなければ null */
+  readonly mergedAt: string | null;
 }
 
 /** 取得先の種類 */
