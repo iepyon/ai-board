@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -7,7 +7,7 @@ import { loadConfig, resolvePaths } from '../config.js';
 let root: string;
 
 beforeEach(async () => {
-  root = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-board-config-'));
+  root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'ai-board-config-')));
 });
 
 afterEach(async () => {
@@ -93,5 +93,73 @@ describe('loadConfig', () => {
     await writeConfig('github:\n  repository: 3\n');
 
     expect(() => loadConfig(root)).toThrow(/config.yaml/);
+  });
+});
+
+// ============================================================
+// ワークツリーでの置き場所
+// ============================================================
+
+/** `git worktree add` と同じ形のファイルを `root` の下に作り、ワークツリーのルートを返す */
+async function makeLinkedWorktree(name: string): Promise<string> {
+  const gitDir = path.join(root, '.git', 'worktrees', name);
+  const tree = path.join(root, '.claude', 'worktrees', name);
+  await fs.mkdir(gitDir, { recursive: true });
+  await fs.mkdir(tree, { recursive: true });
+  await fs.writeFile(path.join(gitDir, 'commondir'), '../..\n');
+  await fs.writeFile(path.join(tree, '.git'), `gitdir: ${gitDir}\n`);
+  return tree;
+}
+
+describe('ワークツリーでの置き場所', () => {
+  it('メインのチェックアウトでは DB も計画も root の下', () => {
+    const paths = resolvePaths(root, {});
+
+    expect(paths.dbPath).toBe(path.join(root, '.ai-board', 'board.db'));
+    expect(paths.dbSource).toBe('local');
+  });
+
+  it('リンクされたワークツリーでは DB をメインのチェックアウトから、計画をワークツリーから読む', async () => {
+    const tree = await makeLinkedWorktree('feature');
+
+    const paths = resolvePaths(tree, {});
+
+    expect(paths.dbPath).toBe(path.join(root, '.ai-board', 'board.db'));
+    expect(paths.dbSource).toBe('main-checkout');
+    expect(paths.plansDir).toBe(path.join(tree, '.ai-board', 'plans'));
+  });
+
+  it('リンクされたワークツリーでは config.yaml もメインのチェックアウトのものを読む', async () => {
+    await writeConfig(githubYaml);
+    const tree = await makeLinkedWorktree('feature');
+
+    expect(loadConfig(tree).forge).toEqual({ kind: 'github', owner: 'iepyon', repo: 'ai-board' });
+  });
+
+  it('AI_BOARD_DB があれば、それを DB の場所にする（相対パスはカレントディレクトリから）', async () => {
+    const tree = await makeLinkedWorktree('feature');
+
+    const paths = resolvePaths(tree, { AI_BOARD_DB: 'dev.db' });
+
+    expect(paths.dbPath).toBe(path.resolve('dev.db'));
+    expect(paths.dbSource).toBe('env');
+  });
+
+  it('AI_BOARD_DB が空なら無いものとして扱う', () => {
+    expect(resolvePaths(root, { AI_BOARD_DB: '' }).dbSource).toBe('local');
+  });
+
+  it('ワークツリーを読み解けなければ警告し、root の下の DB を使う', async () => {
+    await fs.writeFile(path.join(root, '.git'), 'garbage\n');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    try {
+      expect(resolvePaths(root, {}).dbPath).toBe(path.join(root, '.ai-board', 'board.db'));
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('メインのチェックアウトを求められない')
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
