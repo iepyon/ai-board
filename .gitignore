@@ -17,3 +17,6 @@ coverage/
 
 # 各自の GitHub 接続設定。config.example.yaml をコピーして使う
 /.ai-board/config.yaml
+
+# 各自の dev サーバ起動設定。launch.example.json をコピーして使う
+/.claude/launch.json

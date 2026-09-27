@@ -401,6 +401,28 @@ npm run dev           # サーバのみ（tsx watch）
 npm run dev:web       # Vite dev サーバ（/api を 5673 へプロキシ）
 ```
 
+### Claude Code のプレビュー
+
+Claude Code のプレビューが読む `.claude/launch.json` は各自の設定で、git に載せない。
+`.claude/launch.example.json` をコピーして使う。
+
+```bash
+cp .claude/launch.example.json .claude/launch.json
+```
+
+サンプルには 3 つの起動設定がある。
+
+| 名前       | 起動するもの                                   | ポート     |
+| ---------- | ---------------------------------------------- | ---------- |
+| `server`   | `npm run dev`（サーバのみ）                    | 5673       |
+| `web`      | `npm run dev:web`（Vite）                      | 5674       |
+| `worktree` | `node dist/index.js`（ビルド済みの画面を配信） | 空きポート |
+
+`worktree` は、他のセッションが 5673 / 5674 を使っているときのためのもの。
+Vite のプロキシ先は 5673 に固定されているので、サーバ 1 本で画面まで配信する。
+`tsx` で起動すると `src/web`（ビルド前のソース）を配信して画面が白くなるため、
+先に `npm run build` を走らせる。コードを直したら、ビルドし直すまで画面には反映されない。
+
 ## ライセンス
 
 MIT License. 詳細は [LICENSE](LICENSE) を参照。
