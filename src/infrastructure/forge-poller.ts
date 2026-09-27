@@ -146,6 +146,7 @@ function isSameMrState(a: MrState | undefined, b: MrState): boolean {
     a !== undefined &&
     a.iid === b.iid &&
     a.state === b.state &&
+    a.draft === b.draft &&
     a.latestNoteAt === b.latestNoteAt &&
     a.latestCommitAt === b.latestCommitAt &&
     a.noteCount === b.noteCount

@@ -199,6 +199,22 @@ describe('GhForgeClient', () => {
     expect(pr?.mergedAt).toBe('2026-09-20T00:00:00Z');
   });
 
+  it('Draft の PR を draft として返す', async () => {
+    const { runner } = stubRunner({ 'pulls/7': { ...openPr, draft: true } });
+
+    const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+
+    expect(pr?.draft).toBe(true);
+  });
+
+  it('draft が欠けた応答は Draft でないとみなす', async () => {
+    const { runner } = stubRunner({ 'pulls/7': openPr });
+
+    const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+
+    expect(pr?.draft).toBe(false);
+  });
+
   it('マージされていない PR の mergedAt は null', async () => {
     const { runner } = stubRunner({ 'pulls/7': openPr });
 

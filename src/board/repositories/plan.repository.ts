@@ -20,10 +20,8 @@ import type { PlanDoc, PlanState, TaskProgress } from '../models/plan-state.js';
  * ための保険である。「空ファイルは無視する」といった条件を足さない。
  */
 export interface PlanRepository {
-  /** 一覧と進捗。本文は返さない（ボードのレスポンスに載せると肥大するため） */
+  /** 一覧と進捗。本文は返さない。人は計画を PR で読む */
   load(): Promise<PlanState>;
-  /** 1 件の本文。無ければ null */
-  readBody(id: CardId): Promise<string | null>;
 }
 
 const ARCHIVE_DIR = 'archive';
@@ -68,16 +66,6 @@ export class FsPlanRepository implements PlanRepository {
     return states;
   }
 
-  async readBody(id: CardId): Promise<string | null> {
-    // path は検証済みの ID からしか組み立てない。カードの ID は人もエージェントも
-    // 書ける場所なので、パストラバーサルの判断をここに閉じる。
-    const fileName = `${id}${PLAN_EXTENSION}`;
-
-    return (
-      (await readFileOrNull(path.join(this.plansDir, fileName))) ??
-      (await readFileOrNull(path.join(this.plansDir, ARCHIVE_DIR, fileName)))
-    );
-  }
 }
 
 // ============================================================

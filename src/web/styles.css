@@ -463,9 +463,7 @@ html {
 .plan-view {
   border-top: 1px solid var(--border);
   padding: 14px 16px 16px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  gap: 20px;
+  max-width: 560px;
 }
 
 .plan-view h3,
@@ -683,10 +681,6 @@ details.fold[open] > summary h2::before {
   .work {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  .plan-view {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 600px) {
@@ -863,22 +857,6 @@ details.fold[open] > summary h2::before {
   background: var(--surface-2);
   border-radius: 6px;
   padding: 7px 10px;
-  overflow-wrap: anywhere;
-}
-
-/* 計画の本文。Markdown は整形せず等幅のまま読ませる */
-.plan-body {
-  font-family: 'SF Mono', Menlo, monospace;
-  font-size: 11.5px;
-  line-height: 1.6;
-  color: var(--text-2);
-  background: var(--surface-2);
-  border-radius: 6px;
-  padding: 8px 10px;
-  margin: 0;
-  max-height: 340px;
-  overflow-y: auto;
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 

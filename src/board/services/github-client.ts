@@ -22,6 +22,8 @@ interface RawPullRequest {
   number: number;
   state: string;
   merged_at: string | null;
+  /** 古い API 応答や GHES では欠けることがある */
+  draft?: boolean;
   head: { ref: string; sha: string };
   title: string;
   html_url: string;
@@ -105,6 +107,7 @@ export class GhForgeClient implements ForgeClient {
       forge: this.kind,
       iid: toMergeRequestIid(pr.number),
       state: toLifecycleState(pr.state, pr.merged_at),
+      draft: pr.draft === true,
       sourceBranch: pr.head.ref,
       title: pr.title,
       webUrl: pr.html_url,

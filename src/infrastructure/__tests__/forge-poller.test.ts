@@ -56,6 +56,7 @@ function makeMr(overrides: Partial<MrState> = {}): MrState {
     forge: 'github',
     iid: 42 as MergeRequestIid,
     state: 'opened',
+    draft: false,
     sourceBranch: 'feat/refresh-token',
     title: 'MR',
     webUrl: 'http://localhost:8080/mr/42',
@@ -145,6 +146,21 @@ describe('ForgePoller', () => {
 
     expect(onUpdate).toHaveBeenCalledTimes(2);
     expect(poller.get('refresh-token')?.state).toBe('merged');
+  });
+
+  it('Draft から Ready にすれば onUpdate を呼ぶ', async () => {
+    // 計画レビューから PR中 へ進む合図なので、取りこぼすと列が動かない
+    const repository = new InMemoryCardRepository([makeCard({ mr: 42 as MergeRequestIid })]);
+    let draft = true;
+    const client = stubClient({ fetchByIid: vi.fn(async () => makeMr({ draft })) });
+    const poller = new ForgePoller(repository, client, { onUpdate });
+
+    await poller.refresh();
+    draft = false;
+    await poller.refresh();
+
+    expect(onUpdate).toHaveBeenCalledTimes(2);
+    expect(poller.get('refresh-token')?.draft).toBe(false);
   });
 
   it('取得先が落ちてもキャッシュを保ったまま error 状態にする', async () => {

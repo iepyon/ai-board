@@ -139,6 +139,7 @@ describe('GET /api/board', () => {
       forge: 'github',
       iid: 38 as MergeRequestIid,
       state: 'opened',
+      draft: false,
       sourceBranch: 'feat/s3',
       title: 'S3 アップロード',
       webUrl: 'http://localhost:8080/mr/38',
@@ -315,40 +316,10 @@ describe('GET /api/board', () => {
 // ============================================================
 
 describe('GET /api/plans/:id', () => {
-  it('計画の本文と進捗を返す', async () => {
-    await writeFile('.ai-board/plans/refresh-token.md', '# 計画\n\n- [x] 1\n- [ ] 2');
+  it('計画の本文は配らない（人は計画を PR で読む）', async () => {
+    await writeFile('.ai-board/plans/refresh-token.md', '# 計画');
 
-    const response = await request(buildApp()).get('/api/plans/refresh-token').expect(200);
-
-    expect(response.body).toEqual({
-      id: 'refresh-token',
-      body: '# 計画\n\n- [x] 1\n- [ ] 2',
-      tasks: { completed: 1, total: 2 },
-    });
-  });
-
-  it('archive 配下の計画も読める', async () => {
-    await writeFile('.ai-board/plans/archive/finished.md', '# 済んだ計画');
-
-    const response = await request(buildApp()).get('/api/plans/finished').expect(200);
-
-    expect(response.body.body).toBe('# 済んだ計画');
-  });
-
-  it('計画が無ければ 404', async () => {
-    const response = await request(buildApp()).get('/api/plans/missing').expect(404);
-
-    expect(response.body.code).toBe('PLAN_NOT_FOUND');
-  });
-
-  it('カード ID として不正な id は 404（パストラバーサルを通さない）', async () => {
-    await writeFile('.ai-board/secret.md', 'これは計画ではない');
-
-    const response = await request(buildApp())
-      .get(`/api/plans/${encodeURIComponent('../secret')}`)
-      .expect(404);
-
-    expect(response.body.code).toBe('PLAN_NOT_FOUND');
+    await request(buildApp()).get('/api/plans/refresh-token').expect(404);
   });
 });
 
@@ -520,6 +491,7 @@ describe('移動できる先の制限', () => {
       forge: 'github',
       iid: 42 as MergeRequestIid,
       state: 'opened',
+      draft: false,
       sourceBranch: 'feat/x',
       title: 'MR',
       webUrl: 'http://localhost:8080/mr/42',
