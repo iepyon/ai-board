@@ -82,10 +82,10 @@ Claude Code のワークツリーは同じマシンの上にある。データ�
 
 ## タスク
 
-- [ ] `root` からメインのチェックアウトを求める関数（`.git` ファイル → `gitdir` → `commondir`）とテスト
-  - [ ] ワークツリー / メインのチェックアウト / git でない / 壊れた `.git` / ベアリポジトリ
-- [ ] `resolvePaths` / `loadConfig`: DB と `config.yaml` をメインのチェックアウトから、計画は `root` から。`AI_BOARD_DB` とテスト
-- [ ] 起動ログに DB の場所と共有の有無を出す
-- [ ] README / CLAUDE.md の記述
-- [ ] ワークツリーで起動し、メインの DB のカードが出ること、画面の操作がメインの DB に残ることを確かめる
-- [ ] 品質ゲート（`npm run typecheck && npm run lint && npm test`）
+- [x] `root` からメインのチェックアウトを求める関数（`.git` ファイル → `gitdir` → `commondir`）とテスト
+  - [x] ワークツリー / メインのチェックアウト / git でない / 壊れた `.git` / ベアリポジトリ
+- [x] `resolvePaths` / `loadConfig`: DB と `config.yaml` をメインのチェックアウトから、計画は `root` から。`AI_BOARD_DB` とテスト
+- [x] 起動ログに DB の場所と共有の有無を出す
+- [x] README / CLAUDE.md の記述
+- [x] ワークツリーで起動し、メインの DB のカードが出ること、画面の操作がメインの DB に残ることを確かめる
+- [x] 品質ゲート（`npm run typecheck && npm run lint && npm test`）

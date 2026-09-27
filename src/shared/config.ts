@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
+import { locateWorktree } from './git-worktree.js';
 
 // ============================================================
 // ai-board の設定
@@ -14,6 +15,8 @@ export const CARDS_DIR = 'cards';
 export const DB_FILE = 'board.db';
 export const CONFIG_FILE = 'config.yaml';
 export const PLANS_DIR = 'plans';
+/** DB の場所を明示する環境変数。ワークツリーで共有の DB を使わせたくないとき（ai-board 自身の開発など）に使う */
+export const DB_ENV = 'AI_BOARD_DB';
 
 /** GitHub は API パスが owner/repo 固定なので数値 id を受ける意味が無い */
 const GitHubConfigSchema = z.object({
@@ -42,9 +45,16 @@ export interface BoardPaths {
   readonly boardDir: string;
   /** .ai-board/cards/（移行前のカードファイル。取り込み元としてだけ使う） */
   readonly cardsDir: string;
-  /** .ai-board/board.db */
+  /**
+   * git に載らない各自のファイル（DB と config.yaml）を置く .ai-board/。
+   * リンクされたワークツリーではメインのチェックアウトのもの、それ以外は `boardDir` と同じ
+   */
+  readonly sharedBoardDir: string;
+  /** board.db。既定は `sharedBoardDir` の下 */
   readonly dbPath: string;
-  /** .ai-board/plans/ */
+  /** DB の場所をどう決めたか（起動ログに出す） */
+  readonly dbSource: 'local' | 'main-checkout' | 'env';
+  /** .ai-board/plans/（git でブランチに乗るので、常に `root` の下） */
   readonly plansDir: string;
 }
 
@@ -54,17 +64,46 @@ export interface AppConfig {
   readonly forge: ForgeConfig | null;
 }
 
-export function resolvePaths(root: string): BoardPaths {
+/**
+ * 置き場所を決める。
+ *
+ * 計画ファイルは git でブランチに乗るので `root` の下を読む。
+ * DB と config.yaml は git に載らない各自のファイルなので、リンクされたワークツリーでは
+ * メインのチェックアウトのものを使う。全ワークツリーで 1 つのバックログを共有するため。
+ */
+export function resolvePaths(root: string, env: NodeJS.ProcessEnv = process.env): BoardPaths {
   const absoluteRoot = path.resolve(root);
   const boardDir = path.join(absoluteRoot, BOARD_DIR);
+  const sharedBoardDir = resolveSharedBoardDir(absoluteRoot, boardDir);
+  const dbFromEnv = env[DB_ENV] ?? '';
+  const shared = sharedBoardDir !== boardDir;
 
   return {
     root: absoluteRoot,
     boardDir,
     cardsDir: path.join(boardDir, CARDS_DIR),
-    dbPath: path.join(boardDir, DB_FILE),
+    sharedBoardDir,
+    dbPath: dbFromEnv !== '' ? path.resolve(dbFromEnv) : path.join(sharedBoardDir, DB_FILE),
+    dbSource: dbFromEnv !== '' ? 'env' : shared ? 'main-checkout' : 'local',
     plansDir: path.join(boardDir, PLANS_DIR),
   };
+}
+
+function resolveSharedBoardDir(root: string, boardDir: string): string {
+  const location = locateWorktree(root);
+
+  switch (location.kind) {
+    case 'linked':
+      return path.join(location.mainRoot, BOARD_DIR);
+    case 'standalone':
+      return boardDir;
+    case 'unresolved':
+      // ボードが開かないより、ワークツリーの下の DB で開く方が良い
+      console.warn(
+        `[ai-board] メインのチェックアウトを求められないため、${boardDir} の DB を使います: ${location.reason}`
+      );
+      return boardDir;
+  }
 }
 
 /**
@@ -75,7 +114,7 @@ export function resolvePaths(root: string): BoardPaths {
  */
 export function loadConfig(root: string): AppConfig {
   const paths = resolvePaths(root);
-  const configPath = path.join(paths.boardDir, CONFIG_FILE);
+  const configPath = path.join(paths.sharedBoardDir, CONFIG_FILE);
 
   let raw: unknown = {};
   if (fs.existsSync(configPath)) {

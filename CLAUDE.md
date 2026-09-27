@@ -38,6 +38,10 @@ npm run typecheck && npm run lint && npm test
 
 **このリポジトリ自身のバックログはボードのカードとして `.ai-board/board.db`（SQLite）に置かれている。**
 何に着手するかを判断するときは、まずここを読む。1 行 = 1 カード。DB は git に載せない。
+**ワークツリーで動かすと、メインのチェックアウトの `board.db` と `config.yaml` を共有する**
+（`src/shared/git-worktree.ts` / `resolvePaths`）。計画ファイルはワークツリー（ブランチ）のものを読む。
+ai-board 自身の開発でスキーマを変えるコードをワークツリーで動かすときは、`AI_BOARD_DB` で別の DB を指す。
+共有の DB を新しい版に上げると、メインの古い ai-board が開けなくなる。
 
 **読み書きは `ai-board card` の CLI で行う。DB を sqlite3 などで直接触らない。**
 （開発中は `node dist/cli.js card ...`。先に `npm run build` が要る）

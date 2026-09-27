@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { startServer, DEFAULT_PORT } from './server.js';
-import { BOARD_DIR, resolvePaths, type AppConfig } from './shared/config.js';
+import { BOARD_DIR, DB_ENV, resolvePaths, type AppConfig } from './shared/config.js';
 import { openDatabase } from './infrastructure/database.js';
 import { createCardDependencies } from './cards/composition.js';
 import { runCardCli, runImport, type CardCliIo } from './cards/cli/card-cli.js';
@@ -180,6 +180,7 @@ async function main(): Promise<void> {
   console.warn(`ai-board  ${server.url}`);
   console.warn(`  対象      ${server.config.paths.root}`);
   console.warn(`  取得先    ${describeForge(server.config.forge)}`);
+  console.warn(`  DB        ${describeDb(server.config.paths)}`);
 
   if (open) {
     openBrowser(server.url);
@@ -223,4 +224,16 @@ function describeForge(forge: AppConfig['forge']): string {
   if (forge === null) return '未設定（PR 中 / マージ済みの列は空になります）';
 
   return `GitHub ${forge.owner}/${forge.repo}（gh のログインを使用）`;
+}
+
+/** 起動ログに出す DB の 1 行。ワークツリーから共有しているときは、そうと分かるようにする */
+function describeDb(paths: AppConfig['paths']): string {
+  switch (paths.dbSource) {
+    case 'main-checkout':
+      return `${paths.dbPath}（メインのチェックアウトと共有）`;
+    case 'env':
+      return `${paths.dbPath}（${DB_ENV} で指定）`;
+    case 'local':
+      return paths.dbPath;
+  }
 }
