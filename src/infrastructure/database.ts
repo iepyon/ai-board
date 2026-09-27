@@ -37,6 +37,11 @@ const MIGRATIONS: readonly string[] = [
      id   INTEGER PRIMARY KEY NOT NULL CHECK (id = 1),
      rank REAL NOT NULL
    ) STRICT`,
+  // 適用済みの変更ファイル（`.ai-board/changes/*.yaml`）の名前。名前で重複適用を防ぐ
+  `CREATE TABLE applied_changes (
+     name       TEXT PRIMARY KEY NOT NULL,
+     applied_at TEXT NOT NULL
+   ) STRICT`,
 ];
 
 /** 別プロセスの書き込みでロックが取れないとき、失敗にする前に待つ時間 */

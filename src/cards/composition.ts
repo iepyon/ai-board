@@ -27,6 +27,16 @@ import {
   createMoveIdeaDividerCommand,
   type MoveIdeaDividerCommand,
 } from './usecases/commands/move-idea-divider.command.js';
+import { FsChangeFileRepository } from './repositories/fs-change-file.repository.js';
+import { SqliteAppliedChangeRepository } from './repositories/sqlite-applied-change.repository.js';
+import {
+  createRecordChangesCommand,
+  type RecordChangesCommand,
+} from './usecases/commands/record-changes.command.js';
+import {
+  createApplyChangesCommand,
+  type ApplyChangesCommand,
+} from './usecases/commands/apply-changes.command.js';
 
 // ============================================================
 // Cards コンテキスト 依存性構成
@@ -58,5 +68,32 @@ export function createCardDependencies(db: DatabaseSync, onWrite?: () => void): 
     appendReviewCommand: createAppendReviewCommand(cardRepository),
     moveCardCommand: createMoveCardCommand(order),
     moveIdeaDividerCommand: createMoveIdeaDividerCommand(order),
+  };
+}
+
+export interface ChangeDependencies {
+  readonly recordChangesCommand: RecordChangesCommand;
+  readonly applyChangesCommand: ApplyChangesCommand;
+}
+
+/**
+ * データのマイグレーション（`.ai-board/changes/`）の依存。
+ * カードの書き込みは `cards` のリポジトリを通すので、サーバなら SSE への通知もそのまま届く。
+ */
+export function createChangeDependencies(
+  db: DatabaseSync,
+  changesDir: string,
+  cards: CardDependencies
+): ChangeDependencies {
+  const repositories = {
+    cards: cards.cardRepository,
+    divider: cards.ideaDividerRepository,
+    files: new FsChangeFileRepository(changesDir),
+    applied: new SqliteAppliedChangeRepository(db),
+  };
+
+  return {
+    recordChangesCommand: createRecordChangesCommand(repositories),
+    applyChangesCommand: createApplyChangesCommand(repositories),
   };
 }

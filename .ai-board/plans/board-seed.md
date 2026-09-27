@@ -122,8 +122,11 @@ DB に書くのは、画面の操作（着手・並べ替え・承認など）�
 
 #### 適用は DB を開くたびに行い、書き出していない変更があれば止める
 
-適用済みのファイル名は `applied_changes` に記録し、記録の無いファイルだけを名前の順に適用する。
-1 ファイルを 1 トランザクションで適用し、ファイル名の記録も同じトランザクションに入れる。
+適用済みのファイル名は `applied_changes` に記録し、記録の無いファイルがあれば適用する。
+適用は未適用のファイルを足していくのではなく、DB を「全ファイルを名前の順に流し直した状態」に揃える形で行う
+（実装で変えた点）。未適用のファイルを後から足すと、マージした順によって DB ごとに勝つ列が変わるが、
+揃える形なら、同じ列はどの DB でも名前の順で後のものが勝つ。
+反映とファイル名の記録は 1 つのトランザクションに入れる。
 
 適用の前に、今の DB と「適用済みのファイルを流し直した状態」を比べる。違いがあれば適用しない。
 手元の変更を上書きしないためである。サーバはそのまま起動して警告を出し、CLI は警告してから本来の処理を続ける。
@@ -163,19 +166,19 @@ dbmate や golang-migrate の多くはバージョン番号 1 本で管理し、
 
 ## タスク
 
-- [ ] マイグレーション v5（`applied_changes`: `name TEXT PRIMARY KEY` / `applied_at TEXT NOT NULL`）とテスト
-- [ ] 変更ファイルの操作の型と Zod スキーマ（`card` + `set` / `divider`）
-- [ ] 純関数: 状態に操作を適用する、2 つの状態の差分から操作を作る
-  - [ ] 変わった列だけを書く、カードの新規作成、区切り線、差分が無いときは空、のテスト
-- [ ] `ChangeFileStore`: 一覧（名前の順）・読み込み・書き込み（時刻と乱数の名前）
-  - [ ] 不正なファイルはエラー種で返し、適用を止める（途中から流すと状態が壊れるため）
-- [ ] `AppliedChangeRepository` と SQLite 実装
-- [ ] `recordChanges` usecase（`ai-board changes`）
-- [ ] `applyPendingChanges` usecase: 適用済みの読み飛ばし、名前の順、1 ファイル 1 トランザクション、
+- [x] マイグレーション v5（`applied_changes`: `name TEXT PRIMARY KEY` / `applied_at TEXT NOT NULL`）とテスト
+- [x] 変更ファイルの操作の型と Zod スキーマ（`card` + `set` / `divider`）
+- [x] 純関数: 状態に操作を適用する、2 つの状態の差分から操作を作る
+  - [x] 変わった列だけを書く、カードの新規作成、区切り線、差分が無いときは空、のテスト
+- [x] `ChangeFileStore`: 一覧（名前の順）・読み込み・書き込み（時刻と乱数の名前）
+  - [x] 不正なファイルはエラー種で返し、適用を止める（途中から流すと状態が壊れるため）
+- [x] `AppliedChangeRepository` と SQLite 実装
+- [x] `recordChanges` usecase（`ai-board changes`）
+- [x] `applyPendingChanges` usecase: 適用済みの読み飛ばし、名前の順、反映と記録を 1 トランザクション、
       書き出していない変更があるときの停止、手元に無い適用済みファイルの警告
-- [ ] エラー種と、CLI・サーバでの警告の出し方
-- [ ] `ai-board changes` サブコマンド、サブコマンドの前とサーバ起動時の適用、`ai-board import` の削除
-- [ ] `config.ts` の `changesDir`、`card-markdown.ts` の docstring
-- [ ] README / CLAUDE.md: 変更ファイルの流れ、書き込み境界の表、エージェントのハードルール
+- [x] エラー種と、CLI・サーバでの警告の出し方
+- [x] `ai-board changes` サブコマンド、サブコマンドの前とサーバ起動時の適用、`ai-board import` の削除
+- [x] `config.ts` の `changesDir`、`card-markdown.ts` の docstring
+- [x] README / CLAUDE.md: 変更ファイルの流れ、書き込み境界の表、エージェントのハードルール
 - [ ] メインの DB を `ai-board changes` で書き出し、最初の変更ファイルをコミットする
-- [ ] 品質ゲート（`npm run typecheck && npm run lint && npm test`）
+- [x] 品質ゲート（`npm run typecheck && npm run lint && npm test`）

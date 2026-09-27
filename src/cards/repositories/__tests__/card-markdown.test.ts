@@ -1,28 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { promises as fs } from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
-import { parseCard, readCardFiles, serializeCard } from '../card-markdown.js';
+import { parseCard, serializeCard } from '../card-markdown.js';
 import type { Card } from '../../models/card.js';
 import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
 
-let cardsDir: string;
-
-beforeEach(async () => {
-  cardsDir = path.join(await fs.mkdtemp(path.join(os.tmpdir(), 'ai-board-cards-')), 'cards');
+beforeEach(() => {
   // 壊れたファイルの警告でテスト出力を汚さない
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 });
 
-afterEach(async () => {
+afterEach(() => {
   vi.restoreAllMocks();
-  await fs.rm(path.dirname(cardsDir), { recursive: true, force: true });
 });
-
-async function writeCardFile(name: string, content: string): Promise<void> {
-  await fs.mkdir(cardsDir, { recursive: true });
-  await fs.writeFile(path.join(cardsDir, name), content, 'utf-8');
-}
 
 function makeCard(overrides: Partial<Card> = {}): Card {
   return {
@@ -199,40 +187,5 @@ describe('serializeCard', () => {
 
     expect(raw).not.toContain('rank');
     expect(parseCard('/tmp/refresh-token.md', raw)?.rank).toBeNull();
-  });
-});
-
-// ============================================================
-// 移行前のカードファイルの読み取り
-// ============================================================
-
-describe('readCardFiles', () => {
-  it('ディレクトリが無ければ空配列を返す', async () => {
-    expect(await readCardFiles(cardsDir)).toEqual([]);
-  });
-
-  it('壊れたファイルは読み飛ばして残りを返す', async () => {
-    await writeCardFile('good.md', '---\nid: good\ntitle: 正常\n---\n');
-    await writeCardFile('broken.md', '---\nid: mismatched-id\ntitle: 壊れ\n---\n');
-
-    const cards = await readCardFiles(cardsDir);
-
-    expect(cards.map((card) => card.id)).toEqual(['good']);
-  });
-
-  it('md 以外のファイルは無視する', async () => {
-    await writeCardFile('note.txt', 'ただのテキスト');
-    await writeCardFile('real.md', '---\nid: real\ntitle: カード\n---\n');
-
-    const cards = await readCardFiles(cardsDir);
-
-    expect(cards.map((card) => card.id)).toEqual(['real']);
-  });
-
-  it('書き出したカードを読み戻せる', async () => {
-    const card = makeCard({ rank: 1500, body: '## アイデア\n本文' });
-    await writeCardFile('refresh-token.md', serializeCard(card));
-
-    expect(await readCardFiles(cardsDir)).toEqual([card]);
   });
 });

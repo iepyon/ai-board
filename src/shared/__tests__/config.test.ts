@@ -27,7 +27,7 @@ describe('resolvePaths', () => {
     const paths = resolvePaths(root);
 
     expect(paths.boardDir).toBe(path.join(root, '.ai-board'));
-    expect(paths.cardsDir).toBe(path.join(root, '.ai-board', 'cards'));
+    expect(paths.changesDir).toBe(path.join(root, '.ai-board', 'changes'));
     expect(paths.plansDir).toBe(path.join(root, '.ai-board', 'plans'));
   });
 

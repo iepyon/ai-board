@@ -4,8 +4,9 @@ import * as path from 'node:path';
 import { startServer, DEFAULT_PORT } from './server.js';
 import { BOARD_DIR, resolvePaths, type AppConfig } from './shared/config.js';
 import { openDatabase } from './infrastructure/database.js';
-import { createCardDependencies } from './cards/composition.js';
-import { runCardCli, runImport, type CardCliIo } from './cards/cli/card-cli.js';
+import { createCardDependencies, createChangeDependencies } from './cards/composition.js';
+import { runCardCli, type CardCliIo } from './cards/cli/card-cli.js';
+import { applyChanges, runChangesCli } from './cards/cli/changes-cli.js';
 
 // ============================================================
 // ai-board CLI
@@ -20,8 +21,8 @@ interface CliOptions {
 
 const USAGE = `使い方: ai-board [options]
        ai-board card <command> [--root <path>]    カードの読み書き（ai-board card --help）
-       ai-board import [--from <dir>] [--root <path>]
-                                                  .ai-board/cards/*.md を DB に取り込む
+       ai-board changes [--root <path>]           カードの変更を .ai-board/changes/ に書き出し、
+                                                  未適用の変更ファイルを DB に適用する
 
 計画ファイル駆動のローカル Web ダッシュボードを起動します。
 
@@ -95,26 +96,30 @@ function takeInteger(
 }
 
 /**
- * `card` / `import` サブコマンド。サーバを起動せず DB を直接開く。
+ * `card` / `changes` サブコマンド。サーバを起動せず DB を直接開く。
  * サーバが動いていれば、その書き込みは data_version 経由で画面に届く。
+ *
+ * どちらも、先に未適用の変更ファイルを適用する（マージで入った変更を読んでから動くため）。
  */
-async function runSubcommand(command: 'card' | 'import', argv: readonly string[]): Promise<number> {
+async function runSubcommand(
+  command: 'card' | 'changes',
+  argv: readonly string[]
+): Promise<number> {
   const { root, rest } = extractRoot(argv);
   const paths = resolvePaths(root);
   const db = openDatabase(paths.dbPath);
 
   try {
     const deps = createCardDependencies(db);
+    const changes = createChangeDependencies(db, paths.changesDir, deps);
     const io = createProcessIo();
 
-    if (command === 'card') {
-      return await runCardCli(rest, deps, io);
+    if (command === 'changes') {
+      return await runChangesCli(changes, io);
     }
 
-    const fromIndex = rest.indexOf('--from');
-    const from =
-      fromIndex === -1 ? paths.cardsDir : path.resolve(takeValue(rest, fromIndex + 1, '--from'));
-    return await runImport(from, deps, io);
+    await applyChanges(changes, io);
+    return await runCardCli(rest, deps, io);
   } finally {
     db.close();
   }
@@ -151,7 +156,7 @@ function createProcessIo(): CardCliIo {
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2);
 
-  if (command === 'card' || command === 'import') {
+  if (command === 'card' || command === 'changes') {
     process.exitCode = await runSubcommand(command, rest);
     return;
   }

@@ -1,7 +1,8 @@
 import * as http from 'node:http';
 import type { FSWatcher } from 'chokidar';
 import { loadConfig, type AppConfig } from './shared/config.js';
-import { createCardDependencies } from './cards/composition.js';
+import { createCardDependencies, createChangeDependencies } from './cards/composition.js';
+import { applyChanges } from './cards/cli/changes-cli.js';
 import { createBoardDependencies, createForgeClient } from './board/composition.js';
 import {
   disabledMrStateProvider,
@@ -42,6 +43,13 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
 
   const db = openDatabase(config.paths.dbPath);
   const cards = createCardDependencies(db, () => sse.broadcast('board-changed'));
+
+  // マージで入った変更ファイルを、画面を出す前に DB へ反映する。
+  // 反映できなくても（書き出していない変更がある等）警告だけ出して起動は続ける
+  await applyChanges(createChangeDependencies(db, config.paths.changesDir, cards), {
+    stderr: (text) => console.warn(text.trimEnd()),
+    now: () => new Date(),
+  });
 
   let poller: ForgePoller | null = null;
   let mrProvider: MrStateProvider = disabledMrStateProvider;

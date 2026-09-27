@@ -8,8 +8,8 @@ import { z } from 'zod';
 // ============================================================
 
 export const BOARD_DIR = '.ai-board';
-/** 移行前のカードファイルの置き場所。`ai-board import` の既定の取り込み元 */
-export const CARDS_DIR = 'cards';
+/** データのマイグレーション（カードの変更ファイル）の置き場所。git に載せる */
+export const CHANGES_DIR = 'changes';
 /** カードの正本。git には載せない */
 export const DB_FILE = 'board.db';
 export const CONFIG_FILE = 'config.yaml';
@@ -40,8 +40,8 @@ export interface BoardPaths {
   readonly root: string;
   /** .ai-board/ */
   readonly boardDir: string;
-  /** .ai-board/cards/（移行前のカードファイル。取り込み元としてだけ使う） */
-  readonly cardsDir: string;
+  /** .ai-board/changes/（カードの変更ファイル。git に載せ、ブランチのマージでまとめる） */
+  readonly changesDir: string;
   /** .ai-board/board.db */
   readonly dbPath: string;
   /** .ai-board/plans/ */
@@ -61,7 +61,7 @@ export function resolvePaths(root: string): BoardPaths {
   return {
     root: absoluteRoot,
     boardDir,
-    cardsDir: path.join(boardDir, CARDS_DIR),
+    changesDir: path.join(boardDir, CHANGES_DIR),
     dbPath: path.join(boardDir, DB_FILE),
     plansDir: path.join(boardDir, PLANS_DIR),
   };

@@ -38,6 +38,7 @@ npm run typecheck && npm run lint && npm test
 
 **このリポジトリ自身のバックログはボードのカードとして `.ai-board/board.db`（SQLite）に置かれている。**
 何に着手するかを判断するときは、まずここを読む。1 行 = 1 カード。DB は git に載せない。
+カードの変更は `.ai-board/changes/*.yaml`（git に載せる変更ファイル）を介してブランチ間でまとめる（後述）。
 
 **読み書きは `ai-board card` の CLI で行う。DB を sqlite3 などで直接触らない。**
 （開発中は `node dist/cli.js card ...`。先に `npm run build` が要る）
@@ -77,8 +78,28 @@ CLI の書き込みはサーバが `PRAGMA data_version` の変化で拾い、SS
 （`src/infrastructure/database.ts` の `watchDatabase`）。サーバ自身の書き込みは
 `data_version` に現れないので、リポジトリの `onWrite` から通知する。
 
-移行前の `.ai-board/cards/<id>.md` は `ai-board import` で取り込む。
-Markdown 表現（`card-markdown.ts`）はこの取り込みと `card show` の出力にだけ使う。
+Markdown 表現（`card-markdown.ts`）は `card show` の出力にだけ使う。
+
+### カードの変更ファイル（データのマイグレーション）
+
+ワークツリーごとに `board.db` ができるので、カードの変更は変更ファイルとして git に載せ、ブランチのマージでまとめる。
+
+```bash
+ai-board changes   # 書き出していない変更を .ai-board/changes/ に 1 ファイル足し、未適用のファイルを適用する
+```
+
+- 変更ファイルは SQL ではなく操作（`card` + `set` / `divider`）で、変わった列だけを持つ
+  （`src/cards/services/board-changes.ts`）。スキーマを変えても古いファイルを流せるように、
+  また別のブランチが別の列に加えた変更を消さないように。**既存のファイルは書き換えない。**
+- DB を開くたび（サーバ起動・`ai-board card`）に未適用のファイルを反映する（`applied_changes` に名前を記録）。
+  反映は DB を「全ファイルを名前の順に流し直した状態」に揃える形で行い、同じ列はどの DB でも名前の順で後が勝つ。
+  順序の食い違いは受け入れている（`board-seed` の計画の Non-Goals）
+- DB に書き出していない変更があれば、手元の変更を上書きしないよう適用せずに警告する
+- ツールの `MIGRATIONS`（`database.ts`）はスキーマ専用。**リポジトリのデータを入れない**
+  （npm パッケージに入り、ai-board を使う別のリポジトリの DB にも流れ込む）
+
+変更ファイルを直接書けば、CLI が入口を持たない列（`startedAt`・`rank`・承認 / 否決 / 中止）も DB に入る。
+この経路は塞いでいない（人の判断）。エージェントは変更ファイルを手で書かず、`ai-board changes` でだけ作る。
 
 ## 書き込み境界
 
@@ -89,6 +110,8 @@ Markdown 表現（`card-markdown.ts`）はこの取り込みと `card show` の�
 | ai-board サーバ | **read-only**                                | 書く（画面の操作・MR 番号の書き戻し）          |
 | AI エージェント | 書く（計画・タスクの更新・archive への移動） | `ai-board card` 経由で本文・ブランチ・提出のみ |
 
+`.ai-board/changes/` はエージェントが `ai-board changes` でだけ作る（手で書かない・既存のファイルを変えない）。
+
 エージェントが**やってはいけないこと**（`board-loop-skill` カードのハードルール）:
 
 - `startedAt` を自分で打たない。これは人が着手を指示する合図。
@@ -98,6 +121,7 @@ Markdown 表現（`card-markdown.ts`）はこの取り込みと `card show` の�
   アイデアの表の区切り線（「次にやる」/「あとで考える」）も同じ扱い。
 - 計画レビュー / PR中 のカードのステージに触らない。
 - 品質ゲートを通らないままコミットしない。
+- `.ai-board/changes/` の変更ファイルを手で書かない・書き換えない。
 
 このうちカードに関わるものは `ai-board card`（`src/cards/cli/card-cli.ts`）が構造で強制する。
 CLI には `startedAt` / `rank` / `skipGates` を書く入口も、承認 / 否決 / 中止を追記する入口も無く、
@@ -238,7 +262,7 @@ GitLab の MR !1 と GitHub の PR #1 は別物で、番号をそのまま引く
 **列は正しく埋まったままリンクだけが別の PR を指す**。
 そのため DB のマイグレーション（v2・v3）で、GitHub のものと確かめられない番号
 （`forge: gitlab`、および `forge` が無く `branch` があるもの）を消してから列を落とし、
-`branch` から解決し直させている。`ai-board import` も `forge: gitlab` の番号は捨てる。
+`branch` から解決し直させている。
 
 ## API
 
@@ -269,8 +293,11 @@ Plan モードで立てた計画をそのまま書き、タスクはチェック
 2. AI が Plan モードで計画を立て、`.ai-board/plans/<id>.md` に書き、
    `ai-board card submit <id>` でカード本文の `## レビュー` に `plan 提出` を追記する（＝計画レビューへ）
 3. 人が計画を読み、判断待ちの区画のボタンで承認 / 否決する（＝実装中へ）
-4. AI がタスクを倒し、AI レビューまで済ませてから PR を出す（＝PR中へ）
+4. AI がタスクを倒し、AI レビューまで済ませ、`ai-board changes` でカードの変更を書き出してから PR を出す（＝PR中へ）
 5. マージされたら計画を `.ai-board/plans/archive/<id>.md` へ移す（＝マージ済みへ）
+
+ワークツリーで作業するときは、`git pull` / `merge` の前にも `ai-board changes` を実行する
+（書き出していない変更があると、マージで入った変更ファイルが適用されない）。
 
 成果物は日本語で書く。
 

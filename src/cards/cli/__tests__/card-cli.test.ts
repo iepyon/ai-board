@@ -1,11 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { promises as fs } from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { openDatabase } from '../../../infrastructure/database.js';
 import { createCardDependencies, type CardDependencies } from '../../composition.js';
-import { parseCommandArgs, runCardCli, runImport, type CardCliIo } from '../card-cli.js';
+import { parseCommandArgs, runCardCli, type CardCliIo } from '../card-cli.js';
 import type { CardId } from '../../../shared/schemas/common.js';
 
 let db: DatabaseSync;
@@ -170,31 +167,5 @@ describe('parseCommandArgs', () => {
         ['--reason', 'r'],
       ]),
     });
-  });
-});
-
-describe('runImport', () => {
-  let dir: string;
-
-  beforeEach(async () => {
-    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-board-import-'));
-    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-  });
-
-  afterEach(async () => {
-    await fs.rm(dir, { recursive: true, force: true });
-  });
-
-  it('カードファイルを取り込み、既にある ID は上書きしない', async () => {
-    await seed('kept', 'DB の本文');
-    await fs.writeFile(path.join(dir, 'fresh.md'), '---\nid: fresh\ntitle: 新規\n---\n\n本文\n');
-    await fs.writeFile(path.join(dir, 'kept.md'), '---\nid: kept\ntitle: 既存\n---\n\n上書き\n');
-
-    expect(await runImport(dir, deps, io())).toBe(0);
-
-    expect(stdout).toContain('1 件');
-    expect(stderr).toContain('kept');
-    expect(await bodyOf('fresh')).toBe('本文');
-    expect(await bodyOf('kept')).toBe('DB の本文');
   });
 });

@@ -13,7 +13,7 @@ const ReviewGateSchema = z.enum(REVIEW_GATES);
  * YAML パーサは ISO 8601 に見える値を Date に変換してしまうため、
  * 日時は Date と string の両方を受けて ISO 文字列に正規化する。
  */
-const IsoDateTime = z
+export const IsoDateTime = z
   .union([z.string(), z.date()])
   .transform((value) => (value instanceof Date ? value.toISOString() : value))
   .refine((value) => !Number.isNaN(Date.parse(value)), {
