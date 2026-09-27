@@ -122,7 +122,8 @@ function SubmissionNote({ card }: { card: BoardCard }) {
   const review = card.latestReview;
 
   if (review === null) {
-    return <div className="why">提出の記録がありません。計画ファイルだけが置かれています。</div>;
+    const artifact = card.mrState?.draft === true ? '計画の PR' : '計画ファイル';
+    return <div className="why">提出の記録がありません。{artifact}だけがあります。</div>;
   }
 
   return (
