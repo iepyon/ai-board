@@ -21,6 +21,8 @@ export interface BoardCardMr {
   readonly forge: ForgeKind;
   readonly iid: number;
   readonly state: MrLifecycleState;
+  /** Draft か。計画の PR として人に読ませている段階 */
+  readonly draft: boolean;
   readonly title: string;
   readonly webUrl: string;
   readonly noteCount: number;

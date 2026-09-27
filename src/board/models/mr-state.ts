@@ -13,6 +13,11 @@ export interface MrState {
   readonly forge: ForgeKind;
   readonly iid: MergeRequestIid;
   readonly state: MrLifecycleState;
+  /**
+   * Draft か。AI は計画をコミットした時点で Draft の PR を出し、
+   * 人は計画をその PR で読む。Draft のあいだは PR中 の列を立てない
+   */
+  readonly draft: boolean;
   readonly sourceBranch: string;
   readonly title: string;
   readonly webUrl: string;

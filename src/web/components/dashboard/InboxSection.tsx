@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { PlanSection } from '../detail/PlanSection.js';
 import { ReviewActions } from '../detail/ReviewActions.js';
 import { useAction } from '../../hooks/useAction.js';
 import { waitingSince } from '../../../shared/dashboard-sections.js';
@@ -56,13 +55,14 @@ interface PlanReviewItemProps {
 }
 
 /**
- * 計画レビューのカード。提出に書かれた判断待ちの点を見せ、
- * 「計画を読む」でその場に計画の本文とレビュー欄を開く。
+ * 計画レビューのカード。提出に書かれた判断待ちの点と計画の PR へのリンクを見せ、
+ * 「判断する」でその場にレビュー欄を開く。計画の本文は PR で読む。
  */
 function PlanReviewItem({ card, onSelect, onChanged }: PlanReviewItemProps) {
   const [open, setOpen] = useState(false);
   const { saving, error, run } = useAction(onChanged);
   const tasks = card.plan?.tasks;
+  const mr = card.mrState;
   const panelId = `plan-${card.id}`;
 
   return (
@@ -76,6 +76,7 @@ function PlanReviewItem({ card, onSelect, onChanged }: PlanReviewItemProps) {
             {tasks !== undefined && tasks.total > 0 && (
               <span className="num">タスク {tasks.total}</span>
             )}
+            {mr?.draft === true && <span>Draft</span>}
           </div>
           <h3>
             <CardTitle card={card} onSelect={onSelect} />
@@ -83,6 +84,13 @@ function PlanReviewItem({ card, onSelect, onChanged }: PlanReviewItemProps) {
         </div>
 
         <div className="acts">
+          {mr === null ? (
+            <span className="movable">計画の PR がまだありません</span>
+          ) : (
+            <a className="btn ghost" href={mr.webUrl} target="_blank" rel="noreferrer">
+              計画の PR #{mr.iid} を読む ↗
+            </a>
+          )}
           <button
             type="button"
             className={open ? 'btn ghost' : 'btn'}
@@ -90,7 +98,7 @@ function PlanReviewItem({ card, onSelect, onChanged }: PlanReviewItemProps) {
             aria-controls={panelId}
             onClick={() => setOpen((on) => !on)}
           >
-            {open ? '計画を閉じる' : '計画を読んで判断する'}
+            {open ? '閉じる' : '判断する'}
           </button>
         </div>
 
@@ -99,9 +107,6 @@ function PlanReviewItem({ card, onSelect, onChanged }: PlanReviewItemProps) {
 
       {open && (
         <div className="plan-view" id={panelId}>
-          <div>
-            <PlanSection card={card} />
-          </div>
           <div className="review-pane">
             {error !== null && <div className="divergence">{error}</div>}
             <ReviewActions card={card} saving={saving} onRun={run} />

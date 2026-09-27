@@ -1,5 +1,5 @@
 import type { MoveTarget } from '../shared/card-reorder.js';
-import type { Board, BoardCard, PlanDocument, ReviewGate, ReviewKind } from './types.js';
+import type { Board, BoardCard, ReviewGate, ReviewKind } from './types.js';
 
 // ============================================================
 // API クライアント
@@ -21,10 +21,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function fetchBoard(): Promise<Board> {
   return request<Board>('/api/board');
-}
-
-export function fetchPlan(id: string): Promise<PlanDocument> {
-  return request<PlanDocument>(`/api/plans/${encodeURIComponent(id)}`);
 }
 
 export function createCard(input: {

@@ -29,10 +29,3 @@ export interface PlanDoc {
 
 /** カード ID をキーにした全計画の状態 */
 export type PlanState = ReadonlyMap<CardId, PlanDoc>;
-
-/** 本文まで含む 1 件。詳細パネルで人が読むためのもの */
-export interface PlanDocument {
-  readonly cardId: CardId;
-  readonly body: string;
-  readonly tasks: TaskProgress;
-}

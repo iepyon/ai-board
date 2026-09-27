@@ -25,17 +25,12 @@ export interface BoardCardReview {
   reason: string;
 }
 
-/** `GET /api/plans/:id` のレスポンス。本文はボードには載らない */
-export interface PlanDocument {
-  id: string;
-  body: string;
-  tasks: { completed: number; total: number };
-}
-
 export interface BoardCardMr {
   forge: ForgeKind;
   iid: number;
   state: 'opened' | 'closed' | 'locked' | 'merged';
+  /** Draft か。計画の PR として人に読ませている段階 */
+  draft: boolean;
   title: string;
   webUrl: string;
   noteCount: number;

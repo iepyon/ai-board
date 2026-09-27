@@ -124,25 +124,3 @@ describe('FsPlanRepository.load', () => {
     expect(doc?.tasks).toEqual({ completed: 0, total: 2 });
   });
 });
-
-// ============================================================
-// readBody()
-// ============================================================
-
-describe('FsPlanRepository.readBody', () => {
-  it('計画の本文を返す', async () => {
-    await writeFile('.ai-board/plans/refresh-token.md', '# 計画\n\n本文');
-
-    expect(await repository().readBody('refresh-token' as CardId)).toBe('# 計画\n\n本文');
-  });
-
-  it('archive 配下の計画も読める', async () => {
-    await writeFile('.ai-board/plans/archive/board-lanes.md', '# 済んだ計画');
-
-    expect(await repository().readBody('board-lanes' as CardId)).toBe('# 済んだ計画');
-  });
-
-  it('無ければ null を返す', async () => {
-    expect(await repository().readBody('missing' as CardId)).toBeNull();
-  });
-});

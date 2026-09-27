@@ -111,6 +111,7 @@ function toBoardCardMr(mr: MrState | null): BoardCardMr | null {
     forge: mr.forge,
     iid: mr.iid,
     state: mr.state,
+    draft: mr.draft,
     title: mr.title,
     webUrl: mr.webUrl,
     noteCount: mr.noteCount,

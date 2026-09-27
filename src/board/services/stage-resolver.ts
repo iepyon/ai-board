@@ -38,11 +38,16 @@ export interface StageResolution {
  * | # | stage       | 条件                                                 |
  * |---|-------------|------------------------------------------------------|
  * | 1 | merged      | 計画が archive 済み、または MR が merged               |
- * | 2 | pr          | MR が opened                                          |
+ * | 2 | pr          | MR が opened かつ Draft でない                         |
  * | 3 | impling     | plan 承認済み                                         |
- * | 4 | plan-review | 計画ファイルが存在し plan ゲートが none / submitted    |
+ * | 4 | plan-review | 計画ファイルか Draft の MR があり plan ゲートが none / submitted |
  * | 5 | planning    | startedAt が非 null                                   |
  * | 6 | idea        | 既定                                                  |
+ *
+ * 計画と実装は同じ 1 本の PR に載る。AI は計画をコミットした時点で Draft の PR を出し、
+ * 人はその PR で計画を読んで、ボードのボタンで承認 / 否決する。実装を終えて
+ * Ready にした時点で PR中 へ進む。計画ファイルはブランチにあり、ボードを動かす
+ * チェックアウトからは見えないことが多いので、Draft の PR も計画の成果物として扱う。
  *
  * 否決の差し戻しは専用ルールを持たない。`gate = rejected` のとき
  * その工程のレビュー行と承認行が両方外れ、1 つ手前の列へ自然に落ちる。
@@ -126,9 +131,9 @@ const RULES: ReadonlyArray<(facts: Facts) => Derivation | null> = [
   ({ mr }) =>
     mr?.state === 'merged' ? { stage: 'merged', reason: `MR !${mr.iid} がマージ済み` } : null,
 
-  // 2. pr — MR が出ている。レビュー後の修正 push はバッジで示す
+  // 2. pr — MR が Ready で出ている。レビュー後の修正 push はバッジで示す
   ({ mr }) =>
-    mr?.state === 'opened'
+    mr?.state === 'opened' && !mr.draft
       ? {
           stage: 'pr',
           reason: hasFixAfterReview(mr)
@@ -142,13 +147,20 @@ const RULES: ReadonlyArray<(facts: Facts) => Derivation | null> = [
     gates.plan === 'approved' ? { stage: 'impling', reason: '計画が承認されている' } : null,
 
   // 4. plan-review — 成果物があることを正とし、ログの欠落で人待ちを取りこぼさない
-  ({ gates, plan }) =>
-    plan !== null && (gates.plan === 'none' || gates.plan === 'submitted')
+  ({ gates, plan, mr }) => {
+    if (gates.plan !== 'none' && gates.plan !== 'submitted') return null;
+
+    if (mr?.state === 'opened' && mr.draft) {
+      return { stage: 'plan-review', reason: `計画の PR #${mr.iid}（Draft）が人の承認を待っている` };
+    }
+
+    return plan !== null
       ? {
           stage: 'plan-review',
           reason: `.ai-board/plans/${plan.cardId}.md が人の承認を待っている`,
         }
-      : null,
+      : null;
+  },
 
   // 5. planning — 人が着手を指示した。ここが人の列の上限になる
   ({ card }) =>
