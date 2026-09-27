@@ -231,7 +231,7 @@ MR の承認とマージは GitLab 側の実態であり、カード本文に写
 
 ## タスク
 
-詳細な手順・テストコード・差分は `docs/superpowers/plans/2026-09-11-board-lanes.md` にある。
+詳細な手順・テストコード・差分は `docs/superpowers/plans/2026-09-11-board-lanes.md` にあった（削除済み。`git show 0bcd537:docs/superpowers/plans/2026-09-11-board-lanes.md` で読める）。
 ここは進捗の追跡単位として、その 9 タスクを検証方法つきで並べたもの。
 
 ### 1. レビューログ
