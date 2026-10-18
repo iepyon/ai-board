@@ -65,7 +65,6 @@ export class FsPlanRepository implements PlanRepository {
 
     return states;
   }
-
 }
 
 // ============================================================

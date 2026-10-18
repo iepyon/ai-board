@@ -151,7 +151,10 @@ const RULES: ReadonlyArray<(facts: Facts) => Derivation | null> = [
     if (gates.plan !== 'none' && gates.plan !== 'submitted') return null;
 
     if (mr?.state === 'opened' && mr.draft) {
-      return { stage: 'plan-review', reason: `計画の PR #${mr.iid}（Draft）が人の承認を待っている` };
+      return {
+        stage: 'plan-review',
+        reason: `計画の PR #${mr.iid}（Draft）が人の承認を待っている`,
+      };
     }
 
     return plan !== null
