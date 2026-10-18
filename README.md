@@ -396,10 +396,14 @@ npm test              # vitest（unit + supertest による API e2e）
 npm run test:coverage # カバレッジ（閾値 80%）
 npm run lint
 npm run typecheck
+npm run format:check  # Prettier（崩れていたら npm run format）
 npm run build
 npm run dev           # サーバのみ（tsx watch）
 npm run dev:web       # Vite dev サーバ（/api を 5673 へプロキシ）
 ```
+
+CI（`.github/workflows/ci.yml`）は PR と main への push で typecheck / lint / format:check /
+test:coverage / build を走らせる。PR のレビューだけに効く指示は `REVIEW.md` にある。
 
 ### Claude Code のプレビュー
 

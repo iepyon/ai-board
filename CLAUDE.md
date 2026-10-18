@@ -24,8 +24,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 コミット前に必ず通す。
 
 ```bash
-npm run typecheck && npm run lint && npm test
+npm run typecheck && npm run lint && npm run format:check && npm test
 ```
+
+同じものを CI（`.github/workflows/ci.yml`）が PR と main への push で走らせる
+（テストはカバレッジ閾値付きの `test:coverage`、加えて `build`）。
+整形が崩れていたら `npm run format` で直す。
+PR のレビューだけに効く指示は `REVIEW.md` に置く。
 
 - `typecheck` は tsc を 2 回走らせる（`tsconfig.json` = サーバ、`tsconfig.web.json` = web）。
   片方だけ通っても不十分。
