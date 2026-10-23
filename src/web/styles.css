@@ -724,7 +724,8 @@ details.fold[open] > summary h2::before {
   top: 0;
   right: 0;
   bottom: 0;
-  width: min(560px, 100%);
+  /* 広い画面では本文を読みやすい幅まで広げる。上限は後ろのボードの左側が見える程度に抑える */
+  width: min(100%, clamp(560px, 55vw, 880px));
   background: var(--surface);
   border-left: 1px solid var(--border);
   box-shadow: -4px 0 20px rgba(0, 0, 0, 0.12);
