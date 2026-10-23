@@ -142,7 +142,7 @@ CLAUDE.md の「1 周の流れ」にある「AI が Plan モードで計画を�
 
 ### 3. スキル
 
-- [ ] `.claude/skills/board-loop/SKILL.md`（frontmatter: `name: board-loop`、`description`）に次の手順を書く
+- [x] `.claude/skills/board-loop/SKILL.md`（frontmatter: `name: board-loop`、`description`）に次の手順を書く
   - メインのチェックアウトで `npm run build` し、`node dist/cli.js status --json` を読む
   - `forge.status` が `connected` でなければ（`github:` の無いリポジトリを除く）、理由を報告して終わる（何も書かない）
   - `next` が `null` なら `waiting` を報告して終わる（何も書かない）
@@ -153,7 +153,7 @@ CLAUDE.md の「1 周の流れ」にある「AI が Plan モードで計画を�
     全部倒れていれば `/code-review` の指摘を直す → `git mv` で計画を `plans/archive/` へ移してコミット・push → `gh pr ready`。
     計画は `plans/` と `plans/archive/` の両方から探す（archive 済みなら `gh pr ready` だけをやり直す）
   - 最後に、何をしたかと、次に人が見るべきものを 3 行以内で報告する
-- [ ] ハードルールを書く: `startedAt` / `rank` / `skipGates` を書かない、承認 / 否決 / 中止を書かない、
+- [x] ハードルールを書く: `startedAt` / `rank` / `skipGates` を書かない、承認 / 否決 / 中止を書かない、
   計画レビュー / PR中 のカードに触らない、品質ゲートを通らないままコミットしない、
   カード ID・ブランチ名・PR 番号を推測で作らない（見つからなければ止まって報告する）、1 周で 1 手だけ
 
