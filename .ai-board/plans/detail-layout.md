@@ -90,5 +90,5 @@
 ### 2. 仕上げ
 
 - [x] 2.1 `README.md` の詳細パネルの説明を直す
-- [ ] 2.2 `npm run typecheck && npm run lint && npm run format:check && npm test` を通す
+- [x] 2.2 `npm run typecheck && npm run lint && npm run format:check && npm test` を通す
 - [ ] 2.3 実際の画面で確かめる（判断待ちのカードとそうでないカード、1400px と 600px の幅、ライト / ダーク）
