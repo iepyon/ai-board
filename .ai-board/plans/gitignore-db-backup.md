@@ -47,5 +47,5 @@ README と CLAUDE.md には DB の退避の手順が書かれていない。`.gi
 
 ## タスク
 
-- [ ] `.gitignore` の DB の 2 行を `/.ai-board/board.db*` の 1 行にまとめ、コメントにバックアップも含むことを書く
+- [x] `.gitignore` の DB の 2 行を `/.ai-board/board.db*` の 1 行にまとめ、コメントにバックアップも含むことを書く
 - [ ] `git check-ignore -v` で `board.db` / `board.db-wal` / `board.db-shm` / `board.db.bak-20261023` / `board.db.bak-20261023-shm` が無視され、`config.example.yaml` と `plans/` が無視されないことを確かめる
