@@ -59,5 +59,5 @@ GitLab 連携は廃止し、取得先は GitHub の PR だけになった。そ�
 
 - [x] `stage-resolver.ts` の理由の `MR !n` を `PR #n` にし、`stage-resolver.test.ts` に理由の文言のテストを足す
 - [x] `LinkFields.tsx` のラベル `MR iid` を `PR 番号` にする（同じファイルの PR へのリンクの `!n` も、他の画面に合わせて `#n` にした）
-- [ ] 古い説明を直す（`card.repository.ts` の Markdown ファイル、`stage-resolver.ts` / `board-card.ts` / `web/types.ts` のドラッグ）
+- [x] 古い説明を直す（`card.repository.ts` の Markdown ファイル、`stage-resolver.ts` / `board-card.ts` / `web/types.ts` のドラッグ）
 - [ ] CLAUDE.md の書き込み境界の表の「MR 番号の書き戻し」を「PR 番号の書き戻し」にする
