@@ -10,11 +10,11 @@ import type { MrState } from '../models/mr-state.js';
 // ============================================================
 
 /**
- * 人が直接ドラッグで動かせるステージ。
+ * 人が直接動かせるステージ。
  *
- * `startedAt` の打刻と取り消しに対応する 1 遷移だけ。
+ * 「着手」「着手を戻す」のボタン（`startedAt` の打刻と取り消し）に対応する 1 遷移だけ。
  * 残りは AI の成果物（計画ファイル / レビュー要求）か、本文のレビューログが立てる。
- * レビューログへの書き込みはドラッグではなくボタンで行う。
+ * レビューログへの書き込みも、承認 / 否決 / 中止のボタンで行う。
  */
 export const HUMAN_STAGES = ['idea', 'planning'] as const satisfies readonly Stage[];
 
@@ -37,10 +37,10 @@ export interface StageResolution {
  *
  * | # | stage       | 条件                                                 |
  * |---|-------------|------------------------------------------------------|
- * | 1 | merged      | 計画が archive 済み、または MR が merged               |
- * | 2 | pr          | MR が opened かつ Draft でない                         |
+ * | 1 | merged      | 計画が archive 済み、または PR が merged               |
+ * | 2 | pr          | PR が opened かつ Draft でない                         |
  * | 3 | impling     | plan 承認済み                                         |
- * | 4 | plan-review | 計画ファイルか Draft の MR があり plan ゲートが none / submitted |
+ * | 4 | plan-review | 計画ファイルか Draft の PR があり plan ゲートが none / submitted |
  * | 5 | planning    | startedAt が非 null                                   |
  * | 6 | idea        | 既定                                                  |
  *
@@ -119,7 +119,7 @@ function toFacts(card: Card, plan: PlanDoc | null, mr: MrState | null): Facts {
  * 制御構造ではなく配列の順序で表す。
  */
 const RULES: ReadonlyArray<(facts: Facts) => Derivation | null> = [
-  // 1. merged — 計画が archive されたか、MR がマージされたか
+  // 1. merged — 計画が archive されたか、PR がマージされたか
   ({ plan }) =>
     plan?.archived === true
       ? {
@@ -129,16 +129,16 @@ const RULES: ReadonlyArray<(facts: Facts) => Derivation | null> = [
       : null,
 
   ({ mr }) =>
-    mr?.state === 'merged' ? { stage: 'merged', reason: `MR !${mr.iid} がマージ済み` } : null,
+    mr?.state === 'merged' ? { stage: 'merged', reason: `PR #${mr.iid} がマージ済み` } : null,
 
-  // 2. pr — MR が Ready で出ている。レビュー後の修正 push はバッジで示す
+  // 2. pr — PR が Ready で出ている。レビュー後の修正 push はバッジで示す
   ({ mr }) =>
     mr?.state === 'opened' && !mr.draft
       ? {
           stage: 'pr',
           reason: hasFixAfterReview(mr)
-            ? `MR !${mr.iid} にレビュー後の修正コミットあり（再レビュー待ち）`
-            : `MR !${mr.iid} がオープン`,
+            ? `PR #${mr.iid} にレビュー後の修正コミットあり（再レビュー待ち）`
+            : `PR #${mr.iid} がオープン`,
         }
       : null,
 
@@ -192,7 +192,7 @@ function deriveStage(facts: Facts): Derivation {
 /**
  * 「AI が指摘を受けて修正を push した」か。
  *
- * レビューコメントが 1 件も無い新規 MR では成立しない。
+ * レビューコメントが 1 件も無い新規 PR では成立しない。
  * 新しいコメントが来れば日時が逆転し、自然に false へ戻る。
  *
  * かつては `ai-pr-fixed` 列を立てていたが、いまは `pr` 列内のバッジに使う。

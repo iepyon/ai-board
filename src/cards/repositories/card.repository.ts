@@ -6,7 +6,7 @@ import type { Card } from '../models/card.js';
 // ============================================================
 
 /**
- * 実装は `.ai-board/cards/` 配下の Markdown ファイル。
+ * 実装は `.ai-board/board.db`（SQLite）の `cards` テーブル（`SqliteCardRepository`）。
  * usecase はこのインターフェースにのみ依存する。
  */
 export interface CardRepository {

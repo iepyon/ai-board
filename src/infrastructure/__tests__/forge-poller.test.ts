@@ -59,7 +59,7 @@ function makeMr(overrides: Partial<MrState> = {}): MrState {
     draft: false,
     sourceBranch: 'feat/refresh-token',
     title: 'MR',
-    webUrl: 'http://localhost:8080/mr/42',
+    webUrl: 'https://github.com/acme/board/pull/42',
     latestNoteAt: null,
     noteCount: 0,
     latestCommitAt: null,
@@ -153,7 +153,7 @@ describe('ForgePoller', () => {
     expect(onUpdate).toHaveBeenCalledTimes(1);
   });
 
-  it('MR の状態が変われば onUpdate を呼ぶ', async () => {
+  it('PR の状態が変われば onUpdate を呼ぶ', async () => {
     const repository = new InMemoryCardRepository([makeCard({ mr: 42 as MergeRequestIid })]);
     let state: MrState['state'] = 'opened';
     const client = stubClient({ fetchByIid: vi.fn(async () => makeMr({ state })) });
@@ -208,7 +208,7 @@ describe('ForgePoller', () => {
     expect(poller.get('refresh-token')?.iid).toBe(42);
   });
 
-  it('MR が消えたらキャッシュから外す', async () => {
+  it('PR が消えたらキャッシュから外す', async () => {
     const repository = new InMemoryCardRepository([makeCard({ mr: 42 as MergeRequestIid })]);
     let found = true;
     const client = stubClient({ fetchByIid: vi.fn(async () => (found ? makeMr() : null)) });

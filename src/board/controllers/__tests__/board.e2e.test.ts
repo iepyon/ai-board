@@ -132,7 +132,7 @@ describe('GET /api/board', () => {
     expect(JSON.stringify(response.body)).not.toContain('ここに長い本文が入る');
   });
 
-  it('MR の状態を反映する', async () => {
+  it('PR の状態を反映する', async () => {
     await writeCard('s3-upload', '---\nid: s3-upload\ntitle: S3 アップロード\nmr: 38\n---\n');
 
     const mr: MrState = {
@@ -142,7 +142,7 @@ describe('GET /api/board', () => {
       draft: false,
       sourceBranch: 'feat/s3',
       title: 'S3 アップロード',
-      webUrl: 'http://localhost:8080/mr/38',
+      webUrl: 'https://github.com/acme/board/pull/38',
       latestNoteAt: '2026-09-04T10:00:00.000Z',
       noteCount: 1,
       latestCommitAt: '2026-09-04T10:30:00.000Z',
@@ -155,7 +155,7 @@ describe('GET /api/board', () => {
 
     expect(response.body.cards[0].stage).toBe('pr');
     expect(response.body.cards[0].mrState.resubmitted).toBe(true);
-    expect(response.body.cards[0].mrState.webUrl).toBe('http://localhost:8080/mr/38');
+    expect(response.body.cards[0].mrState.webUrl).toBe('https://github.com/acme/board/pull/38');
     expect(response.body.forge).toEqual({ status: 'connected', kind: 'github' });
   });
 
@@ -179,7 +179,7 @@ describe('GET /api/board', () => {
       state: 'merged',
       sourceBranch: 'feat/shipped',
       title: '出荷',
-      webUrl: 'http://localhost:8080/mr/40',
+      webUrl: 'https://github.com/acme/board/pull/40',
       latestNoteAt: null,
       noteCount: 0,
       latestCommitAt: null,
@@ -484,7 +484,7 @@ describe('移動できる先の制限', () => {
     expect(card.droppableStages).toEqual([]);
   });
 
-  it('MR があるカードはどこへも動かせない', async () => {
+  it('Ready の PR があるカードはどこへも動かせない', async () => {
     await writeCard('in-review', '---\nid: in-review\ntitle: レビュー中\nmr: 42\n---\n');
 
     const mr: MrState = {
@@ -494,7 +494,7 @@ describe('移動できる先の制限', () => {
       draft: false,
       sourceBranch: 'feat/x',
       title: 'MR',
-      webUrl: 'http://localhost:8080/mr/42',
+      webUrl: 'https://github.com/acme/board/pull/42',
       latestNoteAt: null,
       noteCount: 0,
       latestCommitAt: null,

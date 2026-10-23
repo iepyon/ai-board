@@ -12,14 +12,14 @@ export const DEFAULT_POLL_INTERVAL_MS = 30_000;
 
 export interface ForgePollerOptions {
   readonly intervalMs?: number;
-  /** MR 状態が変わったときに呼ばれる（SSE 通知に使う） */
+  /** PR の状態が変わったときに呼ばれる（SSE 通知に使う） */
   readonly onUpdate?: () => void;
 }
 
 /**
- * カード単位で MR を問い合わせ、結果をメモリにキャッシュする。
+ * カード単位で PR を問い合わせ、結果をメモリにキャッシュする。
  *
- * MR 一覧の全件取得はページングで取りこぼすため使わない。
+ * PR 一覧の全件取得はページングで取りこぼすため使わない。
  * 取得先がダウンしていてもボードは落とさず、接続状態だけを error にする。
  */
 export class ForgePoller implements MrStateProvider {

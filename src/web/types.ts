@@ -54,7 +54,7 @@ export interface BoardCard {
   latestReview: BoardCardReview | null;
   /** 着手を取り消しても残るステージ＝AI の成果物とレビュー記録が課す下限 */
   floorStage: Stage;
-  /** 人が手でドロップできる列。空なら AI の領分でドラッグ不可 */
+  /** 人が「着手」「着手を戻す」で置ける列（今の列も含む）。空なら AI の領分で、人は動かせない */
   droppableStages: Stage[];
   startedAt: string | null;
   skipGates: ReviewGate[];
@@ -85,7 +85,7 @@ export interface Board {
 }
 
 /**
- * 人が直接ドラッグで動かせるステージ。
+ * 人が直接動かせるステージ（「着手」「着手を戻す」のボタン）。
  * 残りは AI の成果物か、レビューボタンの追記で決まる。
  */
 export const HUMAN_STAGES: Stage[] = ['idea', 'planning'];
