@@ -137,7 +137,7 @@ cron はセッションが手すきのときに発火するので、作業者が
 
 ### 4. 確かめる
 
-- [ ] `npm run typecheck && npm run lint && npm run format:check && npm test`
+- [x] `npm run typecheck && npm run lint && npm run format:check && npm test`
 - [ ] このカード自身も、Ready にする直前に計画を `plans/archive/` へ移す
 
 ### マージ後に確かめること
