@@ -2,10 +2,13 @@ import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { startServer, DEFAULT_PORT } from './server.js';
-import { BOARD_DIR, DB_ENV, resolvePaths, type AppConfig } from './shared/config.js';
+import { BOARD_DIR, DB_ENV, loadConfig, resolvePaths, type AppConfig } from './shared/config.js';
 import { openDatabase } from './infrastructure/database.js';
+import { createCliRunner } from './infrastructure/cli-runner.js';
 import { createCardDependencies } from './cards/composition.js';
 import { runCardCli, runImport, type CardCliIo } from './cards/cli/card-cli.js';
+import { createBoardDependencies, createMrStateSource } from './board/composition.js';
+import { parseStatusArgs, runStatusCli, STATUS_USAGE } from './board/cli/status-cli.js';
 
 // ============================================================
 // ai-board CLI
@@ -20,6 +23,7 @@ interface CliOptions {
 
 const USAGE = `使い方: ai-board [options]
        ai-board card <command> [--root <path>]    カードの読み書き（ai-board card --help）
+       ai-board status [--json] [--root <path>]   ボードの状態と次の一手（サーバ不要）
        ai-board import [--from <dir>] [--root <path>]
                                                   .ai-board/cards/*.md を DB に取り込む
 
@@ -120,6 +124,48 @@ async function runSubcommand(command: 'card' | 'import', argv: readonly string[]
   }
 }
 
+/**
+ * `status` サブコマンド。サーバを起動せず、ボードと同じ組み立てでステージを導出する。
+ *
+ * PR の状態はポーリングせず、`refresh()` を 1 回だけ待ってから読む。
+ * `branch` から解決した PR 番号の書き戻しも、サーバと同じくここで起きる。
+ */
+async function runStatus(argv: readonly string[]): Promise<number> {
+  const { root, rest } = extractRoot(argv);
+  const io = createProcessIo();
+
+  // 引数の誤りや --help で、GitHub への問い合わせと PR 番号の書き戻しを起こさない
+  const args = parseStatusArgs(rest);
+  if (typeof args === 'string') {
+    io.stderr(STATUS_USAGE);
+    return args === 'help' ? 0 : 1;
+  }
+
+  const config = loadConfig(root);
+  const db = openDatabase(config.paths.dbPath);
+
+  try {
+    const cards = createCardDependencies(db);
+    const { provider, poller } = await createMrStateSource(
+      config.forge,
+      cards.cardRepository,
+      createCliRunner()
+    );
+    await poller?.refresh();
+
+    const board = createBoardDependencies(
+      config.paths.plansDir,
+      cards.cardRepository,
+      cards.ideaDividerRepository,
+      provider
+    );
+
+    return await runStatusCli(rest, board, io);
+  } finally {
+    db.close();
+  }
+}
+
 /** `--root <path>` を取り除いた残りの引数を返す */
 function extractRoot(argv: readonly string[]): { root: string; rest: string[] } {
   const index = argv.indexOf('--root');
@@ -153,6 +199,11 @@ async function main(): Promise<void> {
 
   if (command === 'card' || command === 'import') {
     process.exitCode = await runSubcommand(command, rest);
+    return;
+  }
+
+  if (command === 'status') {
+    process.exitCode = await runStatus(rest);
     return;
   }
 

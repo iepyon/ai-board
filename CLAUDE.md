@@ -58,7 +58,12 @@ ai-board card body <id> < body.md  # 本文の差し替え（## レビュー の
 ai-board card branch <id> <name>   # ブランチの紐付け（--clear で外す）
 ai-board card submit <id> [--resubmit] [--reason <text>]   # plan 提出 / 再提出
 ai-board card create --title <t> [--id <id>] < body.md     # アイデアカードの起票
+ai-board status [--json]           # 導出したステージ・判断待ち・次の一手（サーバ不要）
 ```
+
+`status` はサーバを起動せず、ボードと同じ組み立て（`createMrStateSource` → `getBoardQuery`）でステージを導出する。
+PR の状態は `refresh()` を 1 回だけ待って引き、`branch` から解決した PR 番号の書き戻しもサーバと同じく起きる。
+次の一手は `src/board/services/next-action.ts` の `pickNextAction`（実装中 → 計画提案中、列の中は `rank` の順）が決める。
 
 `card show` の出力（DB の列を frontmatter の形で表したもの）:
 
@@ -98,7 +103,7 @@ Markdown 表現（`card-markdown.ts`）はこの取り込みと `card show` の�
 | ai-board サーバ | **read-only**                                | 書く（画面の操作・MR 番号の書き戻し）          |
 | AI エージェント | 書く（計画・タスクの更新・archive への移動） | `ai-board card` 経由で本文・ブランチ・提出のみ |
 
-エージェントが**やってはいけないこと**（`board-loop-skill` カードのハードルール）:
+エージェントが**やってはいけないこと**（`.claude/skills/board-loop/SKILL.md` のハードルールと同じ）:
 
 - `startedAt` を自分で打たない。これは人が着手を指示する合図。
 - `## レビュー` に書いてよいのは 提出 / 再提出 だけ。承認 / 否決 / 中止 は人が書く。
@@ -272,20 +277,30 @@ GitLab の MR !1 と GitHub の PR #1 は別物で、番号をそのまま引く
 計画は `.ai-board/plans/<card-id>.md` に置く。ファイル名がカード ID と一致することで
 カードと紐付くので、frontmatter に紐付け用のフィールドは無い。
 
-Plan モードで立てた計画をそのまま書き、タスクはチェックボックス（`- [ ]` / `- [x]`）で
+計画を書き、タスクはチェックボックス（`- [ ]` / `- [x]`）で
 並べる。カードのプログレスバーはこの行を数えている（インデントされたサブタスクも
 親と同じように数える）。チェックボックスの無い計画でもステージは動く。
 
 1 周の流れ:
 
 1. 人が `startedAt` を打つ（＝計画提案中へ）
-2. AI が Plan モードで計画を立て、`.ai-board/plans/<id>.md` に書いてコミットし、
+2. AI が計画を立て、`.ai-board/plans/<id>.md` に書いてコミットし、
    push して `gh pr create --draft` で Draft の PR を出す。`ai-board card branch <id> <branch>` で
    ブランチを紐付け、`ai-board card submit <id>` でカード本文の `## レビュー` に `plan 提出` を追記する
    （＝計画レビューへ）
 3. 人が Draft の PR で計画を読み、判断待ちの区画のボタンで承認 / 否決する（＝実装中へ）
-4. AI が同じブランチでタスクを倒し、AI レビューまで済ませてから `gh pr ready` で Ready にする（＝PR中へ）
-5. マージされたら計画を `.ai-board/plans/archive/<id>.md` へ移す（＝マージ済みへ）
+4. AI が同じブランチでタスクを倒し、AI レビューまで済ませる。計画を `.ai-board/plans/archive/<id>.md` へ
+   `git mv` してコミットしてから、`gh pr ready` で Ready にする（＝PR中へ）
+5. 人が PR をマージする（＝マージ済みへ。archive の移動も同時に main に入る）
+
+計画の確認は Draft の PR と計画レビューのゲートで人が行うので、Plan モードの承認は要らない。
+archive は別の PR にしない。マージと同時に main に入れば、GitHub が引けないときや
+`github:` の無いリポジトリでも マージ済み が立つ。
+
+手順 2・4 は `.claude/skills/board-loop/SKILL.md` のスキルが 1 周 1 手ずつ進める。
+`/loop 5m /board-loop` で間隔運転する。何をするかは `ai-board status --json` の `next` に従い、
+GitHub に接続できないとき（`forge.status` が `connected` でないとき。`github:` が無いときも含む）は
+`status` が `next` を `null` にするので、ループは何もせずに止まる。
 
 成果物は日本語で書く。
 

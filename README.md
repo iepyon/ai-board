@@ -200,12 +200,26 @@ ai-board card create --title <t> [--id <id>] < body.md
 ai-board card body <id> < body.md          # 本文の差し替え
 ai-board card branch <id> <name>           # ブランチの紐付け（--clear で外す）
 ai-board card submit <id> [--resubmit] [--reason <text>]   # plan 提出 / 再提出
+ai-board status [--json]                   # 導出したステージ・判断待ち・次の一手（サーバ不要）
 ```
 
 CLI にはエージェントに許す操作しか無い。`startedAt`・`rank`・`skipGates` の書き換えと、
 承認 / 否決 / 中止の追記は画面（HTTP API）からだけ行える。
 `body` は `## レビュー` のエントリが変わる差し替えを拒否するので、本文の差し替えで
 人の判断を書き換えることもできない。
+
+### AI ループ
+
+`.claude/skills/board-loop/SKILL.md` は、ボードを読んで AI が進めてよいカードを 1 手だけ進めるスキル。
+`/loop 5m /board-loop` で間隔運転する。
+
+- 何をするかは `ai-board status --json` の `next` が決める。優先順は 実装中 → 計画提案中、同じ列の中は `rank` の順
+- 1 手は次のどれか: 計画を書いて Draft の PR を出し提出する / 否決された計画を直して再提出する /
+  計画のタスクを 1 つ倒す / 倒し終えたら AI レビューと archive への移動を済ませて Ready にする
+- 計画レビュー / PR中 のカードには触らず、着手・承認・否決・中止・並び順・マージは人に任せる
+- GitHub に接続できないとき（`github:` が無いときも含む）は何もせずに止まる。PR の状態が引けないと、人を待つカードが AI の列に落ちて見えるため
+
+`status` を読むには、メインのチェックアウトのコードが `ai-board status` を持っている必要がある。
 
 移行前の `.ai-board/cards/<id>.md` は `ai-board import` で取り込める
 （`--from <dir>` で取り込み元を変えられる）。既に DB にある ID は上書きしない。
@@ -269,7 +283,9 @@ CLI にはエージェントに許す操作しか無い。`startedAt`・`rank`�
 インデントされたサブタスクも親と同じように数える（列 0 に固定すると
 `  - [ ] 1.1.1 …` が進捗から消えるため）。**タスクの進捗はステージを立てない。**
 
-マージされたら `.ai-board/plans/archive/<card-id>.md` へ移す。これがマージ済みの実態になる。
+タスクを倒し終えたら、PR を Ready にする直前に同じ PR の中で `.ai-board/plans/archive/<card-id>.md` へ移す。
+マージと同時に archive も main に入り、これがマージ済みの実態になる
+（GitHub が引けないときや、`github:` の無いリポジトリでも マージ済み が立つ）。
 
 計画を書くのは AI エージェントで、**ai-board サーバは read-only** に徹する。
 ボードは計画の本文を持たず、タスクの進捗と archive の有無だけを読む。

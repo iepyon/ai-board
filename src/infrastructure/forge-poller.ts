@@ -120,10 +120,24 @@ export class ForgePoller implements MrStateProvider {
     }
 
     if (card.mr !== mr.iid) {
-      await this.cardRepository.save({ ...card, mr: mr.iid });
+      await this.saveMr(card.id, mr.iid);
     }
 
     return changed;
+  }
+
+  /**
+   * PR 番号だけを書き戻す。
+   *
+   * `refresh()` の最初に読んだカードは、問い合わせを待つ数秒のうちに古くなっている
+   * （人が承認・着手・並べ替えをしているかもしれない）。書く直前に読み直し、番号以外は触らない。
+   */
+  private async saveMr(cardId: Card['id'], iid: MrState['iid']): Promise<void> {
+    const latest = await this.cardRepository.findById(cardId);
+
+    if (latest !== null && latest.mr !== iid) {
+      await this.cardRepository.save({ ...latest, mr: iid });
+    }
   }
 
   /** 番号が分かっていれば番号で、無ければブランチから解決する */
