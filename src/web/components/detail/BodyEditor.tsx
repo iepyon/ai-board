@@ -66,9 +66,11 @@ export function BodyEditor({ card, saving, onRun }: BodyEditorProps) {
       {changedOutside && (
         <div className="divergence">
           保存されている本文が外で書き換わりました。このまま保存すると、その変更を上書きします。
-          <button type="button" className="btn ghost" onClick={startEditing}>
-            書きかけを捨てて読み直す
-          </button>
+          <div className="actions">
+            <button type="button" className="btn ghost" onClick={startEditing}>
+              書きかけを捨てて読み直す
+            </button>
+          </div>
         </div>
       )}
 
