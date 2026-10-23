@@ -736,17 +736,44 @@ details.fold[open] > summary h2::before {
 
 .detail-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   padding: 12px 18px;
   border-bottom: 1px solid var(--border);
 }
 
+.detail-title {
+  flex: 1;
+  min-width: 0;
+}
+
 .detail-head h2 {
   margin: 0;
   font-size: 15px;
-  flex: 1;
   overflow-wrap: anywhere;
+}
+
+/* タイトルの下の 1 行。ステージ・タスクの進み・PR へのリンク */
+.detail-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+
+.detail-summary .stage-chip {
+  font-size: 12px;
+  padding: 1px 10px;
+}
+
+.detail-summary-item {
+  color: var(--text-2);
+}
+
+a.detail-summary-item {
+  color: var(--src-forge);
 }
 
 .detail-body {

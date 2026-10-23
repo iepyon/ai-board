@@ -4,6 +4,7 @@ import { PlanSection } from './detail/PlanSection.js';
 import { ReviewActions } from './detail/ReviewActions.js';
 import { LinkFields } from './detail/LinkFields.js';
 import { BodyEditor } from './detail/BodyEditor.js';
+import { SummaryLine } from './detail/SummaryLine.js';
 import { updateCardMeta, type CardMetaPatch } from '../api.js';
 import { useAction } from '../hooks/useAction.js';
 import { GATE_OF_STAGE, type BoardCard } from '../types.js';
@@ -33,7 +34,10 @@ export function CardDetail({ card, onClose, onChanged }: CardDetailProps) {
   return (
     <aside className="detail" aria-label={`${card.title} の詳細`}>
       <div className="detail-head">
-        <h2>{card.title}</h2>
+        <div className="detail-title">
+          <h2>{card.title}</h2>
+          <SummaryLine card={card} />
+        </div>
         <button type="button" className="btn ghost" onClick={onClose}>
           閉じる
         </button>
