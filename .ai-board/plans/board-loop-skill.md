@@ -171,9 +171,14 @@ CLAUDE.md の「1 周の流れ」にある「AI が Plan モードで計画を�
 
 ### 5. 確かめる
 
-- [ ] `npm run typecheck && npm run lint && npm run format:check && npm test`
-- [ ] `npm run build` のあと `node dist/cli.js status` と `status --json` を実行し、ボードの画面（判断待ち / AI 作業中）と食い違わないこと
-- [ ] サーバを止めた状態でも `status` が動くこと。`config.yaml` に `github:` の無い `--root` でも落ちないこと
-- [ ] 着手済みのダミーのカードを 1 枚作り、`/board-loop` を手で 1 回呼んで、Draft の PR と `plan 提出` までで止まることを確かめる
-- [ ] GitHub が引けない状態（`gh auth logout` 相当を偽の `ForgeClient` で再現）で、`status --json` の `forge.status` が `connected` でなく、スキルが止まる手順になっていること
-- [ ] このカード自身も、Ready にする直前に計画を `plans/archive/` へ移す
+- [x] `npm run typecheck && npm run lint && npm run format:check && npm test`
+- [x] `npm run build` のあと `node dist/cli.js status` と `status --json` を実行し、ボードの画面（判断待ち / AI 作業中）と食い違わないこと
+- [x] サーバを止めた状態でも `status` が動くこと。`config.yaml` に `github:` の無い `--root` でも落ちないこと
+- [x] GitHub が引けない状態（`GH_CONFIG_DIR` を空のディレクトリにして `gh` を未ログインにする）で、`status` が次の一手を出さないこと
+- [x] このカード自身も、Ready にする直前に計画を `plans/archive/` へ移す
+
+### マージ後に確かめること
+
+メインのチェックアウトのコードが `ai-board status` を持つのはこの PR のマージ後なので、スキルを通しで動かすのはマージ後になる。
+
+- 着手済みのダミーのカードを 1 枚作り、`/board-loop` を手で 1 回呼んで、Draft の PR と `plan 提出` までで止まることを確かめる
