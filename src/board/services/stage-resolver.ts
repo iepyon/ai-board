@@ -129,7 +129,7 @@ const RULES: ReadonlyArray<(facts: Facts) => Derivation | null> = [
       : null,
 
   ({ mr }) =>
-    mr?.state === 'merged' ? { stage: 'merged', reason: `MR !${mr.iid} がマージ済み` } : null,
+    mr?.state === 'merged' ? { stage: 'merged', reason: `PR #${mr.iid} がマージ済み` } : null,
 
   // 2. pr — MR が Ready で出ている。レビュー後の修正 push はバッジで示す
   ({ mr }) =>
@@ -137,8 +137,8 @@ const RULES: ReadonlyArray<(facts: Facts) => Derivation | null> = [
       ? {
           stage: 'pr',
           reason: hasFixAfterReview(mr)
-            ? `MR !${mr.iid} にレビュー後の修正コミットあり（再レビュー待ち）`
-            : `MR !${mr.iid} がオープン`,
+            ? `PR #${mr.iid} にレビュー後の修正コミットあり（再レビュー待ち）`
+            : `PR #${mr.iid} がオープン`,
         }
       : null,
 
