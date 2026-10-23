@@ -46,7 +46,7 @@ function makeMr(overrides: Partial<MrState> = {}): MrState {
     draft: false,
     sourceBranch: 'feat/refresh-token',
     title: 'リフレッシュトークン対応',
-    webUrl: 'http://localhost:8929/g/p/-/merge_requests/42',
+    webUrl: 'https://github.com/acme/board/pull/42',
     latestNoteAt: null,
     noteCount: 0,
     latestCommitAt: null,
@@ -195,7 +195,7 @@ describe('resolveStage — 自動導出', () => {
       expected: 'impling',
     },
     {
-      name: 'MR が opened なら pr',
+      name: 'PR が opened なら pr',
       card: makeCard({ startedAt: T1 }),
       plan: null,
       mr: makeMr({ state: 'opened' }),
@@ -250,7 +250,7 @@ describe('resolveStage — 自動導出', () => {
       expected: 'planning',
     },
     {
-      name: 'MR が merged なら merged',
+      name: 'PR が merged なら merged',
       card: makeCard({ startedAt: T1 }),
       plan: null,
       mr: makeMr({ state: 'merged' }),
@@ -401,7 +401,7 @@ describe('resolveFloorStage / droppableStages', () => {
     expect(droppableStages(floor)).toEqual([]);
   });
 
-  it('MR があれば手では動かせない', () => {
+  it('Ready の PR があれば手では動かせない', () => {
     const card = makeCard({ startedAt: T1 });
     const floor = resolveFloorStage(card, null, makeMr({ state: 'opened' }));
 

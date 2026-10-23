@@ -60,7 +60,7 @@ export interface BoardCard {
   readonly latestReview: BoardCardReview | null;
   /** 着手を取り消しても残るステージ＝AI の成果物とレビュー記録が課す下限 */
   readonly floorStage: Stage;
-  /** 人が「着手」「着手を戻す」で移せる列。空なら AI の領分で、人は動かせない */
+  /** 人が「着手」「着手を戻す」で置ける列（今の列も含む）。空なら AI の領分で、人は動かせない */
   readonly droppableStages: readonly Stage[];
   readonly startedAt: string | null;
   readonly skipGates: readonly ReviewGate[];

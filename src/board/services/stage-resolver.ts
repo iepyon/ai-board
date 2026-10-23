@@ -37,10 +37,10 @@ export interface StageResolution {
  *
  * | # | stage       | 条件                                                 |
  * |---|-------------|------------------------------------------------------|
- * | 1 | merged      | 計画が archive 済み、または MR が merged               |
- * | 2 | pr          | MR が opened かつ Draft でない                         |
+ * | 1 | merged      | 計画が archive 済み、または PR が merged               |
+ * | 2 | pr          | PR が opened かつ Draft でない                         |
  * | 3 | impling     | plan 承認済み                                         |
- * | 4 | plan-review | 計画ファイルか Draft の MR があり plan ゲートが none / submitted |
+ * | 4 | plan-review | 計画ファイルか Draft の PR があり plan ゲートが none / submitted |
  * | 5 | planning    | startedAt が非 null                                   |
  * | 6 | idea        | 既定                                                  |
  *
@@ -119,7 +119,7 @@ function toFacts(card: Card, plan: PlanDoc | null, mr: MrState | null): Facts {
  * 制御構造ではなく配列の順序で表す。
  */
 const RULES: ReadonlyArray<(facts: Facts) => Derivation | null> = [
-  // 1. merged — 計画が archive されたか、MR がマージされたか
+  // 1. merged — 計画が archive されたか、PR がマージされたか
   ({ plan }) =>
     plan?.archived === true
       ? {
@@ -131,7 +131,7 @@ const RULES: ReadonlyArray<(facts: Facts) => Derivation | null> = [
   ({ mr }) =>
     mr?.state === 'merged' ? { stage: 'merged', reason: `PR #${mr.iid} がマージ済み` } : null,
 
-  // 2. pr — MR が Ready で出ている。レビュー後の修正 push はバッジで示す
+  // 2. pr — PR が Ready で出ている。レビュー後の修正 push はバッジで示す
   ({ mr }) =>
     mr?.state === 'opened' && !mr.draft
       ? {
@@ -192,7 +192,7 @@ function deriveStage(facts: Facts): Derivation {
 /**
  * 「AI が指摘を受けて修正を push した」か。
  *
- * レビューコメントが 1 件も無い新規 MR では成立しない。
+ * レビューコメントが 1 件も無い新規 PR では成立しない。
  * 新しいコメントが来れば日時が逆転し、自然に false へ戻る。
  *
  * かつては `ai-pr-fixed` 列を立てていたが、いまは `pr` 列内のバッジに使う。

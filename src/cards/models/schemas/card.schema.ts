@@ -36,7 +36,7 @@ export const CardFrontmatterSchema = z.object({
   startedAt: nullableField(IsoDateTime).default(null),
   /** 人が事前に見ないと宣言したゲート */
   skipGates: z.array(ReviewGateSchema).default([]),
-  /** Git のブランチ名。MR iid の自動解決に使う */
+  /** Git のブランチ名。PR 番号の自動解決に使う */
   branch: nullableField(z.string().min(1).max(200)).default(null),
   /** レビュー要求の識別番号（GitHub の PR number） */
   mr: nullableField(z.number().int().positive()).default(null),

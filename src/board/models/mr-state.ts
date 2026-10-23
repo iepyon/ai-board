@@ -1,7 +1,7 @@
 import type { MergeRequestIid } from '../../shared/schemas/common.js';
 
 // ============================================================
-// レビュー要求（MR / PR）の状態
+// レビュー要求（GitHub の PR）の状態
 // ============================================================
 
 export const MR_STATES = ['opened', 'closed', 'locked', 'merged'] as const;

@@ -1,7 +1,7 @@
 import type { ForgeConnection, ForgeKind, MrState } from '../models/mr-state.js';
 
 // ============================================================
-// MR 状態の供給元
+// PR の状態の供給元
 // ============================================================
 
 /**
@@ -9,7 +9,7 @@ import type { ForgeConnection, ForgeKind, MrState } from '../models/mr-state.js'
  * 実体はバックグラウンドポーラーが持つキャッシュ。
  */
 export interface MrStateProvider {
-  /** カード ID に対応する MR 状態をキャッシュから返す */
+  /** カード ID に対応する PR の状態をキャッシュから返す */
   get(cardId: string): MrState | null;
   connection(): ForgeConnection;
 }
