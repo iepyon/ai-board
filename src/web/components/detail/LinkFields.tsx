@@ -2,7 +2,7 @@ import type { BoardCard } from '../../types.js';
 import type { CardMetaPatch } from '../../api.js';
 
 // ============================================================
-// branch / MR の紐付け
+// branch / PR の紐付け
 // ============================================================
 
 interface LinkFieldsProps {
@@ -39,7 +39,7 @@ export function LinkFields({ card, saving, onPatch }: LinkFieldsProps) {
       </div>
 
       <div className="field">
-        <label htmlFor="field-mr">MR iid</label>
+        <label htmlFor="field-mr">PR 番号</label>
         <input
           id="field-mr"
           type="number"
@@ -58,7 +58,7 @@ export function LinkFields({ card, saving, onPatch }: LinkFieldsProps) {
       {card.mrState !== null && (
         <p className="mr-link">
           <a href={card.mrState.webUrl} target="_blank" rel="noreferrer">
-            !{card.mrState.iid} {card.mrState.title}
+            #{card.mrState.iid} {card.mrState.title}
           </a>
           <br />
           レビューコメント {card.mrState.noteCount} 件
