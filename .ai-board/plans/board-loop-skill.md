@@ -128,8 +128,8 @@ CLAUDE.md の「1 周の流れ」にある「AI が Plan モードで計画を�
 
 ### 1. 次の一手
 
-- [ ] `src/board/services/next-action.ts` に `pickNextAction` と `NextAction`（`{ cardId, action, reason }`）を置く
-- [ ] `src/board/services/__tests__/next-action.test.ts`: 列の優先順、`rank` の順、中止の除外、否決からの `revise-plan`、
+- [x] `src/board/services/next-action.ts` に `pickNextAction` と `NextAction`（`{ cardId, action, reason }`）を置く
+- [x] `src/board/services/__tests__/next-action.test.ts`: 列の優先順、`rank` の順、中止の除外、否決からの `revise-plan`、
   提出済みで成果物の無いカードの除外、該当なしで `null`
 
 ### 2. `ai-board status`
