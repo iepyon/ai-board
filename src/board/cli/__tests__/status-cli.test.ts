@@ -10,7 +10,7 @@ import { SqliteCardRepository } from '../../../cards/repositories/sqlite-card.re
 import { createBoardDependencies } from '../../composition.js';
 import type { MrStateProvider } from '../../services/mr-state-provider.js';
 import type { ForgeConnection } from '../../models/mr-state.js';
-import { runStatusCli, type StatusReport } from '../status-cli.js';
+import { parseStatusArgs, runStatusCli, type StatusReport } from '../status-cli.js';
 
 // ============================================================
 // テスト用プロジェクトの組み立て
@@ -140,7 +140,9 @@ describe('ai-board status --json', () => {
     ]);
   });
 
-  it('GitHub が使えないときは接続状態に理由を載せる', async () => {
+  it('GitHub が使えないときは接続状態に理由を載せ、次の一手を出さない', async () => {
+    await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\n");
+
     const report = await runJson(
       stubProvider({ status: 'disabled', kind: 'github', reason: 'gh にログインしていません' })
     );
@@ -150,6 +152,39 @@ describe('ai-board status --json', () => {
       kind: 'github',
       reason: 'gh にログインしていません',
     });
+    expect(report.next).toBeNull();
+  });
+
+  it('問い合わせが失敗したときも、github: が無いときも次の一手を出さない', async () => {
+    await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\n");
+
+    const failed = await runJson(
+      stubProvider({ status: 'error', kind: 'github', message: 'HTTP 502' })
+    );
+    expect(failed.next).toBeNull();
+
+    stdout = '';
+    const unconfigured = await runJson(
+      stubProvider({ status: 'disabled', kind: null, reason: null })
+    );
+    expect(unconfigured.next).toBeNull();
+  });
+
+  it('AI 作業中には、提出済みで成果物の見えないカードを含めない', async () => {
+    await writeCard('lost', "startedAt: '2026-10-22T00:00:00.000Z'\n", review('提出'));
+    await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\n");
+
+    const report = await runJson();
+
+    expect(report.working).toEqual([
+      {
+        id: 'started',
+        title: 'started のタイトル',
+        stage: 'planning',
+        reason: expect.any(String),
+        stale: false,
+      },
+    ]);
   });
 });
 
@@ -175,10 +210,16 @@ describe('ai-board status', () => {
   });
 
   it('進められるカードが無ければ、次の一手は なし', async () => {
+    expect(await run([])).toBe(0);
+
+    expect(stdout).toContain('次の一手: なし（AI が進められるカードはありません）');
+  });
+
+  it('GitHub につながっていなければ、ループが止まることを出す', async () => {
     expect(await run([], stubProvider({ status: 'disabled', kind: null, reason: null }))).toBe(0);
 
     expect(stdout).toContain('GitHub: 未設定');
-    expect(stdout).toContain('次の一手: なし');
+    expect(stdout).toContain('次の一手: なし（GitHub に接続できないため、ループは止まります）');
   });
 });
 
@@ -196,5 +237,15 @@ describe('ai-board status の引数', () => {
     expect(await run(['--yaml'])).toBe(1);
     expect(stderr).toContain('使い方: ai-board status');
     expect(stdout).toBe('');
+  });
+});
+
+describe('parseStatusArgs', () => {
+  it('--json の有無、--help、不明な引数を見分ける', () => {
+    expect(parseStatusArgs([])).toEqual({ json: false });
+    expect(parseStatusArgs(['--json'])).toEqual({ json: true });
+    expect(parseStatusArgs(['--json', '--help'])).toBe('help');
+    expect(parseStatusArgs(['-h'])).toBe('help');
+    expect(parseStatusArgs(['--jsno'])).toBe('invalid');
   });
 });

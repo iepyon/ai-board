@@ -1,5 +1,5 @@
 import type { Stage } from '../../shared/schemas/common.js';
-import type { ReviewKind } from '../../cards/models/review.js';
+import type { GateState } from '../../cards/models/review.js';
 
 // ============================================================
 // 次の一手 — ループが 1 周で進めるものを決める純関数
@@ -31,7 +31,7 @@ export interface NextActionCard {
   readonly id: string;
   readonly stage: Stage;
   readonly aborted: boolean;
-  readonly latestReview: { readonly kind: ReviewKind } | null;
+  readonly gates: { readonly plan: GateState };
 }
 
 type Verdict = NextAction | StuckCard | null;
@@ -63,7 +63,7 @@ export function pickNextAction(cards: readonly NextActionCard[]): NextAction | n
 /**
  * AI の列にいるのに、ループが手を出さないカード。人に知らせるために使う。
  *
- * 計画提案中で最新のエントリが 提出 / 再提出 なのは、提出したのに計画ファイルも
+ * 計画提案中で plan ゲートが提出済みなのは、提出したのに計画ファイルも
  * Draft の PR も見えない状態である（どちらかがあれば 計画レビュー に上がる）。
  * 作り直すと PR やブランチを二重に作りかねないので、推測で動かない。
  */
@@ -82,18 +82,17 @@ function judge(card: NextActionCard): Verdict {
 
   if (card.stage !== 'planning') return null;
 
-  switch (card.latestReview?.kind) {
-    case undefined:
+  switch (card.gates.plan) {
+    case 'none':
       return { cardId: card.id, action: 'plan', reason: '着手が指示され、計画がまだ無い' };
-    case '否決':
+    case 'rejected':
       return { cardId: card.id, action: 'revise-plan', reason: '計画が否決された' };
-    case '提出':
-    case '再提出':
+    case 'submitted':
       return {
         cardId: card.id,
         reason: '計画を提出済みだが、計画ファイルも Draft の PR も見えない',
       };
-    default:
+    case 'approved':
       // 承認なら 実装中 に上がっているので、ここには来ない
       return null;
   }

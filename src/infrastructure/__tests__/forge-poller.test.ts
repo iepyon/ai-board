@@ -111,6 +111,25 @@ describe('ForgePoller', () => {
     expect(repository.cards.get('refresh-token')?.mr).toBe(42);
   });
 
+  it('問い合わせ中に人が書いた内容を、書き戻しで上書きしない', async () => {
+    const repository = new InMemoryCardRepository([makeCard({ branch: 'feat/refresh-token' })]);
+    const client = stubClient({
+      fetchByBranch: vi.fn(async () => {
+        // gh api の応答を待つ間に、人が画面で承認した
+        const card = repository.cards.get('refresh-token');
+        if (card !== undefined) {
+          repository.cards.set('refresh-token', { ...card, body: '## レビュー\n\n承認' });
+        }
+        return makeMr();
+      }),
+    });
+
+    await new ForgePoller(repository, client, { onUpdate }).refresh();
+
+    expect(repository.cards.get('refresh-token')?.mr).toBe(42);
+    expect(repository.cards.get('refresh-token')?.body).toBe('## レビュー\n\n承認');
+  });
+
   it('mr も branch も無いカードは問い合わせない', async () => {
     const client = stubClient();
 

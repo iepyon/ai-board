@@ -299,7 +299,8 @@ archive は別の PR にしない。マージと同時に main に入れば、Gi
 
 手順 2・4 は `.claude/skills/board-loop/SKILL.md` のスキルが 1 周 1 手ずつ進める。
 `/loop 5m /board-loop` で間隔運転する。何をするかは `ai-board status --json` の `next` に従い、
-GitHub に接続できないとき（`forge.status` が `connected` でないとき。`github:` が無いときを除く）は止まる。
+GitHub に接続できないとき（`forge.status` が `connected` でないとき。`github:` が無いときも含む）は
+`status` が `next` を `null` にするので、ループは何もせずに止まる。
 
 成果物は日本語で書く。
 

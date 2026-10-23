@@ -1,20 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import { findStuckCards, pickNextAction, type NextActionCard } from '../next-action.js';
-import type { ReviewKind } from '../../../cards/models/review.js';
+import type { GateState } from '../../../cards/models/review.js';
 
 function makeCard(
   overrides: Partial<NextActionCard> & Pick<NextActionCard, 'id' | 'stage'>
 ): NextActionCard {
-  return { aborted: false, latestReview: null, ...overrides };
+  return { aborted: false, gates: gate('none'), ...overrides };
 }
 
-const review = (kind: ReviewKind): NextActionCard['latestReview'] => ({ kind });
+const gate = (plan: GateState): NextActionCard['gates'] => ({ plan });
 
 describe('pickNextAction', () => {
   it('実装中を計画提案中より先に選ぶ', () => {
     const next = pickNextAction([
       makeCard({ id: 'planning', stage: 'planning' }),
-      makeCard({ id: 'impling', stage: 'impling', latestReview: review('承認') }),
+      makeCard({ id: 'impling', stage: 'impling', gates: gate('approved') }),
     ]);
 
     expect(next).toEqual({
@@ -39,7 +39,7 @@ describe('pickNextAction', () => {
 
   it('否決されて計画提案中へ落ちたカードは revise-plan', () => {
     const next = pickNextAction([
-      makeCard({ id: 'a', stage: 'planning', latestReview: review('否決') }),
+      makeCard({ id: 'a', stage: 'planning', gates: gate('rejected') }),
     ]);
 
     expect(next).toEqual({ cardId: 'a', action: 'revise-plan', reason: '計画が否決された' });
@@ -56,7 +56,7 @@ describe('pickNextAction', () => {
 
   it('提出済みなのに成果物が見えないカードは飛ばして、次のカードを選ぶ', () => {
     const next = pickNextAction([
-      makeCard({ id: 'stuck', stage: 'planning', latestReview: review('提出') }),
+      makeCard({ id: 'stuck', stage: 'planning', gates: gate('submitted') }),
       makeCard({ id: 'fresh', stage: 'planning' }),
     ]);
 
@@ -66,9 +66,9 @@ describe('pickNextAction', () => {
   it('人の判断を待つ列やアイデア・マージ済みしか無ければ null', () => {
     const next = pickNextAction([
       makeCard({ id: 'idea', stage: 'idea' }),
-      makeCard({ id: 'review', stage: 'plan-review', latestReview: review('提出') }),
-      makeCard({ id: 'pr', stage: 'pr', latestReview: review('承認') }),
-      makeCard({ id: 'merged', stage: 'merged', latestReview: review('承認') }),
+      makeCard({ id: 'review', stage: 'plan-review', gates: gate('submitted') }),
+      makeCard({ id: 'pr', stage: 'pr', gates: gate('approved') }),
+      makeCard({ id: 'merged', stage: 'merged', gates: gate('approved') }),
     ]);
 
     expect(next).toBeNull();
@@ -76,12 +76,12 @@ describe('pickNextAction', () => {
 });
 
 describe('findStuckCards', () => {
-  it('計画提案中で提出 / 再提出が最新のカードを理由付きで返す', () => {
+  it('計画提案中で plan ゲートが提出済みのカードを理由付きで返す', () => {
     const stuck = findStuckCards([
-      makeCard({ id: 'submitted', stage: 'planning', latestReview: review('提出') }),
-      makeCard({ id: 'resubmitted', stage: 'planning', latestReview: review('再提出') }),
+      makeCard({ id: 'submitted', stage: 'planning', gates: gate('submitted') }),
+      makeCard({ id: 'resubmitted', stage: 'planning', gates: gate('submitted') }),
       makeCard({ id: 'fresh', stage: 'planning' }),
-      makeCard({ id: 'review', stage: 'plan-review', latestReview: review('提出') }),
+      makeCard({ id: 'review', stage: 'plan-review', gates: gate('submitted') }),
     ]);
 
     expect(stuck.map((card) => card.cardId)).toEqual(['submitted', 'resubmitted']);
@@ -90,7 +90,7 @@ describe('findStuckCards', () => {
 
   it('中止のカードは含めない', () => {
     const stuck = findStuckCards([
-      makeCard({ id: 'a', stage: 'planning', aborted: true, latestReview: review('提出') }),
+      makeCard({ id: 'a', stage: 'planning', aborted: true, gates: gate('submitted') }),
     ]);
 
     expect(stuck).toEqual([]);

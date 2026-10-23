@@ -8,7 +8,7 @@ import { createCliRunner } from './infrastructure/cli-runner.js';
 import { createCardDependencies } from './cards/composition.js';
 import { runCardCli, runImport, type CardCliIo } from './cards/cli/card-cli.js';
 import { createBoardDependencies, createMrStateSource } from './board/composition.js';
-import { runStatusCli } from './board/cli/status-cli.js';
+import { parseStatusArgs, runStatusCli, STATUS_USAGE } from './board/cli/status-cli.js';
 
 // ============================================================
 // ai-board CLI
@@ -132,6 +132,15 @@ async function runSubcommand(command: 'card' | 'import', argv: readonly string[]
  */
 async function runStatus(argv: readonly string[]): Promise<number> {
   const { root, rest } = extractRoot(argv);
+  const io = createProcessIo();
+
+  // 引数の誤りや --help で、GitHub への問い合わせと PR 番号の書き戻しを起こさない
+  const args = parseStatusArgs(rest);
+  if (typeof args === 'string') {
+    io.stderr(STATUS_USAGE);
+    return args === 'help' ? 0 : 1;
+  }
+
   const config = loadConfig(root);
   const db = openDatabase(config.paths.dbPath);
 
@@ -151,7 +160,7 @@ async function runStatus(argv: readonly string[]): Promise<number> {
       provider
     );
 
-    return await runStatusCli(rest, board, createProcessIo());
+    return await runStatusCli(rest, board, io);
   } finally {
     db.close();
   }

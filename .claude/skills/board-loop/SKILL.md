@@ -14,7 +14,9 @@ description: ai-board のボードを読み、AI が進めてよいカード（�
 
 ```bash
 MAIN=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
-if [ ! -f "$MAIN/dist/cli.js" ] || [ "$(git -C "$MAIN" log -1 --format=%ct)" -gt "$(stat -f %m "$MAIN/dist/cli.js" 2>/dev/null || stat -c %Y "$MAIN/dist/cli.js")" ]; then
+# dist/cli.js が無いか、HEAD のコミットより古ければビルドする（stat の書式は OS で違うので node で比べる）
+if ! node -e 'const fs=require("fs");const [f,t]=process.argv.slice(1);process.exit(fs.existsSync(f)&&fs.statSync(f).mtimeMs/1000>=Number(t)?0:1)' \
+    "$MAIN/dist/cli.js" "$(git -C "$MAIN" log -1 --format=%ct)"; then
   npm --prefix "$MAIN" run build
 fi
 node "$MAIN/dist/cli.js" status --json --root "$MAIN"
@@ -26,9 +28,10 @@ node "$MAIN/dist/cli.js" status --json --root "$MAIN"
 
 - `status` が失敗した。「不明なオプションです: status」なら、`$MAIN` のコードが `ai-board status` を持たない古いものである。
   `$MAIN` を `origin/main` に更新してビルドし直すよう人に頼む（自分では更新しない）
-- `forge.status` が `connected` でない。ただし `{ "status": "disabled", "reason": null }`（`config.yaml` に `github:` が無い）なら続ける。
-  PR の状態が引けないと、計画レビュー / PR中 のカードが手前の AI の列に落ちて見え、取り違えるため
-- `next` が `null`。`waiting` のカードを人に知らせて終わる
+- `next` が `null`。`waiting` のカードを人に知らせて終わる。
+  `forge.status` が `connected` でないとき（`gh` の未ログイン、問い合わせの失敗、`config.yaml` に `github:` が無い）も、
+  `status` は `next` を `null` にする。PR の状態が引けないと、計画レビュー / PR中 のカードが手前の AI の列に落ちて見えるため。
+  このときは `forge` の理由を人に知らせる
 
 ## 2. カードのワークツリーに入る
 
@@ -73,6 +76,10 @@ node "$MAIN/dist/cli.js" status --json --root "$MAIN"
 - **計画が既に `plans/archive/` にある:** 前の周で `gh pr ready` だけが失敗している。`gh pr ready <mr>` だけをやり直す
 
 ## 4. 報告
+
+進められずに止まったカード（ゲートが通らない、未コミットの変更が残っている）は、次の周でも `next` に選ばれ、ループはそこで止まり続ける。
+人が直すまで他のカードには進まない。報告ではそのカードと、人に何をしてほしいかをはっきり書く。
+
 
 何をしたか、次に人が見るべきもの（PR の URL、判断待ちのカード）を 3 行以内で書く。
 

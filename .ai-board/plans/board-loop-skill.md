@@ -96,8 +96,10 @@ archive のコミットのあと `gh pr ready` が失敗すると、次の周で
 
 archive は「マージされたカード」の取り違えは防ぐが、計画がまだブランチにしか無い段階のカードは守れない。
 PR の状態が引けないと、Draft の PR で立っていた 計画レビュー も、Ready の PR で立っていた PR中 も、手前の AI の列へ落ちて見える。
-`status --json` の `forge.status` が `connected` でなければ、スキルは何もせずに理由を報告して終わる。
-`config.yaml` に `github:` が無い（`disabled` で理由が無い）リポジトリでは、PR の状態に頼らずに動くので続行する。
+`forge.status` が `connected` でなければ、`status` は `next` を `null` にし、スキルは何もせずに理由を報告して終わる。
+判定はスキルの文章ではなく `buildStatusReport` に置き、`next` を読む他の使い手も取り違えないようにする。
+`config.yaml` に `github:` が無いリポジトリも止める。PR の状態が分からないと、Ready にしたカードが 実装中 のまま
+毎周選ばれ続けるうえ、ループは `gh` で PR を出すので、もともと GitHub を前提にしている。
 
 #### スキルは Plan モードを使わない
 
@@ -116,7 +118,11 @@ CLAUDE.md の「1 周の流れ」にある「AI が Plan モードで計画を�
 - **`status` が PR 番号を書き戻す。** `ForgePoller.refresh` をそのまま使うので、`branch` から解決した `mr` がカードに書かれる。
   サーバと同じコード経路で、エージェントが番号を選んで書ける入口ではない。それでも、エージェントが叩く CLI から DB への書き込みが起きる。
   代案は (a) `refresh` に書き戻しを止めるオプションを足す、(b) 読み取り専用の 1 回取得を別に作る。この計画では今のまま書き戻す
-- **`status` のたびに `gh api` を叩く。** PR の付いたカードの数だけ問い合わせが走る。5 分間隔でも、カードが数十枚なら GitHub の上限（1 時間 5,000 回）に届かない
+- **進められないカード 1 枚でループ全体が止まる。** ゲートが通らない、未コミットの変更が残っているといった理由で止まったカードは、
+  次の周でも `next` に選ばれる。飛ばす仕組み（周をまたいだ状態）は持たず、人が直すまで止まり続けることを報告で知らせる
+- **`status` のたびに `gh api` を叩く。** PR の付いたカードの数だけ、順に問い合わせが走る。マージ済みや中止のカードも含むのはサーバのポーリングと同じで、
+  履歴が増えるほど 1 周の待ち時間も延びる。5 分間隔でも、カードが数十枚なら GitHub の上限（1 時間 5,000 回）には届かない。
+  終わったカードを問い合わせから外すのは、サーバと一緒に別のカードで扱う
 
 ### Non-Goals
 
@@ -144,7 +150,7 @@ CLAUDE.md の「1 周の流れ」にある「AI が Plan モードで計画を�
 
 - [x] `.claude/skills/board-loop/SKILL.md`（frontmatter: `name: board-loop`、`description`）に次の手順を書く
   - メインのチェックアウトで `npm run build` し、`node dist/cli.js status --json` を読む
-  - `forge.status` が `connected` でなければ（`github:` の無いリポジトリを除く）、理由を報告して終わる（何も書かない）
+  - `next` が `null` で `forge.status` が `connected` でなければ、その理由を報告して終わる（何も書かない）
   - `next` が `null` なら `waiting` を報告して終わる（何も書かない）
   - カードのブランチのワークツリーに入る（無ければ `git worktree add`）
   - `plan`: 計画を書く → コミット → push → `gh pr create --draft` → `card branch` → `card submit`
