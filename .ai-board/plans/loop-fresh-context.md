@@ -122,7 +122,7 @@ cron はセッションが手すきのときに発火するので、作業者が
 
 ### 2. 監視役
 
-- [ ] `.claude/skills/board-loop/SKILL.md` を監視役の手順に書き直す
+- [x] `.claude/skills/board-loop/SKILL.md` を監視役の手順に書き直す
   - 周の最初に `ListAgents` を見て、`board-worker-` で始まる作業者が動いていれば「作業中: <カード>」と伝えて終わる
   - `status --json` から `next` / `waiting` / `forge` だけを取り出して読む。止まる条件は今のまま
   - `Agent` を `subagent_type: board-worker`、`name: board-worker-<cardId>` で呼び、プロンプトにはカード ID・手の種類・`$MAIN` だけを書く
