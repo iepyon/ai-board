@@ -115,7 +115,7 @@ cron はセッションが手すきのときに発火するので、作業者が
 
 ### 1. 作業者
 
-- [ ] `.claude/agents/board-worker.md` を足す。frontmatter は `name: board-worker` と `description`（`tools` は書かない）。
+- [x] `.claude/agents/board-worker.md` を足す。frontmatter は `name: board-worker` と `description`（`tools` は書かない）。
       本文は今の `SKILL.md` の「2. カードのワークツリーに入る」「3. `next.action` ごとの 1 手」とハードルールを移し、
       入力（カード ID・手の種類・`$MAIN`）、報告の形（4 項目・5 行以内・ファイルの中身を含めない）、
       `/code-review` を使えないときの代わり（`gh pr diff` を `REVIEW.md` の観点で見直す）を書く
