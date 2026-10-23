@@ -40,8 +40,8 @@
 ステージの導出は純関数で、DB と計画ファイルと PR の状態があれば済む。
 そこで `getBoardQuery` を CLI から呼び、ロジックは足さない。
 
-依存の組み立ては `src/board/composition.ts` に `createStatusDependencies(config, db)` として置き、`startServer` と同じ構成を共有する。
-`forge` があれば `createForgeClient` → `checkAuth` → `ForgePoller` を作り、`start()` はせずに `refresh()` を 1 回だけ待つ。
+PR の状態の供給元の組み立ては `src/board/composition.ts` に `createMrStateSource` として置き、`startServer` と共有する。
+`forge` があれば `createForgeClient` → `checkAuth` → `ForgePoller` を作る。サーバは `start()` し、`status` は `refresh()` を 1 回だけ待つ。
 `gh` が使えなければ `unavailableMrStateProvider` にして、`forge` に理由を載せて続行する（ボードと同じ）。
 
 出力は 2 種類。
@@ -134,10 +134,11 @@ CLAUDE.md の「1 周の流れ」にある「AI が Plan モードで計画を�
 
 ### 2. `ai-board status`
 
-- [ ] `src/board/composition.ts` に `createStatusDependencies(config, db)` を置く
-- [ ] `src/board/cli/status-cli.ts` に `runStatusCli(argv, deps, io)` を置く（`card-cli.ts` と同じ形。`io` は `CardCliIo` を流用）
-- [ ] `src/cli-main.ts` の `main` と `USAGE` に `status [--json] [--root <path>]` を足す
-- [ ] `src/board/cli/__tests__/status-cli.test.ts`: `:memory:` の DB と偽の `MrStateProvider` で、`--json` の形と人向けの出力を確かめる
+- [x] `src/board/composition.ts` に `createMrStateSource` を置き、`startServer` もこれを使う（`src/board/__tests__/composition.test.ts`）
+- [x] `src/board/cli/status-cli.ts` に `runStatusCli(argv, deps, io)` を置く（`card-cli.ts` と同じ形。`io` は `CardCliIo` を流用）。
+  ステージの日本語名は `src/web/types.ts` から `src/shared/stage-labels.ts` へ移して共有する
+- [x] `src/cli-main.ts` の `main` と `USAGE` に `status [--json] [--root <path>]` を足す
+- [x] `src/board/cli/__tests__/status-cli.test.ts`: `:memory:` の DB と偽の `MrStateProvider` で、`--json` の形と人向けの出力を確かめる
 
 ### 3. スキル
 

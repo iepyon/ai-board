@@ -2,14 +2,8 @@ import * as http from 'node:http';
 import type { FSWatcher } from 'chokidar';
 import { loadConfig, type AppConfig } from './shared/config.js';
 import { createCardDependencies } from './cards/composition.js';
-import { createBoardDependencies, createForgeClient } from './board/composition.js';
-import {
-  disabledMrStateProvider,
-  unavailableMrStateProvider,
-  type MrStateProvider,
-} from './board/services/mr-state-provider.js';
+import { createBoardDependencies, createMrStateSource } from './board/composition.js';
 import { createCliRunner } from './infrastructure/cli-runner.js';
-import { ForgePoller } from './infrastructure/forge-poller.js';
 import { SseHub } from './infrastructure/sse.js';
 import { startWatching } from './infrastructure/watch.js';
 import { openDatabase, watchDatabase } from './infrastructure/database.js';
@@ -43,25 +37,15 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
   const db = openDatabase(config.paths.dbPath);
   const cards = createCardDependencies(db, () => sse.broadcast('board-changed'));
 
-  let poller: ForgePoller | null = null;
-  let mrProvider: MrStateProvider = disabledMrStateProvider;
-
-  if (config.forge !== null) {
-    const client = createForgeClient(config.forge, createCliRunner());
-    // CLI の有無とログイン状態は起動時に 1 度だけ確かめる。
-    // 30 秒ごとに確認するほど頻繁に変わるものではない
-    const unavailable = await client.checkAuth();
-
-    if (unavailable === null) {
-      poller = new ForgePoller(cards.cardRepository, client, {
-        ...(options.pollIntervalMs !== undefined ? { intervalMs: options.pollIntervalMs } : {}),
-        onUpdate: () => sse.broadcast('board-changed'),
-      });
-      mrProvider = poller;
-    } else {
-      mrProvider = unavailableMrStateProvider(config.forge.kind, unavailable);
+  const { provider: mrProvider, poller } = await createMrStateSource(
+    config.forge,
+    cards.cardRepository,
+    createCliRunner(),
+    {
+      ...(options.pollIntervalMs !== undefined ? { intervalMs: options.pollIntervalMs } : {}),
+      onUpdate: () => sse.broadcast('board-changed'),
     }
-  }
+  );
 
   const board = createBoardDependencies(
     config.paths.plansDir,

@@ -94,15 +94,7 @@ export function isHumanStage(stage: Stage): boolean {
   return HUMAN_STAGES.includes(stage);
 }
 
-/** 列見出しに出す日本語ラベル */
-export const STAGE_LABELS: Record<Stage, string> = {
-  idea: 'アイデア',
-  planning: '計画提案中',
-  'plan-review': '計画レビュー',
-  impling: '実装中',
-  pr: 'PR中',
-  merged: 'マージ済み',
-};
+export { STAGE_LABELS } from '../shared/stage-labels.js';
 
 /** その列で次に動くのは誰か。見出しのアイコンに使う */
 export const STAGE_OWNER: Record<Stage, 'human' | 'ai' | 'none'> = {
