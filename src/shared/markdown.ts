@@ -275,3 +275,182 @@ function isBlank(line: string): boolean {
 function current(cursor: Cursor): string {
   return cursor.lines[cursor.pos] ?? '';
 }
+
+// ============================================================
+// 行内 — 強調・インラインコード・リンク
+// ============================================================
+
+/**
+ * 行の中の飾り。ブロックの行（見出しの文字、段落と項目の各行）を描くときに 1 行ずつ変える。
+ *
+ * 記法の印（`**` やバッククォート、`[...](...)` の括弧）だけを外し、ほかの文字は落とさない。
+ * 対にならない印は文字のまま残す。
+ */
+export type Span = TextSpan | CodeSpan | StrongSpan | LinkSpan;
+
+export interface TextSpan {
+  readonly type: 'text';
+  readonly text: string;
+}
+
+export interface CodeSpan {
+  readonly type: 'code';
+  readonly text: string;
+}
+
+export interface StrongSpan {
+  readonly type: 'strong';
+  readonly children: readonly Span[];
+}
+
+/** `http:` / `https:` のリンクだけ。ほかのスキーム（`javascript:` など）や相対パスは文字のまま残す */
+export interface LinkSpan {
+  readonly type: 'link';
+  readonly href: string;
+  readonly children: readonly Span[];
+}
+
+const SAFE_HREF = /^https?:\/\//i;
+
+interface InlineOptions {
+  /** リンクの文字の中にはリンクを作らない */
+  readonly links: boolean;
+}
+
+/** 印が見つかった位置から読んだ結果。対にならなかった印は `literal` として文字に戻す */
+type InlineMatch =
+  | { readonly end: number; readonly span: Span }
+  | { readonly end: number; readonly literal: string };
+
+/** 1 行を飾りの並びに変える */
+export function parseInline(text: string): Span[] {
+  return readSpans(text, { links: true });
+}
+
+function readSpans(text: string, options: InlineOptions): Span[] {
+  const spans: Span[] = [];
+  let buffer = '';
+  let pos = 0;
+
+  while (pos < text.length) {
+    const match = matchSpan(text, pos, options);
+
+    if (match === null) {
+      buffer += text[pos] ?? '';
+      pos++;
+    } else if ('literal' in match) {
+      buffer += match.literal;
+      pos = match.end;
+    } else {
+      if (buffer !== '') spans.push({ type: 'text', text: buffer });
+      buffer = '';
+      spans.push(match.span);
+      pos = match.end;
+    }
+  }
+
+  if (buffer !== '') spans.push({ type: 'text', text: buffer });
+  return spans;
+}
+
+function matchSpan(text: string, pos: number, options: InlineOptions): InlineMatch | null {
+  if (text[pos] === '`') return matchCode(text, pos);
+  if (text.startsWith('**', pos)) return matchStrong(text, pos, options);
+  if (text[pos] === '[' && options.links) return matchLink(text, pos);
+  return null;
+}
+
+/**
+ * 同じ本数のバッククォートで閉じるまでをコードにする。閉じなければ開いたバッククォートの並びを文字に戻す。
+ * 中身の両端に空白が 1 つずつあれば外す（`` `` ` `` `` でバッククォートを書くため）。
+ */
+function matchCode(text: string, pos: number): InlineMatch {
+  const open = backtickRun(text, pos);
+  let next = pos + open;
+
+  while (next < text.length) {
+    const close = text.indexOf('`', next);
+    if (close === -1) break;
+
+    const run = backtickRun(text, close);
+    if (run === open) {
+      return {
+        end: close + run,
+        span: { type: 'code', text: trimCode(text.slice(pos + open, close)) },
+      };
+    }
+    next = close + run;
+  }
+
+  return { end: pos + open, literal: text.slice(pos, pos + open) };
+}
+
+function backtickRun(text: string, pos: number): number {
+  let end = pos;
+  while (text[end] === '`') end++;
+  return end - pos;
+}
+
+function trimCode(code: string): string {
+  const padded = code.length >= 2 && code.startsWith(' ') && code.endsWith(' ');
+  return padded && code.trim() !== '' ? code.slice(1, -1) : code;
+}
+
+/** `**` で挟んだ強調。中身が空か、空白で始まる・終わるときは強調にしない */
+function matchStrong(text: string, pos: number, options: InlineOptions): InlineMatch {
+  const close = findOutsideCode(text, pos + 2, (at) => text.startsWith('**', at));
+  const inner = close === -1 ? '' : text.slice(pos + 2, close);
+
+  if (inner === '' || inner.trim() !== inner) return { end: pos + 2, literal: '**' };
+
+  return { end: close + 2, span: { type: 'strong', children: readSpans(inner, options) } };
+}
+
+/**
+ * `[文字](URL)`。括弧の中に空白があるもの（タイトル付きなど）はリンクにしない。
+ * URL が `http:` / `https:` でなければ、全体を文字に戻す。
+ */
+function matchLink(text: string, pos: number): InlineMatch | null {
+  const labelEnd = findLabelEnd(text, pos);
+  if (labelEnd === -1 || text[labelEnd + 1] !== '(') return null;
+
+  const destEnd = text.indexOf(')', labelEnd + 2);
+  if (destEnd === -1) return null;
+
+  const href = text.slice(labelEnd + 2, destEnd);
+  if (href === '' || /\s/.test(href)) return null;
+
+  const end = destEnd + 1;
+  if (!SAFE_HREF.test(href)) return { end, literal: text.slice(pos, end) };
+
+  const label = text.slice(pos + 1, labelEnd);
+  const children =
+    label === '' ? [{ type: 'text', text: href } as const] : readSpans(label, { links: false });
+  return { end, span: { type: 'link', href, children } };
+}
+
+/** `[` に対応する `]` の位置。中の `[...]` の入れ子とインラインコードを飛ばす */
+function findLabelEnd(text: string, pos: number): number {
+  let depth = 0;
+  return findOutsideCode(text, pos + 1, (at) => {
+    if (text[at] === '[') depth++;
+    if (text[at] !== ']') return false;
+    if (depth === 0) return true;
+    depth--;
+    return false;
+  });
+}
+
+/** `from` から、インラインコードの中を飛ばしながら `found` が真になる位置を探す。無ければ -1 */
+function findOutsideCode(text: string, from: number, found: (at: number) => boolean): number {
+  let at = from;
+  while (at < text.length) {
+    if (text[at] === '`') {
+      at = matchCode(text, at).end;
+      continue;
+    }
+    if (found(at)) return at;
+    at++;
+  }
+  return -1;
+}

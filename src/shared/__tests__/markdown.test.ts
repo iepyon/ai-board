@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseBlocks, type Block, type ListBlock } from '../markdown.js';
+import { parseBlocks, parseInline, type Block, type ListBlock, type Span } from '../markdown.js';
 
 const lines = (...values: string[]): string => values.join('\n');
 
@@ -349,6 +349,157 @@ function countX(blocks: readonly Block[]): number {
             0
           )
         );
+    }
+  }, 0);
+}
+
+describe('parseInline', () => {
+  const text = (value: string): Span => ({ type: 'text', text: value });
+  const code = (value: string): Span => ({ type: 'code', text: value });
+
+  it('飾りの無い行は 1 つの文字にする', () => {
+    expect(parseInline('ただの文。')).toEqual([text('ただの文。')]);
+    expect(parseInline('')).toEqual([]);
+  });
+
+  it('HTML のタグも文字のまま持つ', () => {
+    expect(parseInline('<script>alert(1)</script>')).toEqual([text('<script>alert(1)</script>')]);
+  });
+
+  describe('インラインコード', () => {
+    it('バッククォートで挟んだ所をコードにする', () => {
+      expect(parseInline('`ai-board card list` で読む')).toEqual([
+        code('ai-board card list'),
+        text(' で読む'),
+      ]);
+    });
+
+    it('同じ本数のバッククォートで閉じる。中の短い並びは文字にする', () => {
+      expect(parseInline('`` a ` b ``')).toEqual([code('a ` b')]);
+    });
+
+    it('閉じなければバッククォートの並びを文字に戻す', () => {
+      expect(parseInline('```a`')).toEqual([text('```a`')]);
+      expect(parseInline('a ` b')).toEqual([text('a ` b')]);
+    });
+
+    it('コードの中の記法は飾りにしない', () => {
+      expect(parseInline('`**x** [a](https://a.example)`')).toEqual([
+        code('**x** [a](https://a.example)'),
+      ]);
+    });
+  });
+
+  describe('強調', () => {
+    it('** で挟んだ所を強調にする', () => {
+      expect(parseInline('**既定は閲覧。** 見出しを整形する')).toEqual([
+        { type: 'strong', children: [text('既定は閲覧。')] },
+        text(' 見出しを整形する'),
+      ]);
+    });
+
+    it('強調の中のコードも読む', () => {
+      expect(parseInline('**`rank` を書かない**')).toEqual([
+        { type: 'strong', children: [code('rank'), text(' を書かない')] },
+      ]);
+    });
+
+    it('コードの中の ** では閉じない', () => {
+      expect(parseInline('**a `**` b**')).toEqual([
+        { type: 'strong', children: [text('a '), code('**'), text(' b')] },
+      ]);
+    });
+
+    it('閉じない、中身が空、空白で始まる ** は文字のまま残す', () => {
+      expect(parseInline('**閉じない')).toEqual([text('**閉じない')]);
+      expect(parseInline('****')).toEqual([text('****')]);
+      expect(parseInline('a ** b ** c')).toEqual([text('a ** b ** c')]);
+    });
+  });
+
+  describe('リンク', () => {
+    it('http / https のリンクを読む', () => {
+      expect(parseInline('[PR #33](https://github.com/iepyon/ai-board/pull/33) を見る')).toEqual([
+        {
+          type: 'link',
+          href: 'https://github.com/iepyon/ai-board/pull/33',
+          children: [text('PR #33')],
+        },
+        text(' を見る'),
+      ]);
+      expect(parseInline('[a](HTTP://a.example)')).toEqual([
+        { type: 'link', href: 'HTTP://a.example', children: [text('a')] },
+      ]);
+    });
+
+    it('ほかのスキームや相対パスは文字のまま残す', () => {
+      expect(parseInline('[押す](javascript:alert(1))')).toEqual([
+        text('[押す](javascript:alert(1))'),
+      ]);
+      expect(parseInline('[計画](plans/a.md)')).toEqual([text('[計画](plans/a.md)')]);
+    });
+
+    it('リンクの文字の中のコードと入れ子の角括弧を読む', () => {
+      expect(parseInline('[`gh` の [説明]](https://cli.github.com)')).toEqual([
+        {
+          type: 'link',
+          href: 'https://cli.github.com',
+          children: [code('gh'), text(' の [説明]')],
+        },
+      ]);
+    });
+
+    it('リンクの文字の中にはリンクを作らない', () => {
+      expect(parseInline('[[a](https://a.example)](https://b.example)')).toEqual([
+        { type: 'link', href: 'https://b.example', children: [text('[a](https://a.example)')] },
+      ]);
+    });
+
+    it('文字が空なら URL を文字にする', () => {
+      expect(parseInline('[](https://a.example)')).toEqual([
+        { type: 'link', href: 'https://a.example', children: [text('https://a.example')] },
+      ]);
+    });
+
+    it('形の崩れたものは文字のまま残す', () => {
+      expect(parseInline('[閉じない')).toEqual([text('[閉じない')]);
+      expect(parseInline('[a] (https://a.example)')).toEqual([text('[a] (https://a.example)')]);
+      expect(parseInline('[a](https://a.example "題")')).toEqual([
+        text('[a](https://a.example "題")'),
+      ]);
+      expect(parseInline('[a](https://a.example')).toEqual([text('[a](https://a.example')]);
+    });
+  });
+
+  it('どんな入力にも飾りの並びを返し、文字を落とさない', () => {
+    const pieces = ['`', '``', '**', '*', '[', ']', '(', ')', 'https://', 'javascript:', ' ', 'x'];
+    let seed = 7;
+    const random = (): number => {
+      seed = (seed * 48271) % 2147483647;
+      return seed / 2147483647;
+    };
+
+    for (let round = 0; round < 1000; round++) {
+      let line = '';
+      for (let i = 0; i < 30; i++) line += pieces[Math.floor(random() * pieces.length)] ?? '';
+
+      expect(countSpanX(parseInline(line))).toBe([...line].filter((char) => char === 'x').length);
+    }
+  });
+});
+
+function countSpanX(spans: readonly Span[]): number {
+  const count = (text: string): number => [...text].filter((char) => char === 'x').length;
+
+  return spans.reduce((sum, span) => {
+    switch (span.type) {
+      case 'text':
+      case 'code':
+        return sum + count(span.text);
+      case 'strong':
+        return sum + countSpanX(span.children);
+      case 'link':
+        return sum + count(span.href) + countSpanX(span.children);
     }
   }, 0);
 }
