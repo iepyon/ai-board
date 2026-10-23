@@ -1,3 +1,4 @@
+import { StageChip } from './StageChip.js';
 import { STAGE_LABELS, STAGE_OWNER, type BoardCard } from '../../types.js';
 
 // ============================================================
@@ -16,9 +17,7 @@ export function StageSection({ card }: { card: BoardCard }) {
       <h3>ステージ</h3>
 
       <p className="stage-now">
-        <span className={`stage-chip${owner === 'ai' ? ' ai' : ''}`}>
-          {STAGE_LABELS[card.stage]}
-        </span>
+        <StageChip stage={card.stage} />
         {owner === 'ai' && <span className="stage-owner">AI の領分</span>}
         {owner === 'human' && <span className="stage-owner">あなたの判断待ち</span>}
       </p>

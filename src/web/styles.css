@@ -724,7 +724,8 @@ details.fold[open] > summary h2::before {
   top: 0;
   right: 0;
   bottom: 0;
-  width: min(560px, 100%);
+  /* 広い画面では本文を読みやすい幅まで広げる。上限は後ろのボードの左側が見える程度に抑える */
+  width: min(100%, clamp(560px, 55vw, 880px));
   background: var(--surface);
   border-left: 1px solid var(--border);
   box-shadow: -4px 0 20px rgba(0, 0, 0, 0.12);
@@ -735,17 +736,44 @@ details.fold[open] > summary h2::before {
 
 .detail-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   padding: 12px 18px;
   border-bottom: 1px solid var(--border);
 }
 
+.detail-title {
+  flex: 1;
+  min-width: 0;
+}
+
 .detail-head h2 {
   margin: 0;
   font-size: 15px;
-  flex: 1;
   overflow-wrap: anywhere;
+}
+
+/* タイトルの下の 1 行。ステージ・タスクの進み・PR へのリンク */
+.detail-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+
+.detail-summary .stage-chip {
+  font-size: 12px;
+  padding: 1px 10px;
+}
+
+.detail-summary-item {
+  color: var(--text-2);
+}
+
+a.detail-summary-item {
+  color: var(--src-forge);
 }
 
 .detail-body {
