@@ -100,7 +100,7 @@ Markdown 表現（`card-markdown.ts`）はこの取り込みと `card show` の�
 
 | 主体            | `.ai-board/plans/`                           | カード（`.ai-board/board.db`）                 |
 | --------------- | -------------------------------------------- | ---------------------------------------------- |
-| ai-board サーバ | **read-only**                                | 書く（画面の操作・MR 番号の書き戻し）          |
+| ai-board サーバ | **read-only**                                | 書く（画面の操作・PR 番号の書き戻し）          |
 | AI エージェント | 書く（計画・タスクの更新・archive への移動） | `ai-board card` 経由で本文・ブランチ・提出のみ |
 
 エージェントが**やってはいけないこと**（`.claude/skills/board-loop/SKILL.md` のハードルールと同じ）:
