@@ -159,9 +159,9 @@ CLAUDE.md の「1 周の流れ」にある「AI が Plan モードで計画を�
 
 ### 4. ドキュメント
 
-- [ ] CLAUDE.md: `ai-board card` の一覧の近くに `ai-board status` を足す。「1 周の流れ」に `/loop 5m /board-loop` での間隔運転を足し、
+- [x] CLAUDE.md: `ai-board card` の一覧の近くに `ai-board status` を足す。「1 周の流れ」に `/loop 5m /board-loop` での間隔運転を足し、
   手順 2 の Plan モードの記述と、手順 4・5 の archive の移動（Ready にする直前に同じ PR の中で移す）を改める
-- [ ] README: CLI の一覧と運用の節に同じことを書く
+- [x] README: CLI の一覧と運用の節に同じことを書く
 
 ### 5. 確かめる
 
