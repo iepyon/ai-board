@@ -3,10 +3,15 @@ import { parseBlocks, parseInline, type Block, type ListBlock, type Span } from 
 
 const lines = (...values: string[]): string => values.join('\n');
 
-function list(ordered: boolean, ...items: [string[], ListBlock[]?][]): ListBlock {
+function list(ordered: boolean, ...items: [string[], Block[]?][]): ListBlock {
+  return listFrom(1, ordered, ...items);
+}
+
+function listFrom(start: number, ordered: boolean, ...items: [string[], Block[]?][]): ListBlock {
   return {
     type: 'list',
     ordered,
+    start,
     items: items.map(([itemLines, children]) => ({ lines: itemLines, children: children ?? [] })),
   };
 }
@@ -193,6 +198,68 @@ describe('parseBlocks', () => {
     it('強調の ** や区切りの --- は項目にしない', () => {
       expect(parseBlocks(lines('**強調**', '*斜体*'))).toEqual([
         { type: 'paragraph', lines: ['**強調**', '*斜体*'] },
+      ]);
+    });
+
+    it('番号付きの箇条書きは最初の番号を持つ', () => {
+      expect(parseBlocks(lines('3. 三', '4. 四'))).toEqual([listFrom(3, true, [['三']], [['四']])]);
+    });
+
+    it('子の箇条書きの後に戻ってきた続きの行は、子の後ろの段落にする', () => {
+      expect(parseBlocks(lines('- 親', '  - 子', '', '  親の続き', '  もう一行'))).toEqual([
+        list(false, [
+          ['親'],
+          [list(false, [['子']]), { type: 'paragraph', lines: ['親の続き', 'もう一行'] }],
+        ]),
+      ]);
+    });
+
+    it('項目の下のインデントされたコードブロックを、項目の子のコードにする', () => {
+      const body = lines(
+        '1. 手順',
+        '',
+        '   ```sh',
+        '   ai-board card list',
+        '   - 項目ではない',
+        '     # 見出しではない',
+        '   ```',
+        '',
+        '2. 次の手順'
+      );
+
+      expect(parseBlocks(body)).toEqual([
+        list(
+          true,
+          [
+            ['手順'],
+            [
+              {
+                type: 'code',
+                info: 'sh',
+                text: 'ai-board card list\n- 項目ではない\n  # 見出しではない',
+              },
+            ],
+          ],
+          [['次の手順']]
+        ),
+      ]);
+    });
+
+    it('コードブロックの後の続きの行は、コードの後ろの段落にする', () => {
+      expect(parseBlocks(lines('- 項目', '  ```', '  x', '  ```', '  続き'))).toEqual([
+        list(false, [
+          ['項目'],
+          [
+            { type: 'code', info: null, text: 'x' },
+            { type: 'paragraph', lines: ['続き'] },
+          ],
+        ]),
+      ]);
+    });
+
+    it('- - - や *** の区切り線は項目にしない', () => {
+      expect(parseBlocks(lines('- - -', '* * *'))).toEqual([
+        { type: 'paragraph', lines: ['- - -', '* * *'] },
       ]);
     });
 
@@ -452,6 +519,13 @@ describe('parseInline', () => {
     it('リンクの文字の中にはリンクを作らない', () => {
       expect(parseInline('[[a](https://a.example)](https://b.example)')).toEqual([
         { type: 'link', href: 'https://b.example', children: [text('[a](https://a.example)')] },
+      ]);
+    });
+
+    it('URL の中の対になった括弧は URL の一部とする', () => {
+      expect(parseInline('[wiki](https://en.wikipedia.org/wiki/Foo_(bar)) を読む')).toEqual([
+        { type: 'link', href: 'https://en.wikipedia.org/wiki/Foo_(bar)', children: [text('wiki')] },
+        text(' を読む'),
       ]);
     });
 

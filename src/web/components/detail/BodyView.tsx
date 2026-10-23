@@ -1,4 +1,4 @@
-import { Fragment, useMemo } from 'react';
+import { Fragment, memo, useMemo } from 'react';
 import {
   parseBlocks,
   parseInline,
@@ -73,19 +73,21 @@ function BlockView({ block }: { block: Block }) {
 }
 
 function ListView({ list }: { list: ListBlock }) {
-  const Tag = list.ordered ? 'ol' : 'ul';
-
-  return (
-    <Tag className="md-list">
-      {list.items.map((item, index) => (
-        <li key={index}>
-          <Lines lines={item.lines} />
-          {item.children.map((child, childIndex) => (
-            <ListView key={childIndex} list={child} />
-          ))}
-        </li>
+  const items = list.items.map((item, index) => (
+    <li key={index}>
+      <Lines lines={item.lines} />
+      {item.children.map((child, childIndex) => (
+        <BlockView key={childIndex} block={child} />
       ))}
-    </Tag>
+    </li>
+  ));
+
+  return list.ordered ? (
+    <ol className="md-list" start={list.start}>
+      {items}
+    </ol>
+  ) : (
+    <ul className="md-list">{items}</ul>
   );
 }
 
@@ -103,9 +105,10 @@ function Lines({ lines }: { lines: readonly string[] }) {
   );
 }
 
-function Inline({ text }: { text: string }) {
+/** 行ごとに変換する。本文が変わらない再描画（保存中の表示の切り替えなど）では変換し直さない */
+const Inline = memo(function Inline({ text }: { text: string }) {
   return <Spans spans={parseInline(text)} />;
-}
+});
 
 function Spans({ spans }: { spans: readonly Span[] }) {
   return (

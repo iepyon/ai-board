@@ -23,16 +23,24 @@ export interface ParagraphBlock {
   readonly lines: readonly string[];
 }
 
-/** 箇条書き。項目の 2 行目以降（続きの行）も行のまま持ち、深くインデントされた項目は子の箇条書きにする */
+/**
+ * 箇条書き。項目の 2 行目以降（続きの行）も行のまま持つ。
+ * `start` は番号付きのときの最初の番号（番号の無い箇条書きでは 1）。
+ */
 export interface ListBlock {
   readonly type: 'list';
   readonly ordered: boolean;
+  readonly start: number;
   readonly items: readonly ListItem[];
 }
 
+/**
+ * 項目。`lines` は項目の行と続きの行、`children` はその下に続くブロック
+ * （深くインデントされた箇条書き、インデントされたコードブロック、子の後に戻ってきた続きの行）
+ */
 export interface ListItem {
   readonly lines: readonly string[];
-  readonly children: readonly ListBlock[];
+  readonly children: readonly Block[];
 }
 
 /** フェンスのコード。`info` は開くフェンスの後ろの文字列（言語名など）で、無ければ `null` */
@@ -52,6 +60,8 @@ const HEADING = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
 const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 const CLOSING_FENCE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
 const LIST_ITEM = /^([ \t]*)([-*+]|\d{1,9}[.)])(?:[ \t]+(.*))?$/;
+/** `- - -` や `***` などの区切り線。箇条書きの項目にはしない（区切り線は描かず、文字のまま残す） */
+const THEMATIC_BREAK = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
 const ROW = /^[ \t]*\|/;
 
 const TAB_WIDTH = 4;
@@ -64,17 +74,22 @@ interface Cursor {
 interface FenceLine {
   readonly fence: string;
   readonly info: string;
+  /** 開くフェンスの行頭の空白の幅。中身の各行からこの幅まで空白を外す */
+  readonly indent: number;
 }
 
 interface ItemLine {
   readonly indent: number;
   readonly ordered: boolean;
+  readonly start: number;
   readonly text: string;
 }
 
 interface MutableItem {
   readonly lines: string[];
-  readonly children: ListBlock[];
+  readonly children: Block[];
+  /** 子のブロックの後に戻ってきた続きの行を集める段落。子を足したら閉じる */
+  tail: string[] | null;
 }
 
 /** 本文をブロックの並びに変える */
@@ -121,7 +136,7 @@ function readCode(cursor: Cursor, open: FenceLine): CodeBlock {
 
   const text: string[] = [];
   while (cursor.pos < cursor.lines.length) {
-    const line = current(cursor);
+    const line = dedent(current(cursor), open.indent);
     cursor.pos++;
     if (closesFence(line, open.fence)) break;
     text.push(line);
@@ -139,7 +154,7 @@ function matchFence(line: string): FenceLine | null {
   const info = (match[2] ?? '').trim();
   if (fence.startsWith('`') && info.includes('`')) return null;
 
-  return { fence, info };
+  return { fence, info, indent: indentOf(line) };
 }
 
 /** 開いたフェンスと同じ文字で、同じ長さ以上のものだけが閉じる */
@@ -186,7 +201,12 @@ function readList(cursor: Cursor, first: ItemLine): ListBlock {
     // stepList が 1 行以上進める
   }
 
-  return { type: 'list', ordered: first.ordered, items };
+  return {
+    type: 'list',
+    ordered: first.ordered,
+    start: first.start,
+    items: items.map(({ lines, children }) => ({ lines, children })),
+  };
 }
 
 /** 箇条書きの 1 歩。読み進めたら true、箇条書きが終わったら false（行は進めない） */
@@ -199,8 +219,15 @@ function stepList(cursor: Cursor, first: ItemLine, items: MutableItem[]): boolea
   if (isBlank(line)) return skipBlankInList(cursor, first.indent);
   if (last === undefined) return false;
 
-  if (indentOf(line) > first.indent || !startsBlock(line)) {
-    last.lines.push(line.trim());
+  const indented = indentOf(line) > first.indent;
+  const fence = indented ? matchFence(line.trimStart()) : null;
+  if (fence !== null) {
+    pushChild(last, readCode(cursor, { ...fence, indent: indentOf(line) }));
+    return true;
+  }
+
+  if (indented || !startsBlock(line)) {
+    pushText(last, line.trim());
     cursor.pos++;
     return true;
   }
@@ -208,16 +235,33 @@ function stepList(cursor: Cursor, first: ItemLine, items: MutableItem[]): boolea
   return false;
 }
 
+function pushChild(item: MutableItem, block: Block): void {
+  item.children.push(block);
+  item.tail = null;
+}
+
+/** 続きの行。子のブロックより後に来たものは、子の後ろの段落にして順序を保つ */
+function pushText(item: MutableItem, text: string): void {
+  if (item.children.length === 0) {
+    item.lines.push(text);
+  } else if (item.tail !== null) {
+    item.tail.push(text);
+  } else {
+    item.tail = [text];
+    item.children.push({ type: 'paragraph', lines: item.tail });
+  }
+}
+
 function stepItem(cursor: Cursor, first: ItemLine, item: ItemLine, items: MutableItem[]): boolean {
   const last = items.at(-1);
 
   if (item.indent > first.indent && last !== undefined) {
-    last.children.push(readList(cursor, item));
+    pushChild(last, readList(cursor, item));
     return true;
   }
   if (item.indent !== first.indent || item.ordered !== first.ordered) return false;
 
-  items.push({ lines: [item.text], children: [] });
+  items.push({ lines: [item.text], children: [], tail: null });
   cursor.pos++;
   return true;
 }
@@ -240,13 +284,17 @@ function skipBlankInList(cursor: Cursor, indent: number): boolean {
 }
 
 function matchItem(line: string): ItemLine | null {
+  if (THEMATIC_BREAK.test(line)) return null;
+
   const match = LIST_ITEM.exec(line);
   if (match === null) return null;
 
   const marker = match[2] ?? '-';
+  const ordered = /^\d/.test(marker);
   return {
     indent: indentOf(match[1] ?? ''),
-    ordered: /^\d/.test(marker),
+    ordered,
+    start: ordered ? Number.parseInt(marker, 10) : 1,
     text: (match[3] ?? '').trim(),
   };
 }
@@ -266,6 +314,20 @@ function indentOf(line: string): number {
     else break;
   }
   return width;
+}
+
+/** 行頭の空白を `width` の幅まで外す */
+function dedent(line: string, width: number): string {
+  let removed = 0;
+  let index = 0;
+  while (index < line.length && removed < width) {
+    const char = line[index];
+    if (char === ' ') removed++;
+    else if (char === '\t') removed += TAB_WIDTH;
+    else break;
+    index++;
+  }
+  return line.slice(index);
 }
 
 function isBlank(line: string): boolean {
@@ -414,7 +476,7 @@ function matchLink(text: string, pos: number): InlineMatch | null {
   const labelEnd = findLabelEnd(text, pos);
   if (labelEnd === -1 || text[labelEnd + 1] !== '(') return null;
 
-  const destEnd = text.indexOf(')', labelEnd + 2);
+  const destEnd = findDestEnd(text, labelEnd + 2);
   if (destEnd === -1) return null;
 
   const href = text.slice(labelEnd + 2, destEnd);
@@ -427,6 +489,18 @@ function matchLink(text: string, pos: number): InlineMatch | null {
   const children =
     label === '' ? [{ type: 'text', text: href } as const] : readSpans(label, { links: false });
   return { end, span: { type: 'link', href, children } };
+}
+
+/** URL を閉じる `)` の位置。URL の中の対になった括弧（`Foo_(bar)` など）は URL の一部とする */
+function findDestEnd(text: string, from: number): number {
+  let depth = 0;
+  for (let at = from; at < text.length; at++) {
+    if (text[at] === '(') depth++;
+    if (text[at] !== ')') continue;
+    if (depth === 0) return at;
+    depth--;
+  }
+  return -1;
 }
 
 /** `[` に対応する `]` の位置。中の `[...]` の入れ子とインラインコードを飛ばす */
