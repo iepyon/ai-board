@@ -816,6 +816,92 @@ details.fold[open] > summary h2::before {
   flex-wrap: wrap;
 }
 
+/* ---------- 詳細パネルの本文（整形した表示） ---------- */
+
+.md-body {
+  font-size: 13px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.md-body > :first-child {
+  margin-top: 0;
+}
+
+.md-heading {
+  color: var(--text);
+  font-weight: 700;
+  line-height: 1.5;
+  margin: 18px 0 6px;
+}
+
+.md-h1,
+.md-h2 {
+  font-size: 14px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.md-h3 {
+  font-size: 13px;
+}
+
+.md-h4,
+.md-h5,
+.md-h6 {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.md-paragraph {
+  margin: 0 0 10px;
+}
+
+.md-list {
+  margin: 0 0 10px;
+  padding-left: 1.4em;
+}
+
+.md-list .md-list {
+  margin: 2px 0 0;
+}
+
+.md-list li + li {
+  margin-top: 4px;
+}
+
+.md-inline-code {
+  font-family: 'SF Mono', Menlo, monospace;
+  font-size: 0.9em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface-2);
+}
+
+/* コードと表は桁を崩さないよう折り返さず、横にスクロールさせる */
+.md-code,
+.md-rows {
+  font-family: 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  overflow-x: auto;
+  white-space: pre;
+  overflow-wrap: normal;
+}
+
+.md-body a {
+  color: var(--accent);
+}
+
+.md-body strong {
+  font-weight: 700;
+}
+
 /* ---------- 詳細パネルのステージ表示 ---------- */
 
 .stage-now {
