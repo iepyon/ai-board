@@ -6,7 +6,7 @@ import { LinkFields } from './detail/LinkFields.js';
 import { BodyEditor } from './detail/BodyEditor.js';
 import { updateCardMeta, type CardMetaPatch } from '../api.js';
 import { useAction } from '../hooks/useAction.js';
-import type { BoardCard } from '../types.js';
+import { GATE_OF_STAGE, type BoardCard } from '../types.js';
 
 // ============================================================
 // カード詳細パネル
@@ -27,6 +27,9 @@ export function CardDetail({ card, onClose, onChanged }: CardDetailProps) {
   const patch = (values: CardMetaPatch): Promise<void> =>
     run(() => updateCardMeta(card.id, values));
 
+  // 判断待ちでないカードではレビューの欄を出さない（ボタンが無い理由はステージの欄で読める）
+  const waitingForReview = GATE_OF_STAGE[card.stage] !== undefined;
+
   return (
     <aside className="detail" aria-label={`${card.title} の詳細`}>
       <div className="detail-head">
@@ -39,11 +42,12 @@ export function CardDetail({ card, onClose, onChanged }: CardDetailProps) {
       <div className="detail-body">
         {error !== null && <div className="divergence">{error}</div>}
 
+        {/* 判断待ちのカードだけ、本文を読んですぐ押せるようレビューを先頭に置く */}
+        {waitingForReview && <ReviewActions card={card} saving={saving} onRun={run} />}
+        <BodyEditor card={card} saving={saving} onRun={run} />
         <StageSection card={card} />
         <PlanSection card={card} />
-        <ReviewActions card={card} saving={saving} onRun={run} />
         <LinkFields card={card} saving={saving} onPatch={patch} />
-        <BodyEditor card={card} saving={saving} onRun={run} />
       </div>
     </aside>
   );
