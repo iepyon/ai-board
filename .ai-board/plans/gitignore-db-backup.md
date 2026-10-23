@@ -48,4 +48,9 @@ README と CLAUDE.md には DB の退避の手順が書かれていない。`.gi
 ## タスク
 
 - [x] `.gitignore` の DB の 2 行を `/.ai-board/board.db*` の 1 行にまとめ、コメントにバックアップも含むことを書く
-- [ ] `git check-ignore -v` で `board.db` / `board.db-wal` / `board.db-shm` / `board.db.bak-20261023` / `board.db.bak-20261023-shm` が無視され、`config.example.yaml` と `plans/` が無視されないことを確かめる
+- [x] `git check-ignore -v` で `board.db` / `board.db-wal` / `board.db-shm` / `board.db.bak-20261023` / `board.db.bak-20261023-shm` が無視され、`config.example.yaml` と `plans/` が無視されないことを確かめる
+
+### 記録
+
+PR #30 はタスク 2 の前に人が Ready にしてマージしたため、タスク 2 の確認と archive への移動は別の PR で行った。
+確認は `git check-ignore --no-index` で、マージ後の `origin/main` の `.gitignore` に対して行った。
