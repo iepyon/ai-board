@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { DIVIDER_ID } from '../card-reorder.js';
 import {
+  awaitsPlanDecision,
   groupBySection,
   ideaRows,
   isStale,
@@ -181,6 +182,28 @@ describe('mergedAt', () => {
 // ============================================================
 // 動きなし
 // ============================================================
+
+describe('awaitsPlanDecision', () => {
+  it('計画レビューのカードは判断を待っている', () => {
+    expect(awaitsPlanDecision(makeCard({ id: 'a', stage: 'plan-review' }))).toBe(true);
+  });
+
+  it('PR中 のカードは GitHub で判断するので含めない', () => {
+    expect(awaitsPlanDecision(makeCard({ id: 'a', stage: 'pr' }))).toBe(false);
+  });
+
+  it('中止のカードは計画レビューに残っていても含めない', () => {
+    expect(awaitsPlanDecision(makeCard({ id: 'a', stage: 'plan-review', aborted: true }))).toBe(
+      false
+    );
+  });
+
+  it('AI の列とアイデアのカードは含めない', () => {
+    for (const stage of ['idea', 'planning', 'impling', 'merged'] as const) {
+      expect(awaitsPlanDecision(makeCard({ id: 'a', stage }))).toBe(false);
+    }
+  });
+});
 
 describe('isStale', () => {
   const now = new Date('2026-09-26T00:00:00Z');

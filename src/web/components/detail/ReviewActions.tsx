@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { appendReview } from '../../api.js';
-import { GATE_OF_STAGE, STAGE_LABELS, type BoardCard } from '../../types.js';
+import { GATE_OF_STAGE, type BoardCard } from '../../types.js';
 
 // ============================================================
 // 承認 / 否決 / 中止
@@ -26,14 +26,8 @@ export function ReviewActions({ card, saving, onRun }: ReviewActionsProps) {
 
   const gate = GATE_OF_STAGE[card.stage];
 
-  if (gate === undefined) {
-    return (
-      <>
-        <h3>レビュー</h3>
-        <p className="movable">{STAGE_LABELS[card.stage]} は判断を待つ列ではありません。</p>
-      </>
-    );
-  }
+  // 判断を待つ列でなければ何も出さない（呼び出し側は計画レビューのカードにだけ使う）
+  if (gate === undefined) return null;
 
   const submit = (kind: '承認' | '否決' | '中止'): void => {
     void onRun(async () => {

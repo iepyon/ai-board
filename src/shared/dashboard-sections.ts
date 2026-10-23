@@ -85,6 +85,16 @@ export function mergedAt(card: SectionCard): string | null {
   return card.mrState?.mergedAt ?? card.plan?.updatedAt ?? null;
 }
 
+/**
+ * 詳細パネルで、承認 / 否決 / 中止のボタンを本文より前に出すか。
+ *
+ * ボタンで判断するのは計画レビューのカードだけで、PR中 のカードは GitHub で PR をマージして判断する。
+ * 中止のカードは計画レビューの列に残っていても、判断も作業も待っていないので出さない。
+ */
+export function awaitsPlanDecision(card: Pick<SectionCard, 'stage' | 'aborted'>): boolean {
+  return card.stage === 'plan-review' && !card.aborted;
+}
+
 /** 「動きなし」とみなすまでの日数 */
 export const STALE_DAYS = 3;
 
