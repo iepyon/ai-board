@@ -110,4 +110,4 @@
 
 - [x] 3.1 `README.md` の詳細パネルの説明を直す
 - [x] 3.2 `npm run typecheck && npm run lint && npm run format:check && npm test` を通す
-- [ ] 3.3 `npm run dev` と `npm run dev:web` で実際の画面を確かめる（今のカードの本文、ライト / ダーク、編集と保存）
+- [x] 3.3 `npm run dev` と `npm run dev:web` で実際の画面を確かめる（今のカードの本文、ライト / ダーク、編集と保存）

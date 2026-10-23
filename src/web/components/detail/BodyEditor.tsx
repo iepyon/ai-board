@@ -92,7 +92,7 @@ export function BodyEditor({ card, saving, onRun }: BodyEditorProps) {
         </button>
 
         <button type="button" className="btn ghost" onClick={() => setEditing(null)}>
-          {dirty ? '取り消す' : '閉じる'}
+          {dirty ? '取り消す' : '編集をやめる'}
         </button>
 
         <span className="status">{`.ai-board/board.db · ${card.id}`}</span>
