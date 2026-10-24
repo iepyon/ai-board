@@ -297,7 +297,7 @@ GitLab の MR !1 と GitHub の PR #1 は別物で、番号をそのまま引く
 archive は別の PR にしない。マージと同時に main に入れば、GitHub が引けないときや
 `github:` の無いリポジトリでも マージ済み が立つ。
 
-手順 2・4 は `.claude/skills/board-loop/SKILL.md` のスキルが 1 周 1 手ずつ進める。
+手順 2・4 は `.claude/skills/board-loop/SKILL.md` のスキルが 1 周 1 手ずつ作業者に渡して進める。
 `/loop 5m /board-loop` で間隔運転する。何をするかは `ai-board status --json` の `next` に従い、
 GitHub に接続できないとき（`forge.status` が `connected` でないとき。`github:` が無いときも含む）は
 `status` が `next` を `null` にするので、ループは何もせずに止まる。

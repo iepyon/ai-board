@@ -14,8 +14,8 @@ description: ai-board のボードを読み、AI が進めてよいカード（�
 
 ## 0. 作業中の作業者がいないかを見る
 
-`ListAgents` で、名前が `board-worker-` で始まる作業者が動いていないかを見る。
-動いていれば「作業中: <カード ID>（<いつから>）」とだけ伝えて、この周は終わる。
+`ListAgents` で、名前が `board-worker-` で始まり、状態が `running` の作業者がいないかを見る（終わった作業者も一覧に残る）。
+いれば「作業中: <作業者の名前>（<いつから>）」とだけ伝えて、この周は終わる。
 
 作業者はバックグラウンドで動くので、作業中にも次の周が来る。このときの `status` はまだ同じ `next` を返すため、
 ここで止まらないと 2 人目の作業者が同じカードに入る。
@@ -35,8 +35,12 @@ if ! node -e 'const fs=require("fs");const [f,t]=process.argv.slice(1);process.e
     "$MAIN/dist/cli.js" "$(git -C "$MAIN" log -1 --format=%ct)"; then
   npm --prefix "$MAIN" run build
 fi
-node "$MAIN/dist/cli.js" status --json --root "$MAIN" \
-  | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);console.log(JSON.stringify({next:j.next,waiting:j.waiting,forge:j.forge}))})'
+# パイプでつなぐと status の失敗が絞り込みの JSON エラーに隠れるので、一度受けてから絞る
+if out=$(node "$MAIN/dist/cli.js" status --json --root "$MAIN"); then
+  printf '%s' "$out" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);console.log(JSON.stringify({next:j.next,waiting:j.waiting,forge:j.forge}))})'
+else
+  echo "status が失敗した"
+fi
 ```
 
 ## 2. 止まる条件（何も渡さずに報告して終わる）
@@ -53,7 +57,9 @@ node "$MAIN/dist/cli.js" status --json --root "$MAIN" \
 `Agent` を次の形で呼ぶ。
 
 - `subagent_type`: `board-worker`
-- `name`: `board-worker-<next.cardId>`
+- `name`: `board-worker-<next.cardId の先頭 46 文字>-<HHmm>`（今の時刻）。
+  名前は 64 文字までだが、カード ID は 100 文字まで取りうるので切り詰める。
+  同じカードには手ごとに何度も作業者を渡すので、時刻を付けて前の作業者と名前がぶつからないようにする
 - `description`: `<next.action> <next.cardId>`
 - `prompt`: 次の 3 行だけを書く。要約や補足を足さない
 

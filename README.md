@@ -214,7 +214,7 @@ CLI にはエージェントに許す操作しか無い。`startedAt`・`rank`�
 
 ### AI ループ
 
-`.claude/skills/board-loop/SKILL.md` は、ボードを読んで AI が進めてよいカードを 1 手だけ進めるスキル。
+`.claude/skills/board-loop/SKILL.md` は、ボードを読んで AI が進めてよいカードの次の 1 手を、作業者のサブエージェントに渡すスキル。
 `/loop 5m /board-loop` で間隔運転する。
 
 - 何をするかは `ai-board status --json` の `next` が決める。優先順は 実装中 → 計画提案中、同じ列の中は `rank` の順
