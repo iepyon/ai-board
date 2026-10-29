@@ -264,7 +264,7 @@ CLI は AI も使う入口であり、AI が自分で飛ばす宣言を書けな
 
 ### 5. API
 
-- [ ] `board.e2e.test.ts` に、`POST /api/cards/:id/reviews` が `gate: "verify"` を受け付け、`GET /api/board` で `verifying` と `latestReview.gate` が返ることを足す
+- [x] `board.e2e.test.ts` に、`POST /api/cards/:id/reviews` が `gate: "verify"` を受け付け、`GET /api/board` で `verifying` と `latestReview.gate` が返ることを足す
 
 ### 6. 画面
 
