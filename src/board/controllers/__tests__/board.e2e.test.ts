@@ -85,6 +85,7 @@ describe('GET /api/board', () => {
       'planning',
       'plan-review',
       'impling',
+      'verifying',
       'pr',
       'merged',
     ]);
@@ -227,7 +228,7 @@ describe('GET /api/board', () => {
     const card = response.body.cards[0];
 
     expect(card.stage).toBe('impling');
-    expect(card.gates).toEqual({ plan: 'approved' });
+    expect(card.gates).toEqual({ plan: 'approved', verify: 'none' });
     expect(card.aborted).toBe(false);
     expect(card.droppableStages).toEqual([]);
   });
@@ -295,7 +296,7 @@ describe('GET /api/board', () => {
     const card = response.body.cards[0];
 
     expect(card.stage).toBe('planning');
-    expect(card.gates).toEqual({ plan: 'none' });
+    expect(card.gates).toEqual({ plan: 'none', verify: 'none' });
   });
 
   it('BoardCard に上書き関連のフィールドは現れない', async () => {

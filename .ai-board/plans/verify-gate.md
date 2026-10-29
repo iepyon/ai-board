@@ -241,7 +241,7 @@ CLI は AI も使う入口であり、AI が自分で飛ばす宣言を書けな
 
 ### 1. ゲートとステージ
 
-- [ ] `verify` ゲートと `verifying` ステージを足し、導出のルールを 1 本足す。型を壊す変更と受け止める箇所を 1 つのコミットにまとめる
+- [x] `verify` ゲートと `verifying` ステージを足し、導出のルールを 1 本足す。型を壊す変更と受け止める箇所を 1 つのコミットにまとめる
   - `REVIEW_GATES` を `['plan', 'verify']` に、`STAGES` の `impling` と `pr` の間に `verifying` を入れる
   - `Record<Stage, …>` / `Record<ReviewGate, …>` の表を埋める: `STAGE_LABELS`（動作確認）、`SECTION_OF_STAGE`（inbox）、web の `Stage` / `ReviewGate` / `STAGE_OWNER`（human）/ `STAGE_SOURCE`（plan）
   - `stage-resolver.ts` の `toFacts` に `verify` を、`RULES` に `verifying` のルールを足し、docstring の判定表を 7 段に直す

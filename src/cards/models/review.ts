@@ -8,10 +8,13 @@
  * `pr` ゲートはここに含めない。PR の承認は GitHub 側の実態
  * （PR が merged になること）そのものであり、カード本文には現れないため。
  *
+ * - `plan`   計画を読んで確かめる（計画レビューの列）
+ * - `verify` 実装を動かして確かめる（動作確認の列）
+ *
  * かつては `explore` ゲートもあったが、探索レビューの列とともに廃止した。
  * 既存カードに残る `explore` のエントリは規定外のゲートとして黙って無視される。
  */
-export const REVIEW_GATES = ['plan'] as const;
+export const REVIEW_GATES = ['plan', 'verify'] as const;
 
 export type ReviewGate = (typeof REVIEW_GATES)[number];
 

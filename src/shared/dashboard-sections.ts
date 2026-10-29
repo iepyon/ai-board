@@ -8,7 +8,7 @@ import { DIVIDER_ID } from './card-reorder.js';
 /**
  * ダッシュボードの区画。ステージの導出はサーバが済ませており、ここは見せ方の振り分けだけを持つ。
  *
- * - `inbox`   人の判断待ち（計画レビュー / PR中）
+ * - `inbox`   人の判断待ち（計画レビュー / 動作確認 / PR中）
  * - `work`    AI が進めている（計画提案中 / 実装中）
  * - `idea`    アイデア
  * - `merged`  マージ済み
@@ -22,6 +22,7 @@ export const SECTION_OF_STAGE: Record<Stage, Exclude<DashboardSection, 'aborted'
   planning: 'work',
   'plan-review': 'inbox',
   impling: 'work',
+  verifying: 'inbox',
   pr: 'inbox',
   merged: 'merged',
 };
