@@ -153,6 +153,27 @@ describe('runCardCli', () => {
     expect(body).toContain('### 2026-09-26T00:00:00.000Z plan 再提出\n\n指摘を反映');
   });
 
+  it('submit は --gate verify で動作確認への提出を追記する', async () => {
+    await seed('a');
+
+    expect(await run(['submit', 'a', '--gate', 'verify', '--reason', '手順'])).toBe(0);
+    expect(await run(['submit', 'a', '--gate', 'plan', '--resubmit'])).toBe(0);
+
+    const body = await bodyOf('a');
+    expect(body).toContain('### 2026-09-26T00:00:00.000Z verify 提出\n\n手順');
+    expect(body).toContain('### 2026-09-26T00:00:00.000Z plan 再提出');
+  });
+
+  it('submit は規定外の --gate を使い方とともに 1 にし、何も追記しない', async () => {
+    await seed('a');
+
+    expect(await run(['submit', 'a', '--gate', 'pr'])).toBe(1);
+    expect(stderr).toContain('--gate には plan か verify');
+    expect(stderr).toContain('使い方');
+    expect(await run(['submit', 'a', '--gate'])).toBe(1);
+    expect(await bodyOf('a')).toBe('');
+  });
+
   it('submit は存在しないカードを 1 にする', async () => {
     expect(await run(['submit', 'missing'])).toBe(1);
     expect(stderr).toContain('見つかりません');

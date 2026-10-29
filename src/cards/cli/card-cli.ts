@@ -4,6 +4,7 @@ import type { CardDependencies } from '../composition.js';
 import type { Card } from '../models/card.js';
 import type { CreateCardError, UpdateCardError } from '../errors/card-errors.js';
 import { readCardFiles, serializeCard } from '../repositories/card-markdown.js';
+import { isReviewGate, type ReviewGate } from '../models/review.js';
 import { parseReviewLog } from '../services/review-log.js';
 
 // ============================================================
@@ -27,8 +28,9 @@ Commands:
   body <id>                本文を標準入力の内容に差し替える
                            （## レビュー のエントリが変わる差し替えは拒否する）
   branch <id> <name>       ブランチを紐付ける。--clear で外す
-  submit <id> [--resubmit] [--reason <text>]
-                           ## レビュー に plan 提出（--resubmit で再提出）を追記する
+  submit <id> [--gate <plan|verify>] [--resubmit] [--reason <text>]
+                           ## レビュー に提出（--resubmit で再提出）を追記する
+                           （--gate はどのゲートへの提出か。既定は plan）
 `;
 
 export interface CardCliIo {
@@ -47,7 +49,7 @@ interface ParsedArgs {
 
 type Handler = (args: ParsedArgs, deps: CardDependencies, io: CardCliIo) => Promise<number>;
 
-const VALUE_FLAGS = new Set(['--title', '--id', '--reason', '--from']);
+const VALUE_FLAGS = new Set(['--title', '--id', '--reason', '--from', '--gate']);
 
 const HANDLERS: Readonly<Record<string, Handler>> = {
   list: runList,
@@ -228,11 +230,17 @@ async function runSubmit(args: ParsedArgs, deps: CardDependencies, io: CardCliIo
   const id = requireCardId(args, io);
   if (id === null) return 1;
 
+  const gate = parseGate(args.flags.get('--gate'));
+  if (gate === null) {
+    io.stderr(`--gate には plan か verify を指定してください\n${CARD_USAGE}`);
+    return 1;
+  }
+
   const reason = args.flags.get('--reason');
 
   const result = await deps.appendReviewCommand({
     id,
-    gate: 'plan',
+    gate,
     kind: args.flags.get('--resubmit') === true ? '再提出' : '提出',
     reason: typeof reason === 'string' ? reason : '',
     at: io.now(),
@@ -248,6 +256,12 @@ async function runSubmit(args: ParsedArgs, deps: CardDependencies, io: CardCliIo
 /** 前後の改行だけを落とす。Markdown の行頭の空白は意味を持つので trim しない */
 function trimNewlines(text: string): string {
   return text.replace(/^\n+/, '').replace(/\n+$/, '');
+}
+
+/** `--gate` の値。省略は plan。規定外の値は null */
+function parseGate(value: string | true | undefined): ReviewGate | null {
+  if (value === undefined) return 'plan';
+  return typeof value === 'string' && isReviewGate(value) ? value : null;
 }
 
 function requireCardId(args: ParsedArgs, io: CardCliIo): CardId | null {

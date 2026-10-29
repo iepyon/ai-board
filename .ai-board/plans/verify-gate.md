@@ -260,7 +260,7 @@ CLI は AI も使う入口であり、AI が自分で飛ばす宣言を書けな
 
 ### 4. CLI
 
-- [ ] `ai-board card submit` に `--gate <plan|verify>` を足す（既定は `plan`、不正な値は使い方を出して失敗）。使い方の文言とテストを直す
+- [x] `ai-board card submit` に `--gate <plan|verify>` を足す（既定は `plan`、不正な値は使い方を出して失敗）。使い方の文言とテストを直す
 
 ### 5. API
 
