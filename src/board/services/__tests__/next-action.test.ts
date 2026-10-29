@@ -5,10 +5,13 @@ import type { GateState } from '../../../cards/models/review.js';
 function makeCard(
   overrides: Partial<NextActionCard> & Pick<NextActionCard, 'id' | 'stage'>
 ): NextActionCard {
-  return { aborted: false, gates: gate('none'), ...overrides };
+  return { aborted: false, gates: gate('none'), skipGates: [], ...overrides };
 }
 
-const gate = (plan: GateState): NextActionCard['gates'] => ({ plan });
+const gate = (plan: GateState, verify: GateState = 'none'): NextActionCard['gates'] => ({
+  plan,
+  verify,
+});
 
 describe('pickNextAction', () => {
   it('実装中を計画提案中より先に選ぶ', () => {
@@ -63,10 +66,57 @@ describe('pickNextAction', () => {
     expect(next?.cardId).toBe('fresh');
   });
 
+  it('動作確認をまだ頼んでいない実装中は implement', () => {
+    const next = pickNextAction([
+      makeCard({ id: 'a', stage: 'impling', gates: gate('approved', 'none') }),
+    ]);
+
+    expect(next?.action).toBe('implement');
+  });
+
+  it('動作確認で否決されて実装中へ落ちたカードは revise-impl', () => {
+    const next = pickNextAction([
+      makeCard({ id: 'a', stage: 'impling', gates: gate('approved', 'rejected') }),
+    ]);
+
+    expect(next).toEqual({ cardId: 'a', action: 'revise-impl', reason: '動作確認で否決された' });
+  });
+
+  it('動作確認を人が承認したカードは ready', () => {
+    const next = pickNextAction([
+      makeCard({ id: 'a', stage: 'impling', gates: gate('approved', 'approved') }),
+    ]);
+
+    expect(next).toEqual({ cardId: 'a', action: 'ready', reason: '動作確認が承認された' });
+  });
+
+  it('動作確認を飛ばす宣言による承認は ready ではなく implement', () => {
+    const next = pickNextAction([
+      makeCard({
+        id: 'a',
+        stage: 'impling',
+        gates: gate('approved', 'approved'),
+        skipGates: ['verify'],
+      }),
+    ]);
+
+    expect(next?.action).toBe('implement');
+  });
+
+  it('動作確認を待つカードは選ばず、次のカードを選ぶ', () => {
+    const next = pickNextAction([
+      makeCard({ id: 'verifying', stage: 'verifying', gates: gate('approved', 'submitted') }),
+      makeCard({ id: 'planning', stage: 'planning' }),
+    ]);
+
+    expect(next?.cardId).toBe('planning');
+  });
+
   it('人の判断を待つ列やアイデア・マージ済みしか無ければ null', () => {
     const next = pickNextAction([
       makeCard({ id: 'idea', stage: 'idea' }),
       makeCard({ id: 'review', stage: 'plan-review', gates: gate('submitted') }),
+      makeCard({ id: 'verifying', stage: 'verifying', gates: gate('approved', 'submitted') }),
       makeCard({ id: 'pr', stage: 'pr', gates: gate('approved') }),
       makeCard({ id: 'merged', stage: 'merged', gates: gate('approved') }),
     ]);
