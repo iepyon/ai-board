@@ -233,7 +233,7 @@ describe('GET /api/board', () => {
     expect(card.droppableStages).toEqual([]);
   });
 
-  it('plan ゲートの最新エントリを latestReview として返す（中止は除く）', async () => {
+  it('待ちの列でなければゲートを問わず最新のエントリを latestReview として返す（中止は除く）', async () => {
     await writeCard(
       'waiting',
       [
@@ -265,10 +265,47 @@ describe('GET /api/board', () => {
 
     expect(byId.get('waiting')).toEqual({
       at: '2026-09-06T00:00:00.000Z',
+      gate: 'plan',
       kind: '提出',
       reason: '判断待ちの点は 1 つ。',
     });
     expect(byId.get('fresh')).toBeNull();
+  });
+
+  it('計画レビューの列では、より新しい verify のエントリがあっても plan の最新を latestReview にする', async () => {
+    await writeCard(
+      'review',
+      [
+        '---',
+        'id: review',
+        'title: 計画レビュー中',
+        'startedAt: 2026-09-05T00:00:00.000Z',
+        '---',
+        '',
+        '## レビュー',
+        '',
+        '### 2026-09-06T00:00:00.000Z plan 提出',
+        '',
+        '計画を読んでほしい。',
+        '',
+        '### 2026-09-07T00:00:00.000Z verify 提出',
+        '',
+        '先走った動作確認の依頼。',
+        '',
+      ].join('\n')
+    );
+    await writeFile('.ai-board/plans/review.md', '# 計画\n');
+
+    const response = await request(buildApp()).get('/api/board').expect(200);
+    const card = response.body.cards[0];
+
+    expect(card.stage).toBe('plan-review');
+    expect(card.latestReview).toEqual({
+      at: '2026-09-06T00:00:00.000Z',
+      gate: 'plan',
+      kind: '提出',
+      reason: '計画を読んでほしい。',
+    });
   });
 
   it('廃止された explore のエントリはゲートにもステージにも現れない', async () => {

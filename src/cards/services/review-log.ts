@@ -125,16 +125,18 @@ export function gateState(
 }
 
 /**
- * ゲートの最新エントリ（中止を除く）。無ければ null。
+ * ゲートの最新エントリ（中止を除く）。無ければ null。`gate` が undefined ならゲートを問わず最新を選ぶ。
  *
  * `gateState()` と同じ規則でエントリを選ぶので、返るエントリの種別は常にゲートの状態と一致する。
  * 人が判断するときの材料（提出に書かれた判断待ちの点）と、待ち始めた時刻を画面に出すために使う。
  */
 export function latestGateEntry(
   entries: readonly ReviewEntry[],
-  gate: ReviewGate
+  gate: ReviewGate | undefined
 ): ReviewEntry | null {
-  return latestOf(entries.filter((entry) => entry.gate === gate && entry.kind !== '中止'));
+  return latestOf(
+    entries.filter((entry) => (gate === undefined || entry.gate === gate) && entry.kind !== '中止')
+  );
 }
 
 /** 全エントリを通じて最新のものが 中止 か */

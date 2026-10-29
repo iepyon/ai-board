@@ -18,9 +18,13 @@ export interface BoardCardPlan {
   updatedAt: string;
 }
 
-/** plan ゲートの最新エントリ（中止を除く）。提出の本文が判断待ちの点になる */
+/**
+ * その列が待っているゲートの最新エントリ（中止を除く）。提出の本文が判断待ちの点になる。
+ * 待ちの列でなければゲートを問わず最新
+ */
 export interface BoardCardReview {
   at: string;
+  gate: ReviewGate;
   kind: ReviewKind;
   reason: string;
 }
@@ -118,7 +122,4 @@ export const STAGE_SOURCE: Record<Stage, 'card' | 'plan' | 'forge' | 'archive'> 
   merged: 'archive',
 };
 
-/** その列が人の判断を待っているゲート。待ちの列でなければ undefined */
-export const GATE_OF_STAGE: Partial<Record<Stage, ReviewGate>> = {
-  'plan-review': 'plan',
-};
+export { GATE_OF_STAGE } from '../shared/stage-gates.js';

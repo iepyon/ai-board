@@ -249,7 +249,7 @@ CLI は AI も使う入口であり、AI が自分で飛ばす宣言を書けな
 
 ### 2. 判断待ちの見せ方（サーバ側）
 
-- [ ] `GATE_OF_STAGE` を `src/shared/` へ移し、`latestReview` を「その列が待っているゲート、無ければゲートを通じた最新」のエントリにして `gate` を足す
+- [x] `GATE_OF_STAGE` を `src/shared/` へ移し、`latestReview` を「その列が待っているゲート、無ければゲートを通じた最新」のエントリにして `gate` を足す
 - [ ] `awaitsPlanDecision` を `awaitsDecision` に改め、`verifying` も判断待ちにする。`waitingSince` の docstring に動作確認を足す。`dashboard-sections.test.ts` に `verifying` の振り分け・待ち時間・判断の要否を足す
 
 ### 3. 次の一手
