@@ -31,7 +31,7 @@ export function InboxSection({ cards, onSelect, onChanged }: InboxSectionProps) 
             card.stage === 'pr' ? (
               <PrItem key={card.id} card={card} onSelect={onSelect} />
             ) : (
-              <PlanReviewItem key={card.id} card={card} onSelect={onSelect} onChanged={onChanged} />
+              <GateReviewItem key={card.id} card={card} onSelect={onSelect} onChanged={onChanged} />
             )
           )}
         </div>
@@ -48,22 +48,22 @@ function Waiting({ card }: { card: BoardCard }) {
   return <span title={formatDateTime(since)}>{formatAgo(since)}から待ち</span>;
 }
 
-interface PlanReviewItemProps {
+interface GateReviewItemProps {
   card: BoardCard;
   onSelect: (card: BoardCard) => void;
   onChanged: () => void;
 }
 
 /**
- * 計画レビューのカード。提出に書かれた判断待ちの点と計画の PR へのリンクを見せ、
- * 「判断する」でその場にレビュー欄を開く。計画の本文は PR で読む。
+ * 計画レビューと動作確認のカード。提出に書かれた本文（判断待ちの点、動かす手順）と PR へのリンクを見せ、
+ * 「判断する」でその場にレビュー欄を開く。計画の本文や差分は PR で読む。
  */
-function PlanReviewItem({ card, onSelect, onChanged }: PlanReviewItemProps) {
+function GateReviewItem({ card, onSelect, onChanged }: GateReviewItemProps) {
   const [open, setOpen] = useState(false);
   const { saving, error, run } = useAction(onChanged);
   const tasks = card.plan?.tasks;
   const mr = card.mrState;
-  const panelId = `plan-${card.id}`;
+  const panelId = `review-${card.id}`;
 
   return (
     <article className="item">
@@ -84,13 +84,7 @@ function PlanReviewItem({ card, onSelect, onChanged }: PlanReviewItemProps) {
         </div>
 
         <div className="acts">
-          {mr === null ? (
-            <span className="movable">計画の PR がまだありません</span>
-          ) : (
-            <a className="btn ghost" href={mr.webUrl} target="_blank" rel="noreferrer">
-              計画の PR #{mr.iid} を読む ↗
-            </a>
-          )}
+          <ReviewPrLink card={card} />
           <button
             type="button"
             className={open ? 'btn ghost' : 'btn'}
@@ -117,7 +111,32 @@ function PlanReviewItem({ card, onSelect, onChanged }: PlanReviewItemProps) {
   );
 }
 
-/** 提出（再提出）に AI が書いた本文。判断の材料なので畳まずに出す */
+/**
+ * 判断の材料を読む PR へのリンク。計画レビューでは計画を読み、動作確認では PR から手元へ取り込んで動かす。
+ */
+function ReviewPrLink({ card }: { card: BoardCard }) {
+  const mr = card.mrState;
+  const verifying = card.stage === 'verifying';
+
+  if (mr === null) {
+    return (
+      <span className="movable">
+        {verifying ? 'PR がまだありません' : '計画の PR がまだありません'}
+      </span>
+    );
+  }
+
+  return (
+    <a className="btn ghost" href={mr.webUrl} target="_blank" rel="noreferrer">
+      {verifying ? `PR #${mr.iid} を開く ↗` : `計画の PR #${mr.iid} を読む ↗`}
+    </a>
+  );
+}
+
+/**
+ * 提出（再提出）に AI が書いた本文。判断の材料なので畳まずに出す。
+ * `latestReview` はその列が待つゲートの最新エントリなので、札にゲートの名前を出す。
+ */
 function SubmissionNote({ card }: { card: BoardCard }) {
   const review = card.latestReview;
 
@@ -128,7 +147,9 @@ function SubmissionNote({ card }: { card: BoardCard }) {
 
   return (
     <div className="why">
-      <span className="why-kind">plan {review.kind}</span>
+      <span className="why-kind">
+        {review.gate} {review.kind}
+      </span>
       {review.reason === '' ? '（本文なし）' : review.reason}
     </div>
   );
