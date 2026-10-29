@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { DIVIDER_ID } from '../card-reorder.js';
 import {
-  awaitsPlanDecision,
+  awaitsDecision,
   groupBySection,
   ideaRows,
   isStale,
@@ -40,13 +40,14 @@ describe('groupBySection', () => {
       makeCard({ id: 'b', stage: 'planning' }),
       makeCard({ id: 'c', stage: 'plan-review' }),
       makeCard({ id: 'd', stage: 'impling' }),
+      makeCard({ id: 'v', stage: 'verifying' }),
       makeCard({ id: 'e', stage: 'pr' }),
       makeCard({ id: 'f', stage: 'merged' }),
     ]);
 
     expect(ids(sections.idea)).toEqual(['a']);
     expect(ids(sections.work)).toEqual(['b', 'd']);
-    expect(ids(sections.inbox)).toEqual(['c', 'e']);
+    expect(ids(sections.inbox)).toEqual(['c', 'v', 'e']);
     expect(ids(sections.merged)).toEqual(['f']);
     expect(sections.aborted).toEqual([]);
   });
@@ -79,11 +80,12 @@ describe('groupBySection', () => {
       makeCard({ id: 'new', stage: 'plan-review', latestReview: { at: '2026-09-25T00:00:00Z' } }),
       makeCard({ id: 'unknown', stage: 'plan-review' }),
       makeCard({ id: 'pr', stage: 'pr', mrState: mr({ latestCommitAt: '2026-09-21T00:00:00Z' }) }),
+      makeCard({ id: 'verify', stage: 'verifying', latestReview: { at: '2026-09-23T00:00:00Z' } }),
       makeCard({ id: 'old', stage: 'plan-review', latestReview: { at: '2026-09-20T00:00:00Z' } }),
     ]);
 
     // 時刻の取れないカードは末尾
-    expect(ids(sections.inbox)).toEqual(['old', 'pr', 'new', 'unknown']);
+    expect(ids(sections.inbox)).toEqual(['old', 'pr', 'verify', 'new', 'unknown']);
   });
 
   it('マージ済みはマージの新しい順に並べる', () => {
@@ -131,6 +133,18 @@ describe('waitingSince', () => {
     });
 
     expect(waitingSince(card)).toBe('2026-09-22T00:00:00Z');
+  });
+
+  it('動作確認は verify の提出の時刻', () => {
+    const card = makeCard({
+      id: 'a',
+      stage: 'verifying',
+      latestReview: { at: '2026-09-24T00:00:00Z' },
+      plan: { updatedAt: '2026-09-22T00:00:00Z' },
+      mrState: mr({ latestCommitAt: '2026-09-23T00:00:00Z' }),
+    });
+
+    expect(waitingSince(card)).toBe('2026-09-24T00:00:00Z');
   });
 
   it('PR中 は最新コミットの時刻', () => {
@@ -183,24 +197,28 @@ describe('mergedAt', () => {
 // 動きなし
 // ============================================================
 
-describe('awaitsPlanDecision', () => {
+describe('awaitsDecision', () => {
   it('計画レビューのカードは判断を待っている', () => {
-    expect(awaitsPlanDecision(makeCard({ id: 'a', stage: 'plan-review' }))).toBe(true);
+    expect(awaitsDecision(makeCard({ id: 'a', stage: 'plan-review' }))).toBe(true);
+  });
+
+  it('動作確認のカードは判断を待っている', () => {
+    expect(awaitsDecision(makeCard({ id: 'a', stage: 'verifying' }))).toBe(true);
   });
 
   it('PR中 のカードは GitHub で判断するので含めない', () => {
-    expect(awaitsPlanDecision(makeCard({ id: 'a', stage: 'pr' }))).toBe(false);
+    expect(awaitsDecision(makeCard({ id: 'a', stage: 'pr' }))).toBe(false);
   });
 
-  it('中止のカードは計画レビューに残っていても含めない', () => {
-    expect(awaitsPlanDecision(makeCard({ id: 'a', stage: 'plan-review', aborted: true }))).toBe(
-      false
-    );
+  it('中止のカードはゲートを待つ列に残っていても含めない', () => {
+    for (const stage of ['plan-review', 'verifying'] as const) {
+      expect(awaitsDecision(makeCard({ id: 'a', stage, aborted: true }))).toBe(false);
+    }
   });
 
   it('AI の列とアイデアのカードは含めない', () => {
     for (const stage of ['idea', 'planning', 'impling', 'merged'] as const) {
-      expect(awaitsPlanDecision(makeCard({ id: 'a', stage }))).toBe(false);
+      expect(awaitsDecision(makeCard({ id: 'a', stage }))).toBe(false);
     }
   });
 });

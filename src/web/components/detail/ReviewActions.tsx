@@ -26,7 +26,7 @@ export function ReviewActions({ card, saving, onRun }: ReviewActionsProps) {
 
   const gate = GATE_OF_STAGE[card.stage];
 
-  // 判断を待つ列でなければ何も出さない（呼び出し側は計画レビューのカードにだけ使う）
+  // 判断を待つ列でなければ何も出さない（呼び出し側は `awaitsDecision` のカードにだけ使う）
   if (gate === undefined) return null;
 
   const submit = (kind: '承認' | '否決' | '中止'): void => {

@@ -1,5 +1,6 @@
 import type { Stage } from './schemas/common.js';
 import { DIVIDER_ID } from './card-reorder.js';
+import { GATE_OF_STAGE } from './stage-gates.js';
 
 // ============================================================
 // ダッシュボードの区画 — web とテストの両方から使う純関数
@@ -68,6 +69,7 @@ export function groupBySection<T extends SectionCard>(cards: readonly T[]): Sect
  *
  * 計画レビューは提出（再提出）の時刻。提出を書き忘れて計画ファイルだけがある場合は
  * ファイルの更新時刻で代える。
+ * 動作確認は verify の提出（再提出）の時刻（`latestReview` がその列の待つゲートのエントリを指す）。
  * PR中 は最新コミットの時刻（修正を push した時点から人の番になる）。取れなければ計画の提出時刻。
  */
 export function waitingSince(card: SectionCard): string | null {
@@ -89,11 +91,12 @@ export function mergedAt(card: SectionCard): string | null {
 /**
  * 詳細パネルで、承認 / 否決 / 中止のボタンを本文より前に出すか。
  *
- * ボタンで判断するのは計画レビューのカードだけで、PR中 のカードは GitHub で PR をマージして判断する。
- * 中止のカードは計画レビューの列に残っていても、判断も作業も待っていないので出さない。
+ * ボタンで判断するのはゲートを待つ列（計画レビュー / 動作確認）のカードだけで、
+ * PR中 のカードは GitHub で PR をマージして判断する。
+ * 中止のカードはゲートを待つ列に残っていても、判断も作業も待っていないので出さない。
  */
-export function awaitsPlanDecision(card: Pick<SectionCard, 'stage' | 'aborted'>): boolean {
-  return card.stage === 'plan-review' && !card.aborted;
+export function awaitsDecision(card: Pick<SectionCard, 'stage' | 'aborted'>): boolean {
+  return GATE_OF_STAGE[card.stage] !== undefined && !card.aborted;
 }
 
 /** 「動きなし」とみなすまでの日数 */
