@@ -211,7 +211,7 @@ html {
 
 .pipe {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -696,11 +696,11 @@ details.fold[open] > summary h2::before {
     grid-template-columns: repeat(3, 1fr);
   }
 
-  .pipe-cell:nth-child(3) {
+  .pipe-cell:nth-child(3n) {
     border-right: 0;
   }
 
-  .pipe-cell:nth-child(-n + 3) {
+  .pipe-cell:nth-child(-n + 6) {
     border-bottom: 1px solid var(--border);
   }
 

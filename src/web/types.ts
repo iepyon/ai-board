@@ -123,3 +123,11 @@ export const STAGE_SOURCE: Record<Stage, 'card' | 'plan' | 'forge' | 'archive'> 
 };
 
 export { GATE_OF_STAGE } from '../shared/stage-gates.js';
+
+/**
+ * 人の判断を待つ列。札と件数帯に ★ を付ける。
+ *
+ * 計画レビュー / 動作確認 はボタンで、PR中 は GitHub でマージして判断する。
+ * ボタンを出す列（`GATE_OF_STAGE`）より 1 つ広い。
+ */
+export const GATE_STAGES: readonly Stage[] = ['plan-review', 'verifying', 'pr'];

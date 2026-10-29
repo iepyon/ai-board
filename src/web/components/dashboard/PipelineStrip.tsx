@@ -1,5 +1,6 @@
 import { SECTION_OF_STAGE, type DashboardSection } from '../../../shared/dashboard-sections.js';
 import {
+  GATE_STAGES,
   STAGE_LABELS,
   STAGE_OWNER,
   STAGE_SOURCE,
@@ -17,9 +18,6 @@ const OWNER_LABELS: Record<'human' | 'ai' | 'none', string> = {
   none: '—',
 };
 
-/** 人の判断を待つゲートの列。件数があれば目立たせる */
-const GATE_STAGES: readonly Stage[] = ['plan-review', 'pr'];
-
 export function sectionAnchor(section: DashboardSection): string {
   return `sec-${section}`;
 }
@@ -31,7 +29,8 @@ interface PipelineStripProps {
 }
 
 /**
- * 6 段の件数。下線の色は、そのステージを立てる情報源（カード / 計画 / PR / archive）を表す。
+ * 7 段の件数。人の判断を待つ列（★）は、件数があれば目立たせる。
+ * 下線の色は、そのステージを立てる情報源（カード / 計画 / PR / archive）を表す。
  * 詳細パネルやステージの札の色と同じ意味を持たせている。
  */
 export function PipelineStrip({ stages, cards }: PipelineStripProps) {

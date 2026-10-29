@@ -1,5 +1,11 @@
 import type { ReactNode } from 'react';
-import { STAGE_LABELS, STAGE_SOURCE, type BoardCard, type Stage } from '../../types.js';
+import {
+  GATE_STAGES,
+  STAGE_LABELS,
+  STAGE_SOURCE,
+  type BoardCard,
+  type Stage,
+} from '../../types.js';
 
 // ============================================================
 // 区画をまたいで使う小さな部品
@@ -7,7 +13,7 @@ import { STAGE_LABELS, STAGE_SOURCE, type BoardCard, type Stage } from '../../ty
 
 /** ステージの札。色はそのステージを立てる情報源 */
 export function StagePill({ stage }: { stage: Stage }) {
-  const gate = stage === 'plan-review' || stage === 'pr';
+  const gate = GATE_STAGES.includes(stage);
 
   return (
     <span className={`pill s-${STAGE_SOURCE[stage]}`}>
