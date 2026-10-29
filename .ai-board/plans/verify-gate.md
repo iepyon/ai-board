@@ -256,7 +256,7 @@ CLI は AI も使う入口であり、AI が自分で飛ばす宣言を書けな
 
 - [x] `pickNextAction` に `revise-impl` と `ready` を足す。`NextActionCard` に `skipGates` を足し、明示の承認と skip を区別する
   - テスト: verify none → implement / rejected → revise-impl / 明示の承認 → ready / skip → implement / verifying のカードは選ばない
-- [ ] `status-cli.test.ts` に、`verifying` のカードが `waiting` に入り `next` に選ばれないことを足す
+- [x] `status-cli.test.ts` に、`verifying` のカードが `waiting` に入り `next` に選ばれないことを足す
 
 ### 4. CLI
 
