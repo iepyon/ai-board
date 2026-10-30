@@ -3,6 +3,7 @@ import { StageSection } from './detail/StageSection.js';
 import { PlanSection } from './detail/PlanSection.js';
 import { ReviewActions } from './detail/ReviewActions.js';
 import { LinkFields } from './detail/LinkFields.js';
+import { SkipGateField } from './detail/SkipGateField.js';
 import { BodyEditor } from './detail/BodyEditor.js';
 import { SummaryLine } from './detail/SummaryLine.js';
 import { updateCardMeta, type CardMetaPatch } from '../api.js';
@@ -49,6 +50,7 @@ export function CardDetail({ card, onClose, onChanged }: CardDetailProps) {
         <BodyEditor card={card} saving={saving} onRun={run} />
         <StageSection card={card} />
         <PlanSection card={card} />
+        <SkipGateField card={card} saving={saving} onPatch={patch} />
         <LinkFields card={card} saving={saving} onPatch={patch} />
       </div>
     </aside>

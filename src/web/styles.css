@@ -820,6 +820,14 @@ a.detail-summary-item {
   width: 100%;
 }
 
+.check-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
 .detail textarea,
 .review-pane textarea {
   font-family: 'SF Mono', Menlo, monospace;

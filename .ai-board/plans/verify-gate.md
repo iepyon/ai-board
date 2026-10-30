@@ -270,7 +270,7 @@ CLI は AI も使う入口であり、AI が自分で飛ばす宣言を書けな
 
 - [x] 判断待ちの区画で、`verifying` のカードを計画レビューと同じ形で出す。リンクは「PR #n を開く」、提出の本文の札は `<gate> <種別>`
 - [x] `StagePill` の ★、件数帯の `GATE_STAGES`、`ReviewActions` の否決理由の placeholder、`CardDetail` のボタンの出し分けを `verifying` に対応させる。「6 段」の docstring を直す
-- [ ] 詳細パネルに「動作確認を飛ばす」のチェックボックスを足す（`skipGates` の `verify` を出し入れし、他のゲートの値は保つ）
+- [x] 詳細パネルに「動作確認を飛ばす」のチェックボックスを足す（`skipGates` の `verify` を出し入れし、他のゲートの値は保つ）
 
 ### 7. ループ
 
