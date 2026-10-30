@@ -154,7 +154,7 @@ export class ForgePoller implements MrStateProvider {
   }
 }
 
-/** 変化検出用の比較。ステージ判定に効くフィールドだけを見る */
+/** 変化検出用の比較。ステージ判定と止まりの判定に効くフィールドだけを見る */
 function isSameMrState(a: MrState | undefined, b: MrState): boolean {
   return (
     a !== undefined &&
@@ -163,6 +163,7 @@ function isSameMrState(a: MrState | undefined, b: MrState): boolean {
     a.draft === b.draft &&
     a.latestNoteAt === b.latestNoteAt &&
     a.latestCommitAt === b.latestCommitAt &&
-    a.noteCount === b.noteCount
+    a.noteCount === b.noteCount &&
+    a.convertedToDraftAt === b.convertedToDraftAt
   );
 }

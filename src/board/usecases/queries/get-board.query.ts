@@ -123,5 +123,6 @@ function toBoardCardMr(mr: MrState | null): BoardCardMr | null {
     latestCommitAt: mr.latestCommitAt,
     resubmitted: hasFixAfterReview(mr),
     mergedAt: mr.mergedAt,
+    convertedToDraftAt: mr.convertedToDraftAt,
   };
 }

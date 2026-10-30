@@ -32,6 +32,8 @@ export interface BoardCardMr {
   readonly resubmitted: boolean;
   /** マージされた日時。マージされていなければ null */
   readonly mergedAt: string | null;
+  /** 最後に Draft へ戻された時刻。今 open かつ Draft でなければ null */
+  readonly convertedToDraftAt: string | null;
 }
 
 /**

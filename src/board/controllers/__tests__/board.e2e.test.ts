@@ -148,6 +148,7 @@ describe('GET /api/board', () => {
       noteCount: 1,
       latestCommitAt: '2026-09-04T10:30:00.000Z',
       mergedAt: null,
+      convertedToDraftAt: null,
     };
 
     const response = await request(buildApp(stubMrProvider({ 's3-upload': mr })))
@@ -185,6 +186,7 @@ describe('GET /api/board', () => {
       noteCount: 0,
       latestCommitAt: null,
       mergedAt: '2026-09-25T03:00:00.000Z',
+      convertedToDraftAt: null,
     };
 
     const response = await request(buildApp(stubMrProvider({ shipped: mr })))
@@ -537,6 +539,7 @@ describe('移動できる先の制限', () => {
       noteCount: 0,
       latestCommitAt: null,
       mergedAt: null,
+      convertedToDraftAt: null,
     };
 
     const response = await request(buildApp(stubMrProvider({ 'in-review': mr })))
@@ -814,6 +817,7 @@ describe('POST /api/cards/:id/reviews（動作確認）', () => {
     noteCount: 0,
     latestCommitAt: '2026-09-07T12:00:00.000Z',
     mergedAt: null,
+    convertedToDraftAt: null,
   };
 
   function buildVerifyingApp(): Application {

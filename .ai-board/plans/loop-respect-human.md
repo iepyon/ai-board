@@ -232,7 +232,7 @@ PR を Draft に戻す道は、本物の PR が要るので別の DB だけで�
 
 ### 3. GitHub
 
-- [ ] `MrState` / `BoardCardMr` に `convertedToDraftAt` を足し、open かつ Draft の PR だけ `issues/{n}/events` を `--paginate` で引いて `convert_to_draft` の最新時刻を入れる
+- [x] `MrState` / `BoardCardMr` に `convertedToDraftAt` を足し、open かつ Draft の PR だけ `issues/{n}/events` を `--paginate` で引いて `convert_to_draft` の最新時刻を入れる
   - テスト: イベントが無い → null、複数 → 最大値、Ready / マージ済みの PR では問い合わせない
   - 作成時から Draft の PR に `convert_to_draft` が残らないことを、このカードの PR の `issues/{n}/events` で確かめる（残るなら判定の基準を見直す）
 
