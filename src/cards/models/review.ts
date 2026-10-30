@@ -18,10 +18,20 @@ export const REVIEW_GATES = ['plan', 'verify'] as const;
 
 export type ReviewGate = (typeof REVIEW_GATES)[number];
 
-/** レビューエントリの種別。提出 / 再提出 は AI、それ以外は人が書く */
-export const REVIEW_KINDS = ['提出', '再提出', '承認', '否決', '中止'] as const;
+/**
+ * レビューエントリの種別。
+ *
+ * - 提出 / 再提出 / 保留 は AI が書く。保留は、作業者がその手を自分では進められないと判断して止まった痕跡
+ * - 承認 / 否決 / 中止 は人が書く（`HUMAN_REVIEW_KINDS`）
+ */
+export const REVIEW_KINDS = ['提出', '再提出', '保留', '承認', '否決', '中止'] as const;
 
 export type ReviewKind = (typeof REVIEW_KINDS)[number];
+
+/** 人が画面（`POST /api/cards/:id/reviews`）から書ける種別。AI の種別はここに含めない */
+export const HUMAN_REVIEW_KINDS = ['承認', '否決', '中止'] as const satisfies readonly ReviewKind[];
+
+export type HumanReviewKind = (typeof HUMAN_REVIEW_KINDS)[number];
 
 export interface ReviewEntry {
   /** ISO 8601 文字列 */
@@ -32,8 +42,13 @@ export interface ReviewEntry {
   readonly reason: string;
 }
 
-/** ゲートの通過状況。ステージ導出の入力になる */
-export type GateState = 'none' | 'submitted' | 'approved' | 'rejected';
+/**
+ * ゲートの通過状況。ステージ導出の入力になる。
+ *
+ * `held` は作業者が保留を書いて止まった状態。どの規則も `held` でゲートを先へ進めないので、
+ * カードは AI の列（計画提案中 / 実装中）に留まり、人の判断を待つ。
+ */
+export type GateState = 'none' | 'submitted' | 'held' | 'approved' | 'rejected';
 
 export function isReviewGate(value: string): value is ReviewGate {
   return (REVIEW_GATES as readonly string[]).includes(value);

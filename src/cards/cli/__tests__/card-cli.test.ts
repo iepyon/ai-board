@@ -7,6 +7,7 @@ import { openDatabase } from '../../../infrastructure/database.js';
 import { createCardDependencies, type CardDependencies } from '../../composition.js';
 import { parseCommandArgs, runCardCli, runImport, type CardCliIo } from '../card-cli.js';
 import type { CardId } from '../../../shared/schemas/common.js';
+import { gateStates, parseReviewLog } from '../../services/review-log.js';
 
 let db: DatabaseSync;
 let deps: CardDependencies;
@@ -193,6 +194,80 @@ describe('runCardCli', () => {
   it('submit は存在しないカードを 1 にする', async () => {
     expect(await run(['submit', 'missing'])).toBe(1);
     expect(stderr).toContain('見つかりません');
+  });
+
+  it('hold は理由付きの保留を追記し、ゲートを held にする', async () => {
+    await seed(
+      'a',
+      '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 承認\n\n### 2026-09-25T01:00:00.000Z verify 否決\n\n検索が遅い'
+    );
+
+    expect(await run(['hold', 'a', '--gate', 'verify', '--reason', ' 直すには大きすぎる '])).toBe(
+      0
+    );
+    expect(stdout.trim()).toBe('a');
+
+    const body = (await bodyOf('a')) ?? '';
+    expect(body).toContain('### 2026-09-26T00:00:00.000Z verify 保留\n\n直すには大きすぎる');
+    expect(gateStates(parseReviewLog(body), []).verify).toBe('held');
+  });
+
+  it('hold は plan の保留を plan の承認前でも追記する', async () => {
+    await seed('a', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 否決\n\n範囲が広い');
+
+    expect(await run(['hold', 'a', '--gate', 'plan', '--reason', '論点を決めてほしい'])).toBe(0);
+    expect(gateStates(parseReviewLog((await bodyOf('a')) ?? ''), []).plan).toBe('held');
+  });
+
+  it('hold は --gate が無いか規定外なら使い方とともに 1 にし、何も追記しない', async () => {
+    await seed('a');
+
+    expect(await run(['hold', 'a', '--reason', 'x'])).toBe(1);
+    expect(stderr).toContain('--gate には plan か verify');
+    expect(stderr).toContain('使い方');
+    expect(await run(['hold', 'a', '--gate', 'pr', '--reason', 'x'])).toBe(1);
+    expect(await bodyOf('a')).toBe('');
+  });
+
+  it('hold は理由が無いか空白だけなら 1 にし、何も追記しない', async () => {
+    await seed('a');
+
+    expect(await run(['hold', 'a', '--gate', 'plan'])).toBe(1);
+    expect(stderr).toContain('--reason');
+    expect(await run(['hold', 'a', '--gate', 'plan', '--reason', '  '])).toBe(1);
+    expect(await bodyOf('a')).toBe('');
+  });
+
+  it('hold はそのゲートの最新の判断が否決でなければ 1 にし、何も追記しない', async () => {
+    // plan 承認済み: plan の保留は人の承認を打ち消す。verify はまだ何も無い
+    await seed('a', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 承認');
+    expect(await run(['hold', 'a', '--gate', 'plan', '--reason', 'x'])).toBe(1);
+    expect(stderr).toContain('否決のときにしか');
+    expect(await run(['hold', 'a', '--gate', 'verify', '--reason', 'x'])).toBe(1);
+
+    // 計画レビュー中 / 動作確認中: 人を待つカードを AI の列へ落とさない
+    await seed('b', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 提出');
+    expect(await run(['hold', 'b', '--gate', 'plan', '--reason', 'x'])).toBe(1);
+    expect(await run(['hold', 'b', '--gate', 'verify', '--reason', 'x'])).toBe(1);
+    await seed(
+      'c',
+      '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 承認\n\n### 2026-09-25T01:00:00.000Z verify 提出'
+    );
+    expect(await run(['hold', 'c', '--gate', 'verify', '--reason', 'x'])).toBe(1);
+
+    // 何も書かれていないカード
+    await seed('d');
+    expect(await run(['hold', 'd', '--gate', 'plan', '--reason', 'x'])).toBe(1);
+
+    for (const id of ['a', 'b', 'c', 'd']) {
+      expect(await bodyOf(id)).not.toContain('保留');
+    }
+  });
+
+  it('hold は存在しないカードや不正な ID を 1 にする', async () => {
+    expect(await run(['hold', 'missing', '--gate', 'plan', '--reason', 'x'])).toBe(1);
+    expect(stderr).toContain('見つかりません');
+    expect(await run(['hold', 'Bad Id', '--gate', 'plan', '--reason', 'x'])).toBe(1);
   });
 });
 

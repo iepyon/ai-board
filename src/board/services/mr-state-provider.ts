@@ -12,12 +12,18 @@ export interface MrStateProvider {
   /** カード ID に対応する PR の状態をキャッシュから返す */
   get(cardId: string): MrState | null;
   connection(): ForgeConnection;
+  /**
+   * PR の状態を 1 度でも引き終えたか。引き終える前は、PR が無いのか、まだ引いていないのかが分からない。
+   * 「PR が見えない」ことを根拠にする判定（`resolveHold` の planLost）は、これが真のときだけ行う
+   */
+  synced(): boolean;
 }
 
 /** 取得先が未設定のときの実装。ボードはカードと計画ファイルだけで動く */
 export const disabledMrStateProvider: MrStateProvider = {
   get: () => null,
   connection: () => ({ status: 'disabled', kind: null, reason: null }),
+  synced: () => false,
 };
 
 /**
@@ -28,5 +34,6 @@ export function unavailableMrStateProvider(kind: ForgeKind, reason: string): MrS
   return {
     get: () => null,
     connection: () => ({ status: 'disabled', kind, reason }),
+    synced: () => false,
   };
 }

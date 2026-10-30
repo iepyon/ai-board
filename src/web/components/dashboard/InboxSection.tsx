@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ReviewActions } from '../detail/ReviewActions.js';
+import { HoldNote } from '../detail/HoldNote.js';
 import { useAction } from '../../hooks/useAction.js';
 import { waitingSince } from '../../../shared/dashboard-sections.js';
 import { formatAgo, formatDateTime } from '../../format.js';
@@ -55,7 +56,8 @@ interface GateReviewItemProps {
 }
 
 /**
- * 計画レビューと動作確認のカード。提出に書かれた本文（判断待ちの点、動かす手順）と PR へのリンクを見せ、
+ * 計画レビューと動作確認のカード、と AI の列で止まっているカード。
+ * 提出に書かれた本文（判断待ちの点、動かす手順）や保留の理由と PR へのリンクを見せ、
  * 「判断する」でその場にレビュー欄を開く。計画の本文や差分は PR で読む。
  */
 function GateReviewItem({ card, onSelect, onChanged }: GateReviewItemProps) {
@@ -96,6 +98,7 @@ function GateReviewItem({ card, onSelect, onChanged }: GateReviewItemProps) {
           </button>
         </div>
 
+        <HoldNote card={card} />
         <SubmissionNote card={card} />
       </div>
 
@@ -112,23 +115,24 @@ function GateReviewItem({ card, onSelect, onChanged }: GateReviewItemProps) {
 }
 
 /**
- * 判断の材料を読む PR へのリンク。計画レビューでは計画を読み、動作確認では PR から手元へ取り込んで動かす。
+ * 判断の材料を読む PR へのリンク。計画レビューと計画提案中の止まりでは計画を読み、
+ * 動作確認と実装中の止まりでは PR から手元へ取り込んで動かす。
  */
 function ReviewPrLink({ card }: { card: BoardCard }) {
   const mr = card.mrState;
-  const verifying = card.stage === 'verifying';
+  const readsPlan = card.stage === 'plan-review' || card.stage === 'planning';
 
   if (mr === null) {
     return (
       <span className="movable">
-        {verifying ? 'PR がまだありません' : '計画の PR がまだありません'}
+        {readsPlan ? '計画の PR がまだありません' : 'PR がまだありません'}
       </span>
     );
   }
 
   return (
     <a className="btn ghost" href={mr.webUrl} target="_blank" rel="noreferrer">
-      {verifying ? `PR #${mr.iid} を開く ↗` : `計画の PR #${mr.iid} を読む ↗`}
+      {readsPlan ? `計画の PR #${mr.iid} を読む ↗` : `PR #${mr.iid} を開く ↗`}
     </a>
   );
 }
@@ -136,11 +140,14 @@ function ReviewPrLink({ card }: { card: BoardCard }) {
 /**
  * 提出（再提出）に AI が書いた本文。判断の材料なので畳まずに出す。
  * `latestReview` はその列が待つゲートの最新エントリなので、札にゲートの名前を出す。
+ * 止まっているカード（AI の列）ではゲートを問わず最新のエントリで、作業者の保留ならその理由が出る。
  */
 function SubmissionNote({ card }: { card: BoardCard }) {
   const review = card.latestReview;
 
   if (review === null) {
+    // 止まっているカードは止まりの札（HoldNote）が状況を書いている。計画の提出漏れの文言を重ねない
+    if (card.hold !== null) return null;
     const artifact = card.mrState?.draft === true ? '計画の PR' : '計画ファイル';
     return <div className="why">提出の記録がありません。{artifact}だけがあります。</div>;
   }

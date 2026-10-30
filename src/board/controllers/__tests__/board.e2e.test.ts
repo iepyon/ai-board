@@ -55,6 +55,7 @@ function stubMrProvider(states: Record<string, MrState> = {}): MrStateProvider {
   return {
     get: (cardId) => states[cardId] ?? null,
     connection: () => ({ status: 'connected', kind: 'github' }),
+    synced: () => true,
   };
 }
 
@@ -148,6 +149,7 @@ describe('GET /api/board', () => {
       noteCount: 1,
       latestCommitAt: '2026-09-04T10:30:00.000Z',
       mergedAt: null,
+      convertedToDraftAt: null,
     };
 
     const response = await request(buildApp(stubMrProvider({ 's3-upload': mr })))
@@ -185,6 +187,7 @@ describe('GET /api/board', () => {
       noteCount: 0,
       latestCommitAt: null,
       mergedAt: '2026-09-25T03:00:00.000Z',
+      convertedToDraftAt: null,
     };
 
     const response = await request(buildApp(stubMrProvider({ shipped: mr })))
@@ -231,6 +234,96 @@ describe('GET /api/board', () => {
     expect(card.gates).toEqual({ plan: 'approved', verify: 'none' });
     expect(card.aborted).toBe(false);
     expect(card.droppableStages).toEqual([]);
+  });
+
+  it('作業者が保留を書いて止まった実装中のカードに hold を載せる', async () => {
+    await writeCard(
+      'held',
+      [
+        '---',
+        'id: held',
+        'title: 保留',
+        'startedAt: 2026-09-05T00:00:00.000Z',
+        '---',
+        '',
+        '## レビュー',
+        '',
+        '### 2026-09-06T00:00:00.000Z plan 承認',
+        '',
+        '### 2026-09-07T00:00:00.000Z verify 否決',
+        '',
+        '### 2026-09-08T00:00:00.000Z verify 保留',
+        '',
+        '直すには大きすぎる。',
+        '',
+      ].join('\n')
+    );
+    await writeCard(
+      'fresh',
+      '---\nid: fresh\ntitle: 未提出\nstartedAt: 2026-09-05T00:00:00.000Z\n---\n'
+    );
+
+    const response = await request(buildApp()).get('/api/board').expect(200);
+    const byId = new Map(
+      (response.body.cards as { id: string; stage: string; hold: unknown }[]).map((card) => [
+        card.id,
+        card,
+      ])
+    );
+
+    expect(byId.get('held')?.stage).toBe('impling');
+    expect(byId.get('held')?.hold).toEqual({
+      reason: expect.stringContaining('作業者が直しきれずに止まった') as unknown,
+      since: '2026-09-08T00:00:00.000Z',
+    });
+    expect(byId.get('fresh')?.hold).toBeNull();
+  });
+
+  it('判断の後に Draft へ戻された PR のカードに hold を載せる', async () => {
+    await writeCard(
+      'reverted',
+      [
+        '---',
+        'id: reverted',
+        'title: Draft に戻された',
+        'startedAt: 2026-09-05T00:00:00.000Z',
+        'mr: 38',
+        '---',
+        '',
+        '## レビュー',
+        '',
+        '### 2026-09-06T00:00:00.000Z plan 承認',
+        '',
+        '### 2026-09-07T00:00:00.000Z verify 承認',
+        '',
+      ].join('\n')
+    );
+
+    const mr: MrState = {
+      forge: 'github',
+      iid: 38 as MergeRequestIid,
+      state: 'opened',
+      draft: true,
+      sourceBranch: 'reverted',
+      title: 'Draft に戻された',
+      webUrl: 'https://github.com/acme/board/pull/38',
+      latestNoteAt: null,
+      noteCount: 0,
+      latestCommitAt: null,
+      mergedAt: null,
+      convertedToDraftAt: '2026-09-08T00:00:00Z',
+    };
+
+    const response = await request(buildApp(stubMrProvider({ reverted: mr })))
+      .get('/api/board')
+      .expect(200);
+    const card = response.body.cards[0];
+
+    expect(card.stage).toBe('impling');
+    expect(card.hold).toEqual({
+      reason: expect.stringContaining('PR #38 が Draft に戻された') as unknown,
+      since: '2026-09-08T00:00:00Z',
+    });
   });
 
   it('待ちの列でなければゲートを問わず最新のエントリを latestReview として返す（中止は除く）', async () => {
@@ -537,6 +630,7 @@ describe('移動できる先の制限', () => {
       noteCount: 0,
       latestCommitAt: null,
       mergedAt: null,
+      convertedToDraftAt: null,
     };
 
     const response = await request(buildApp(stubMrProvider({ 'in-review': mr })))
@@ -722,6 +816,22 @@ describe('POST /api/cards/:id/reviews', () => {
     expect(card.aborted).toBe(true);
   });
 
+  it.each(['提出', '再提出', '保留'])(
+    'AI が書く種別（%s）は 400 で、本文に残らない',
+    async (kind) => {
+      const app = buildApp();
+
+      await request(app)
+        .post('/api/cards/awaiting/reviews')
+        .send({ gate: 'verify', kind, reason: 'x' })
+        .expect(400);
+
+      const response = await request(app).get('/api/board').expect(200);
+
+      expect(response.body.cards[0].body).not.toContain('## レビュー');
+    }
+  );
+
   it('規定外のゲートは 400', async () => {
     await request(buildApp())
       .post('/api/cards/awaiting/reviews')
@@ -798,6 +908,7 @@ describe('POST /api/cards/:id/reviews（動作確認）', () => {
     noteCount: 0,
     latestCommitAt: '2026-09-07T12:00:00.000Z',
     mergedAt: null,
+    convertedToDraftAt: null,
   };
 
   function buildVerifyingApp(): Application {

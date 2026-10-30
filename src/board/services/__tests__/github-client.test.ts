@@ -207,6 +207,58 @@ describe('GhForgeClient', () => {
     expect(pr?.draft).toBe(true);
   });
 
+  describe('Draft に戻された時刻', () => {
+    const draftPr = { ...openPr, draft: true };
+
+    it('open かつ Draft の PR はイベントを全ページ引き、convert_to_draft の最新を取る', async () => {
+      const { runner, argv } = stubRunner({
+        'pulls/7': draftPr,
+        'issues/7/events': [
+          { event: 'convert_to_draft', created_at: '2026-09-04T09:00:00Z' },
+          { event: 'ready_for_review', created_at: '2026-09-04T13:00:00Z' },
+          { event: 'convert_to_draft', created_at: '2026-09-04T12:00:00Z' },
+          { event: 'convert_to_draft', created_at: '2026-09-04T10:00:00Z' },
+        ],
+      });
+
+      const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+
+      // ready_for_review の方が新しくても、拾うのは convert_to_draft だけ
+      expect(pr?.convertedToDraftAt).toBe('2026-09-04T12:00:00Z');
+      const eventCalls = argv.filter((args) => args.join(' ').includes('issues/7/events'));
+      expect(eventCalls).toHaveLength(1);
+      expect(eventCalls[0]).toContain('--paginate');
+    });
+
+    it('convert_to_draft のイベントが無ければ null', async () => {
+      // 作成時から Draft の PR はこのイベントを残さない
+      const { runner } = stubRunner({
+        'pulls/7': draftPr,
+        'issues/7/events': [{ event: 'labeled', created_at: '2026-09-04T09:00:00Z' }],
+      });
+
+      const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+
+      expect(pr?.convertedToDraftAt).toBeNull();
+    });
+
+    it.each([
+      ['Ready の PR', openPr],
+      ['マージ済みの PR', { ...openPr, state: 'closed', merged_at: '2026-09-20T00:00:00Z' }],
+      ['閉じた Draft の PR', { ...draftPr, state: 'closed' }],
+    ])('%s ではイベントを問い合わせない', async (_label, raw) => {
+      const { runner, paths } = stubRunner({
+        'pulls/7': raw,
+        'issues/7/events': [{ event: 'convert_to_draft', created_at: '2026-09-04T09:00:00Z' }],
+      });
+
+      const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+
+      expect(pr?.convertedToDraftAt).toBeNull();
+      expect(paths.some((path) => path.includes('/events'))).toBe(false);
+    });
+  });
+
   it('draft が欠けた応答は Draft でないとみなす', async () => {
     const { runner } = stubRunner({ 'pulls/7': openPr });
 

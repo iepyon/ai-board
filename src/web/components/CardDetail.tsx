@@ -6,6 +6,7 @@ import { LinkFields } from './detail/LinkFields.js';
 import { SkipGateField } from './detail/SkipGateField.js';
 import { BodyEditor } from './detail/BodyEditor.js';
 import { SummaryLine } from './detail/SummaryLine.js';
+import { HoldNote } from './detail/HoldNote.js';
 import { updateCardMeta, type CardMetaPatch } from '../api.js';
 import { useAction } from '../hooks/useAction.js';
 import { awaitsDecision } from '../../shared/dashboard-sections.js';
@@ -45,7 +46,8 @@ export function CardDetail({ card, onClose, onChanged }: CardDetailProps) {
       <div className="detail-body">
         {error !== null && <div className="divergence">{error}</div>}
 
-        {/* 計画レビュー / 動作確認のカードだけ、本文を読んですぐ押せるよう判断のボタンを先頭に置く */}
+        {/* 判断を待つカード（計画レビュー / 動作確認と、止まっているカード）だけ、本文を読んですぐ押せるよう判断のボタンを先頭に置く */}
+        <HoldNote card={card} />
         {awaitsDecision(card) && <ReviewActions card={card} saving={saving} onRun={run} />}
         <BodyEditor card={card} saving={saving} onRun={run} />
         <StageSection card={card} />

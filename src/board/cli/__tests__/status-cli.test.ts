@@ -10,6 +10,7 @@ import { SqliteCardRepository } from '../../../cards/repositories/sqlite-card.re
 import { createBoardDependencies } from '../../composition.js';
 import type { MrStateProvider } from '../../services/mr-state-provider.js';
 import type { ForgeConnection } from '../../models/mr-state.js';
+import { HOLD_REASONS } from '../../services/next-action.js';
 import { parseStatusArgs, runStatusCli, type StatusReport } from '../status-cli.js';
 
 // ============================================================
@@ -59,7 +60,7 @@ function review(kind: string): string {
 function stubProvider(
   connection: ForgeConnection = { status: 'connected', kind: 'github' }
 ): MrStateProvider {
-  return { get: () => null, connection: () => connection };
+  return { get: () => null, connection: () => connection, synced: () => true };
 }
 
 async function run(argv: readonly string[], provider = stubProvider()): Promise<number> {
@@ -138,6 +139,46 @@ describe('ai-board status --json', () => {
         reason: '計画を提出済みだが、計画ファイルも Draft の PR も見えない',
       },
     ]);
+  });
+
+  it('取得先に接続できなければ、提出したのに成果物の見えないカードを判断待ちに出さない', async () => {
+    await writeCard('lost', "startedAt: '2026-10-22T00:00:00.000Z'\n", review('提出'));
+
+    const report = await runJson(
+      stubProvider({ status: 'error', kind: 'github', message: 'gh が落ちた' })
+    );
+
+    expect(report.waiting).toEqual([]);
+  });
+
+  it('作業者が保留を書いて止まったカードは、判断待ちに 1 度だけ出し、飛ばして後ろのカードを選ぶ', async () => {
+    await writeCard(
+      'held',
+      "startedAt: '2026-10-20T00:00:00.000Z'\nrank: 1\n",
+      `${review('承認')}\n### 2026-10-21T00:00:00.000Z verify 否決\n\n検索が遅い\n\n### 2026-10-22T00:00:00.000Z verify 保留\n\n直すには大きすぎる\n`
+    );
+    await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\nrank: 2\n");
+
+    const report = await runJson();
+
+    expect(report.next).toEqual({
+      cardId: 'started',
+      action: 'plan',
+      reason: '着手が指示され、計画がまだ無い',
+    });
+    expect(report.waiting).toEqual([
+      {
+        id: 'held',
+        title: 'held のタイトル',
+        stage: 'impling',
+        reason: HOLD_REASONS.verifyHeld,
+      },
+    ]);
+    expect(report.working.map((card) => card.id)).toEqual(['started']);
+    expect(report.cards.find((card) => card.id === 'held')?.hold).toEqual({
+      reason: HOLD_REASONS.verifyHeld,
+      since: '2026-10-22T00:00:00.000Z',
+    });
   });
 
   it('動作確認を待つカードは判断待ちに出し、次の一手にしない', async () => {

@@ -1,16 +1,29 @@
 import { useEffect, useState } from 'react';
 import { appendReview } from '../../api.js';
-import { GATE_OF_STAGE, type BoardCard, type ReviewGate } from '../../types.js';
+import { decisionsFor, type Decision } from '../../../shared/dashboard-sections.js';
+import type { BoardCard } from '../../types.js';
 
 // ============================================================
 // 承認 / 否決 / 中止
 // ============================================================
 
-/** 否決の理由の欄に出す書き方の手がかり。AI は差し戻された先でこの理由を読む */
-const REASON_PLACEHOLDER: Record<ReviewGate, string> = {
-  plan: '否決の理由（AI が次の周回で読み、計画を直します）',
-  verify: '否決の理由（動かして意図と違ったところ。AI が次の周回で読み、実装を直します）',
-};
+/**
+ * 理由の欄に出す書き方の手がかり。AI は差し戻された先でこの理由を読む。
+ *
+ * 差し戻す先はボタンのゲートで変わる（verify の否決は実装、plan の否決は計画）ので、
+ * 出ている否決のボタンから選ぶ。
+ */
+function reasonPlaceholder(decisions: readonly Decision[]): string {
+  const rejects = decisions.filter((decision) => decision.kind === '否決');
+
+  if (rejects.length === 0) return '中止の理由（任意）';
+
+  if (rejects.every((decision) => decision.gate === 'plan')) {
+    return '否決の理由（AI が次の周回で読み、計画を直します）';
+  }
+
+  return '否決の理由（動かして意図と違ったところ、直し方の手がかり。AI が次の周回で読み、実装か計画を直します）';
+}
 
 interface ReviewActionsProps {
   card: BoardCard;
@@ -21,8 +34,8 @@ interface ReviewActionsProps {
 /**
  * 人の判断をカード本文の `## レビュー` へ追記する。
  *
- * ステージは書かない。追記されたログをサーバが読み直し、
- * 次のボード取得で列が変わる。
+ * どのボタンを出すかは `decisionsFor` が決める。ステージは書かない。
+ * 追記されたログをサーバが読み直し、次のボード取得で列が変わる。
  */
 export function ReviewActions({ card, saving, onRun }: ReviewActionsProps) {
   const [reason, setReason] = useState('');
@@ -30,14 +43,14 @@ export function ReviewActions({ card, saving, onRun }: ReviewActionsProps) {
   // 別のカードを選び直したら書きかけの理由を捨てる
   useEffect(() => setReason(''), [card.id]);
 
-  const gate = GATE_OF_STAGE[card.stage];
+  const decisions = decisionsFor(card);
 
-  // 判断を待つ列でなければ何も出さない（呼び出し側は `awaitsDecision` のカードにだけ使う）
-  if (gate === undefined) return null;
+  // 判断を待っていなければ何も出さない（呼び出し側は `awaitsDecision` のカードにだけ使う）
+  if (decisions.length === 0) return null;
 
-  const submit = (kind: '承認' | '否決' | '中止'): void => {
+  const submit = (decision: Decision): void => {
     void onRun(async () => {
-      await appendReview(card.id, { gate, kind, reason });
+      await appendReview(card.id, { gate: decision.gate, kind: decision.kind, reason });
       setReason('');
     });
   };
@@ -53,32 +66,26 @@ export function ReviewActions({ card, saving, onRun }: ReviewActionsProps) {
         value={reason}
         onChange={(event) => setReason(event.target.value)}
         spellCheck={false}
-        placeholder={REASON_PLACEHOLDER[gate]}
+        placeholder={reasonPlaceholder(decisions)}
       />
 
       <div className="actions">
-        <button type="button" className="btn" disabled={saving} onClick={() => submit('承認')}>
-          承認
-        </button>
+        {decisions.map((decision) => {
+          const blocked = decision.reasonRequired && noReason;
 
-        <button
-          type="button"
-          className="btn ghost"
-          disabled={saving || noReason}
-          title={noReason ? '否決には理由が必要です' : undefined}
-          onClick={() => submit('否決')}
-        >
-          否決して差し戻す
-        </button>
-
-        <button
-          type="button"
-          className="btn ghost"
-          disabled={saving}
-          onClick={() => submit('中止')}
-        >
-          中止する
-        </button>
+          return (
+            <button
+              key={`${decision.gate}-${decision.kind}-${decision.label}`}
+              type="button"
+              className={decision.kind === '承認' ? 'btn' : 'btn ghost'}
+              disabled={saving || blocked}
+              title={blocked ? `「${decision.label}」には理由が必要です` : undefined}
+              onClick={() => submit(decision)}
+            >
+              {decision.label}
+            </button>
+          );
+        })}
       </div>
     </>
   );

@@ -64,6 +64,7 @@ function makeMr(overrides: Partial<MrState> = {}): MrState {
     noteCount: 0,
     latestCommitAt: null,
     mergedAt: null,
+    convertedToDraftAt: null,
     ...overrides,
   };
 }
@@ -89,6 +90,15 @@ beforeEach(() => {
 // ============================================================
 
 describe('ForgePoller', () => {
+  it('初回の refresh を終えるまで synced は偽', async () => {
+    const repository = new InMemoryCardRepository([makeCard({ mr: 42 as MergeRequestIid })]);
+    const poller = new ForgePoller(repository, stubClient({}), { onUpdate });
+
+    expect(poller.synced()).toBe(false);
+    await poller.refresh();
+    expect(poller.synced()).toBe(true);
+  });
+
   it('iid が既知なら iid で問い合わせる', async () => {
     const repository = new InMemoryCardRepository([makeCard({ mr: 42 as MergeRequestIid })]);
     const client = stubClient({ fetchByIid: vi.fn(async () => makeMr()) });
@@ -180,6 +190,23 @@ describe('ForgePoller', () => {
 
     expect(onUpdate).toHaveBeenCalledTimes(2);
     expect(poller.get('refresh-token')?.draft).toBe(false);
+  });
+
+  it('Draft に戻された時刻が変われば onUpdate を呼ぶ', async () => {
+    // 人が PR を Draft に戻したことは止まりの判定に効く。取りこぼすとループが Ready にし直す
+    const repository = new InMemoryCardRepository([makeCard({ mr: 42 as MergeRequestIid })]);
+    let convertedToDraftAt: string | null = null;
+    const client = stubClient({
+      fetchByIid: vi.fn(async () => makeMr({ draft: true, convertedToDraftAt })),
+    });
+    const poller = new ForgePoller(repository, client, { onUpdate });
+
+    await poller.refresh();
+    convertedToDraftAt = '2026-09-05T00:00:00.000Z';
+    await poller.refresh();
+
+    expect(onUpdate).toHaveBeenCalledTimes(2);
+    expect(poller.get('refresh-token')?.convertedToDraftAt).toBe('2026-09-05T00:00:00.000Z');
   });
 
   it('取得先が落ちてもキャッシュを保ったまま error 状態にする', async () => {

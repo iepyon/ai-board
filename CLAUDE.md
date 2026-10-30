@@ -58,6 +58,7 @@ ai-board card show <id>            # 1 枚を下の Markdown の形で
 ai-board card body <id> < body.md  # 本文の差し替え（## レビュー のエントリは変えられない）
 ai-board card branch <id> <name>   # ブランチの紐付け（--clear で外す）
 ai-board card submit <id> [--gate <plan|verify>] [--resubmit] [--reason <text>]   # 提出 / 再提出（既定は plan）
+ai-board card hold <id> --gate <plan|verify> --reason <text>   # 保留（作業者が否決を直しきれずに止まるとき。理由は必須。そのゲートの最新が否決のときだけ）
 ai-board card create --title <t> [--id <id>] < body.md     # アイデアカードの起票
 ai-board status [--json]           # 導出したステージ・判断待ち・次の一手（サーバ不要）
 ```
@@ -68,6 +69,23 @@ PR の状態は `refresh()` を 1 回だけ待って引き、`branch` から解�
 手は `plan` / `revise-plan`（計画提案中）と `implement` / `revise-impl` / `ready`（実装中）の 5 種類で、
 実装中の手は verify ゲートの状態で分ける（未提出 → `implement`、否決 → `revise-impl`、人の承認 → `ready`）。
 `gateState` は飛ばす宣言も approved で返すので、人の承認とは `skipGates` で見分ける（飛ばす宣言なら `implement`）。
+
+AI の列（計画提案中 / 実装中）にいても、人の判断を待って**止まっている**カードは選ばない。
+止まりは `resolveHold` が導き、ボードの組み立て（`get-board.query.ts`）で `BoardCard.hold`（`{ reason, since }` か `null`）に載る。
+ステージとは別の軸の派生値で、どこにも保存しない（ステージは「工程のどこにいるか」、止まりは「その工程で誰を待っているか」）。
+止まりは次の 4 つで、`reason` には人が何をすればよいかを書く（`HOLD_REASONS`）。
+
+- 実装中で、人の最新の判断より後に PR が Draft に戻された（`mrState.convertedToDraftAt`）。
+  verify の状態より先に見るので、`ready` と、動作確認を飛ばすカードの `implement` の両方が Ready にし直さない
+- 実装中で、verify の最新が 保留（作業者が `card hold --gate verify` を書いた）
+- 計画提案中で、plan の最新が 保留
+- 計画提案中で、plan が提出済みなのに計画ファイルも Draft の PR も見えない（作り直すと PR を二重に作りかねない）。
+  PR の状態を引けていない（取得先に未接続、または起動直後で初回の取得前。`MrStateProvider.synced`）ときは、
+  PR が無いのか分からないので立てない
+
+人が承認 / 否決 / 中止を書けばそのエントリが最新になり、止まりは外れる。止まりを解く専用のエントリは無い。
+`status` の `waiting` は画面の判断待ちの区画（`groupBySection` の inbox）をそのまま使うので、止まっているカードも 1 度だけ出て、`working` には出ない。
+止まっているカードの `reason` は `hold.reason` になる。
 
 `card show` の出力（DB の列を frontmatter の形で表したもの）:
 
@@ -102,16 +120,18 @@ Markdown 表現（`card-markdown.ts`）はこの取り込みと `card show` の�
 
 「誰の書き込みか」で分かれる。混同しないこと。
 
-| 主体            | `.ai-board/plans/`                           | カード（`.ai-board/board.db`）                 |
-| --------------- | -------------------------------------------- | ---------------------------------------------- |
-| ai-board サーバ | **read-only**                                | 書く（画面の操作・PR 番号の書き戻し）          |
-| AI エージェント | 書く（計画・タスクの更新・archive への移動） | `ai-board card` 経由で本文・ブランチ・提出のみ |
+| 主体            | `.ai-board/plans/`                           | カード（`.ai-board/board.db`）                       |
+| --------------- | -------------------------------------------- | ---------------------------------------------------- |
+| ai-board サーバ | **read-only**                                | 書く（画面の操作・PR 番号の書き戻し）                |
+| AI エージェント | 書く（計画・タスクの更新・archive への移動） | `ai-board card` 経由で本文・ブランチ・提出・保留のみ |
 
 エージェントが**やってはいけないこと**（ループの作業者 `.claude/agents/board-worker.md` のハードルールと同じ）:
 
 - `startedAt` を自分で打たない。これは人が着手を指示する合図。
-- `## レビュー` に書いてよいのは 提出 / 再提出 だけ。承認 / 否決 / 中止 は人が書く。
+- `## レビュー` に書いてよいのは 提出 / 再提出 / 保留 だけ。承認 / 否決 / 中止 は人が書く。
   plan でも verify でも同じ。動作確認を頼んだ（`verify 提出`）後に、自分で動かした結果をもって承認しない。
+  保留は、否決を自分では直しきれず人の判断を待つときにだけ書く。品質ゲートを通せない、未コミットの変更が残っている、
+  といった止まり方では書かない（人がワークツリーを直す話で、判断のボタンでは解けない）。保留はゲートを先へ進めない。
 - `skipGates` を自分で足さない。動作確認を飛ばすかどうかも人が決める。
 - `rank` を書かない。並び順は人が決める優先度で、エージェントは上から読むだけ。
   アイデアの表の区切り線（「次にやる」/「あとで考える」）も同じ扱い。
@@ -121,6 +141,8 @@ Markdown 表現（`card-markdown.ts`）はこの取り込みと `card show` の�
 このうちカードに関わるものは `ai-board card`（`src/cards/cli/card-cli.ts`）が構造で強制する。
 CLI には `startedAt` / `rank` / `skipGates` を書く入口も、承認 / 否決 / 中止を追記する入口も無く、
 `body` は `## レビュー` のエントリが変わる差し替えを拒否する。**CLI に入口を足すときはこの境界を崩さない。**
+逆に、人の API（`POST /api/cards/:id/reviews`）は `HUMAN_REVIEW_KINDS`（承認 / 否決 / 中止）だけを受け付け、
+AI の種別（提出 / 再提出 / 保留）は 400 で拒む。
 
 ステージを直接指定する入力口は存在しない。列を動かしたければ、その列を成立させる実態
 （`startedAt` の打刻、計画ファイルの作成、`## レビュー` への提出・承認の追記）を作る。
@@ -137,6 +159,14 @@ CLI には `startedAt` / `rank` / `skipGates` を書く入口も、承認 / 否�
 廃止した `explore` のエントリは規定外として黙って無視される。
 `gateState()` はゲートごとの最新エントリ 1 件で決まり、中止のエントリは判定から除く
 （中止は工程の進捗と直交する終端の軸で、通過済みのゲートを巻き戻さない）。
+状態は `none` / `submitted` / `held` / `approved` / `rejected` の 5 つで、`held` は最新が 保留 のとき。
+どの規則も `held` でゲートを先へ進めないので、保留のカードは AI の列（計画提案中 / 実装中）に留まり、`hold` が立つ。
+
+後ろのゲート（`REVIEW_GATES` の並びで後ろ）は、前のゲートの最新の承認より古いエントリを数えない（`currentEntries`）。
+計画を承認し直したなら、前の計画に対する動作確認の判断（否決・保留）はもう効かない、という意味である。
+これが無いと、計画から立て直したカードで古い `verify 否決` が最新のまま残り、ループが `revise-impl` を選び続ける。
+通常の流れでは verify のエントリはすべて plan の承認より後にあり、plan を飛ばすカードは承認のエントリを持たないので、どちらも何も外れない。
+`latestGateEntry` も同じ規則でエントリを選び、全ゲートの状態は `gateStates()` でまとめて引く（`toFacts` と CLI の `planApproved` が使う）。
 
 守るべきは列の所有権の分割。
 
@@ -154,12 +184,29 @@ UI が `startedAt` を書き換えるのは「着手」「着手を戻す」の�
 `POST /api/cards/:id/reviews` を呼び、本文への追記になる（`gate` に `plan` / `verify` を取る）。
 `skipGates` を画面から書くのは、詳細パネルの「動作確認を飛ばす」のチェックボックス（`verify` の出し入れ）だけ。
 
+どのカードにどの判断のボタンを出すかは `src/shared/dashboard-sections.ts` の `decisionsFor` が決める。
+
+| カード                                        | ボタン                                                                 |
+| --------------------------------------------- | ---------------------------------------------------------------------- |
+| 計画レビュー                                  | 承認 / 否決して差し戻す / 中止                                         |
+| 動作確認                                      | 承認 / 否決して差し戻す / 計画から立て直させる / 中止                  |
+| 実装中で止まっている（verify 保留、Draft へ） | 実装を直させる（verify 否決）/ 計画から立て直させる（plan 否決）/ 中止 |
+| 計画提案中で止まっている（plan 保留）         | 計画を直させる（plan 否決）/ 中止                                      |
+| 計画提案中で止まっている（成果物が見えない）  | 中止                                                                   |
+
+「計画から立て直させる」は承認済みの計画への plan 否決で、専用の規則もエントリも無い。
+plan が `rejected` になって 計画提案中 に落ち、ループは `revise-plan` を選ぶ。
+計画を承認し直すと前の verify のエントリは数えられず（上の `currentEntries`）、ループは `implement` から始め直す。
+飛ばす宣言（`skipGates`）のあるゲートの承認 / 否決は出さない（否決を書いても差し戻しにならない）。中止は残す。
+判断待ちのボタンを本文より前に出すか（`awaitsDecision`）は、`decisionsFor` が 1 つでも返すかで決まる。
+
 アイデアの表の区切り線は `rank` と同じ物差しの値を 1 つだけ持つ（DB の `idea_divider`）。
 並べ替えの中ではカードと同じ 1 項目（`DIVIDER_ID`）として扱い、隙間が尽きた振り直しでも一緒に振り直す
 （`src/cards/usecases/commands/move-in-order.ts`）。区切り線だけの分岐をここに足さない。
 
 画面の区画（判断待ち / AI 作業中 / アイデア / マージ済み / 中止）への振り分けと並び順は
 `src/shared/dashboard-sections.ts` の純関数にある。ステージの導出とは別物で、見せ方だけを決める。
+`hold` のあるカードはステージが AI の列のままでも判断待ちの区画に入り、待ち始めた時刻（`waitingSince`）は `hold.since` になる。
 `src/web/` はテストの対象外なので、画面のロジックを足すときはここへ切り出してテストを書く。
 「`startedAt` を外したときに残るステージ」（AI の成果物とレビュー記録が課す下限）より
 前へは戻せない（`resolveFloorStage` / `droppableStages`）。
@@ -189,6 +236,12 @@ PR へのリンクだけを出す。計画ファイルはブランチにあり�
 見えないことが多いので、Draft の PR も計画レビューの列を立てる。Ready にした時点で PR中 へ進む。
 動作確認を頼む時点の PR も Draft のままだが、Draft の PR が立てる計画レビューのルールは plan が未承認のときにしか
 当てはまらないので、計画レビューへは巻き戻らない。
+
+`draft` だけでは「まだ一度も Ready にしていない」と「人が Draft に戻した」を見分けられない。
+そこで PR が最後に Draft へ戻された時刻を `MrState.convertedToDraftAt` に持つ（GitHub の `convert_to_draft` のイベント）。
+作成時から Draft の PR はこのイベントを残さないので、値が入っていれば誰かが Ready の PR を Draft に戻したことを意味する。
+実装中のカードでこの時刻が最新のレビューエントリより新しければ止まり（上の `hold`）になり、ループは Ready にし直さない。
+人が GitHub で Ready に戻すか（PR中 へ進む）、ボタンで否決・中止すれば（そのエントリが新しくなる）止まりは外れる。
 
 ## レイヤー構成と規約
 
@@ -265,6 +318,10 @@ GitHub の PR は `state` が `open` / `closed` の 2 値しかなく、**マー
 最新コミットは `pulls/{n}/commits` ではなく `head.sha` を直接引く（件数で取り逃がさない）。
 自動生成のコメントを示すフラグは無く、`user.type === 'Bot'` で外す。
 
+Draft に戻された時刻（`convertedToDraftAt`）は `issues/{n}/events` の `convert_to_draft` から、
+同じく `--paginate` で全ページ引いて最大値を取る。使うのは open かつ Draft の PR だけなので、そのときにだけ問い合わせる
+（Ready の PR やマージ済みの PR に問い合わせを足さない）。
+
 PR 一覧の全件取得はページングで取りこぼすため使わず、カード単位で問い合わせる。
 
 カードの `mr` が分かっていれば番号で、無ければ `branch` から解決して書き戻す（`ForgePoller.fetchFor`）。
@@ -288,6 +345,10 @@ GitLab の MR !1 と GitHub の PR #1 は別物で、番号をそのまま引く
 | `POST`   | `/api/cards/:id/move`    | 直前・直後のカード（`after` / `before`）の間へ並べ替え  |
 | `POST`   | `/api/idea-divider/move` | アイデアの表の区切り線を直前・直後のカードの間へ動かす  |
 | `GET`    | `/api/events`            | SSE。ファイル変更・ポーリング結果を push                |
+
+`GET /api/board` の各カードは `hold`（止まり。`{ reason, since }` か `null`）と、
+`mrState.convertedToDraftAt`（最後に Draft へ戻された時刻）も持つ。
+`POST /api/cards/:id/reviews` は 提出 / 再提出 / 保留 を 400 で拒む。
 
 ## 計画ファイル
 
@@ -317,6 +378,16 @@ GitLab の MR !1 と GitHub の PR #1 は別物で、番号をそのまま引く
 
 人が詳細パネルで「動作確認を飛ばす」に印を入れた（`skipGates` に `verify` がある）カードは、手順 4・5 を通らず、
 AI レビューの後にそのまま手順 6 へ進む。
+
+人の判断を待って止まる道は次の 2 つ。どちらもカードは判断待ちの区画に出て、ループは後ろのカードへ進む。
+
+- **作業者が否決を直しきれない（手順 2・5 の否決の後）:** 作業者は何も直さず、
+  `ai-board card hold <id> --gate <plan|verify> --reason "<なぜ止まったか、人に何を決めてほしいか>"` で 保留 を書いて止まる。
+  人は理由を読み、ボタンで「実装を直させる」（verify 否決。`revise-impl` へ）、「計画から立て直させる」（plan 否決。手順 2 の `revise-plan` へ）、
+  「計画を直させる」（plan 保留のとき）、「中止する」のどれかを選ぶ。
+  計画から立て直したカードは、計画をもう一度承認すると前の verify の判断が数えられず、手順 4 のタスクから始め直す
+- **人が PR を Draft に戻した（手順 6 の後）:** ループは Ready にし直さない。
+  人が GitHub で Ready に戻すか、ボタンで実装を直させる / 計画から立て直させる / 中止する
 
 計画の確認は Draft の PR と計画レビューのゲートで人が行うので、Plan モードの承認は要らない。
 archive は別の PR にしない。マージと同時に main に入れば、GitHub が引けないときや

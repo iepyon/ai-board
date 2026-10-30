@@ -32,6 +32,15 @@ export interface MrState {
   readonly latestCommitAt: string | null;
   /** マージされた日時。マージされていなければ null */
   readonly mergedAt: string | null;
+  /**
+   * 最後に Draft へ戻された時刻（`convert_to_draft` のイベント）。
+   * 戻されたことが無い、または今 open かつ Draft でなければ null。
+   *
+   * `draft` だけでは「まだ一度も Ready にしていない」と「人が Draft に戻した」を
+   * 見分けられない。作成時から Draft の PR はこのイベントを残さないので、
+   * 値が入っていれば誰かが Ready の PR を Draft に戻したことを意味する
+   */
+  readonly convertedToDraftAt: string | null;
 }
 
 /** 取得先の種類 */

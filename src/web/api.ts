@@ -1,5 +1,5 @@
 import type { MoveTarget } from '../shared/card-reorder.js';
-import type { Board, BoardCard, ReviewGate, ReviewKind } from './types.js';
+import type { Board, BoardCard, HumanReviewKind, ReviewGate } from './types.js';
 
 // ============================================================
 // API クライアント
@@ -59,7 +59,7 @@ export function updateCardBody(id: string, body: string): Promise<BoardCard> {
  */
 export function appendReview(
   id: string,
-  input: { gate: ReviewGate; kind: ReviewKind; reason?: string }
+  input: { gate: ReviewGate; kind: HumanReviewKind; reason?: string }
 ): Promise<BoardCard> {
   return request<BoardCard>(`/api/cards/${encodeURIComponent(id)}/reviews`, {
     method: 'POST',

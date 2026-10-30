@@ -35,6 +35,11 @@ interface RawComment {
   user?: { type?: string } | null;
 }
 
+interface RawIssueEvent {
+  event: string;
+  created_at: string;
+}
+
 interface RawCommit {
   commit?: { committer?: { date?: string } | null } | null;
 }
@@ -94,10 +99,14 @@ export class GhForgeClient implements ForgeClient {
    * 並び順は問わない）。件数も同じ理由で全ページを数えないと頭打ちになる。
    */
   private async enrich(pr: RawPullRequest): Promise<MrState> {
-    const [issueComments, reviewComments, headCommit] = await Promise.all([
+    const state = toLifecycleState(pr.state, pr.merged_at);
+    const draft = pr.draft === true;
+
+    const [issueComments, reviewComments, headCommit, convertedToDraftAt] = await Promise.all([
       this.getAll<RawComment>(`issues/${pr.number}/comments`),
       this.getAll<RawComment>(`pulls/${pr.number}/comments`),
       this.get<RawCommit>(`commits/${pr.head.sha}`),
+      state === 'opened' && draft ? this.fetchConvertedToDraftAt(pr.number) : null,
     ]);
 
     // 自動生成のコメントは人のレビューではない
@@ -106,8 +115,8 @@ export class GhForgeClient implements ForgeClient {
     return {
       forge: this.kind,
       iid: toMergeRequestIid(pr.number),
-      state: toLifecycleState(pr.state, pr.merged_at),
-      draft: pr.draft === true,
+      state,
+      draft,
       sourceBranch: pr.head.ref,
       title: pr.title,
       webUrl: pr.html_url,
@@ -115,7 +124,24 @@ export class GhForgeClient implements ForgeClient {
       noteCount: comments.length,
       latestCommitAt: commitDate(headCommit),
       mergedAt: pr.merged_at,
+      convertedToDraftAt,
     };
+  }
+
+  /**
+   * 最後に Draft へ戻された時刻を、PR のイベントの `convert_to_draft` から引く。
+   *
+   * 使うのは open かつ Draft の PR だけなので、呼び出し側でそのときに限って問い合わせる
+   * （Ready の PR やマージ済みの PR に 1 回ずつ余計な問い合わせを足さない）。
+   * 作成時から Draft の PR はこのイベントを残さない。
+   * コメントと同じく既定は古い順の 1 ページ目なので、全ページ読んで最大値を取る。
+   */
+  private async fetchConvertedToDraftAt(iid: number): Promise<string | null> {
+    const events = await this.getAll<RawIssueEvent>(`issues/${iid}/events`);
+
+    return latestOf(
+      events.filter((event) => event.event === 'convert_to_draft').map((event) => event.created_at)
+    );
   }
 
   /** 404 は「存在しない」として null を返す。それ以外の失敗は例外にする */

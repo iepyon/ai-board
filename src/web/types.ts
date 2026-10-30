@@ -7,9 +7,12 @@ export type Stage = 'idea' | 'planning' | 'plan-review' | 'impling' | 'verifying
 /** 人が判断するゲートのうち、レビューログに現れるもの */
 export type ReviewGate = 'plan' | 'verify';
 
-export type ReviewKind = '提出' | '再提出' | '承認' | '否決' | '中止';
+export type ReviewKind = '提出' | '再提出' | '保留' | '承認' | '否決' | '中止';
 
-export type GateState = 'none' | 'submitted' | 'approved' | 'rejected';
+/** 人が画面から書ける種別。提出 / 再提出 / 保留 は AI が書く */
+export type HumanReviewKind = '承認' | '否決' | '中止';
+
+export type GateState = 'none' | 'submitted' | 'held' | 'approved' | 'rejected';
 
 export interface BoardCardPlan {
   tasks: { completed: number; total: number };
@@ -44,6 +47,8 @@ export interface BoardCardMr {
   resubmitted: boolean;
   /** マージされた日時。マージされていなければ null */
   mergedAt: string | null;
+  /** 最後に Draft へ戻された時刻。今 open かつ Draft でなければ null */
+  convertedToDraftAt: string | null;
 }
 
 export interface BoardCard {
@@ -69,6 +74,16 @@ export interface BoardCard {
   body: string;
   plan: BoardCardPlan | null;
   mrState: BoardCardMr | null;
+  /** AI の列にいるが人の判断を待っているときの止まり。止まっていなければ null */
+  hold: CardHold | null;
+}
+
+/** AI の列にいるが人の判断を待っているカードの止まり（サーバの `resolveHold`） */
+export interface CardHold {
+  /** 人が何をすればよいか */
+  reason: string;
+  /** 人を待ち始めた時刻 */
+  since: string;
 }
 
 export type ForgeKind = 'github';
@@ -122,12 +137,11 @@ export const STAGE_SOURCE: Record<Stage, 'card' | 'plan' | 'forge' | 'archive'> 
   merged: 'archive',
 };
 
-export { GATE_OF_STAGE } from '../shared/stage-gates.js';
-
 /**
  * 人の判断を待つ列。札と件数帯に ★ を付ける。
  *
  * 計画レビュー / 動作確認 はボタンで、PR中 は GitHub でマージして判断する。
- * ボタンを出す列（`GATE_OF_STAGE`）より 1 つ広い。
+ * 止まっているカード（`hold`）は AI の列のままなので、ここには入れない。
+ * どのカードにどのボタンを出すかは `decisionsFor`（`src/shared/dashboard-sections.ts`）が決める。
  */
 export const GATE_STAGES: readonly Stage[] = ['plan-review', 'verifying', 'pr'];
