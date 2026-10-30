@@ -1,4 +1,5 @@
 import {
+  REVIEW_GATES,
   isReviewGate,
   isReviewKind,
   type GateState,
@@ -99,6 +100,8 @@ function extractSection(body: string, heading: string): string[] | null {
  * 中止のエントリは判定から除く。中止は工程の進捗とは直交する終端の軸であり、
  * 承認済みのゲートを未通過へ巻き戻してはならない（それをするとカードを
  * 中止した瞬間にステージが前の列へ戻る）。
+ *
+ * 後ろのゲートは、前のゲートの最新の承認より前のエントリを数えない（`currentEntries`）。
  */
 export function gateState(
   entries: readonly ReviewEntry[],
@@ -107,7 +110,7 @@ export function gateState(
 ): GateState {
   if (skipGates.includes(gate)) return 'approved';
 
-  const latest = latestOf(entries.filter((entry) => entry.gate === gate && entry.kind !== '中止'));
+  const latest = latestGateEntry(entries, gate);
   if (latest === null) return 'none';
 
   switch (latest.kind) {
@@ -121,15 +124,26 @@ export function gateState(
     case '保留':
       return 'held';
     case '中止':
-      // 上でフィルタ済み。網羅性のために残す
+      // latestGateEntry が除いている。網羅性のために残す
       return 'none';
   }
+}
+
+/** 全ゲートの通過状況をまとめて返す。各ゲートの規則は `gateState()` と同じ */
+export function gateStates(
+  entries: readonly ReviewEntry[],
+  skipGates: readonly ReviewGate[]
+): Record<ReviewGate, GateState> {
+  return {
+    plan: gateState(entries, 'plan', skipGates),
+    verify: gateState(entries, 'verify', skipGates),
+  };
 }
 
 /**
  * ゲートの最新エントリ（中止を除く）。無ければ null。`gate` が undefined ならゲートを問わず最新を選ぶ。
  *
- * `gateState()` と同じ規則でエントリを選ぶので、返るエントリの種別は常にゲートの状態と一致する。
+ * `gateState()` はこの関数でエントリを選ぶので、返るエントリの種別は常にゲートの状態と一致する。
  * 人が判断するときの材料（提出に書かれた判断待ちの点）と、待ち始めた時刻を画面に出すために使う。
  */
 export function latestGateEntry(
@@ -137,8 +151,39 @@ export function latestGateEntry(
   gate: ReviewGate | undefined
 ): ReviewEntry | null {
   return latestOf(
-    entries.filter((entry) => (gate === undefined || entry.gate === gate) && entry.kind !== '中止')
+    currentEntries(entries).filter(
+      (entry) => (gate === undefined || entry.gate === gate) && entry.kind !== '中止'
+    )
   );
+}
+
+/**
+ * 今も効いているエントリ。後ろのゲート（`REVIEW_GATES` の並びで後ろ）のエントリのうち、
+ * それより前のゲートの最新の承認より古いものを除く。
+ *
+ * 計画を承認し直したなら、前の計画に対する動作確認の判断（否決・保留）はもう効かない、という意味である。
+ * これが無いと、計画から立て直したカードで古い `verify 否決` が最新のまま残り、
+ * ループが `implement` ではなく `revise-impl` を選び続ける。
+ *
+ * 通常の流れでは後ろのゲートのエントリはすべて前のゲートの承認より後にあるので、何も除かれない。
+ * 前のゲートを飛ばす宣言のカードは承認のエントリを持たないので、やはり何も除かれない。
+ * 承認と同じ時刻のエントリは残す（後に書かれたものを最新とする `latestOf` と揃える）。
+ */
+function currentEntries(entries: readonly ReviewEntry[]): ReviewEntry[] {
+  const approvedAt = new Map<ReviewGate, number>();
+
+  for (const entry of entries) {
+    if (entry.kind !== '承認') continue;
+    const at = Date.parse(entry.at);
+    approvedAt.set(entry.gate, Math.max(at, approvedAt.get(entry.gate) ?? -Infinity));
+  }
+
+  return entries.filter((entry) => {
+    const earlier = REVIEW_GATES.slice(0, REVIEW_GATES.indexOf(entry.gate));
+    const cutoff = Math.max(...earlier.map((gate) => approvedAt.get(gate) ?? -Infinity));
+
+    return Date.parse(entry.at) >= cutoff;
+  });
 }
 
 /** 全エントリを通じて最新のものが 中止 か */

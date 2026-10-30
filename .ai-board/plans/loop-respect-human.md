@@ -222,7 +222,7 @@ PR を Draft に戻す道は、本物の PR が要るので別の DB だけで�
   - `gateState` の switch、`judgeImpling` / `judgePlanning`（この時点では `held` を「止まり」として返す）、web の型
   - 人の API のスキーマを 承認 / 否決 / 中止 だけに絞る。e2e テストに「提出 / 保留 は 400」を足す
   - テスト: verify の最新が 保留 → `held`、その後に人の否決 → `rejected`。ステージは verify `held` で 実装中、plan `held` で 計画提案中
-- [ ] `gateStates` を足し、後ろのゲートは前のゲートの最新の承認より前のエントリを数えない。`toFacts`・`planApproved`・`latestGateEntry` をこれに寄せる
+- [x] `gateStates` を足し、後ろのゲートは前のゲートの最新の承認より前のエントリを数えない。`toFacts`・`planApproved`・`latestGateEntry` をこれに寄せる
   - テスト: plan 承認 → verify 否決 → verify 保留 → plan 否決 → plan 再提出 → plan 承認 の順で、ステージが 実装中・計画提案中・計画レビュー・実装中 と動き、最後の verify が `none`
   - テスト: plan を飛ばす宣言のカードでは verify のエントリが外れない
 

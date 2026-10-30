@@ -5,7 +5,7 @@ import type { Card } from '../models/card.js';
 import type { CreateCardError, UpdateCardError } from '../errors/card-errors.js';
 import { readCardFiles, serializeCard } from '../repositories/card-markdown.js';
 import { isReviewGate, type ReviewGate } from '../models/review.js';
-import { gateState, parseReviewLog } from '../services/review-log.js';
+import { gateStates, parseReviewLog } from '../services/review-log.js';
 
 // ============================================================
 // ai-board card — エージェントがカードに書くための CLI
@@ -273,7 +273,7 @@ async function planApproved(id: CardId, deps: CardDependencies): Promise<boolean
   const card = await deps.cardRepository.findById(id);
   if (card === null) return true;
 
-  return gateState(parseReviewLog(card.body), 'plan', card.skipGates) === 'approved';
+  return gateStates(parseReviewLog(card.body), card.skipGates).plan === 'approved';
 }
 
 /** `--gate` の値。省略は plan。規定外の値は null */

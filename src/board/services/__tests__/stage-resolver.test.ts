@@ -488,6 +488,51 @@ describe('resolveStage — ゲートの状態', () => {
     expect(resolved.stage).toBe('planning');
   });
 
+  it('計画から立て直して承認し直すと、前の verify のエントリは数えない', () => {
+    const at = (minutes: number): string =>
+      new Date(Date.parse(T2) + minutes * 60_000).toISOString();
+    const log = [
+      { at: at(0), gate: 'plan', kind: '承認' },
+      { at: at(1), gate: 'verify', kind: '否決' },
+      { at: at(2), gate: 'verify', kind: '保留' },
+      { at: at(3), gate: 'plan', kind: '否決' },
+      { at: at(4), gate: 'plan', kind: '再提出' },
+      { at: at(5), gate: 'plan', kind: '承認' },
+    ];
+    const resolveAfter = (count: number) =>
+      resolveStage(
+        makeCard({ startedAt: T1, body: makeBody({ entries: log.slice(0, count) }) }),
+        makePlan(),
+        makeMr({ draft: true })
+      );
+
+    expect(resolveAfter(3).stage).toBe('impling');
+    expect(resolveAfter(4).stage).toBe('planning');
+    expect(resolveAfter(5).stage).toBe('plan-review');
+
+    const reapproved = resolveAfter(6);
+    expect(reapproved.stage).toBe('impling');
+    expect(reapproved.gates).toEqual({ plan: 'approved', verify: 'none' });
+  });
+
+  it('plan を飛ばす宣言のカードでは verify のエントリが外れない', () => {
+    const card = makeCard({
+      startedAt: T1,
+      skipGates: ['plan'],
+      body: makeBody({
+        entries: [
+          { at: T2, gate: 'verify', kind: '提出' },
+          { at: T3, gate: 'verify', kind: '否決' },
+        ],
+      }),
+    });
+
+    expect(resolveStage(card, makePlan(), makeMr({ draft: true })).gates).toEqual({
+      plan: 'approved',
+      verify: 'rejected',
+    });
+  });
+
   it('スキップを宣言したカードはレビュー列に留まらない', () => {
     const card = makeCard({ startedAt: T1, skipGates: ['plan'] });
 

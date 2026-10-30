@@ -1,7 +1,7 @@
 import { stageRank, type Stage } from '../../shared/schemas/common.js';
 import type { Card } from '../../cards/models/card.js';
 import type { GateState, ReviewGate } from '../../cards/models/review.js';
-import { gateState, isAborted, parseReviewLog } from '../../cards/services/review-log.js';
+import { gateStates, isAborted, parseReviewLog } from '../../cards/services/review-log.js';
 import type { PlanDoc } from '../models/plan-state.js';
 import type { MrState } from '../models/mr-state.js';
 
@@ -109,10 +109,7 @@ function toFacts(card: Card, plan: PlanDoc | null, mr: MrState | null): Facts {
     card,
     plan,
     mr,
-    gates: {
-      plan: gateState(entries, 'plan', card.skipGates),
-      verify: gateState(entries, 'verify', card.skipGates),
-    },
+    gates: gateStates(entries, card.skipGates),
     aborted: isAborted(entries),
   };
 }
