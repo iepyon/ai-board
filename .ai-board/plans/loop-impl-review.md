@@ -322,7 +322,7 @@ archive から `plans/` へ戻すときも同じである。
 
 ### 6. ドキュメント
 
-- [ ] `CLAUDE.md` の 1 周の流れの手順 4 とループの手の説明、`README.md` の AI ループの節と手の表、`docs/specs/board-stages/spec.md` の AI レビューの記述を直す
+- [x] `CLAUDE.md` の 1 周の流れの手順 4 とループの手の説明、`README.md` の AI ループの節と手の表、`docs/specs/board-stages/spec.md` の AI レビューの記述を直す
 
 ### 7. 確かめる
 
