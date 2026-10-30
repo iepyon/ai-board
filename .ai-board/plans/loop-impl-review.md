@@ -318,7 +318,7 @@ archive から `plans/` へ戻すときも同じである。
 
 ### 5. コードのコメント
 
-- [ ] `src/board/services/next-action.ts` の `NextActionKind` と `judgeImpling` の docstring に、`implement` の段は作業者が計画から決めることと、`review` を手にしない理由を書く
+- [x] `src/board/services/next-action.ts` の `NextActionKind` と `judgeImpling` の docstring に、`implement` の段は作業者が計画から決めることと、`review` を手にしない理由を書く
 
 ### 6. ドキュメント
 
