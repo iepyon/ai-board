@@ -255,7 +255,7 @@ PR を Draft に戻す道は、本物の PR が要るので別の DB だけで�
 
 - [x] `.claude/agents/board-worker.md`: `revise-impl` で直しきれないときは `ai-board card hold <id> --gate verify --reason` を書いてから止まる（`revise-plan` も同じく `--gate plan`）。
       計画から立て直すときのタスクの扱いを `revise-plan` に足す。ハードルールの「`## レビュー` に書いてよいもの」に 保留 を足す
-- [ ] `.claude/skills/board-loop/SKILL.md`: `waiting` に止まっているカードが入ることと、ハードルールの書き込める種別を直す
+- [x] `.claude/skills/board-loop/SKILL.md`: `waiting` に止まっているカードが入ることと、ハードルールの書き込める種別を直す
 
 ### 7. ドキュメント
 
