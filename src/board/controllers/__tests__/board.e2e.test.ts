@@ -235,6 +235,96 @@ describe('GET /api/board', () => {
     expect(card.droppableStages).toEqual([]);
   });
 
+  it('作業者が保留を書いて止まった実装中のカードに hold を載せる', async () => {
+    await writeCard(
+      'held',
+      [
+        '---',
+        'id: held',
+        'title: 保留',
+        'startedAt: 2026-09-05T00:00:00.000Z',
+        '---',
+        '',
+        '## レビュー',
+        '',
+        '### 2026-09-06T00:00:00.000Z plan 承認',
+        '',
+        '### 2026-09-07T00:00:00.000Z verify 否決',
+        '',
+        '### 2026-09-08T00:00:00.000Z verify 保留',
+        '',
+        '直すには大きすぎる。',
+        '',
+      ].join('\n')
+    );
+    await writeCard(
+      'fresh',
+      '---\nid: fresh\ntitle: 未提出\nstartedAt: 2026-09-05T00:00:00.000Z\n---\n'
+    );
+
+    const response = await request(buildApp()).get('/api/board').expect(200);
+    const byId = new Map(
+      (response.body.cards as { id: string; stage: string; hold: unknown }[]).map((card) => [
+        card.id,
+        card,
+      ])
+    );
+
+    expect(byId.get('held')?.stage).toBe('impling');
+    expect(byId.get('held')?.hold).toEqual({
+      reason: expect.stringContaining('作業者が直しきれずに止まった') as unknown,
+      since: '2026-09-08T00:00:00.000Z',
+    });
+    expect(byId.get('fresh')?.hold).toBeNull();
+  });
+
+  it('判断の後に Draft へ戻された PR のカードに hold を載せる', async () => {
+    await writeCard(
+      'reverted',
+      [
+        '---',
+        'id: reverted',
+        'title: Draft に戻された',
+        'startedAt: 2026-09-05T00:00:00.000Z',
+        'mr: 38',
+        '---',
+        '',
+        '## レビュー',
+        '',
+        '### 2026-09-06T00:00:00.000Z plan 承認',
+        '',
+        '### 2026-09-07T00:00:00.000Z verify 承認',
+        '',
+      ].join('\n')
+    );
+
+    const mr: MrState = {
+      forge: 'github',
+      iid: 38 as MergeRequestIid,
+      state: 'opened',
+      draft: true,
+      sourceBranch: 'reverted',
+      title: 'Draft に戻された',
+      webUrl: 'https://github.com/acme/board/pull/38',
+      latestNoteAt: null,
+      noteCount: 0,
+      latestCommitAt: null,
+      mergedAt: null,
+      convertedToDraftAt: '2026-09-08T00:00:00Z',
+    };
+
+    const response = await request(buildApp(stubMrProvider({ reverted: mr })))
+      .get('/api/board')
+      .expect(200);
+    const card = response.body.cards[0];
+
+    expect(card.stage).toBe('impling');
+    expect(card.hold).toEqual({
+      reason: expect.stringContaining('PR #38 が Draft に戻された') as unknown,
+      since: '2026-09-08T00:00:00Z',
+    });
+  });
+
   it('待ちの列でなければゲートを問わず最新のエントリを latestReview として返す（中止は除く）', async () => {
     await writeCard(
       'waiting',

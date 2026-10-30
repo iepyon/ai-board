@@ -74,6 +74,16 @@ export interface BoardCard {
   body: string;
   plan: BoardCardPlan | null;
   mrState: BoardCardMr | null;
+  /** AI の列にいるが人の判断を待っているときの止まり。止まっていなければ null */
+  hold: CardHold | null;
+}
+
+/** AI の列にいるが人の判断を待っているカードの止まり（サーバの `resolveHold`） */
+export interface CardHold {
+  /** 人が何をすればよいか */
+  reason: string;
+  /** 人を待ち始めた時刻 */
+  since: string;
 }
 
 export type ForgeKind = 'github';

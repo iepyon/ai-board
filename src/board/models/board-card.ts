@@ -2,6 +2,7 @@ import type { Stage } from '../../shared/schemas/common.js';
 import type { Card } from '../../cards/models/card.js';
 import type { GateState, ReviewGate, ReviewKind } from '../../cards/models/review.js';
 import type { StageResolution } from '../services/stage-resolver.js';
+import type { CardHold } from '../services/next-action.js';
 import type { TaskProgress } from './plan-state.js';
 import type { ForgeConnection, ForgeKind, MrLifecycleState } from './mr-state.js';
 
@@ -77,6 +78,11 @@ export interface BoardCard {
   readonly plan: BoardCardPlan | null;
   /** PR が未紐付け、または GitHub 未接続なら null */
   readonly mrState: BoardCardMr | null;
+  /**
+   * AI の列にいるが人の判断を待っているときの止まり（`resolveHold`）。止まっていなければ null。
+   * ステージとは別の軸で、どこにも保存しない。ループはこのカードを選ばない
+   */
+  readonly hold: CardHold | null;
 }
 
 export interface Board {
@@ -102,7 +108,8 @@ export function toBoardCard(
   },
   latestReview: BoardCardReview | null,
   plan: BoardCardPlan | null,
-  mrState: BoardCardMr | null
+  mrState: BoardCardMr | null,
+  hold: CardHold | null
 ): BoardCard {
   return {
     id: card.id,
@@ -123,5 +130,6 @@ export function toBoardCard(
     body: card.body,
     plan,
     mrState,
+    hold,
   };
 }

@@ -238,7 +238,7 @@ PR を Draft に戻す道は、本物の PR が要るので別の DB だけで�
 
 ### 4. 止まりの判定
 
-- [ ] `next-action.ts` に止まりの判定（verify 保留 / plan 保留 / Draft に戻された / 提出済みなのに成果物が見えない）を集め、`BoardCard.hold` を `get-board.query.ts` で載せる。`pickNextAction` は `hold` のあるカードを選ばない
+- [x] `next-action.ts` に止まりの判定（verify 保留 / plan 保留 / Draft に戻された / 提出済みなのに成果物が見えない）を集め、`BoardCard.hold` を `get-board.query.ts` で載せる。`pickNextAction` は `hold` のあるカードを選ばない
   - Draft に戻された判定は verify の状態より前に見る（`ready` と、飛ばす宣言の `implement` の両方を止める）
   - テスト: 止まったカードを飛ばして後ろのカードを選ぶ / Draft に戻された時刻が最新のエントリより古ければ止まらない / 人が否決を書くと止まりが外れて `revise-impl`
 - [ ] `status` の `waiting` を inbox から作り、`findStuckCards` の足し込みをやめる。`status-cli.test.ts` で、止まったカードが `waiting` に 1 度だけ出て `working` に出ないことを確かめる
