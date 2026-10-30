@@ -259,7 +259,7 @@ PR を Draft に戻す道は、本物の PR が要るので別の DB だけで�
 
 ### 7. ドキュメント
 
-- [ ] `CLAUDE.md`（`card hold` の使い方、書き込み境界、ゲートの状態、やってはいけないこと）、`README.md`、`docs/specs/board-stages/spec.md`、`docs/specs/card-review/spec.md` を直す
+- [x] `CLAUDE.md`（`card hold` の使い方、書き込み境界、ゲートの状態、やってはいけないこと）、`README.md`、`docs/specs/board-stages/spec.md`、`docs/specs/card-review/spec.md` を直す
 
 ### 8. 確かめる
 
