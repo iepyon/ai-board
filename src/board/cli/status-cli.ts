@@ -5,7 +5,7 @@ import type { Stage } from '../../shared/schemas/common.js';
 import type { GetBoardQuery } from '../usecases/queries/get-board.query.js';
 import type { Board, BoardCard } from '../models/board-card.js';
 import type { ForgeConnection } from '../models/mr-state.js';
-import { findStuckCards, pickNextAction, type NextAction } from '../services/next-action.js';
+import { pickNextAction, type NextAction } from '../services/next-action.js';
 
 // ============================================================
 // ai-board status — サーバを起動せずにボードの状態を読む
@@ -17,7 +17,10 @@ export const STATUS_USAGE = `使い方: ai-board status [--json] [--root <path>]
   --json   機械向けの JSON で出す（AI ループはこちらを読む）
 `;
 
-/** 人の番か、ループが推測で手を出さないカード */
+/**
+ * 人の番のカード。判断を待つ列（計画レビュー / 動作確認 / PR中）のカードと、
+ * AI の列で止まっているカード（`hold`。ループはこれを選ばない）
+ */
 export interface WaitingCard {
   readonly id: string;
   readonly title: string;
@@ -92,22 +95,13 @@ export async function runStatusCli(
  */
 export function buildStatusReport(board: Board, now: Date): StatusReport {
   const cards = board.cards.map(({ body: _body, ...rest }) => rest);
+  // 画面の判断待ちの区画と同じ振り分け。止まっているカードは inbox に入り、work には入らない
   const sections = groupBySection(cards);
-  const stuck = findStuckCards(cards);
-  const stuckIds = new Set(stuck.map((card) => card.cardId));
-  const byId = new Map(cards.map((card) => [card.id, card]));
-
-  const stuckWaiting = stuck.flatMap(({ cardId, reason }) => {
-    const card = byId.get(cardId);
-    return card === undefined ? [] : [{ ...toWaiting(card), reason }];
-  });
 
   return {
     next: board.forge.status === 'connected' ? pickNextAction(cards) : null,
-    waiting: [...sections.inbox.map(toWaiting), ...stuckWaiting],
-    working: sections.work
-      .filter((card) => !stuckIds.has(card.id))
-      .map((card) => ({ ...toWaiting(card), stale: isStale(card, now) })),
+    waiting: sections.inbox.map(toWaiting),
+    working: sections.work.map((card) => ({ ...toWaiting(card), stale: isStale(card, now) })),
     cards,
     forge: board.forge,
     generatedAt: board.generatedAt,
@@ -135,8 +129,14 @@ export function formatStatus(report: StatusReport): string {
   return `${lines.join('\n')}\n`;
 }
 
+/** 止まっているカードは、ステージの理由ではなく人が何をすればよいか（`hold.reason`）を出す */
 function toWaiting(card: StatusCard): WaitingCard {
-  return { id: card.id, title: card.title, stage: card.stage, reason: card.reason };
+  return {
+    id: card.id,
+    title: card.title,
+    stage: card.stage,
+    reason: card.hold?.reason ?? card.reason,
+  };
 }
 
 function describeNext({ next, forge }: StatusReport): string {

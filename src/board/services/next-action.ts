@@ -24,12 +24,6 @@ export interface NextAction {
   readonly reason: string;
 }
 
-/** AI の列にいるのに、ループが推測で手を出さないカード */
-export interface StuckCard {
-  readonly cardId: string;
-  readonly reason: string;
-}
-
 /**
  * AI の列（計画提案中 / 実装中）にいるが、人の判断を待っているカードの止まり。
  *
@@ -98,15 +92,6 @@ export function pickNextAction(cards: readonly NextActionCard[]): NextAction | n
   }
 
   return null;
-}
-
-/**
- * AI の列にいるのに、ループが手を出さないカード（`hold` のあるカード）。人に知らせるために使う。
- */
-export function findStuckCards(cards: readonly NextActionCard[]): StuckCard[] {
-  return cards.flatMap((card) =>
-    card.hold === null ? [] : [{ cardId: card.id, reason: card.hold.reason }]
-  );
 }
 
 /**

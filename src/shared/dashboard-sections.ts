@@ -9,8 +9,8 @@ import { GATE_OF_STAGE } from './stage-gates.js';
 /**
  * ダッシュボードの区画。ステージの導出はサーバが済ませており、ここは見せ方の振り分けだけを持つ。
  *
- * - `inbox`   人の判断待ち（計画レビュー / 動作確認 / PR中）
- * - `work`    AI が進めている（計画提案中 / 実装中）
+ * - `inbox`   人の判断待ち（計画レビュー / 動作確認 / PR中、と AI の列で止まっているカード）
+ * - `work`    AI が進めている（計画提案中 / 実装中。止まっているカードを除く）
  * - `idea`    アイデア
  * - `merged`  マージ済み
  * - `aborted` 中止。どのステージにあってもここへ寄せる（終端であり、判断も作業も待っていない）
@@ -40,6 +40,11 @@ export interface SectionCard {
     readonly latestCommitAt: string | null;
     readonly mergedAt: string | null;
   } | null;
+  /**
+   * AI の列にいるが人の判断を待っているときの止まり（サーバの `resolveHold`）。
+   * `src/shared/` は web からも読むので、サーバの型を import せず形だけを書く
+   */
+  readonly hold: { readonly reason: string; readonly since: string } | null;
 }
 
 export type Sections<T> = Record<DashboardSection, T[]>;
@@ -54,7 +59,7 @@ export function groupBySection<T extends SectionCard>(cards: readonly T[]): Sect
   const sections: Sections<T> = { inbox: [], work: [], idea: [], merged: [], aborted: [] };
 
   for (const card of cards) {
-    sections[card.aborted ? 'aborted' : SECTION_OF_STAGE[card.stage]].push(card);
+    sections[sectionOf(card)].push(card);
   }
 
   return {
@@ -65,7 +70,20 @@ export function groupBySection<T extends SectionCard>(cards: readonly T[]): Sect
 }
 
 /**
+ * カードの入る区画。中止が最も強く、次に止まり、最後にステージで決める。
+ * 止まっているカードはステージが AI の列のままでも、人の判断を待っているので判断待ちに出す。
+ */
+function sectionOf(card: SectionCard): DashboardSection {
+  if (card.aborted) return 'aborted';
+  if (card.hold !== null) return 'inbox';
+
+  return SECTION_OF_STAGE[card.stage];
+}
+
+/**
  * 人を待ち始めた時刻。
+ *
+ * 止まっているカードは止まりの起点（`hold.since`）。
  *
  * 計画レビューは提出（再提出）の時刻。提出を書き忘れて計画ファイルだけがある場合は
  * ファイルの更新時刻で代える。
@@ -74,6 +92,8 @@ export function groupBySection<T extends SectionCard>(cards: readonly T[]): Sect
  * （多くは verify の承認、動作確認を飛ばしたなら plan の承認）。
  */
 export function waitingSince(card: SectionCard): string | null {
+  if (card.hold !== null) return card.hold.since;
+
   if (card.stage === 'pr') {
     return card.mrState?.latestCommitAt ?? card.latestReview?.at ?? null;
   }

@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   HOLD_REASONS,
-  findStuckCards,
   pickNextAction,
   resolveHold,
   type HoldInput,
@@ -169,17 +168,6 @@ describe('pickNextAction', () => {
     ]);
 
     expect(next).toBeNull();
-  });
-});
-
-describe('findStuckCards', () => {
-  it('止まっているカードを理由付きで返す', () => {
-    const stuck = findStuckCards([
-      makeCard({ id: 'held', stage: 'impling', gates: gate('approved', 'held'), hold: HOLD }),
-      makeCard({ id: 'fresh', stage: 'planning' }),
-    ]);
-
-    expect(stuck).toEqual([{ cardId: 'held', reason: '止まっている' }]);
   });
 });
 

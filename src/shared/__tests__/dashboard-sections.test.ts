@@ -19,6 +19,7 @@ function makeCard(overrides: Partial<SectionCard> & Pick<SectionCard, 'id'>): Se
     latestReview: null,
     plan: null,
     mrState: null,
+    hold: null,
     ...overrides,
   };
 }
@@ -61,6 +62,50 @@ describe('groupBySection', () => {
     expect(ids(sections.aborted)).toEqual(['waiting', 'idea']);
     expect(sections.inbox).toEqual([]);
     expect(sections.idea).toEqual([]);
+  });
+
+  it('止まっているカードは AI の列にいても判断待ちへ出し、AI 作業中に含めない', () => {
+    const hold = { reason: '止まっている', since: '2026-09-20T00:00:00Z' };
+    const sections = groupBySection([
+      makeCard({ id: 'held-impl', stage: 'impling', hold }),
+      makeCard({ id: 'held-plan', stage: 'planning', hold }),
+      makeCard({ id: 'working', stage: 'impling' }),
+    ]);
+
+    expect(ids(sections.inbox)).toEqual(['held-impl', 'held-plan']);
+    expect(ids(sections.work)).toEqual(['working']);
+  });
+
+  it('中止は止まりより強い', () => {
+    const sections = groupBySection([
+      makeCard({
+        id: 'aborted',
+        stage: 'impling',
+        aborted: true,
+        hold: { reason: '止まっている', since: '2026-09-20T00:00:00Z' },
+      }),
+    ]);
+
+    expect(ids(sections.aborted)).toEqual(['aborted']);
+    expect(sections.inbox).toEqual([]);
+  });
+
+  it('止まっているカードも判断待ちの中で待ち始めた時刻の順に並ぶ', () => {
+    const sections = groupBySection([
+      makeCard({
+        id: 'review',
+        stage: 'plan-review',
+        latestReview: { at: '2026-09-22T00:00:00Z' },
+      }),
+      makeCard({
+        id: 'held',
+        stage: 'impling',
+        latestReview: { at: '2026-09-25T00:00:00Z' },
+        hold: { reason: '止まっている', since: '2026-09-21T00:00:00Z' },
+      }),
+    ]);
+
+    expect(ids(sections.inbox)).toEqual(['held', 'review']);
   });
 
   it('アイデアと AI 作業中は受け取った順（rank の順）を保つ', () => {
@@ -114,6 +159,17 @@ describe('groupBySection', () => {
 // ============================================================
 
 describe('waitingSince', () => {
+  it('止まっているカードは止まりの起点の時刻', () => {
+    const card = makeCard({
+      id: 'a',
+      stage: 'impling',
+      latestReview: { at: '2026-09-20T00:00:00Z' },
+      hold: { reason: '止まっている', since: '2026-09-24T00:00:00Z' },
+    });
+
+    expect(waitingSince(card)).toBe('2026-09-24T00:00:00Z');
+  });
+
   it('計画レビューは提出の時刻', () => {
     const card = makeCard({
       id: 'a',
