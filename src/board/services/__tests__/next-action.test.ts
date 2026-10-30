@@ -112,6 +112,24 @@ describe('pickNextAction', () => {
     expect(next?.cardId).toBe('planning');
   });
 
+  it('作業者が保留を書いて止まった実装中のカードは飛ばして、次のカードを選ぶ', () => {
+    const next = pickNextAction([
+      makeCard({ id: 'held', stage: 'impling', gates: gate('approved', 'held') }),
+      makeCard({ id: 'next', stage: 'impling', gates: gate('approved', 'none') }),
+    ]);
+
+    expect(next).toEqual({ cardId: 'next', action: 'implement', reason: '計画が承認されている' });
+  });
+
+  it('作業者が保留を書いて止まった計画提案中のカードは飛ばす', () => {
+    const next = pickNextAction([
+      makeCard({ id: 'held', stage: 'planning', gates: gate('held') }),
+      makeCard({ id: 'fresh', stage: 'planning' }),
+    ]);
+
+    expect(next?.cardId).toBe('fresh');
+  });
+
   it('人の判断を待つ列やアイデア・マージ済みしか無ければ null', () => {
     const next = pickNextAction([
       makeCard({ id: 'idea', stage: 'idea' }),
@@ -136,6 +154,17 @@ describe('findStuckCards', () => {
 
     expect(stuck.map((card) => card.cardId)).toEqual(['submitted', 'resubmitted']);
     expect(stuck[0]?.reason).toContain('計画ファイルも Draft の PR も見えない');
+  });
+
+  it('ゲートが held のカードを理由付きで返す', () => {
+    const stuck = findStuckCards([
+      makeCard({ id: 'verify-held', stage: 'impling', gates: gate('approved', 'held') }),
+      makeCard({ id: 'plan-held', stage: 'planning', gates: gate('held') }),
+    ]);
+
+    expect(stuck.map((card) => card.cardId)).toEqual(['verify-held', 'plan-held']);
+    expect(stuck[0]?.reason).toContain('verify 保留');
+    expect(stuck[1]?.reason).toContain('plan 保留');
   });
 
   it('中止のカードは含めない', () => {

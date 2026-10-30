@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { CardIdSchema } from '../../../shared/schemas/common.js';
 import { DIVIDER_ID } from '../../../shared/card-reorder.js';
-import { REVIEW_GATES, REVIEW_KINDS } from '../review.js';
+import { HUMAN_REVIEW_KINDS, REVIEW_GATES } from '../review.js';
 
 const ReviewGateSchema = z.enum(REVIEW_GATES);
 
@@ -110,13 +110,13 @@ export const MoveIdeaDividerInputSchema = z.object({
 /**
  * レビューエントリの追記。
  *
- * 提出 / 再提出 は AI が書くもので、この API からは受け付けない。
+ * 提出 / 再提出 / 保留 は AI が書くもので、この API からは受け付けない（`HUMAN_REVIEW_KINDS` だけを通す）。
  * 否決には理由文を必須にする。空の否決は AI が次の周回で読むものを持たないため。
  */
 export const AppendReviewInputSchema = z
   .object({
     gate: z.enum(REVIEW_GATES),
-    kind: z.enum(REVIEW_KINDS),
+    kind: z.enum(HUMAN_REVIEW_KINDS),
     reason: z.string().max(10_000).default(''),
   })
   .refine((value) => value.kind !== '否決' || value.reason.trim() !== '', {

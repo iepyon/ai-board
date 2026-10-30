@@ -118,6 +118,8 @@ export function gateState(
     case '提出':
     case '再提出':
       return 'submitted';
+    case '保留':
+      return 'held';
     case '中止':
       // 上でフィルタ済み。網羅性のために残す
       return 'none';

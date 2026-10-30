@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { appendReview } from '../../api.js';
-import { GATE_OF_STAGE, type BoardCard, type ReviewGate } from '../../types.js';
+import {
+  GATE_OF_STAGE,
+  type BoardCard,
+  type HumanReviewKind,
+  type ReviewGate,
+} from '../../types.js';
 
 // ============================================================
 // 承認 / 否決 / 中止
@@ -35,7 +40,7 @@ export function ReviewActions({ card, saving, onRun }: ReviewActionsProps) {
   // 判断を待つ列でなければ何も出さない（呼び出し側は `awaitsDecision` のカードにだけ使う）
   if (gate === undefined) return null;
 
-  const submit = (kind: '承認' | '否決' | '中止'): void => {
+  const submit = (kind: HumanReviewKind): void => {
     void onRun(async () => {
       await appendReview(card.id, { gate, kind, reason });
       setReason('');

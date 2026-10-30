@@ -218,7 +218,7 @@ PR を Draft に戻す道は、本物の PR が要るので別の DB だけで�
 
 ### 1. ゲート
 
-- [ ] `REVIEW_KINDS` に `保留`、`GateState` に `held` を足し、受け止める箇所を 1 つのコミットにまとめる
+- [x] `REVIEW_KINDS` に `保留`、`GateState` に `held` を足し、受け止める箇所を 1 つのコミットにまとめる
   - `gateState` の switch、`judgeImpling` / `judgePlanning`（この時点では `held` を「止まり」として返す）、web の型
   - 人の API のスキーマを 承認 / 否決 / 中止 だけに絞る。e2e テストに「提出 / 保留 は 400」を足す
   - テスト: verify の最新が 保留 → `held`、その後に人の否決 → `rejected`。ステージは verify `held` で 実装中、plan `held` で 計画提案中

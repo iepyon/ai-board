@@ -142,6 +142,34 @@ describe('gateState', () => {
     expect(gateState(aborted, 'plan', [])).toBe('none');
   });
 
+  it('最新が 保留 なら held、その後に人が否決を書けば rejected', () => {
+    const held: ReviewEntry[] = [
+      { at: '2026-09-11T04:00:00.000Z', gate: 'verify', kind: '提出', reason: '' },
+      { at: '2026-09-11T05:00:00.000Z', gate: 'verify', kind: '否決', reason: '遅い' },
+      { at: '2026-09-11T06:00:00.000Z', gate: 'verify', kind: '保留', reason: '大きすぎる' },
+    ];
+
+    expect(gateState(held, 'verify', [])).toBe('held');
+
+    const rejected: ReviewEntry[] = [
+      ...held,
+      { at: '2026-09-11T07:00:00.000Z', gate: 'verify', kind: '否決', reason: '索引を足して' },
+    ];
+
+    expect(gateState(rejected, 'verify', [])).toBe('rejected');
+  });
+
+  it('保留の見出しを解析できる', () => {
+    const entries = parseReviewLog(
+      '## レビュー\n\n### 2026-09-11T06:00:00.000Z plan 保留\n\n直しきれない\n'
+    );
+
+    expect(entries).toEqual([
+      { at: '2026-09-11T06:00:00.000Z', gate: 'plan', kind: '保留', reason: '直しきれない' },
+    ]);
+    expect(gateState(entries, 'plan', [])).toBe('held');
+  });
+
   it('中止は承認済みのゲートを巻き戻さない', () => {
     const aborted: ReviewEntry[] = [
       { at: '2026-09-11T04:00:00.000Z', gate: 'plan', kind: '承認', reason: '' },

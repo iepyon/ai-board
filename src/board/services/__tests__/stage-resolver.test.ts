@@ -461,6 +461,33 @@ describe('resolveStage — ゲートの状態', () => {
     expect(resolveStage(card, null, null).gates).toEqual({ plan: 'none', verify: 'none' });
   });
 
+  it('verify が held なら、Draft の PR があっても 実装中 に留まる', () => {
+    const card = makeCard({ startedAt: T1, body: verifyAfterPlanApproved('提出', '否決', '保留') });
+
+    const resolved = resolveStage(card, makePlan(), makeMr({ draft: true }));
+
+    expect(resolved.gates).toEqual({ plan: 'approved', verify: 'held' });
+    expect(resolved.stage).toBe('impling');
+  });
+
+  it('plan が held なら、計画ファイルと Draft の PR があっても 計画提案中 に留まる', () => {
+    const card = makeCard({
+      startedAt: T1,
+      body: makeBody({
+        entries: [
+          { at: T2, gate: 'plan', kind: '提出' },
+          { at: T3, gate: 'plan', kind: '否決' },
+          { at: T4, gate: 'plan', kind: '保留' },
+        ],
+      }),
+    });
+
+    const resolved = resolveStage(card, makePlan(), makeMr({ draft: true }));
+
+    expect(resolved.gates).toEqual({ plan: 'held', verify: 'none' });
+    expect(resolved.stage).toBe('planning');
+  });
+
   it('スキップを宣言したカードはレビュー列に留まらない', () => {
     const card = makeCard({ startedAt: T1, skipGates: ['plan'] });
 

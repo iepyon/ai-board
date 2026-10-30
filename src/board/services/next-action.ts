@@ -71,6 +71,9 @@ export function pickNextAction(cards: readonly NextActionCard[]): NextAction | n
  * 計画提案中で plan ゲートが提出済みなのは、提出したのに計画ファイルも
  * Draft の PR も見えない状態である（どちらかがあれば 計画レビュー に上がる）。
  * 作り直すと PR やブランチを二重に作りかねないので、推測で動かない。
+ *
+ * ゲートが `held` なのは、作業者が保留を書いて止まった状態である。
+ * 同じ手を渡しても作業者はまた止まるので、人が否決・承認・中止を書くまで選ばない。
  */
 export function findStuckCards(cards: readonly NextActionCard[]): StuckCard[] {
   return cards
@@ -109,6 +112,11 @@ function judgeImpling(card: NextActionCard): Verdict {
       return card.skipGates.includes('verify')
         ? { cardId: card.id, action: 'implement', reason: '計画が承認され、動作確認は飛ばす' }
         : { cardId: card.id, action: 'ready', reason: '動作確認が承認された' };
+    case 'held':
+      return {
+        cardId: card.id,
+        reason: '作業者が動作確認の否決を直しきれずに止まった（verify 保留）',
+      };
     case 'submitted':
       // 提出済みなら 動作確認 に上がっているので、ここには来ない
       return null;
@@ -125,6 +133,11 @@ function judgePlanning(card: NextActionCard): Verdict {
       return {
         cardId: card.id,
         reason: '計画を提出済みだが、計画ファイルも Draft の PR も見えない',
+      };
+    case 'held':
+      return {
+        cardId: card.id,
+        reason: '作業者が計画を直しきれずに止まった（plan 保留）',
       };
     case 'approved':
       // 承認なら 実装中 に上がっているので、ここには来ない

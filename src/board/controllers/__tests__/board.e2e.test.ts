@@ -722,6 +722,22 @@ describe('POST /api/cards/:id/reviews', () => {
     expect(card.aborted).toBe(true);
   });
 
+  it.each(['提出', '再提出', '保留'])(
+    'AI が書く種別（%s）は 400 で、本文に残らない',
+    async (kind) => {
+      const app = buildApp();
+
+      await request(app)
+        .post('/api/cards/awaiting/reviews')
+        .send({ gate: 'verify', kind, reason: 'x' })
+        .expect(400);
+
+      const response = await request(app).get('/api/board').expect(200);
+
+      expect(response.body.cards[0].body).not.toContain('## レビュー');
+    }
+  );
+
   it('規定外のゲートは 400', async () => {
     await request(buildApp())
       .post('/api/cards/awaiting/reviews')

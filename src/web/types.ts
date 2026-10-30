@@ -7,9 +7,12 @@ export type Stage = 'idea' | 'planning' | 'plan-review' | 'impling' | 'verifying
 /** 人が判断するゲートのうち、レビューログに現れるもの */
 export type ReviewGate = 'plan' | 'verify';
 
-export type ReviewKind = '提出' | '再提出' | '承認' | '否決' | '中止';
+export type ReviewKind = '提出' | '再提出' | '保留' | '承認' | '否決' | '中止';
 
-export type GateState = 'none' | 'submitted' | 'approved' | 'rejected';
+/** 人が画面から書ける種別。提出 / 再提出 / 保留 は AI が書く */
+export type HumanReviewKind = '承認' | '否決' | '中止';
+
+export type GateState = 'none' | 'submitted' | 'held' | 'approved' | 'rejected';
 
 export interface BoardCardPlan {
   tasks: { completed: number; total: number };
