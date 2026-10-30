@@ -31,6 +31,9 @@ Commands:
   submit <id> [--gate <plan|verify>] [--resubmit] [--reason <text>]
                            ## レビュー に提出（--resubmit で再提出）を追記する
                            （--gate はどのゲートへの提出か。既定は plan）
+  hold <id> --gate <plan|verify> --reason <text>
+                           ## レビュー に保留を追記する。その手を自分では進められず
+                           止まるときに、なぜ止まったか、人に何を決めてほしいかを書く
 `;
 
 export interface CardCliIo {
@@ -58,6 +61,7 @@ const HANDLERS: Readonly<Record<string, Handler>> = {
   body: runBody,
   branch: runBranch,
   submit: runSubmit,
+  hold: runHold,
 };
 
 /** `ai-board card <command>` を実行し、終了コードを返す */
@@ -254,6 +258,46 @@ async function runSubmit(args: ParsedArgs, deps: CardDependencies, io: CardCliIo
   return report(result, io);
 }
 
+/**
+ * 作業者が手を進められずに止まったことを `保留` として残す。
+ *
+ * 保留はゲートを先へ進めない（どの規則も `held` で前へ進まない）。人が後から承認 / 否決 / 中止を書けば
+ * それがゲートの最新エントリになり、保留は自然に外れる。ゲートは取り違えると別の手の止まりになるので
+ * 既定を置かず、理由は人が次に何をするかを決める材料なので必須にする。
+ */
+async function runHold(args: ParsedArgs, deps: CardDependencies, io: CardCliIo): Promise<number> {
+  const id = requireCardId(args, io);
+  if (id === null) return 1;
+
+  const gateFlag = args.flags.get('--gate');
+  const gate = gateFlag === undefined ? null : parseGate(gateFlag);
+  if (gate === null) {
+    io.stderr(`--gate には plan か verify を指定してください\n${CARD_USAGE}`);
+    return 1;
+  }
+
+  const reason = args.flags.get('--reason');
+  if (typeof reason !== 'string' || reason.trim() === '') {
+    io.stderr('--reason に、なぜ止まったか、人に何を決めてほしいかを書いてください\n');
+    return 1;
+  }
+
+  if (gate === 'verify' && !(await planApproved(id, deps))) {
+    io.stderr('verify の保留は plan の承認後にしかできません\n');
+    return 1;
+  }
+
+  const result = await deps.appendReviewCommand({
+    id,
+    gate,
+    kind: '保留',
+    reason: reason.trim(),
+    at: io.now(),
+  });
+
+  return report(result, io);
+}
+
 // ============================================================
 // ヘルパー
 // ============================================================
@@ -267,7 +311,8 @@ function trimNewlines(text: string): string {
  * plan ゲートを通過しているか。カードが無ければ true を返し、見つからない旨は追記の usecase に任せる。
  *
  * plan の承認前に書かれた verify 提出はログに残り続け、承認した瞬間に実装を経ずに動作確認の列が立つ。
- * それを防ぐため、verify の提出は plan を通過したカードにだけ許す。
+ * それを防ぐため、verify の提出は plan を通過したカードにだけ許す。verify の保留も同じ理由で拒む
+ * （承認の瞬間に、まだ始まってもいない実装の止まりが立つ）。
  */
 async function planApproved(id: CardId, deps: CardDependencies): Promise<boolean> {
   const card = await deps.cardRepository.findById(id);

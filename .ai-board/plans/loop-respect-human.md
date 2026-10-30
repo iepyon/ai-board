@@ -228,7 +228,7 @@ PR を Draft に戻す道は、本物の PR が要るので別の DB だけで�
 
 ### 2. CLI
 
-- [ ] `ai-board card hold <id> --gate <plan|verify> --reason <text>` を足す。理由は必須。verify は plan 承認前なら拒む（`submit --gate verify` と同じ）。使い方の文言とテスト
+- [x] `ai-board card hold <id> --gate <plan|verify> --reason <text>` を足す。理由は必須。verify は plan 承認前なら拒む（`submit --gate verify` と同じ）。使い方の文言とテスト
 
 ### 3. GitHub
 
