@@ -146,6 +146,8 @@ function SubmissionNote({ card }: { card: BoardCard }) {
   const review = card.latestReview;
 
   if (review === null) {
+    // 止まっているカードは止まりの札（HoldNote）が状況を書いている。計画の提出漏れの文言を重ねない
+    if (card.hold !== null) return null;
     const artifact = card.mrState?.draft === true ? '計画の PR' : '計画ファイル';
     return <div className="why">提出の記録がありません。{artifact}だけがあります。</div>;
   }

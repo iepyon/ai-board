@@ -27,6 +27,7 @@ export class ForgePoller implements MrStateProvider {
   private connectionState: ForgeConnection;
   private timer: NodeJS.Timeout | null = null;
   private running = false;
+  private refreshed = false;
 
   constructor(
     private readonly cardRepository: CardRepository,
@@ -42,6 +43,11 @@ export class ForgePoller implements MrStateProvider {
 
   connection(): ForgeConnection {
     return this.connectionState;
+  }
+
+  /** 初回の `refresh` が全カードを回り終えたか。起動直後のキャッシュは空で、PR が無いのと見分けが付かない */
+  synced(): boolean {
+    return this.refreshed;
   }
 
   start(): void {
@@ -87,6 +93,7 @@ export class ForgePoller implements MrStateProvider {
         }
       }
 
+      this.refreshed = true;
       this.connectionState =
         firstError === null
           ? { status: 'connected', kind: this.client.kind }

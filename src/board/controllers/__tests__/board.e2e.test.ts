@@ -55,6 +55,7 @@ function stubMrProvider(states: Record<string, MrState> = {}): MrStateProvider {
   return {
     get: (cardId) => states[cardId] ?? null,
     connection: () => ({ status: 'connected', kind: 'github' }),
+    synced: () => true,
   };
 }
 

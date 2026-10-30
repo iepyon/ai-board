@@ -63,6 +63,8 @@ export function createGetBoardQuery(
     }
 
     const cardIds = new Set<string>(cards.map((card) => card.id));
+    const forge = mrProvider.connection();
+    const mrKnown = forge.status === 'connected' && mrProvider.synced();
 
     const boardCards: BoardCard[] = cards.map((card) => {
       const plan = planState.get(card.id) ?? null;
@@ -79,7 +81,7 @@ export function createGetBoardQuery(
         latestReview(entries, resolution.stage),
         toBoardCardPlan(plan),
         toBoardCardMr(mr),
-        resolveHold({ ...resolution, entries, mr })
+        resolveHold({ ...resolution, entries, mr, mrKnown })
       );
     });
 
@@ -89,7 +91,7 @@ export function createGetBoardQuery(
 
     return ok({
       cards: boardCards,
-      forge: mrProvider.connection(),
+      forge,
       orphanPlans: orphanPlans.sort(),
       ideaDivider,
       generatedAt: new Date().toISOString(),

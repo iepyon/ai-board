@@ -58,7 +58,7 @@ ai-board card show <id>            # 1 枚を下の Markdown の形で
 ai-board card body <id> < body.md  # 本文の差し替え（## レビュー のエントリは変えられない）
 ai-board card branch <id> <name>   # ブランチの紐付け（--clear で外す）
 ai-board card submit <id> [--gate <plan|verify>] [--resubmit] [--reason <text>]   # 提出 / 再提出（既定は plan）
-ai-board card hold <id> --gate <plan|verify> --reason <text>   # 保留（作業者が否決を直しきれずに止まるとき。理由は必須）
+ai-board card hold <id> --gate <plan|verify> --reason <text>   # 保留（作業者が否決を直しきれずに止まるとき。理由は必須。そのゲートの最新が否決のときだけ）
 ai-board card create --title <t> [--id <id>] < body.md     # アイデアカードの起票
 ai-board status [--json]           # 導出したステージ・判断待ち・次の一手（サーバ不要）
 ```
@@ -79,7 +79,9 @@ AI の列（計画提案中 / 実装中）にいても、人の判断を待っ�
   verify の状態より先に見るので、`ready` と、動作確認を飛ばすカードの `implement` の両方が Ready にし直さない
 - 実装中で、verify の最新が 保留（作業者が `card hold --gate verify` を書いた）
 - 計画提案中で、plan の最新が 保留
-- 計画提案中で、plan が提出済みなのに計画ファイルも Draft の PR も見えない（作り直すと PR を二重に作りかねない）
+- 計画提案中で、plan が提出済みなのに計画ファイルも Draft の PR も見えない（作り直すと PR を二重に作りかねない）。
+  PR の状態を引けていない（取得先に未接続、または起動直後で初回の取得前。`MrStateProvider.synced`）ときは、
+  PR が無いのか分からないので立てない
 
 人が承認 / 否決 / 中止を書けばそのエントリが最新になり、止まりは外れる。止まりを解く専用のエントリは無い。
 `status` の `waiting` は画面の判断待ちの区画（`groupBySection` の inbox）をそのまま使うので、止まっているカードも 1 度だけ出て、`working` には出ない。

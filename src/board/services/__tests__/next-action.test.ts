@@ -194,6 +194,7 @@ function holdInput(
     gates: gateStates(entries, skipGates),
     entries,
     mr: null,
+    mrKnown: true,
     ...rest,
   };
 }
@@ -251,6 +252,12 @@ describe('resolveHold', () => {
     const hold = resolveHold(holdInput('planning', [entry(0, 'plan', '提出')]));
 
     expect(hold).toEqual({ reason: HOLD_REASONS.planLost, since: T0 });
+  });
+
+  it('PR の状態を引けていなければ、提出済みの計画提案中のカードを止まりにしない', () => {
+    const hold = resolveHold(holdInput('planning', [entry(0, 'plan', '提出')], { mrKnown: false }));
+
+    expect(hold).toBeNull();
   });
 
   it('手を出してよい計画提案中・実装中のカードは止まらない', () => {

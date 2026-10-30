@@ -63,6 +63,8 @@ Bash の作業ディレクトリは、呼び出しをまたいで保たれると
 
 - 作り直すタスクの `[x]` を外すか、新しいタスクを `- [ ]` で足す。`[x]` のままのタスクは、次の `implement` で倒し済みとして飛ばされる
 - 前の実装のうち、残すものと捨てるものを計画に書く
+- 計画が `.ai-board/plans/archive/<id>.md` にある（`ready` の手で Ready にした後に人が Draft に戻した）なら、
+  直す前に `git mv .ai-board/plans/archive/<id>.md .ai-board/plans/<id>.md` で戻す。新しく `plans/<id>.md` を作って二重にしない
 
 ### `implement` — タスクを 1 つ倒す（倒し終えていれば動作確認を頼む）
 

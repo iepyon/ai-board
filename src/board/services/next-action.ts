@@ -58,6 +58,11 @@ export interface HoldInput {
   readonly entries: readonly ReviewEntry[];
   /** PR の状態のうち、Draft に戻されたことの判定に要るもの。PR が無ければ null */
   readonly mr: { readonly iid: number; readonly convertedToDraftAt: string | null } | null;
+  /**
+   * PR の状態を引けているか（取得先に接続し、初回の取得を終えている）。
+   * 偽なら `mr: null` は「PR が無い」ではなく「分からない」なので、成果物が見えないことを止まりにしない
+   */
+  readonly mrKnown: boolean;
 }
 
 /** 止まりの理由。人が何をすればよいかを書く */
@@ -68,7 +73,7 @@ export const HOLD_REASONS = {
     '作業者が計画を直しきれずに止まった。否決の理由を足して直させるか、中止するかを選んでください',
   planLost: '計画を提出済みだが、計画ファイルも Draft の PR も見えない',
   draftReverted: (iid: number): string =>
-    `判断の後に PR #${iid} が Draft に戻された。Ready に戻すか、実装を直させるか、計画から立て直させてください`,
+    `判断の後に PR #${iid} が Draft に戻された。GitHub で Ready に戻すか、下の判断のボタンで差し戻すか中止してください`,
 } as const;
 
 /** 上の列ほど優先する。進んだカードを先に片付け、仕掛かりを増やさない */
@@ -101,7 +106,8 @@ export function pickNextAction(cards: readonly NextActionCard[]): NextAction | n
  *   動作確認の承認や飛ばす宣言より先に見る。見ないと `ready` や `implement` が Ready にし直してしまう
  * - **verify 保留 / plan 保留**: 作業者が保留を書いて止まった。同じ手を渡しても作業者はまた止まる
  * - **提出済みなのに成果物が見えない**（計画提案中で plan が提出済み）: どちらかがあれば
- *   計画レビュー に上がるはずである。作り直すと PR やブランチを二重に作りかねないので、推測で動かない
+ *   計画レビュー に上がるはずである。作り直すと PR やブランチを二重に作りかねないので、推測で動かない。
+ *   PR の状態を引けていない（`mrKnown` が偽）ときは、PR が無いのか分からないので止まりにしない
  *
  * 人が否決・承認・中止を書けば、そのエントリが最新になって止まりは外れる。
  */
@@ -112,9 +118,10 @@ export function resolveHold(card: HoldInput): CardHold | null {
     case 'impling':
       return draftReverted(card) ?? heldBy(card, 'verify', HOLD_REASONS.verifyHeld);
     case 'planning':
-      return card.gates.plan === 'submitted'
-        ? since(card, 'plan', HOLD_REASONS.planLost)
-        : heldBy(card, 'plan', HOLD_REASONS.planHeld);
+      if (card.gates.plan === 'submitted') {
+        return card.mrKnown ? since(card, 'plan', HOLD_REASONS.planLost) : null;
+      }
+      return heldBy(card, 'plan', HOLD_REASONS.planHeld);
     default:
       return null;
   }

@@ -90,6 +90,15 @@ beforeEach(() => {
 // ============================================================
 
 describe('ForgePoller', () => {
+  it('初回の refresh を終えるまで synced は偽', async () => {
+    const repository = new InMemoryCardRepository([makeCard({ mr: 42 as MergeRequestIid })]);
+    const poller = new ForgePoller(repository, stubClient({}), { onUpdate });
+
+    expect(poller.synced()).toBe(false);
+    await poller.refresh();
+    expect(poller.synced()).toBe(true);
+  });
+
   it('iid が既知なら iid で問い合わせる', async () => {
     const repository = new InMemoryCardRepository([makeCard({ mr: 42 as MergeRequestIid })]);
     const client = stubClient({ fetchByIid: vi.fn(async () => makeMr()) });
