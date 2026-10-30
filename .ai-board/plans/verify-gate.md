@@ -287,5 +287,5 @@ CLI は AI も使う入口であり、AI が自分で飛ばす宣言を書けな
 
 ### 9. 確かめる
 
-- [ ] `npm run typecheck && npm run lint && npm run format:check && npm test` と `npm run build` を通し、`## 動作確認の手順` を `AI_BOARD_DB` の別の DB で試す
+- [x] `npm run typecheck && npm run lint && npm run format:check && npm test` と `npm run build` を通し、`## 動作確認の手順` を `AI_BOARD_DB` の別の DB で試す
 - [ ] Ready にする直前に、計画を `plans/archive/` へ移す（このカードは旧手順で進む）
