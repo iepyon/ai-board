@@ -70,7 +70,8 @@ export function groupBySection<T extends SectionCard>(cards: readonly T[]): Sect
  * 計画レビューは提出（再提出）の時刻。提出を書き忘れて計画ファイルだけがある場合は
  * ファイルの更新時刻で代える。
  * 動作確認は verify の提出（再提出）の時刻（`latestReview` がその列の待つゲートのエントリを指す）。
- * PR中 は最新コミットの時刻（修正を push した時点から人の番になる）。取れなければ計画の提出時刻。
+ * PR中 は最新コミットの時刻（修正を push した時点から人の番になる）。取れなければゲートを問わず最新のレビューエントリの時刻
+ * （多くは verify の承認、動作確認を飛ばしたなら plan の承認）。
  */
 export function waitingSince(card: SectionCard): string | null {
   if (card.stage === 'pr') {

@@ -154,7 +154,7 @@ describe('runCardCli', () => {
   });
 
   it('submit は --gate verify で動作確認への提出を追記する', async () => {
-    await seed('a');
+    await seed('a', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 承認');
 
     expect(await run(['submit', 'a', '--gate', 'verify', '--reason', '手順'])).toBe(0);
     expect(await run(['submit', 'a', '--gate', 'plan', '--resubmit'])).toBe(0);
@@ -162,6 +162,22 @@ describe('runCardCli', () => {
     const body = await bodyOf('a');
     expect(body).toContain('### 2026-09-26T00:00:00.000Z verify 提出\n\n手順');
     expect(body).toContain('### 2026-09-26T00:00:00.000Z plan 再提出');
+  });
+
+  it('submit は plan の承認前の --gate verify を 1 にし、何も追記しない', async () => {
+    await seed('a', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 提出');
+
+    expect(await run(['submit', 'a', '--gate', 'verify'])).toBe(1);
+    expect(stderr).toContain('plan の承認後');
+    expect(await bodyOf('a')).not.toContain('verify 提出');
+  });
+
+  it('submit は skipGates に plan があれば承認が無くても --gate verify を受け付ける', async () => {
+    await seed('a');
+    await deps.updateCardMetaCommand({ id: 'a' as CardId, patch: { skipGates: ['plan'] } });
+
+    expect(await run(['submit', 'a', '--gate', 'verify'])).toBe(0);
+    expect(await bodyOf('a')).toContain('verify 提出');
   });
 
   it('submit は規定外の --gate を使い方とともに 1 にし、何も追記しない', async () => {

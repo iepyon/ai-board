@@ -5,7 +5,7 @@ import type { Card } from '../models/card.js';
 import type { CreateCardError, UpdateCardError } from '../errors/card-errors.js';
 import { readCardFiles, serializeCard } from '../repositories/card-markdown.js';
 import { isReviewGate, type ReviewGate } from '../models/review.js';
-import { parseReviewLog } from '../services/review-log.js';
+import { gateState, parseReviewLog } from '../services/review-log.js';
 
 // ============================================================
 // ai-board card — エージェントがカードに書くための CLI
@@ -236,6 +236,11 @@ async function runSubmit(args: ParsedArgs, deps: CardDependencies, io: CardCliIo
     return 1;
   }
 
+  if (gate === 'verify' && !(await planApproved(id, deps))) {
+    io.stderr('verify の提出は plan の承認後にしかできません\n');
+    return 1;
+  }
+
   const reason = args.flags.get('--reason');
 
   const result = await deps.appendReviewCommand({
@@ -256,6 +261,19 @@ async function runSubmit(args: ParsedArgs, deps: CardDependencies, io: CardCliIo
 /** 前後の改行だけを落とす。Markdown の行頭の空白は意味を持つので trim しない */
 function trimNewlines(text: string): string {
   return text.replace(/^\n+/, '').replace(/\n+$/, '');
+}
+
+/**
+ * plan ゲートを通過しているか。カードが無ければ true を返し、見つからない旨は追記の usecase に任せる。
+ *
+ * plan の承認前に書かれた verify 提出はログに残り続け、承認した瞬間に実装を経ずに動作確認の列が立つ。
+ * それを防ぐため、verify の提出は plan を通過したカードにだけ許す。
+ */
+async function planApproved(id: CardId, deps: CardDependencies): Promise<boolean> {
+  const card = await deps.cardRepository.findById(id);
+  if (card === null) return true;
+
+  return gateState(parseReviewLog(card.body), 'plan', card.skipGates) === 'approved';
 }
 
 /** `--gate` の値。省略は plan。規定外の値は null */
