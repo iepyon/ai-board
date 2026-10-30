@@ -140,6 +140,27 @@ describe('ai-board status --json', () => {
     ]);
   });
 
+  it('動作確認を待つカードは判断待ちに出し、次の一手にしない', async () => {
+    await writeCard(
+      'verifying',
+      "startedAt: '2026-10-21T00:00:00.000Z'\n",
+      `${review('承認')}\n### 2026-10-22T00:00:00.000Z verify 提出\n`
+    );
+
+    const report = await runJson();
+
+    expect(report.next).toBeNull();
+    expect(report.waiting).toEqual([
+      {
+        id: 'verifying',
+        title: 'verifying のタイトル',
+        stage: 'verifying',
+        reason: '実装が人の動作確認を待っている',
+      },
+    ]);
+    expect(report.working).toEqual([]);
+  });
+
   it('GitHub が使えないときは接続状態に理由を載せ、次の一手を出さない', async () => {
     await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\n");
 

@@ -35,13 +35,15 @@ export interface BoardCardMr {
 }
 
 /**
- * plan ゲートの最新エントリ（中止を除く）。
+ * その列が待っているゲートの最新エントリ（中止を除く）。
+ * 計画レビューなら plan、動作確認なら verify。待ちの列でなければゲートを問わず最新を選ぶ。
  *
  * 提出の本文には AI が書いた「判断待ちの点」が入り、時刻は人を待ち始めた時刻になる。
  * 本文の `## レビュー` の解析はサーバに閉じ、画面は解析し直さない。
  */
 export interface BoardCardReview {
   readonly at: string;
+  readonly gate: ReviewGate;
   readonly kind: ReviewKind;
   readonly reason: string;
 }
@@ -56,7 +58,7 @@ export interface BoardCard {
   readonly aborted: boolean;
   /** 各ゲートの通過状況 */
   readonly gates: Readonly<Record<ReviewGate, GateState>>;
-  /** plan ゲートの最新エントリ。まだ提出されていなければ null */
+  /** その列が待っているゲートの最新エントリ（`BoardCardReview`）。無ければ null */
   readonly latestReview: BoardCardReview | null;
   /** 着手を取り消しても残るステージ＝AI の成果物とレビュー記録が課す下限 */
   readonly floorStage: Stage;

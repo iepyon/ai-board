@@ -29,10 +29,11 @@
 システムは カードを次の 7 つのステージのいずれか 1 つに割り当てなければならない (MUST)。
 並びはそのまま進行度を表す。
 
-`idea` → `planning` → `plan-review` → `impling` → `pr` → `merged`
+`idea` → `planning` → `plan-review` → `impling` → `verifying` → `pr` → `merged`
 
-このうち `plan-review` / `pr` は人の判断を待つゲートであり、
+このうち `plan-review` / `verifying` / `pr` は人の判断を待つゲートであり、
 `planning` / `impling` は AI が自走する工程である。
+`plan-review` では計画を読み、`verifying` では実装を動かして振る舞いを確かめ、`pr` ではコードの差分を読む。
 
 #### Scenario: 進行度の順序
 
@@ -98,8 +99,8 @@ plan ゲートのレビュー記録が 1 件も無い場合も `plan-review` を
 システムは plan ゲートが通過済みのとき `impling` を返さなければならない (MUST)。
 
 タスクの進捗を独立したステージとして扱っては SHALL NOT。AI レビューは実装中の
-内部工程であり、人が次に見るのは PR であってタスクの消化状況ではないためである。
-進捗はカード上の表示としてのみ示す。
+内部工程であり、人が次に見るのは動作確認か PR であってタスクの消化状況ではないためである。
+進捗はカード上の表示としてのみ示す。AI レビューは動作確認を頼む前に済ませる。
 
 #### Scenario: タスクに未完がある
 
@@ -115,6 +116,48 @@ plan ゲートのレビュー記録が 1 件も無い場合も `plan-review` を
 
 - **WHEN** 計画が承認済みで、タスクが 0 件である
 - **THEN** ステージは `impling` になる
+
+### Requirement: 動作確認は verify の提出で立つ
+
+システムは plan ゲートが通過済みで、かつ verify ゲートが人の判断待ちのとき
+`verifying` を返さなければならない (MUST)。
+
+AI は実装を終えると、PR を Draft のまま verify ゲートへ提出する。
+Draft の PR があっても、plan ゲートが通過済みのカードを `plan-review` へ戻しては SHALL NOT。
+
+verify ゲートの否決・承認・事前スキップのために専用の規則を足しては SHALL NOT。
+どれでも verify ゲートは判断待ちでなくなり、カードは `impling` に落ちる。
+承認の後に PR を Ready にするのは AI の作業なので、AI の列で待つ。
+
+#### Scenario: 動作確認を頼んだ
+
+- **WHEN** 計画が承認済みで、verify ゲートの最新の記録が提出であり、PR は Draft である
+- **THEN** ステージは `verifying` になる
+
+#### Scenario: 動作確認で否決された
+
+- **WHEN** 計画が承認済みで、verify ゲートの最新の記録が否決である
+- **THEN** ステージは `impling` に戻る
+
+#### Scenario: 動作確認で承認された
+
+- **WHEN** 計画が承認済みで、verify ゲートの最新の記録が承認であり、PR は Draft のままである
+- **THEN** ステージは `impling` になり、AI が PR を Ready にするのを待つ
+
+#### Scenario: 動作確認を飛ばすと宣言している
+
+- **WHEN** 計画が承認済みで、カードが verify ゲートをスキップすると宣言し、verify の提出の記録がある
+- **THEN** ステージは `impling` になる
+
+#### Scenario: 提出のあとに PR が Ready になった
+
+- **WHEN** verify ゲートの最新の記録が提出で、PR が Ready で opened である
+- **THEN** ステージは `pr` になる
+
+#### Scenario: 計画が承認されていない
+
+- **WHEN** plan ゲートが判断待ちで、verify の提出の記録がある
+- **THEN** ステージは `verifying` にならず、計画の側の列（`plan-review` か `planning`）に留まる
 
 ### Requirement: PR 中とマージ済みはレビュー要求と archive で決まる
 

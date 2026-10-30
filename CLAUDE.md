@@ -10,11 +10,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 カード上の痕跡として残り、それも導出の入力になる。
 
 ```
-[ アイデア ] [ 計画提案中 ] [ 計画レビュー ] [ 実装中 ] [ PR中 ] [ マージ済み ]
-     人            AI            人 ★          AI       人 ★        —
+[ アイデア ] [ 計画提案中 ] [ 計画レビュー ] [ 実装中 ] [ 動作確認 ] [ PR中 ] [ マージ済み ]
+     人            AI            人 ★          AI        人 ★       人 ★        —
 ```
 
-★ が人の判断を待つ HIL ゲート。人が動かすのは `アイデア ⇄ 計画提案中` の 1 遷移だけ（「着手」「着手を戻す」ボタン）。
+★ が人の判断を待つ HIL ゲート。計画レビューは計画を読み、動作確認はブランチを動かして振る舞いを確かめ、
+PR中 はコードの差分を読む。人が動かすのは `アイデア ⇄ 計画提案中` の 1 遷移だけ（「着手」「着手を戻す」ボタン）。
 
 スタックは TypeScript (ESM, Node >= 22.13。カードの保存に組み込みの `node:sqlite` を使う) / Express 5 + React 19 + Vite / Vitest。
 サーバは `127.0.0.1:5673` にのみ bind するローカル専用ツールで、認証やレート制限は持たない。
@@ -56,7 +57,7 @@ ai-board card list                 # 一覧（JSON、本文なし、rank 順）
 ai-board card show <id>            # 1 枚を下の Markdown の形で
 ai-board card body <id> < body.md  # 本文の差し替え（## レビュー のエントリは変えられない）
 ai-board card branch <id> <name>   # ブランチの紐付け（--clear で外す）
-ai-board card submit <id> [--resubmit] [--reason <text>]   # plan 提出 / 再提出
+ai-board card submit <id> [--gate <plan|verify>] [--resubmit] [--reason <text>]   # 提出 / 再提出（既定は plan）
 ai-board card create --title <t> [--id <id>] < body.md     # アイデアカードの起票
 ai-board status [--json]           # 導出したステージ・判断待ち・次の一手（サーバ不要）
 ```
@@ -64,6 +65,9 @@ ai-board status [--json]           # 導出したステージ・判断待ち・�
 `status` はサーバを起動せず、ボードと同じ組み立て（`createMrStateSource` → `getBoardQuery`）でステージを導出する。
 PR の状態は `refresh()` を 1 回だけ待って引き、`branch` から解決した PR 番号の書き戻しもサーバと同じく起きる。
 次の一手は `src/board/services/next-action.ts` の `pickNextAction`（実装中 → 計画提案中、列の中は `rank` の順）が決める。
+手は `plan` / `revise-plan`（計画提案中）と `implement` / `revise-impl` / `ready`（実装中）の 5 種類で、
+実装中の手は verify ゲートの状態で分ける（未提出 → `implement`、否決 → `revise-impl`、人の承認 → `ready`）。
+`gateState` は飛ばす宣言も approved で返すので、人の承認とは `skipGates` で見分ける（飛ばす宣言なら `implement`）。
 
 `card show` の出力（DB の列を frontmatter の形で表したもの）:
 
@@ -73,7 +77,7 @@ id: board-search # 不変。生成後は変えない。ファイル名と一致�
 title: カードを絞り込めるようにする
 created: '2026-09-04T06:48:23.416Z'
 startedAt: null # 人が着手を指示した時刻（人が打つ）
-skipGates: [] # 人が事前に見ないと宣言したゲート（plan）
+skipGates: [] # 人が事前に見ないと宣言したゲート（plan / verify）
 branch: null
 mr: null # レビュー要求の番号（branch から自動解決して書き戻す）
 rank: 1500 # 並び順（任意）。小さいほど上。人が並べ替えたときだけ書かれる
@@ -107,10 +111,11 @@ Markdown 表現（`card-markdown.ts`）はこの取り込みと `card show` の�
 
 - `startedAt` を自分で打たない。これは人が着手を指示する合図。
 - `## レビュー` に書いてよいのは 提出 / 再提出 だけ。承認 / 否決 / 中止 は人が書く。
-- `skipGates` を自分で足さない。
+  plan でも verify でも同じ。動作確認を頼んだ（`verify 提出`）後に、自分で動かした結果をもって承認しない。
+- `skipGates` を自分で足さない。動作確認を飛ばすかどうかも人が決める。
 - `rank` を書かない。並び順は人が決める優先度で、エージェントは上から読むだけ。
   アイデアの表の区切り線（「次にやる」/「あとで考える」）も同じ扱い。
-- 計画レビュー / PR中 のカードのステージに触らない。
+- 計画レビュー / 動作確認 / PR中 のカードのステージに触らない。
 - 品質ゲートを通らないままコミットしない。
 
 このうちカードに関わるものは `ai-board card`（`src/cards/cli/card-cli.ts`）が構造で強制する。
@@ -118,17 +123,18 @@ CLI には `startedAt` / `rank` / `skipGates` を書く入口も、承認 / 否�
 `body` は `## レビュー` のエントリが変わる差し替えを拒否する。**CLI に入口を足すときはこの境界を崩さない。**
 
 ステージを直接指定する入力口は存在しない。列を動かしたければ、その列を成立させる実態
-（`startedAt` の打刻、計画ファイルの作成、`## レビュー` への承認追記）を作る。
+（`startedAt` の打刻、計画ファイルの作成、`## レビュー` への提出・承認の追記）を作る。
 
 ## ステージ導出
 
 核は `src/board/services/stage-resolver.ts` の純関数。
-6 段の判定表と各ルールの理由はそのファイルの docstring にある（README にも同じ表がある）。
+7 段の判定表と各ルールの理由はそのファイルの docstring にある（README にも同じ表がある）。
 **変更するならまずここを読む。** ルールは制御構造ではなく `RULES` 配列の順序で表現され、
 「上から評価して最初に真になったものが勝つ（＝最も進んだステージ）」を意味する。
 
 ゲートの状態は `src/cards/services/review-log.ts` が本文の `## レビュー` から読む。
-ゲートは `plan` の 1 つだけで、廃止した `explore` のエントリは規定外として黙って無視される。
+ゲートは計画を読む `plan` と、実装を動かして確かめる `verify` の 2 つ（`REVIEW_GATES`）。
+廃止した `explore` のエントリは規定外として黙って無視される。
 `gateState()` はゲートごとの最新エントリ 1 件で決まり、中止のエントリは判定から除く
 （中止は工程の進捗と直交する終端の軸で、通過済みのゲートを巻き戻さない）。
 
@@ -139,12 +145,14 @@ CLI には `startedAt` / `rank` / `skipGates` を書く入口も、承認 / 否�
 | アイデア / 計画提案中 | `startedAt` の打刻                       | 人   |
 | 計画レビュー          | 計画ファイル、または Draft の PR         | AI   |
 | 実装中                | `## レビュー` の plan 承認               | 人   |
+| 動作確認              | `## レビュー` の verify 提出             | AI   |
 | PR中                  | PR が opened かつ Draft でない           | AI   |
 | マージ済み            | 計画が archive 済み、または PR が merged | AI   |
 
 UI が `startedAt` を書き換えるのは「着手」「着手を戻す」のボタンだけ。列をまたぐドラッグは無く、
 ドラッグはアイデアの表の中の並べ替え（`rank`）と区切り線の移動にだけ使う。承認 / 否決 / 中止はボタンで
-`POST /api/cards/:id/reviews` を呼び、本文への追記になる。
+`POST /api/cards/:id/reviews` を呼び、本文への追記になる（`gate` に `plan` / `verify` を取る）。
+`skipGates` を画面から書くのは、詳細パネルの「動作確認を飛ばす」のチェックボックス（`verify` の出し入れ）だけ。
 
 アイデアの表の区切り線は `rank` と同じ物差しの値を 1 つだけ持つ（DB の `idea_divider`）。
 並べ替えの中ではカードと同じ 1 項目（`DIVIDER_ID`）として扱い、隙間が尽きた振り直しでも一緒に振り直す
@@ -158,6 +166,13 @@ UI が `startedAt` を書き換えるのは「着手」「着手を戻す」の�
 
 否決の差し戻しに専用ルールは無い。ゲートが差し戻し中のときレビュー行と承認行が両方外れ、
 1 つ手前の AI 列へ自然に落ちる。**ここに `if` を足したくなったら設計を疑う。**
+verify も同じで、`verifying` のルールは「plan 承認済み かつ verify が submitted」の 1 本だけである。
+否決・承認・飛ばす宣言のどれでも `verifying` が外れて 実装中 に落ちる。承認後に Ready にするのは AI の作業なので、
+AI の列（実装中）で待つ。
+
+判断待ちの区画が出す提出の本文と待ち始めた時刻は、`latestReview` から取る。
+`latestReview` は「その列が待っているゲート（`GATE_OF_STAGE`）の最新エントリ、無ければゲートを通じた最新」で、
+どのゲートのものかを `gate` に持つ。
 
 計画ファイルは `src/board/repositories/plan.repository.ts` が読む。
 ファイル名がそのままカード ID なので、ID として不正な名前のファイルは警告して読み飛ばす
@@ -172,6 +187,8 @@ UI が `startedAt` を書き換えるのは「着手」「着手を戻す」の�
 人はその PR で計画を読む。ボードは計画の本文を持たず（`GET /api/plans/:id` は廃止した）、
 PR へのリンクだけを出す。計画ファイルはブランチにあり、ボードを動かすチェックアウトからは
 見えないことが多いので、Draft の PR も計画レビューの列を立てる。Ready にした時点で PR中 へ進む。
+動作確認を頼む時点の PR も Draft のままだが、Draft の PR が立てる計画レビューのルールは plan が未承認のときにしか
+当てはまらないので、計画レビューへは巻き戻らない。
 
 ## レイヤー構成と規約
 
@@ -289,15 +306,23 @@ GitLab の MR !1 と GitHub の PR #1 は別物で、番号をそのまま引く
    ブランチを紐付け、`ai-board card submit <id>` でカード本文の `## レビュー` に `plan 提出` を追記する
    （＝計画レビューへ）
 3. 人が Draft の PR で計画を読み、判断待ちの区画のボタンで承認 / 否決する（＝実装中へ）
-4. AI が同じブランチでタスクを倒し、AI レビューまで済ませる。計画を `.ai-board/plans/archive/<id>.md` へ
-   `git mv` してコミットしてから、`gh pr ready` で Ready にする（＝PR中へ）
-5. 人が PR をマージする（＝マージ済みへ。archive の移動も同時に main に入る）
+4. AI が同じブランチでタスクを倒し、AI レビューまで済ませる。PR を Draft のまま
+   `ai-board card submit <id> --gate verify --reason "<動かす手順と動かした結果>"` で `verify 提出` を追記する
+   （＝動作確認へ）。手順は計画の `## 動作確認の手順` をもとに、実装を経て変わった点と、確かめられなかった点も書く
+5. 人がブランチを手順どおりに動かし、判断待ちの区画のボタンで承認 / 否決する。
+   否決なら AI が理由を読んで直し、`--resubmit` で頼み直す（手順 4 の提出へ戻る）
+6. 承認されたら AI が計画を `.ai-board/plans/archive/<id>.md` へ `git mv` してコミットしてから、
+   `gh pr ready` で Ready にする（＝PR中へ）
+7. 人が PR をマージする（＝マージ済みへ。archive の移動も同時に main に入る）
+
+人が詳細パネルで「動作確認を飛ばす」に印を入れた（`skipGates` に `verify` がある）カードは、手順 4・5 を通らず、
+AI レビューの後にそのまま手順 6 へ進む。
 
 計画の確認は Draft の PR と計画レビューのゲートで人が行うので、Plan モードの承認は要らない。
 archive は別の PR にしない。マージと同時に main に入れば、GitHub が引けないときや
 `github:` の無いリポジトリでも マージ済み が立つ。
 
-手順 2・4 は `.claude/skills/board-loop/SKILL.md` のスキルが 1 周 1 手ずつ作業者に渡して進める。
+手順 2・4・6 と否決後の直しは `.claude/skills/board-loop/SKILL.md` のスキルが 1 周 1 手ずつ作業者に渡して進める。
 `/loop 5m /board-loop` で間隔運転する。何をするかは `ai-board status --json` の `next` に従い、
 GitHub に接続できないとき（`forge.status` が `connected` でないとき。`github:` が無いときも含む）は
 `status` が `next` を `null` にするので、ループは何もせずに止まる。

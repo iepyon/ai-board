@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react';
 import { appendReview } from '../../api.js';
-import { GATE_OF_STAGE, type BoardCard } from '../../types.js';
+import { GATE_OF_STAGE, type BoardCard, type ReviewGate } from '../../types.js';
 
 // ============================================================
 // 承認 / 否決 / 中止
 // ============================================================
+
+/** 否決の理由の欄に出す書き方の手がかり。AI は差し戻された先でこの理由を読む */
+const REASON_PLACEHOLDER: Record<ReviewGate, string> = {
+  plan: '否決の理由（AI が次の周回で読み、計画を直します）',
+  verify: '否決の理由（動かして意図と違ったところ。AI が次の周回で読み、実装を直します）',
+};
 
 interface ReviewActionsProps {
   card: BoardCard;
@@ -26,7 +32,7 @@ export function ReviewActions({ card, saving, onRun }: ReviewActionsProps) {
 
   const gate = GATE_OF_STAGE[card.stage];
 
-  // 判断を待つ列でなければ何も出さない（呼び出し側は計画レビューのカードにだけ使う）
+  // 判断を待つ列でなければ何も出さない（呼び出し側は `awaitsDecision` のカードにだけ使う）
   if (gate === undefined) return null;
 
   const submit = (kind: '承認' | '否決' | '中止'): void => {
@@ -47,7 +53,7 @@ export function ReviewActions({ card, saving, onRun }: ReviewActionsProps) {
         value={reason}
         onChange={(event) => setReason(event.target.value)}
         spellCheck={false}
-        placeholder="否決の理由（AI が次の周回で読みます）"
+        placeholder={REASON_PLACEHOLDER[gate]}
       />
 
       <div className="actions">

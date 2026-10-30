@@ -175,6 +175,17 @@ describe('latestGateEntry', () => {
   it('エントリが無ければ null', () => {
     expect(latestGateEntry([], 'plan')).toBeNull();
   });
+
+  it('ゲートを省くと、ゲートを問わず最新のエントリを返す（中止は選ばない）', () => {
+    const entries: ReviewEntry[] = [
+      { at: '2026-09-11T04:00:00.000Z', gate: 'plan', kind: '承認', reason: '' },
+      { at: '2026-09-11T05:00:00.000Z', gate: 'verify', kind: '提出', reason: '手順' },
+      { at: '2026-09-11T06:00:00.000Z', gate: 'plan', kind: '中止', reason: 'やめる' },
+    ];
+
+    expect(latestGateEntry(entries, undefined)).toEqual(entries[1]);
+    expect(latestGateEntry(entries, 'plan')).toEqual(entries[0]);
+  });
 });
 
 describe('isAborted', () => {

@@ -3,11 +3,12 @@ import { StageSection } from './detail/StageSection.js';
 import { PlanSection } from './detail/PlanSection.js';
 import { ReviewActions } from './detail/ReviewActions.js';
 import { LinkFields } from './detail/LinkFields.js';
+import { SkipGateField } from './detail/SkipGateField.js';
 import { BodyEditor } from './detail/BodyEditor.js';
 import { SummaryLine } from './detail/SummaryLine.js';
 import { updateCardMeta, type CardMetaPatch } from '../api.js';
 import { useAction } from '../hooks/useAction.js';
-import { awaitsPlanDecision } from '../../shared/dashboard-sections.js';
+import { awaitsDecision } from '../../shared/dashboard-sections.js';
 import type { BoardCard } from '../types.js';
 
 // ============================================================
@@ -44,11 +45,12 @@ export function CardDetail({ card, onClose, onChanged }: CardDetailProps) {
       <div className="detail-body">
         {error !== null && <div className="divergence">{error}</div>}
 
-        {/* 計画レビューのカードだけ、本文を読んですぐ押せるよう判断のボタンを先頭に置く */}
-        {awaitsPlanDecision(card) && <ReviewActions card={card} saving={saving} onRun={run} />}
+        {/* 計画レビュー / 動作確認のカードだけ、本文を読んですぐ押せるよう判断のボタンを先頭に置く */}
+        {awaitsDecision(card) && <ReviewActions card={card} saving={saving} onRun={run} />}
         <BodyEditor card={card} saving={saving} onRun={run} />
         <StageSection card={card} />
         <PlanSection card={card} />
+        <SkipGateField card={card} saving={saving} onPatch={patch} />
         <LinkFields card={card} saving={saving} onPatch={patch} />
       </div>
     </aside>

@@ -1,5 +1,5 @@
 import type { Stage } from '../../shared/schemas/common.js';
-import type { GateState } from '../../cards/models/review.js';
+import type { GateState, ReviewGate } from '../../cards/models/review.js';
 
 // ============================================================
 // 次の一手 — ループが 1 周で進めるものを決める純関数
@@ -8,11 +8,14 @@ import type { GateState } from '../../cards/models/review.js';
 /**
  * ループが 1 周で行う作業の種類。
  *
- * - `implement`   実装中。計画の次の未チェックのタスクを 1 つ倒す（全部倒れていれば Ready にする）
+ * - `implement`   実装中で、動作確認をまだ頼んでいない。計画の次の未チェックのタスクを 1 つ倒す
+ *                 （全部倒れていれば動作確認を頼む。verify を飛ばす宣言があれば Ready にする）
+ * - `revise-impl` 実装中で、動作確認の最新の判断が 否決。理由を読んで直し、動作確認を頼み直す
+ * - `ready`       実装中で、動作確認を人が承認した。計画を archive へ移し、PR を Ready にする
  * - `plan`        計画提案中で、まだ何も提出していない。計画を書いて Draft の PR を出し、提出する
  * - `revise-plan` 計画提案中で、最新の判断が 否決。理由を読んで計画を直し、再提出する
  */
-export type NextActionKind = 'implement' | 'plan' | 'revise-plan';
+export type NextActionKind = 'implement' | 'revise-impl' | 'ready' | 'plan' | 'revise-plan';
 
 export interface NextAction {
   readonly cardId: string;
@@ -31,7 +34,9 @@ export interface NextActionCard {
   readonly id: string;
   readonly stage: Stage;
   readonly aborted: boolean;
-  readonly gates: { readonly plan: GateState };
+  readonly gates: { readonly plan: GateState; readonly verify: GateState };
+  /** gates の approved が人の承認か飛ばす宣言かを見分けるのに使う */
+  readonly skipGates: readonly ReviewGate[];
 }
 
 type Verdict = NextAction | StuckCard | null;
@@ -43,7 +48,7 @@ const PRIORITY: readonly Stage[] = ['impling', 'planning'];
  * 次に進めるカードを 1 枚選ぶ。
  *
  * `cards` は `rank` の実効値の順に並んでいる前提で、同じ列の中はその順を保つ。
- * 中止のカードと、人の判断を待つ列（計画レビュー / PR中）は選ばない。
+ * 中止のカードと、人の判断を待つ列（計画レビュー / 動作確認 / PR中）は選ばない。
  */
 export function pickNextAction(cards: readonly NextActionCard[]): NextAction | null {
   for (const stage of PRIORITY) {
@@ -76,12 +81,41 @@ export function findStuckCards(cards: readonly NextActionCard[]): StuckCard[] {
 function judge(card: NextActionCard): Verdict {
   if (card.aborted) return null;
 
-  if (card.stage === 'impling') {
-    return { cardId: card.id, action: 'implement', reason: '計画が承認されている' };
+  switch (card.stage) {
+    case 'impling':
+      return judgeImpling(card);
+    case 'planning':
+      return judgePlanning(card);
+    default:
+      return null;
   }
+}
 
-  if (card.stage !== 'planning') return null;
+/**
+ * 実装中のカードの手を verify ゲートの状態で分ける。
+ *
+ * 計画のタスクの進み具合では分けない。計画ファイルは作業用のブランチにあり、
+ * ボードを動かすチェックアウトからは読めないことが多いため。
+ * `gateState` は飛ばす宣言も approved で返すので、人の承認とは `skipGates` で見分ける。
+ * 飛ばす宣言ならタスクが残っているかもしれないので `implement` のままにする。
+ */
+function judgeImpling(card: NextActionCard): Verdict {
+  switch (card.gates.verify) {
+    case 'none':
+      return { cardId: card.id, action: 'implement', reason: '計画が承認されている' };
+    case 'rejected':
+      return { cardId: card.id, action: 'revise-impl', reason: '動作確認で否決された' };
+    case 'approved':
+      return card.skipGates.includes('verify')
+        ? { cardId: card.id, action: 'implement', reason: '計画が承認され、動作確認は飛ばす' }
+        : { cardId: card.id, action: 'ready', reason: '動作確認が承認された' };
+    case 'submitted':
+      // 提出済みなら 動作確認 に上がっているので、ここには来ない
+      return null;
+  }
+}
 
+function judgePlanning(card: NextActionCard): Verdict {
   switch (card.gates.plan) {
     case 'none':
       return { cardId: card.id, action: 'plan', reason: '着手が指示され、計画がまだ無い' };

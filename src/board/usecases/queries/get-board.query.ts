@@ -11,6 +11,8 @@ import {
 } from '../../services/stage-resolver.js';
 import { latestGateEntry, parseReviewLog } from '../../../cards/services/review-log.js';
 import type { Card } from '../../../cards/models/card.js';
+import type { Stage } from '../../../shared/schemas/common.js';
+import { GATE_OF_STAGE } from '../../../shared/stage-gates.js';
 import {
   toBoardCard,
   type Board,
@@ -65,13 +67,14 @@ export function createGetBoardQuery(
       const plan = planState.get(card.id) ?? null;
       const mr = mrProvider.get(card.id);
 
+      const resolution = resolveStage(card, plan, mr);
       const floorStage = resolveFloorStage(card, plan, mr);
 
       return toBoardCard(
         card,
-        resolveStage(card, plan, mr),
+        resolution,
         { floorStage, droppableStages: droppableStages(floorStage) },
-        latestPlanReview(card),
+        latestReview(card, resolution.stage),
         toBoardCardPlan(plan),
         toBoardCardMr(mr)
       );
@@ -97,11 +100,12 @@ function toBoardCardPlan(plan: PlanDoc | null): BoardCardPlan | null {
   return { tasks: plan.tasks, archived: plan.archived, updatedAt: plan.updatedAt };
 }
 
-function latestPlanReview(card: Card): BoardCardReview | null {
-  const entry = latestGateEntry(parseReviewLog(card.body), 'plan');
+/** その列が待っているゲートの最新エントリ。待ちの列でなければゲートを問わず最新 */
+function latestReview(card: Card, stage: Stage): BoardCardReview | null {
+  const entry = latestGateEntry(parseReviewLog(card.body), GATE_OF_STAGE[stage]);
   if (entry === null) return null;
 
-  return { at: entry.at, kind: entry.kind, reason: entry.reason };
+  return { at: entry.at, gate: entry.gate, kind: entry.kind, reason: entry.reason };
 }
 
 function toBoardCardMr(mr: MrState | null): BoardCardMr | null {
