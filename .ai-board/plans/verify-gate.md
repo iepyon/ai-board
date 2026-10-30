@@ -283,7 +283,7 @@ CLI は AI も使う入口であり、AI が自分で飛ばす宣言を書けな
 ### 8. ドキュメント
 
 - [x] `CLAUDE.md`: 冒頭の列図、列の所有権の表、ステージ導出、`card submit` の使い方、1 周の流れ、やってはいけないこと（verify の承認 / 否決も人が書く）を直す
-- [ ] `README.md` の列の表と AI ループの節、`docs/specs/board-stages/spec.md` と `docs/specs/card-review/spec.md` を直す
+- [x] `README.md` の列の表と AI ループの節、`docs/specs/board-stages/spec.md` と `docs/specs/card-review/spec.md` を直す
 
 ### 9. 確かめる
 
