@@ -254,7 +254,7 @@ archive から `plans/` へ戻すときも同じである。
 
 ### 1. 監視役
 
-- [ ] `.claude/skills/board-loop/SKILL.md` の手順 4 を、報告を伝えた後に手順 0 から 3 を続ける形に直す。手の一覧の `implement` の説明と、frontmatter の description も直す
+- [x] `.claude/skills/board-loop/SKILL.md` の手順 4 を、報告を伝えた後に手順 0 から 3 を続ける形に直す。手の一覧の `implement` の説明と、frontmatter の description も直す
 
 ### 2. 入れ子のサブエージェントを確かめる
 
