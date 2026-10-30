@@ -278,7 +278,7 @@ CLI は AI も使う入口であり、AI が自分で飛ばす宣言を書けな
   - `plan`: 計画の構成に `## 動作確認の手順` を足す
   - `implement`: 倒し終えたら AI レビューの後、`skipGates` に `verify` があれば今と同じく archive して Ready に、無ければ PR を Draft のまま `ai-board card submit <id> --gate verify --reason "<手順と動かした結果>"` で止まる
   - `revise-impl` と `ready` の節を足す。報告の「AI レビュー」の項目を、提出か Ready にした手で書くように直す
-- [ ] `.claude/skills/board-loop/SKILL.md` の説明と手の一覧に `revise-impl` / `ready` と動作確認の待ちを足す
+- [x] `.claude/skills/board-loop/SKILL.md` の説明と手の一覧に `revise-impl` / `ready` と動作確認の待ちを足す
 
 ### 8. ドキュメント
 
