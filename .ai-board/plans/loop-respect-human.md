@@ -245,8 +245,10 @@ PR を Draft に戻す道は、本物の PR が要るので別の DB だけで�
 
 ### 5. 画面
 
-- [ ] `dashboard-sections.ts`: `hold` のあるカードを inbox へ、`waitingSince` は `hold.since`、`awaitsDecision` を真に。どのボタンを出すかを返す `decisionsFor` を足してテストする
+- [x] `dashboard-sections.ts`: `hold` のあるカードを inbox へ、`waitingSince` は `hold.since`、`awaitsDecision` を真に。どのボタンを出すかを返す `decisionsFor` を足してテストする
   - inbox への振り分けと `waitingSince` は、`status` の `waiting` を inbox から作るのに要るので 4 で済ませた。残りは `awaitsDecision` と `decisionsFor`
+  - `awaitsDecision` は `decisionsFor` が 1 つでもボタンを返すかで決める。止まりの種類は `hold` に持たせず、ステージと `gates.plan` から見分ける。
+    飛ばす宣言のあるゲートの承認 / 否決は出さない（否決を書いても差し戻しにならず、verify を飛ばすカードでは何も直らないまま Ready にし直されるため）
 - [ ] `ReviewActions` を `decisionsFor` で描く（「実装を直させる」「計画から立て直させる」「計画を直させる」は理由必須）。判断待ちの区画のカードに `hold.reason` を出す
 
 ### 6. ループ

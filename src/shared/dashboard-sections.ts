@@ -1,6 +1,5 @@
 import type { Stage } from './schemas/common.js';
 import { DIVIDER_ID } from './card-reorder.js';
-import { GATE_OF_STAGE } from './stage-gates.js';
 
 // ============================================================
 // ダッシュボードの区画 — web とテストの両方から使う純関数
@@ -109,15 +108,112 @@ export function mergedAt(card: SectionCard): string | null {
   return card.mrState?.mergedAt ?? card.plan?.updatedAt ?? null;
 }
 
+// ============================================================
+// 判断のボタン
+// ============================================================
+
+/** 人が判断するゲート。`ReviewGate`（`src/cards/models/review.ts`）と同じ値をリテラルで書く */
+export type DecisionGate = 'plan' | 'verify';
+
 /**
- * 詳細パネルで、承認 / 否決 / 中止のボタンを本文より前に出すか。
+ * 詳細パネルに出す判断のボタン 1 つ。押すと `## レビュー` へ `gate` の `kind` を追記する。
  *
- * ボタンで判断するのはゲートを待つ列（計画レビュー / 動作確認）のカードだけで、
- * PR中 のカードは GitHub で PR をマージして判断する。
- * 中止のカードはゲートを待つ列に残っていても、判断も作業も待っていないので出さない。
+ * 同じ 否決 でも、どのゲートに書くかで差し戻す先が変わる。
+ * verify の否決は実装を直させ（`revise-impl`）、plan の否決は計画から立て直させる（`revise-plan`）。
  */
-export function awaitsDecision(card: Pick<SectionCard, 'stage' | 'aborted'>): boolean {
-  return GATE_OF_STAGE[card.stage] !== undefined && !card.aborted;
+export interface Decision {
+  readonly gate: DecisionGate;
+  readonly kind: '承認' | '否決' | '中止';
+  readonly label: string;
+  /** 理由を書かないと押せないか。否決は AI が次の周回で理由を読むので必須 */
+  readonly reasonRequired: boolean;
+}
+
+/** ボタンを決めるのに要るフィールドだけ。サーバの BoardCard と web の型の両方が満たす */
+export interface DecisionCard extends Pick<SectionCard, 'stage' | 'aborted' | 'hold'> {
+  readonly gates: {
+    readonly plan: 'none' | 'submitted' | 'held' | 'approved' | 'rejected';
+  };
+  readonly skipGates: readonly DecisionGate[];
+}
+
+const approve = (gate: DecisionGate): Decision => ({
+  gate,
+  kind: '承認',
+  label: '承認',
+  reasonRequired: false,
+});
+
+const reject = (gate: DecisionGate, label: string): Decision => ({
+  gate,
+  kind: '否決',
+  label,
+  reasonRequired: true,
+});
+
+const abort = (gate: DecisionGate): Decision => ({
+  gate,
+  kind: '中止',
+  label: '中止する',
+  reasonRequired: false,
+});
+
+/** 承認済みの計画を否決し、計画提案中へ落として計画から立て直させる */
+const replan = reject('plan', '計画から立て直させる');
+
+/**
+ * 詳細パネルに出す判断のボタン。判断を待っていなければ空。
+ *
+ * - **計画レビュー**: 承認 / 否決して差し戻す / 中止
+ * - **動作確認**: 承認 / 否決して差し戻す / 計画から立て直させる / 中止。
+ *   動かした時点で、計画からやり直すべきと分かることがあるため
+ * - **実装中で止まっている**（作業者の verify 保留、または PR が Draft に戻された）:
+ *   実装を直させる / 計画から立て直させる / 中止
+ * - **計画提案中で止まっている**: 作業者の plan 保留なら 計画を直させる / 中止。
+ *   提出済みなのに成果物が見えないなら 中止 だけ（直させる先の計画が見えない）
+ *
+ * PR中 のカードは GitHub で PR をマージして判断するので出さない。中止のカードにも出さない。
+ *
+ * 飛ばす宣言（`skipGates`）のあるゲートの承認 / 否決は出さない。
+ * そのゲートはログを見ずに通過扱いなので、否決を書いても差し戻しにならない
+ * （verify を飛ばすカードで「実装を直させる」を押すと、何も直らないまま Ready にし直される）。
+ * 中止はゲートの状態に効かないので残す。
+ */
+export function decisionsFor(card: DecisionCard): Decision[] {
+  if (card.aborted) return [];
+
+  return candidateDecisions(card).filter(
+    (decision) => decision.kind === '中止' || !card.skipGates.includes(decision.gate)
+  );
+}
+
+function candidateDecisions(card: DecisionCard): Decision[] {
+  switch (card.stage) {
+    case 'plan-review':
+      return [approve('plan'), reject('plan', '否決して差し戻す'), abort('plan')];
+    case 'verifying':
+      return [approve('verify'), reject('verify', '否決して差し戻す'), replan, abort('verify')];
+    case 'impling':
+      return card.hold === null
+        ? []
+        : [reject('verify', '実装を直させる'), replan, abort('verify')];
+    case 'planning':
+      if (card.hold === null) return [];
+      return card.gates.plan === 'held'
+        ? [reject('plan', '計画を直させる'), abort('plan')]
+        : [abort('plan')];
+    default:
+      return [];
+  }
+}
+
+/**
+ * 詳細パネルで、判断のボタンを本文より前に出すか。出すボタン（`decisionsFor`）が 1 つでもあれば出す。
+ *
+ * ゲートを待つ列（計画レビュー / 動作確認）のカードと、AI の列で止まっているカードが当たる。
+ */
+export function awaitsDecision(card: DecisionCard): boolean {
+  return decisionsFor(card).length > 0;
 }
 
 /** 「動きなし」とみなすまでの日数 */
