@@ -31,8 +31,9 @@ Bash の作業ディレクトリは、呼び出しをまたいで保たれると
 次のどれかが満たされなければ、何も書かずに止まって報告する。
 
 - 計画が `$WT/.ai-board/plans/<cardId>.md` にある（`plans/archive/` にあるなら、レビューの段は済んでいる）
-- 計画の `- [ ]` がすべて `- [x]` になっている
-- 計画に `## AI レビュー` 節がまだ無い。レビューは 1 回だけで、既にあれば書き足さない
+- 計画に未チェックのタスクが無い。タスクの数え方は `$WT/.claude/agents/board-worker.md` の `implement` の「表を読むときの決まり」に従う
+- 計画に `## AI レビュー` 節がまだ無い。節があるかは、コードブロック（` ``` ` で囲まれた例）の外にある `## AI レビュー` の見出しの行で決める（同じ決まりに従う）。
+  レビューは 1 回だけで、既にあれば書き足さない
 - `git -C "$WT" status --porcelain` が空である（未コミットの変更が無い）
 
 ## 2. 読む
@@ -100,9 +101,10 @@ Bash の作業ディレクトリは、呼び出しをまたいで保たれると
 
 1. `git -C "$WT" status --porcelain` で、変わったのが `.ai-board/plans/<cardId>.md` だけであることを確かめる。
    ほかのファイルが変わっていたら（`/code-review` が書いたものも含む）、コミットせずに止まって報告する
-2. `git -C "$WT" add .ai-board/plans/<cardId>.md` → コミット（`docs: <cardId> の AI レビューの指摘を計画に書く`）→ `git -C "$WT" push`
-
-品質ゲートは走らせなくてよい（計画ファイルだけの変更で、`format:check` も `src/` だけを見る）。
+2. 品質ゲート `cd "$WT" && npm run typecheck && npm run lint && npm run format:check && npm test` を通す。
+   計画ファイルだけの変更でも走らせる（`CLAUDE.md` の「コミット前に必ず通す」に従う。ブランチが既に壊れていれば、そこへ積まずに気づける）。
+   通らなければコミットせず、止まって報告する。`$WT/node_modules` が無ければ先に `cd "$WT" && npm ci` を走らせる
+3. `git -C "$WT" add .ai-board/plans/<cardId>.md` → コミット（`docs: <cardId> の AI レビューの指摘を計画に書く`）→ `git -C "$WT" push`
 
 ## 6. 報告
 
