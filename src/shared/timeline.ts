@@ -34,7 +34,7 @@ export type TimelineOwner = 'human' | 'ai';
 /**
  * 区間の種類ごとの担当。
  *
- * 保留は作業者が否決を直しきれずに人の判断を待って止まった印なので、人の区間にする。
+ * 保留は AI が否決を直しきれずに人の判断を待って止まった印なので、人の区間にする。
  * Draft に戻された後も、ループは Ready にし直さず人を待つ（`resolveHold`）ので、人の区間にする。
  */
 export const TIMELINE_OWNERS: Record<TimelineKind, TimelineOwner> = {

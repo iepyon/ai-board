@@ -356,7 +356,7 @@ describe('GET /api/board', () => {
     expect(card.droppableStages).toEqual([]);
   });
 
-  it('作業者が保留を書いて止まった実装中のカードに hold を載せる', async () => {
+  it('AI が保留を書いて止まった実装中のカードに hold を載せる', async () => {
     await writeCard(
       'held',
       [
@@ -393,7 +393,7 @@ describe('GET /api/board', () => {
 
     expect(byId.get('held')?.stage).toBe('impling');
     expect(byId.get('held')?.hold).toEqual({
-      reason: expect.stringContaining('作業者が直しきれずに止まった') as unknown,
+      reason: expect.stringContaining('AI が直しきれずに止まった') as unknown,
       since: '2026-09-08T00:00:00.000Z',
     });
     expect(byId.get('fresh')?.hold).toBeNull();

@@ -126,7 +126,7 @@ describe('pickNextAction', () => {
     expect(next?.cardId).toBe('planning');
   });
 
-  it('作業者が保留を書いて止まった実装中のカードは飛ばして、次のカードを選ぶ', () => {
+  it('AI が保留を書いて止まった実装中のカードは飛ばして、次のカードを選ぶ', () => {
     const next = pickNextAction([
       makeCard({ id: 'held', stage: 'impling', gates: gate('approved', 'held'), hold: HOLD }),
       makeCard({ id: 'next', stage: 'impling', gates: gate('approved', 'none') }),
@@ -135,7 +135,7 @@ describe('pickNextAction', () => {
     expect(next).toEqual({ cardId: 'next', action: 'implement', reason: '計画が承認されている' });
   });
 
-  it('作業者が保留を書いて止まった計画提案中のカードは飛ばす', () => {
+  it('AI が保留を書いて止まった計画提案中のカードは飛ばす', () => {
     const next = pickNextAction([
       makeCard({ id: 'held', stage: 'planning', gates: gate('held'), hold: HOLD }),
       makeCard({ id: 'fresh', stage: 'planning' }),

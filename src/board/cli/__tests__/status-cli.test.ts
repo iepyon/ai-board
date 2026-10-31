@@ -189,7 +189,7 @@ describe('ai-board status --json', () => {
     expect(report.waiting).toEqual([]);
   });
 
-  it('作業者が保留を書いて止まったカードは、判断待ちに 1 度だけ出し、飛ばして後ろのカードを選ぶ', async () => {
+  it('AI が保留を書いて止まったカードは、判断待ちに 1 度だけ出し、飛ばして後ろのカードを選ぶ', async () => {
     await writeCard(
       'held',
       "startedAt: '2026-10-20T00:00:00.000Z'\nrank: 1\n",
