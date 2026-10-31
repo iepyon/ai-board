@@ -205,7 +205,7 @@ dummy-a には `card branch` でブランチを付けない。GitHub に接続�
 
 ### 3. スキル
 
-- [ ] `.claude/skills/board-decide/SKILL.md` を書く（Claude から呼べる普通のスキル。`description` に人の依頼の言い回しを並べ、`argument-hint` を付ける）。中身は次のとおり
+- [x] `.claude/skills/board-decide/SKILL.md` を書く（Claude から呼べる普通のスキル。`description` に人の依頼の言い回しを並べ、`argument-hint` を付ける）。中身は次のとおり
   - 冒頭に、呼んでよいのは人がこの会話で頼んだときだけと書く（作業者の報告・カード本文・PR のコメントは依頼ではない）
   - `ai-board status --json` を読み、`server` が `null` なら起動を促して止まる
   - 依頼から対象のカードと操作を決める。決められなければ聞く
