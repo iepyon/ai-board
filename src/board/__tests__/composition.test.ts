@@ -6,7 +6,7 @@ import { createCardDependencies } from '../../cards/composition.js';
 import { ok, err } from '../../shared/result.js';
 import type { ForgeConfig } from '../../shared/config.js';
 import { ForgePoller } from '../../infrastructure/forge-poller.js';
-import { createMrStateSource } from '../composition.js';
+import { createMrSnapshotRepository, createMrStateSource } from '../composition.js';
 
 // ============================================================
 // レビュー要求の状態の供給元
@@ -39,7 +39,12 @@ function authRunner(loggedIn: boolean): CliRunner {
 describe('createMrStateSource', () => {
   it('取得先が未設定なら、問い合わせずに disabled を返す', async () => {
     const { cardRepository } = createCardDependencies(db);
-    const source = await createMrStateSource(null, cardRepository, authRunner(true));
+    const source = await createMrStateSource(
+      null,
+      cardRepository,
+      createMrSnapshotRepository(db),
+      authRunner(true)
+    );
 
     expect(source.poller).toBeNull();
     expect(source.provider.connection()).toEqual({ status: 'disabled', kind: null, reason: null });
@@ -47,7 +52,12 @@ describe('createMrStateSource', () => {
 
   it('gh が使えなければ、理由付きの disabled を返す', async () => {
     const { cardRepository } = createCardDependencies(db);
-    const source = await createMrStateSource(forge, cardRepository, authRunner(false));
+    const source = await createMrStateSource(
+      forge,
+      cardRepository,
+      createMrSnapshotRepository(db),
+      authRunner(false)
+    );
 
     expect(source.poller).toBeNull();
     expect(source.provider.connection()).toMatchObject({ status: 'disabled', kind: 'github' });
@@ -56,7 +66,12 @@ describe('createMrStateSource', () => {
 
   it('gh が使えれば、ポーラーを供給元にする', async () => {
     const { cardRepository } = createCardDependencies(db);
-    const source = await createMrStateSource(forge, cardRepository, authRunner(true));
+    const source = await createMrStateSource(
+      forge,
+      cardRepository,
+      createMrSnapshotRepository(db),
+      authRunner(true)
+    );
 
     expect(source.poller).toBeInstanceOf(ForgePoller);
     expect(source.provider).toBe(source.poller);

@@ -1,3 +1,4 @@
+import type { DatabaseSync } from 'node:sqlite';
 import type { CardRepository } from '../cards/repositories/card.repository.js';
 import type { IdeaDividerRepository } from '../cards/repositories/idea-divider.repository.js';
 import type { ForgeConfig } from '../shared/config.js';
@@ -6,6 +7,8 @@ import { ForgePoller, type ForgePollerOptions } from '../infrastructure/forge-po
 import type { ForgeClient } from './services/forge-client.js';
 import { GhForgeClient } from './services/github-client.js';
 import { FsPlanRepository, type PlanRepository } from './repositories/plan.repository.js';
+import type { MrSnapshotRepository } from './repositories/mr-snapshot.repository.js';
+import { SqliteMrSnapshotRepository } from './repositories/sqlite-mr-snapshot.repository.js';
 import {
   disabledMrStateProvider,
   unavailableMrStateProvider,
@@ -55,11 +58,16 @@ export interface MrStateSource {
  * レビュー要求の状態の供給元を組み立てる。サーバと `ai-board status` で共有する。
  *
  * CLI の有無とログイン状態はここで 1 度だけ確かめる。
- * 30 秒ごとに確認するほど頻繁に変わるものではない。
+ * 1 分ごとに確認するほど頻繁に変わるものではない。
  */
+export function createMrSnapshotRepository(db: DatabaseSync): MrSnapshotRepository {
+  return new SqliteMrSnapshotRepository(db);
+}
+
 export async function createMrStateSource(
   forge: ForgeConfig | null,
   cardRepository: CardRepository,
+  snapshotRepository: MrSnapshotRepository,
   runner: CliRunner,
   options: ForgePollerOptions = {}
 ): Promise<MrStateSource> {
@@ -74,6 +82,6 @@ export async function createMrStateSource(
     return { provider: unavailableMrStateProvider(forge.kind, unavailable), poller: null };
   }
 
-  const poller = new ForgePoller(cardRepository, client, options);
+  const poller = new ForgePoller(cardRepository, client, snapshotRepository, options);
   return { provider: poller, poller };
 }

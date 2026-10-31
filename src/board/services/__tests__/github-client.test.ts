@@ -81,7 +81,7 @@ describe('GhForgeClient', () => {
       'pulls/7': openPr,
     });
 
-    const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+    const pr = (await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid))?.mr;
 
     expect(pr?.iid).toBe(7);
     expect(pr?.state).toBe('opened');
@@ -99,7 +99,7 @@ describe('GhForgeClient', () => {
       'pulls/7': openPr,
     });
 
-    const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+    const pr = (await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid))?.mr;
 
     expect(pr?.noteCount).toBe(1);
     expect(pr?.latestNoteAt).toBe('2026-09-04T11:00:00.000Z');
@@ -108,7 +108,7 @@ describe('GhForgeClient', () => {
   it('コメントが 1 件も無ければ 0 件と null', async () => {
     const { runner } = stubRunner({ 'pulls/7': openPr });
 
-    const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+    const pr = (await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid))?.mr;
 
     expect(pr?.noteCount).toBe(0);
     expect(pr?.latestNoteAt).toBeNull();
@@ -117,7 +117,7 @@ describe('GhForgeClient', () => {
   it('コミットが取れなければ latestCommitAt は null', async () => {
     const { runner } = stubRunner({ 'pulls/7': openPr });
 
-    const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+    const pr = (await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid))?.mr;
 
     expect(pr?.latestCommitAt).toBeNull();
   });
@@ -130,7 +130,7 @@ describe('GhForgeClient', () => {
       'commits/deadbeef': { commit: { committer: { date: '2026-09-04T12:00:00.000Z' } } },
     });
 
-    const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+    const pr = (await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid))?.mr;
 
     expect(pr?.latestCommitAt).toBe('2026-09-04T12:00:00.000Z');
     expect(paths.some((path) => path.includes('/commits/deadbeef'))).toBe(true);
@@ -146,7 +146,7 @@ describe('GhForgeClient', () => {
       'pulls/7': openPr,
     });
 
-    const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+    const pr = (await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid))?.mr;
 
     expect(pr?.noteCount).toBe(1);
     expect(pr?.latestNoteAt).toBe('2026-09-04T10:00:00.000Z');
@@ -175,7 +175,7 @@ describe('GhForgeClient', () => {
       ],
     });
 
-    const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+    const pr = (await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid))?.mr;
 
     expect(pr?.latestNoteAt).toBe('2026-09-04T12:00:00.000Z');
   });
@@ -183,7 +183,7 @@ describe('GhForgeClient', () => {
   it('取得先を github として返す', async () => {
     const { runner } = stubRunner({ 'pulls/7': openPr });
 
-    const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+    const pr = (await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid))?.mr;
 
     expect(pr?.forge).toBe('github');
   });
@@ -193,7 +193,7 @@ describe('GhForgeClient', () => {
       'pulls/7': { ...openPr, state: 'closed', merged_at: '2026-09-20T00:00:00Z' },
     });
 
-    const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+    const pr = (await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid))?.mr;
 
     expect(pr?.state).toBe('merged');
     expect(pr?.mergedAt).toBe('2026-09-20T00:00:00Z');
@@ -202,7 +202,7 @@ describe('GhForgeClient', () => {
   it('Draft の PR を draft として返す', async () => {
     const { runner } = stubRunner({ 'pulls/7': { ...openPr, draft: true } });
 
-    const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+    const pr = (await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid))?.mr;
 
     expect(pr?.draft).toBe(true);
   });
@@ -221,7 +221,7 @@ describe('GhForgeClient', () => {
         ],
       });
 
-      const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+      const pr = (await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid))?.mr;
 
       // ready_for_review の方が新しくても、拾うのは convert_to_draft だけ
       expect(pr?.convertedToDraftAt).toBe('2026-09-04T12:00:00Z');
@@ -237,7 +237,7 @@ describe('GhForgeClient', () => {
         'issues/7/events': [{ event: 'labeled', created_at: '2026-09-04T09:00:00Z' }],
       });
 
-      const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+      const pr = (await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid))?.mr;
 
       expect(pr?.convertedToDraftAt).toBeNull();
     });
@@ -252,7 +252,7 @@ describe('GhForgeClient', () => {
         'issues/7/events': [{ event: 'convert_to_draft', created_at: '2026-09-04T09:00:00Z' }],
       });
 
-      const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+      const pr = (await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid))?.mr;
 
       expect(pr?.convertedToDraftAt).toBeNull();
       expect(paths.some((path) => path.includes('/events'))).toBe(false);
@@ -262,7 +262,7 @@ describe('GhForgeClient', () => {
   it('draft が欠けた応答は Draft でないとみなす', async () => {
     const { runner } = stubRunner({ 'pulls/7': openPr });
 
-    const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+    const pr = (await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid))?.mr;
 
     expect(pr?.draft).toBe(false);
   });
@@ -270,9 +270,76 @@ describe('GhForgeClient', () => {
   it('マージされていない PR の mergedAt は null', async () => {
     const { runner } = stubRunner({ 'pulls/7': openPr });
 
-    const pr = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+    const pr = (await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid))?.mr;
 
     expect(pr?.mergedAt).toBeNull();
+  });
+
+  describe('前回の結果との比較', () => {
+    const counted = {
+      ...openPr,
+      draft: false,
+      comments: 1,
+      review_comments: 0,
+      updated_at: '2026-09-04T12:00:00Z',
+    };
+
+    async function firstFetch() {
+      const { runner } = stubRunner({ 'pulls/7': counted });
+      const previous = await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid);
+      if (previous === null) throw new Error('前回の結果が取れなかった');
+      return previous;
+    }
+
+    it('PR 本体が前回と同じなら、PR 本体の 1 回だけで前回の結果を返す', async () => {
+      // 変化の無い PR でコメント・コミットを毎回引き直すと、ポーリングのたびに PR の枚数の 4 倍以上を使う
+      const previous = await firstFetch();
+      const { runner, paths } = stubRunner({ 'pulls/7': counted });
+
+      const snapshot = await new GhForgeClient(config, runner).fetchByIid(
+        7 as MergeRequestIid,
+        previous
+      );
+
+      expect(snapshot).toBe(previous);
+      expect(paths).toEqual(['repos/iepyon/ai-board/pulls/7']);
+    });
+
+    it.each([
+      ['コメントが増えた', { comments: 2 }],
+      ['コード行への指摘が増えた', { review_comments: 1 }],
+      ['push した', { head: { ref: 'feat/refresh-token', sha: 'cafebabe' } }],
+      ['Draft に戻した', { draft: true }],
+      ['マージした', { state: 'closed', merged_at: '2026-09-05T00:00:00Z' }],
+      ['更新時刻が変わった', { updated_at: '2026-09-05T00:00:00Z' }],
+    ])('%s なら詳細を引き直す', async (_label, change) => {
+      const previous = await firstFetch();
+      const { runner, paths } = stubRunner({
+        'issues/7/comments': [{ created_at: '2026-09-05T10:00:00.000Z' }],
+        'pulls/7': { ...counted, ...change },
+      });
+
+      const snapshot = await new GhForgeClient(config, runner).fetchByIid(
+        7 as MergeRequestIid,
+        previous
+      );
+
+      expect(snapshot).not.toBe(previous);
+      expect(snapshot?.fingerprint).not.toBe(previous.fingerprint);
+      expect(paths.length).toBeGreaterThan(1);
+    });
+
+    it('前回の結果が別の番号のものなら使い回さない', async () => {
+      const previous = await firstFetch();
+      const { runner } = stubRunner({ 'pulls/8': { ...counted, number: 8 } });
+
+      const snapshot = await new GhForgeClient(config, runner).fetchByIid(
+        8 as MergeRequestIid,
+        previous
+      );
+
+      expect(snapshot?.mr.iid).toBe(8);
+    });
   });
 
   it('ブランチから PR を解決するとき head に owner 接頭辞を付ける', async () => {

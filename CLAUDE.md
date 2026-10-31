@@ -339,6 +339,17 @@ Draft に戻された時刻（`convertedToDraftAt`）は `issues/{n}/events` の
 
 PR 一覧の全件取得はページングで取りこぼすため使わず、カード単位で問い合わせる。
 
+詳細（コメント 2 種・イベント・コミット）まで引くと PR 1 枚で 4 回以上になり、1 分ごとのポーリングでも
+GitHub の上限（5,000 回/時）の大半を使う。そこで引いた結果を DB の `mr_snapshots` に控えとして残し、次の 2 つで問い合わせを省く。
+
+- マージ済みの PR は二度と引かない（`isSettled`）。マージされずに閉じた PR は reopen がありうるので引き続ける
+- `pulls/{n}` を 1 回引き、指紋（状態・Draft・`head.sha`・コメントの件数・`updated_at`。`fingerprintOf`）が
+  前回と同じなら詳細を引かずに前回の結果を使う
+
+控えはサーバと `ai-board status` のポーラーだけが書き、最初の `refresh` で読み戻す。
+`status` は呼ばれるたびに新しいプロセスなので、控えが無いと毎回すべての PR を詳細まで引き直す。
+`MrState` に項目を足すと古い控えは検証で外れて引き直され、`enrich` の組み立てを変えたら `FINGERPRINT_VERSION` を上げる。
+
 カードの `mr` が分かっていれば番号で、無ければ `branch` から解決して書き戻す（`ForgePoller.fetchFor`）。
 
 かつてはカードに番号の出どころ（GitLab / GitHub）を記録する `forge` 列があった。
