@@ -16,13 +16,16 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      # engines の下限（>= 22.13）から LTS の 24・26 まで通す。node:sqlite を使うため 22 未満では動かない
+      matrix:
+        node-version: ['22', '24', '26']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      # package.json の engines（>= 22.13）に合わせる。node:sqlite を使うため 22 未満では動かない
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: ${{ matrix.node-version }}
           cache: npm
 
       - run: npm ci
