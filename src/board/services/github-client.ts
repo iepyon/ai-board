@@ -1,6 +1,6 @@
 import type { MergeRequestIid } from '../../shared/schemas/common.js';
 import type { ForgeConfig } from '../../shared/config.js';
-import type { ForgeKind, MrLifecycleState, MrState } from '../models/mr-state.js';
+import type { ForgeKind, MrLifecycleState, MrSnapshot } from '../models/mr-state.js';
 import { asArray, latestOf, toMergeRequestIid, type ForgeClient } from './forge-client.js';
 import {
   parseJson,
@@ -18,6 +18,12 @@ export const GH = 'gh';
 /** 一覧 1 ページあたりの件数。GitHub の上限 */
 const PER_PAGE = 100;
 
+/**
+ * 指紋の作り方の版。`enrich` の組み立て方を変えたら上げる。
+ * 上げると保存済みの控えの指紋がすべて合わなくなり、1 度ずつ引き直される。
+ */
+const FINGERPRINT_VERSION = 1;
+
 interface RawPullRequest {
   number: number;
   state: string;
@@ -27,6 +33,11 @@ interface RawPullRequest {
   head: { ref: string; sha: string };
   title: string;
   html_url: string;
+  updated_at?: string;
+  /** issue comment の件数。`pulls/{n}` にだけあり、一覧（`pulls?head=`）には無い */
+  comments?: number;
+  /** review comment の件数。同上 */
+  review_comments?: number;
 }
 
 interface RawComment {
@@ -67,13 +78,28 @@ export class GhForgeClient implements ForgeClient {
     return result.ok ? null : describeCliError(result.error);
   }
 
-  async fetchByIid(iid: MergeRequestIid): Promise<MrState | null> {
+  /**
+   * PR 本体を 1 回引き、指紋が `previous` と同じなら `previous` をそのまま返す。
+   *
+   * コメント・コミット・イベントの問い合わせは PR 1 枚につき 3〜4 回以上かかる。
+   * 変化の無い PR でこれを毎回繰り返すと、ポーリングのたびに PR の枚数の 4 倍以上を使い、GitHub の上限（5,000 回/時）に近づく。
+   */
+  async fetchByIid(
+    iid: MergeRequestIid,
+    previous: MrSnapshot | null = null
+  ): Promise<MrSnapshot | null> {
     const pr = await this.get<RawPullRequest>(`pulls/${iid}`);
+    if (pr === null) return null;
 
-    return pr === null ? null : this.enrich(pr);
+    const fingerprint = fingerprintOf(pr);
+    if (previous !== null && previous.mr.iid === iid && previous.fingerprint === fingerprint) {
+      return previous;
+    }
+
+    return this.enrich(pr, fingerprint);
   }
 
-  async fetchByBranch(branch: string): Promise<MrState | null> {
+  async fetchByBranch(branch: string): Promise<MrSnapshot | null> {
     // head の owner: 接頭辞を落とすと、他リポジトリの同名ブランチを拾う
     const head = encodeURIComponent(`${this.config.owner}:${branch}`);
     const query = `head=${head}&state=all&sort=updated&direction=desc&per_page=1`;
@@ -81,7 +107,7 @@ export class GhForgeClient implements ForgeClient {
 
     const pr = asArray(list)[0];
 
-    return pr === undefined ? null : this.enrich(pr);
+    return pr === undefined ? null : this.enrich(pr, fingerprintOf(pr));
   }
 
   /**
@@ -98,7 +124,7 @@ export class GhForgeClient implements ForgeClient {
    * 順序ではなく全ページを読んで最大値を取る（`latestOf` が最大値を選ぶので
    * 並び順は問わない）。件数も同じ理由で全ページを数えないと頭打ちになる。
    */
-  private async enrich(pr: RawPullRequest): Promise<MrState> {
+  private async enrich(pr: RawPullRequest, fingerprint: string): Promise<MrSnapshot> {
     const state = toLifecycleState(pr.state, pr.merged_at);
     const draft = pr.draft === true;
 
@@ -112,7 +138,7 @@ export class GhForgeClient implements ForgeClient {
     // 自動生成のコメントは人のレビューではない
     const comments = [...issueComments, ...reviewComments].filter(isHumanComment);
 
-    return {
+    const mr = {
       forge: this.kind,
       iid: toMergeRequestIid(pr.number),
       state,
@@ -126,6 +152,8 @@ export class GhForgeClient implements ForgeClient {
       mergedAt: pr.merged_at,
       convertedToDraftAt,
     };
+
+    return { mr, fingerprint };
   }
 
   /**
@@ -178,6 +206,30 @@ export function toLifecycleState(raw: string, mergedAt: string | null): MrLifecy
   if (raw === 'open') return 'opened';
 
   return mergedAt === null ? 'closed' : 'merged';
+}
+
+/**
+ * PR 本体だけで分かる、`enrich` の結果を変えうる値をつなぐ。
+ *
+ * 新しいコメントは件数を、push は `head.sha` を、Draft の出し入れは `draft` を変える。
+ * `updated_at` は、件数が変わらないまま消して書き直したコメントや、
+ * ポーリングの間に Draft へ戻して Ready に戻したといった取りこぼしを拾うために足している。
+ * 余計に変わっても引き直しが 1 回増えるだけで、正しさは崩れない。
+ *
+ * 一覧（`pulls?head=`）の応答には件数が無いので、ブランチから解決した直後の指紋は
+ * 番号で引いたときの指紋と一致せず、次の周で 1 度だけ引き直す。
+ */
+function fingerprintOf(pr: RawPullRequest): string {
+  return JSON.stringify([
+    FINGERPRINT_VERSION,
+    pr.state,
+    pr.merged_at,
+    pr.draft === true,
+    pr.head.sha,
+    pr.comments ?? null,
+    pr.review_comments ?? null,
+    pr.updated_at ?? null,
+  ]);
 }
 
 /**

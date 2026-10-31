@@ -1,5 +1,5 @@
 import type { MergeRequestIid } from '../../shared/schemas/common.js';
-import type { ForgeKind, MrState } from '../models/mr-state.js';
+import type { ForgeKind, MrSnapshot } from '../models/mr-state.js';
 
 // ============================================================
 // レビュー要求の取得先
@@ -14,10 +14,13 @@ import type { ForgeKind, MrState } from '../models/mr-state.js';
 export interface ForgeClient {
   /** どの取得先の実装か */
   readonly kind: ForgeKind;
-  /** 識別番号が既知のレビュー要求を取得する */
-  fetchByIid(iid: MergeRequestIid): Promise<MrState | null>;
+  /**
+   * 識別番号が既知のレビュー要求を取得する。
+   * `previous` から変わっていなければ、詳細を引き直さずに `previous` を返す
+   */
+  fetchByIid(iid: MergeRequestIid, previous?: MrSnapshot | null): Promise<MrSnapshot | null>;
   /** source branch からレビュー要求を解決する。複数ある場合は最新の 1 件 */
-  fetchByBranch(branch: string): Promise<MrState | null>;
+  fetchByBranch(branch: string): Promise<MrSnapshot | null>;
   /** 取得先へ問い合わせられる状態かを確かめる。理由文を返す（null なら利用可能） */
   checkAuth(): Promise<string | null>;
 }

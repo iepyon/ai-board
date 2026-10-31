@@ -37,6 +37,13 @@ const MIGRATIONS: readonly string[] = [
      id   INTEGER PRIMARY KEY NOT NULL CHECK (id = 1),
      rank REAL NOT NULL
    ) STRICT`,
+  // PR の状態の控え。マージ済みの PR と変化の無い PR を引き直さないために、
+  // サーバの再起動や `ai-board status` のたびに新しいプロセスでも前回の結果を使う
+  `CREATE TABLE mr_snapshots (
+     card_id     TEXT PRIMARY KEY NOT NULL,
+     fingerprint TEXT NOT NULL,
+     mr          TEXT NOT NULL
+   ) STRICT`,
 ];
 
 /** 別プロセスの書き込みでロックが取れないとき、失敗にする前に待つ時間 */

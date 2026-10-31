@@ -7,7 +7,11 @@ import { openDatabase } from './infrastructure/database.js';
 import { createCliRunner } from './infrastructure/cli-runner.js';
 import { createCardDependencies } from './cards/composition.js';
 import { runCardCli, runImport, type CardCliIo } from './cards/cli/card-cli.js';
-import { createBoardDependencies, createMrStateSource } from './board/composition.js';
+import {
+  createBoardDependencies,
+  createMrSnapshotRepository,
+  createMrStateSource,
+} from './board/composition.js';
 import { parseStatusArgs, runStatusCli, STATUS_USAGE } from './board/cli/status-cli.js';
 import { findLiveServer } from './infrastructure/server-info.js';
 
@@ -150,6 +154,7 @@ async function runStatus(argv: readonly string[]): Promise<number> {
     const { provider, poller } = await createMrStateSource(
       config.forge,
       cards.cardRepository,
+      createMrSnapshotRepository(db),
       createCliRunner()
     );
     await poller?.refresh();

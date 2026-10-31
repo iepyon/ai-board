@@ -2,7 +2,11 @@ import * as http from 'node:http';
 import type { FSWatcher } from 'chokidar';
 import { loadConfig, type AppConfig } from './shared/config.js';
 import { createCardDependencies } from './cards/composition.js';
-import { createBoardDependencies, createMrStateSource } from './board/composition.js';
+import {
+  createBoardDependencies,
+  createMrSnapshotRepository,
+  createMrStateSource,
+} from './board/composition.js';
 import { createCliRunner } from './infrastructure/cli-runner.js';
 import { SseHub } from './infrastructure/sse.js';
 import { startWatching } from './infrastructure/watch.js';
@@ -41,6 +45,7 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
   const { provider: mrProvider, poller } = await createMrStateSource(
     config.forge,
     cards.cardRepository,
+    createMrSnapshotRepository(db),
     createCliRunner(),
     {
       ...(options.pollIntervalMs !== undefined ? { intervalMs: options.pollIntervalMs } : {}),

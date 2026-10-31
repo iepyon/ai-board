@@ -43,6 +43,17 @@ export interface MrState {
   readonly convertedToDraftAt: string | null;
 }
 
+/**
+ * 引いた PR の状態と、それを引いたときの PR 本体の「指紋」。
+ *
+ * 指紋は PR 本体 1 回の問い合わせで分かる値（状態・Draft・head の sha・コメントの件数・更新時刻）を
+ * つないだもの。次に引いたとき指紋が同じなら、コメントやコミットを引き直さずに `mr` を使い回す。
+ */
+export interface MrSnapshot {
+  readonly mr: MrState;
+  readonly fingerprint: string;
+}
+
 /** 取得先の種類 */
 export const FORGE_KINDS = ['github'] as const;
 
