@@ -199,9 +199,9 @@ dummy-a には `card branch` でブランチを付けない。GitHub に接続�
 
 ### 2. status の出力
 
-- [ ] `status --json` に `server`（`{ url }` か `null`）を足す。`server.json` が無い・形が違う・`dbPath` が違う・pid が死んでいる、のそれぞれで `null` になるテストを書く。テキストの出力にも 1 行出す
-- [ ] `waiting[]` に `decisions`（`decisionsFor`）を足す。計画レビュー・動作確認・止まった実装中・止まった計画提案中・飛ばす宣言のあるカードで、画面と同じ判断が出るテストを書く
-- [ ] `ideas`（`ideaRows` の順。`{ id, title }` か `{ divider: true }`）を足し、区切り線の有無と rank の無いカードを含むテストを書く
+- [x] `status --json` に `server`（`{ url }` か `null`）を足す。`server.json` が無い・形が違う・`dbPath` が違う・pid が死んでいる、のそれぞれで `null` になるテストを書く。テキストの出力にも 1 行出す
+- [x] `waiting[]` に `decisions`（`decisionsFor`）を足す。計画レビュー・動作確認・止まった実装中・止まった計画提案中・飛ばす宣言のあるカードで、画面と同じ判断が出るテストを書く
+- [x] `ideas`（`ideaRows` の順。`{ id, title }` か `{ divider: true }`）を足し、区切り線の有無と rank の無いカードを含むテストを書く
 
 ### 3. スキル
 

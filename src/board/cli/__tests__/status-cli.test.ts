@@ -11,6 +11,7 @@ import { createBoardDependencies } from '../../composition.js';
 import type { MrStateProvider } from '../../services/mr-state-provider.js';
 import type { ForgeConnection } from '../../models/mr-state.js';
 import { HOLD_REASONS } from '../../services/next-action.js';
+import type { ServerLocation } from '../../../infrastructure/server-info.js';
 import { parseStatusArgs, runStatusCli, type StatusReport } from '../status-cli.js';
 
 // ============================================================
@@ -63,7 +64,11 @@ function stubProvider(
   return { get: () => null, connection: () => connection, synced: () => true };
 }
 
-async function run(argv: readonly string[], provider = stubProvider()): Promise<number> {
+async function run(
+  argv: readonly string[],
+  provider = stubProvider(),
+  findServer?: () => ServerLocation | null
+): Promise<number> {
   const cards = createCardDependencies(db);
   const board = createBoardDependencies(
     path.join(root, '.ai-board', 'plans'),
@@ -72,15 +77,19 @@ async function run(argv: readonly string[], provider = stubProvider()): Promise<
     provider
   );
 
-  return runStatusCli(argv, board, {
-    stdout: (text) => {
-      stdout += text;
-    },
-    stderr: (text) => {
-      stderr += text;
-    },
-    now: () => NOW,
-  });
+  return runStatusCli(
+    argv,
+    { ...board, ...(findServer ? { findServer } : {}) },
+    {
+      stdout: (text) => {
+        stdout += text;
+      },
+      stderr: (text) => {
+        stderr += text;
+      },
+      now: () => NOW,
+    }
+  );
 }
 
 async function runJson(provider?: MrStateProvider): Promise<StatusReport> {
@@ -137,6 +146,8 @@ describe('ai-board status --json', () => {
         title: 'lost のタイトル',
         stage: 'planning',
         reason: '計画を提出済みだが、計画ファイルも Draft の PR も見えない',
+        // 直させる先の計画が見えないので、中止だけ
+        decisions: [{ gate: 'plan', kind: '中止', label: '中止する', reasonRequired: false }],
       },
     ]);
   });
@@ -172,6 +183,11 @@ describe('ai-board status --json', () => {
         title: 'held のタイトル',
         stage: 'impling',
         reason: HOLD_REASONS.verifyHeld,
+        decisions: [
+          { gate: 'verify', kind: '否決', label: '実装を直させる', reasonRequired: true },
+          { gate: 'plan', kind: '否決', label: '計画から立て直させる', reasonRequired: true },
+          { gate: 'verify', kind: '中止', label: '中止する', reasonRequired: false },
+        ],
       },
     ]);
     expect(report.working.map((card) => card.id)).toEqual(['started']);
@@ -197,9 +213,61 @@ describe('ai-board status --json', () => {
         title: 'verifying のタイトル',
         stage: 'verifying',
         reason: '実装が人の動作確認を待っている',
+        decisions: [
+          { gate: 'verify', kind: '承認', label: '承認', reasonRequired: false },
+          { gate: 'verify', kind: '否決', label: '否決して差し戻す', reasonRequired: true },
+          { gate: 'plan', kind: '否決', label: '計画から立て直させる', reasonRequired: true },
+          { gate: 'verify', kind: '中止', label: '中止する', reasonRequired: false },
+        ],
       },
     ]);
     expect(report.working).toEqual([]);
+  });
+
+  it('計画レビューのカードには、画面と同じ判断（承認 / 否決して差し戻す / 中止）を出す', async () => {
+    await writeCard('reviewing', "startedAt: '2026-10-21T00:00:00.000Z'\n", review('提出'));
+    await writePlan('reviewing', '# 計画');
+
+    const report = await runJson();
+
+    expect(report.waiting[0]?.decisions.map((d) => `${d.gate} ${d.label}`)).toEqual([
+      'plan 承認',
+      'plan 否決して差し戻す',
+      'plan 中止する',
+    ]);
+  });
+
+  it('アイデアの表の並びを、区切り線を 1 行として画面と同じ順に出す', async () => {
+    await writeCard('first', 'rank: 100\n');
+    await writeCard('third', 'rank: 300\n');
+    await writeCard('second', 'rank: 200\n');
+    await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\nrank: 50\n");
+    await createCardDependencies(db).ideaDividerRepository.set(250);
+
+    const report = await runJson();
+
+    expect(report.ideas).toEqual([
+      { id: 'first', title: 'first のタイトル' },
+      { id: 'second', title: 'second のタイトル' },
+      { divider: true },
+      { id: 'third', title: 'third のタイトル' },
+    ]);
+  });
+
+  it('区切り線が未設定なら末尾に置く', async () => {
+    await writeCard('only', '');
+
+    const report = await runJson();
+
+    expect(report.ideas).toEqual([{ id: 'only', title: 'only のタイトル' }, { divider: true }]);
+  });
+
+  it('起動中のサーバの URL を出す。見つからなければ null', async () => {
+    expect((await runJson()).server).toBeNull();
+
+    stdout = '';
+    expect(await run(['--json'], stubProvider(), () => ({ url: 'http://127.0.0.1:5674' }))).toBe(0);
+    expect((JSON.parse(stdout) as StatusReport).server).toEqual({ url: 'http://127.0.0.1:5674' });
   });
 
   it('GitHub が使えないときは接続状態に理由を載せ、次の一手を出さない', async () => {
@@ -263,6 +331,7 @@ describe('ai-board status', () => {
     expect(await run([])).toBe(0);
 
     expect(stdout).toContain('GitHub: 接続済み');
+    expect(stdout).toContain('サーバ: 起動していません');
     expect(stdout).toContain('判断待ち (1)');
     expect(stdout).toContain('reviewing  [計画レビュー]  reviewing のタイトル');
     expect(stdout).toContain('AI 作業中 (1)');
