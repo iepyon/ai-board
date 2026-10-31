@@ -804,6 +804,35 @@ describe('stageOverride はもう存在しない', () => {
     expect(card.stage).toBe('idea');
   });
 
+  it('PATCH で stage をほかのフィールドと一緒に送ると stage だけが無視される', async () => {
+    const app = buildApp();
+    await request(app).post('/api/cards').send({ title: 'target', id: 'target' }).expect(201);
+
+    await request(app)
+      .patch('/api/cards/target')
+      .send({ stage: 'merged', title: '別のタイトル' })
+      .expect(200);
+
+    const response = await request(app).get('/api/board').expect(200);
+    const card = response.body.cards[0];
+
+    expect(card.title).toBe('別のタイトル');
+    expect(card.stage).toBe('idea');
+  });
+
+  it('PATCH で stage だけを送ると更新するフィールドが無いので 400 になる', async () => {
+    const app = buildApp();
+    await request(app).post('/api/cards').send({ title: 'target', id: 'target' }).expect(201);
+
+    await request(app).patch('/api/cards/target').send({ stage: 'merged' }).expect(400);
+
+    const response = await request(app).get('/api/board').expect(200);
+    const card = response.body.cards[0];
+
+    expect(card.title).toBe('target');
+    expect(card.stage).toBe('idea');
+  });
+
   it('手で書かれた上書きも読み取り側で無視される', async () => {
     await writeCard(
       'hand-override',
