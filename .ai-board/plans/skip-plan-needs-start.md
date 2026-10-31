@@ -228,3 +228,18 @@ plan を飛ばすカードには plan 承認のエントリが無いので、こ
 ### 8. 確かめる
 
 - [x] 品質ゲートと `npm run build` を通し、`## 動作確認の手順` を `AI_BOARD_DB` の別の DB で試す
+
+## AI レビュー
+
+### 見送った指摘
+
+- `src/board/services/stage-resolver.ts:155` の実装中の規則の理由が、plan を飛ばすカードでも「計画が承認されている」と出る。実際には AI の `plan 提出` を承認と読んだだけである。ツールチップの文言だけで振る舞いは変わらず、`## レビュー` には `plan 提出` のまま残るので見送る
+- `src/board/services/stage-resolver.ts:56` の docstring の「否決・承認・skip のどれでも verifying が外れて」は、宣言だけで通過する古い意味にも読める。宣言のあるゲートの提出が承認と読まれて verifying が立たない、という今の振る舞いとも食い違ってはおらず、振る舞いに関わらない言い回しなので見送る
+- 「宣言のあるゲートの 提出 / 再提出 を承認と読む」規則が、`src/cards/services/review-log.ts:197` の `passes()`、同 `:123` の `gateState` の分岐、`src/board/services/stage-timeline.ts:131` の `transitionOf` の 3 か所にある。1 つの関数にまとめると食い違いを防げるが、振る舞いを変えない整理なので見送る
+- `.claude/agents/board-planner.md:39` で、plan を飛ばすカードでも `plan 提出` の理由に「判断してほしい点」を書くが、提出がそのまま承認と読まれるので判断待ちの区画に出ない。計画の Non-Goals の「計画レビューを飛ばすカードの計画を、提出の後に人へ知らせるしくみ」に当たるので見送る
+
+### 人に判断してほしいこと
+
+- plan を飛ばすカードでは、AI が着手済みのカードにいつでも `plan 再提出` を書ける（`src/cards/cli/card-cli.ts:254` の `runSubmit` は着手しか見ない）。`src/cards/services/review-log.ts:197` の `passes()` がその 再提出 を plan の承認と同じ区切りにするので、それより前の verify のエントリが数えられなくなる。`plan 提出 → verify 提出 → verify 否決 → plan 再提出`（`skipGates: ['plan']`）で `gateStates` が `{ plan: 'approved', verify: 'none' }` になることを確かめた。人の `verify 否決` を AI の 1 回の CLI 呼び出しで消せる（ふつうのカードなら plan が submitted に戻って計画レビューに出るので、人が気づける）。手順書の上では起きないが、`CLAUDE.md` は書き込み境界を CLI の構造で守ると決めている。plan の 提出 / 再提出 を「plan ゲートが none か rejected のときだけ」に絞るか（すべてのカードか、宣言のあるカードだけか）、手順書の決まりに任せるかを人が決める
+- verify を飛ばすカードで「実装を直させる」を押したとき、`revise-impl` の `verify 再提出` が承認と読まれ、`src/board/services/next-action.ts:200` の `judgeImpling` が `implement` を返して締めの段へ進む。締めの段の `.claude/agents/board-worker.md:132` は PR の本文の `## 見送った AI レビューの指摘` 節を計画の `### 見送った指摘` で差し替えるので、`revise-impl` が足した見送りが消える。`### 人に判断してほしいこと` の PR コメントも 2 回目が書かれ、`revise-impl` が `verify 再提出` の理由に書いた人に判断してほしい点は判断待ちの区画に出ない。この道はこの PR でボタンを出したことで初めて通る。締めの段を直すのは計画の Non-Goals「verify を飛ばすカードの `board-worker` の流れを変えること」に踏み込むので、この PR で直すか別のカードにするかを人が決める
+- `.claude/skills/board-decide/SKILL.md:52` の「計画レビューを飛ばす」は「確かめるか: しない」だが、`plan 提出` 済みで計画レビューにいるカードに入れると、その場で計画を承認したのと同じになる（同じ表で承認は「確かめる」）。計画レビューにいるカードに入れるときだけ確かめるか、今のままにするかを人が決める
