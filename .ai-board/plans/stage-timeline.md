@@ -224,7 +224,7 @@ node dist/cli.js status --json | jq '.cards[] | {id, stage, readyAt: .mrState.re
 ### 1. 区間の導出
 
 - [x] `src/shared/timeline.ts` に区間の種類（12 種類）と担当（`human` / `ai`）の一覧、`TimelineSegment` の型を置く
-- [ ] `src/board/services/stage-timeline.ts` に、痕跡から区間の並びを返す純関数を書く。遷移は (ゲート, 種別) をキーにした表で引く。
+- [x] `src/board/services/stage-timeline.ts` に、痕跡から区間の並びを返す純関数を書く。遷移は (ゲート, 種別) をキーにした表で引く。
       テストは `src/board/services/__tests__/stage-timeline.test.ts` に置き、次の道を確かめる:
       アイデアのまま / 着手したまま / 計画レビュー中 / 計画の否決と再提出 / 計画の保留 / 実装中 / 動作確認の否決と再提出 / 動作確認の保留 / Ready にする / マージ済み /
       計画から立て直させる（承認済みの計画への否決）/ 中止 / 中止の後にエントリが続く / plan を飛ばす / verify を飛ばす / verify 承認より先に Ready /
