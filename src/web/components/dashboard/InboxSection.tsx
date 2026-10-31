@@ -140,7 +140,7 @@ function ReviewPrLink({ card }: { card: BoardCard }) {
 /**
  * 提出（再提出）に AI が書いた本文。判断の材料なので畳まずに出す。
  * `latestReview` はその列が待つゲートの最新エントリなので、札にゲートの名前を出す。
- * 止まっているカード（AI の列）ではゲートを問わず最新のエントリで、作業者の保留ならその理由が出る。
+ * 止まっているカード（AI の列）ではゲートを問わず最新のエントリで、AI の保留ならその理由が出る。
  */
 function SubmissionNote({ card }: { card: BoardCard }) {
   const review = card.latestReview;

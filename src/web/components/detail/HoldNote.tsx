@@ -6,7 +6,7 @@ import type { BoardCard } from '../../types.js';
 
 /**
  * AI の列で止まっているカードの、人が何をすればよいか（`hold.reason`）。
- * 作業者が書いた止まった理由は、続く `SubmissionNote` に保留のエントリとして出る。
+ * AI が書いた止まった理由は、続く `SubmissionNote` に保留のエントリとして出る。
  */
 export function HoldNote({ card }: { card: BoardCard }) {
   if (card.hold === null) return null;

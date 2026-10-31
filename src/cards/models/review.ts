@@ -21,7 +21,7 @@ export type ReviewGate = (typeof REVIEW_GATES)[number];
 /**
  * レビューエントリの種別。
  *
- * - 提出 / 再提出 / 保留 は AI が書く。保留は、作業者がその手を自分では進められないと判断して止まった痕跡
+ * - 提出 / 再提出 / 保留 は AI が書く。保留は、AI がその手を自分では進められないと判断して止まった痕跡
  * - 承認 / 否決 / 中止 は人が書く（`HUMAN_REVIEW_KINDS`）
  */
 export const REVIEW_KINDS = ['提出', '再提出', '保留', '承認', '否決', '中止'] as const;
@@ -45,7 +45,7 @@ export interface ReviewEntry {
 /**
  * ゲートの通過状況。ステージ導出の入力になる。
  *
- * `held` は作業者が保留を書いて止まった状態。どの規則も `held` でゲートを先へ進めないので、
+ * `held` は AI が保留を書いて止まった状態。どの規則も `held` でゲートを先へ進めないので、
  * カードは AI の列（計画提案中 / 実装中）に留まり、人の判断を待つ。
  */
 export type GateState = 'none' | 'submitted' | 'held' | 'approved' | 'rejected';
