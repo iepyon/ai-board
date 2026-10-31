@@ -218,7 +218,7 @@ function isSettled(card: Card, previous: MrSnapshot | null): boolean {
   return previous !== null && previous.mr.state === 'merged' && card.mr === previous.mr.iid;
 }
 
-/** 変化検出用の比較。ステージ判定と止まりの判定に効くフィールドだけを見る */
+/** 変化検出用の比較。ステージ判定・止まりの判定・区間の導出に効くフィールドだけを見る */
 function isSameMrState(a: MrState | undefined, b: MrState): boolean {
   return (
     a !== undefined &&
@@ -228,6 +228,7 @@ function isSameMrState(a: MrState | undefined, b: MrState): boolean {
     a.latestNoteAt === b.latestNoteAt &&
     a.latestCommitAt === b.latestCommitAt &&
     a.noteCount === b.noteCount &&
+    a.readyAt === b.readyAt &&
     a.convertedToDraftAt === b.convertedToDraftAt
   );
 }

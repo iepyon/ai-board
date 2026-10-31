@@ -81,6 +81,7 @@ function makeMr(overrides: Partial<MrState> = {}): MrState {
     noteCount: 0,
     latestCommitAt: null,
     mergedAt: null,
+    readyAt: null,
     convertedToDraftAt: null,
     ...overrides,
   };
@@ -232,6 +233,23 @@ describe('ForgePoller', () => {
 
     expect(onUpdate).toHaveBeenCalledTimes(2);
     expect(poller.get('refresh-token')?.convertedToDraftAt).toBe('2026-09-05T00:00:00.000Z');
+  });
+
+  it('Ready にした時刻が変われば onUpdate を呼ぶ', async () => {
+    // 区間の並びは readyAt から PR レビューの区間を始める。取りこぼすと区間の境目が古いまま残る
+    const repository = new InMemoryCardRepository([makeCard({ mr: 42 as MergeRequestIid })]);
+    let readyAt: string | null = '2026-09-04T00:00:00.000Z';
+    const client = stubClient({
+      fetchByIid: vi.fn(async () => snap({ readyAt })),
+    });
+    const poller = new ForgePoller(repository, client, snapshots, { onUpdate });
+
+    await poller.refresh();
+    readyAt = '2026-09-05T00:00:00.000Z';
+    await poller.refresh();
+
+    expect(onUpdate).toHaveBeenCalledTimes(2);
+    expect(poller.get('refresh-token')?.readyAt).toBe('2026-09-05T00:00:00.000Z');
   });
 
   it('取得先が落ちてもキャッシュを保ったまま error 状態にする', async () => {

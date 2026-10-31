@@ -1,6 +1,10 @@
+import type { TimelineSegment } from '../shared/timeline.js';
+
 // ============================================================
 // API レスポンスの型（サーバの BoardCard と対応）
 // ============================================================
+
+export type { TimelineKind, TimelineOwner, TimelineSegment } from '../shared/timeline.js';
 
 export type Stage = 'idea' | 'planning' | 'plan-review' | 'impling' | 'verifying' | 'pr' | 'merged';
 
@@ -47,6 +51,8 @@ export interface BoardCardMr {
   resubmitted: boolean;
   /** マージされた日時。マージされていなければ null */
   mergedAt: string | null;
+  /** 最後に Ready にした時刻。作成時から Ready の PR は作成時刻。今 Draft で一度も Ready にしていなければ null */
+  readyAt: string | null;
   /** 最後に Draft へ戻された時刻。今 open かつ Draft でなければ null */
   convertedToDraftAt: string | null;
 }
@@ -76,6 +82,8 @@ export interface BoardCard {
   mrState: BoardCardMr | null;
   /** AI の列にいるが人の判断を待っているときの止まり。止まっていなければ null */
   hold: CardHold | null;
+  /** カードが各工程にいた区間の並び。時刻の順で、今いる区間は `end: null` */
+  timeline: TimelineSegment[];
 }
 
 /** AI の列にいるが人の判断を待っているカードの止まり（サーバの `resolveHold`） */

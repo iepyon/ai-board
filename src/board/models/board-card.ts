@@ -3,6 +3,7 @@ import type { Card } from '../../cards/models/card.js';
 import type { GateState, ReviewGate, ReviewKind } from '../../cards/models/review.js';
 import type { StageResolution } from '../services/stage-resolver.js';
 import type { CardHold } from '../services/next-action.js';
+import type { TimelineSegment } from '../../shared/timeline.js';
 import type { TaskProgress } from './plan-state.js';
 import type { ForgeConnection, ForgeKind, MrLifecycleState } from './mr-state.js';
 
@@ -33,6 +34,11 @@ export interface BoardCardMr {
   readonly resubmitted: boolean;
   /** マージされた日時。マージされていなければ null */
   readonly mergedAt: string | null;
+  /**
+   * 最後に Ready にした時刻。作成時から Ready の PR は作成時刻。
+   * 今 Draft で一度も Ready にしていなければ null
+   */
+  readonly readyAt: string | null;
   /** 最後に Draft へ戻された時刻。今 open かつ Draft でなければ null */
   readonly convertedToDraftAt: string | null;
 }
@@ -83,6 +89,11 @@ export interface BoardCard {
    * ステージとは別の軸で、どこにも保存しない。ループはこのカードを選ばない
    */
   readonly hold: CardHold | null;
+  /**
+   * カードが各工程にいた区間の並び（`resolveTimeline`）。時刻の順で、今いる区間は `end: null`。
+   * ステージと同じく痕跡から毎回導出し、どこにも保存しない
+   */
+  readonly timeline: readonly TimelineSegment[];
 }
 
 export interface Board {
@@ -109,7 +120,8 @@ export function toBoardCard(
   latestReview: BoardCardReview | null,
   plan: BoardCardPlan | null,
   mrState: BoardCardMr | null,
-  hold: CardHold | null
+  hold: CardHold | null,
+  timeline: readonly TimelineSegment[]
 ): BoardCard {
   return {
     id: card.id,
@@ -131,5 +143,6 @@ export function toBoardCard(
     plan,
     mrState,
     hold,
+    timeline,
   };
 }

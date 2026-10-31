@@ -149,6 +149,7 @@ describe('GET /api/board', () => {
       noteCount: 1,
       latestCommitAt: '2026-09-04T10:30:00.000Z',
       mergedAt: null,
+      readyAt: '2026-09-04T09:00:00.000Z',
       convertedToDraftAt: null,
     };
 
@@ -187,6 +188,7 @@ describe('GET /api/board', () => {
       noteCount: 0,
       latestCommitAt: null,
       mergedAt: '2026-09-25T03:00:00.000Z',
+      readyAt: '2026-09-25T00:00:00.000Z',
       convertedToDraftAt: null,
     };
 
@@ -196,6 +198,124 @@ describe('GET /api/board', () => {
 
     expect(response.body.cards[0].stage).toBe('merged');
     expect(response.body.cards[0].mrState.mergedAt).toBe('2026-09-25T03:00:00.000Z');
+    expect(response.body.cards[0].mrState.readyAt).toBe('2026-09-25T00:00:00.000Z');
+  });
+
+  it('カードが各工程にいた区間の並びを timeline に載せる', async () => {
+    await writeCard(
+      'traced',
+      [
+        '---',
+        'id: traced',
+        'title: 区間',
+        "created: '2026-09-01T00:00:00.000Z'",
+        "startedAt: '2026-09-02T00:00:00.000Z'",
+        'mr: 41',
+        '---',
+        '',
+        '## レビュー',
+        '',
+        '### 2026-09-03T00:00:00.000Z plan 提出',
+        '',
+        '### 2026-09-04T00:00:00.000Z plan 否決',
+        '',
+        '### 2026-09-05T00:00:00.000Z plan 再提出',
+        '',
+        '### 2026-09-06T00:00:00.000Z plan 承認',
+        '',
+        '### 2026-09-07T00:00:00.000Z verify 提出',
+        '',
+        '### 2026-09-08T00:00:00.000Z verify 承認',
+        '',
+      ].join('\n')
+    );
+    await writeCard(
+      'fresh-idea',
+      "---\nid: fresh-idea\ntitle: アイデア\ncreated: '2026-09-01T00:00:00.000Z'\n---\n"
+    );
+
+    const mr: MrState = {
+      forge: 'github',
+      iid: 41 as MergeRequestIid,
+      state: 'merged',
+      draft: false,
+      sourceBranch: 'traced',
+      title: '区間',
+      webUrl: 'https://github.com/acme/board/pull/41',
+      latestNoteAt: null,
+      noteCount: 0,
+      latestCommitAt: null,
+      mergedAt: '2026-09-10T00:00:00.000Z',
+      readyAt: '2026-09-09T00:00:00.000Z',
+      convertedToDraftAt: null,
+    };
+
+    const response = await request(buildApp(stubMrProvider({ traced: mr })))
+      .get('/api/board')
+      .expect(200);
+    const byId = new Map(
+      (response.body.cards as { id: string; timeline: unknown }[]).map((card) => [card.id, card])
+    );
+
+    expect(byId.get('traced')?.timeline).toEqual([
+      {
+        kind: 'idea',
+        owner: 'human',
+        start: '2026-09-01T00:00:00.000Z',
+        end: '2026-09-02T00:00:00.000Z',
+      },
+      {
+        kind: 'planning',
+        owner: 'ai',
+        start: '2026-09-02T00:00:00.000Z',
+        end: '2026-09-03T00:00:00.000Z',
+      },
+      {
+        kind: 'plan-review',
+        owner: 'human',
+        start: '2026-09-03T00:00:00.000Z',
+        end: '2026-09-04T00:00:00.000Z',
+      },
+      {
+        kind: 'plan-rework',
+        owner: 'ai',
+        start: '2026-09-04T00:00:00.000Z',
+        end: '2026-09-05T00:00:00.000Z',
+      },
+      {
+        kind: 'plan-review',
+        owner: 'human',
+        start: '2026-09-05T00:00:00.000Z',
+        end: '2026-09-06T00:00:00.000Z',
+      },
+      {
+        kind: 'implementing',
+        owner: 'ai',
+        start: '2026-09-06T00:00:00.000Z',
+        end: '2026-09-07T00:00:00.000Z',
+      },
+      {
+        kind: 'verifying',
+        owner: 'human',
+        start: '2026-09-07T00:00:00.000Z',
+        end: '2026-09-08T00:00:00.000Z',
+      },
+      {
+        kind: 'readying',
+        owner: 'ai',
+        start: '2026-09-08T00:00:00.000Z',
+        end: '2026-09-09T00:00:00.000Z',
+      },
+      {
+        kind: 'pr-review',
+        owner: 'human',
+        start: '2026-09-09T00:00:00.000Z',
+        end: '2026-09-10T00:00:00.000Z',
+      },
+    ]);
+    expect(byId.get('fresh-idea')?.timeline).toEqual([
+      { kind: 'idea', owner: 'human', start: '2026-09-01T00:00:00.000Z', end: null },
+    ]);
   });
 
   it('カードが無い計画ファイルを orphanPlans として返す', async () => {
@@ -311,6 +431,7 @@ describe('GET /api/board', () => {
       noteCount: 0,
       latestCommitAt: null,
       mergedAt: null,
+      readyAt: null,
       convertedToDraftAt: '2026-09-08T00:00:00Z',
     };
 
@@ -630,6 +751,7 @@ describe('移動できる先の制限', () => {
       noteCount: 0,
       latestCommitAt: null,
       mergedAt: null,
+      readyAt: null,
       convertedToDraftAt: null,
     };
 
@@ -908,6 +1030,7 @@ describe('POST /api/cards/:id/reviews（動作確認）', () => {
     noteCount: 0,
     latestCommitAt: '2026-09-07T12:00:00.000Z',
     mergedAt: null,
+    readyAt: null,
     convertedToDraftAt: null,
   };
 
