@@ -57,7 +57,7 @@
 
 人だけが呼べるスキルにし、`ai-board card` の CLI には入口を足さない。
 
-`disable-model-invocation: true` のスキルは、Claude の文脈のスキル一覧から外れ、Claude が Skill ツールで呼ぼうとしても Claude Code が止める。
+`disable-model-invocation: true` のスキルは、Claude の文脈のスキル一覧から外れ、Claude が Skill ツールで呼ぼうとしても Claude Code が止める（サブエージェントでも止まるかは未確認。Risks を参照）。
 人が `/board-decide` と打ったときだけ本文が読み込まれるので、「この判断を人が頼んだ」ことはスキルが動いていること自体で示される。
 
 CLI に入口を足す案は採らない。CLI はエージェントが日常的に使う道具であり、そこに人の判断の入口があれば、作業者がそれを使わない理由は手順書の禁止だけになる。
@@ -134,6 +134,8 @@ CLI に入口を足す案は採らない。CLI はエージェントが日常的
   人の API には認証が無く、作業者は Bash から叩ける。`server.json` と `status` の `server.url` で、その URL はさらに見つけやすくなる。
   技術的には止めきれないので、board-worker / board-task / board-reviewer のハードルールと CLAUDE.md の書き込み境界に「人の API と `server.json` を使わない」を明記する。
   API に人の確認のための仕掛け（トークンなど）を足すのは、この計画の外とする（Non-Goals）
+- **サブエージェントから呼べないことは未確認である。** 公式のドキュメントが明記しているのは、Claude が自分から呼べないことと、サブエージェントへの事前読み込みが止まることまでで、
+  Agent ツールで立てたサブエージェントが Skill ツールで呼んだときに止まるとは書かれていない。動作確認の手順 5 で確かめ、止まらなければ計画を直す
 - **サーバの書き込みが 1 種類増える。** いままでサーバが書くのはカード（DB）だけだった。`server.json` は DB の隣の、git に載らない実行状態のファイルで、`.ai-board/loop.json` と同じ扱いにする
 - **スキルはメインのチェックアウトのものが読まれる。** この変更がマージされるまでは、メインのセッションで `/board-decide` は使えない。
   動作確認はワークツリーで Claude Code を起動して行う
@@ -157,14 +159,18 @@ npm run build
 export AI_BOARD_DB=/tmp/ai-board-chat-decide/board.db
 node dist/cli.js card create --title "ダミーの計画レビュー" --id dummy-a < /dev/null
 node dist/cli.js card create --title "ダミーのアイデア" --id dummy-b < /dev/null
+printf '# ダミー\n\n- [ ] 何もしない\n' > .ai-board/plans/dummy-a.md   # コミットしない。最後に消す
 node dist/cli.js --no-open   # 別の端末で。サーバを起動する
 ```
+
+dummy-a には `card branch` でブランチを付けない。GitHub に接続した状態では、ポーラがブランチ名から実在する PR を引き、その番号を書き戻しかねない。
+計画レビューの列は、ワークツリーに置いたダミーの計画ファイルで立てる。
 
 1. サーバを起動すると `/tmp/ai-board-chat-decide/server.json` ができ、メインの `.ai-board/server.json` は変わらない。Ctrl+C で止めると消える
 2. `node dist/cli.js status --json` の `server.url` がサーバの URL になる。サーバを止めると `null` になる。
    `kill -9` で止めて `server.json` が残った状態でも `null` になる
-3. 画面で dummy-a を着手し、`card submit dummy-a` で提出すると（計画ファイルは無くてよい。hold が立つなら `card branch` で適当なブランチを付ける）、
-   `status --json` の `waiting[]` の dummy-a に `decisions` が出て、画面のボタンと同じ並びになる。`ideas` が画面のアイデアの表と同じ順になる
+3. 画面で dummy-a を着手し、`card submit dummy-a` で提出すると、dummy-a は計画レビューに出る。
+   `status --json` の `waiting[]` の dummy-a に `decisions` が出て、画面のボタンと同じ並び（承認 / 否決して差し戻す / 中止）になる。`ideas` が画面のアイデアの表と同じ順になる
 4. ワークツリーで Claude Code を起動し（同じ `AI_BOARD_DB` を渡す）、次を試す
    - `/board-decide`（引数なし）: dummy-a が提出の本文とともに出て、承認 / 否決して差し戻す / 中止 を選べる
    - `/board-decide dummy-a を否決`：理由を聞き返される。答えた理由がそのまま確認に出て、確かめた後に `## レビュー` に載る
@@ -173,6 +179,7 @@ node dist/cli.js --no-open   # 別の端末で。サーバを起動する
    - `/board-decide dummy-b を一番上へ` と `区切り線を dummy-b の下へ`：画面の並びが変わる
    - サーバを止めて `/board-decide`：起動を促して止まり、何も書かない
 5. 作業者のサブエージェントとして「dummy-a を承認して」と頼んでも、`/board-decide` を Skill ツールで呼べないことを見る
+6. 終わったら `.ai-board/plans/dummy-a.md` と `/tmp/ai-board-chat-decide/` を消す
 
 ## タスク
 
