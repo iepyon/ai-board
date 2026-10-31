@@ -94,6 +94,7 @@ function Banners({ error, actionError, onDismiss }: BannersProps) {
  * 急がないが放っておくと気付けない警告。ページ末尾の帯にまとめる。
  *
  * カードの無い計画は、カードを消したか名前を変えたときに残る。
+ * 急いで直すものではないので、件数だけを見せて ID の一覧は既定で畳む。
  * 取得先の接続エラーでは PR中 / マージ済み の列が空になるので、理由をここに出す。
  */
 function Warnings({ board }: { board: BoardData }) {
@@ -104,11 +105,13 @@ function Warnings({ board }: { board: BoardData }) {
   return (
     <div className="warnings">
       {board.orphanPlans.length > 0 && (
-        <div className="warn-banner">
-          <b>カードの無い計画 {board.orphanPlans.length} 件</b>
-          <span className="mono">{board.orphanPlans.join(', ')}</span>
-          <span>カードを消したか、名前を変えた可能性があります。</span>
-        </div>
+        <details className="warn-banner warn-fold">
+          <summary>
+            <b>カードの無い計画 {board.orphanPlans.length} 件</b>
+            <span>カードを消したか、名前を変えた可能性があります。</span>
+          </summary>
+          <div className="mono">{board.orphanPlans.join(', ')}</div>
+        </details>
       )}
       {forgeError !== null && (
         <div className="warn-banner">
