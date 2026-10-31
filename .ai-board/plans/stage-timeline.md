@@ -252,7 +252,7 @@ node dist/cli.js status --json | jq '.cards[] | {id, stage, readyAt: .mrState.re
 
 ## AI レビュー
 
-- [ ] `src/board/services/stage-timeline.ts:146` の `walk()` は、`中止` で `current` を `null` にした後に `readyAt`（`pr-review`）や `convertedToDraftAt`（`draft-returned`）の痕跡が来ると、そこから新しい区間を開いてしまう（例: PR中 で中止したカードの PR を後から Draft に戻すと、最後に `end: null` の `draft-returned` が残る）。計画の Decisions は「中止の後はエントリが続いたときだけ区間を始め直す」「中止で終わったカードは `end: null` を持たない」と決めている。中止で閉じた後は、`## レビュー` のエントリが来て区間を始め直すまで PR の痕跡では区間を開かない（`prReady` の更新は続ける）ようにし、`stage-timeline.test.ts` に「中止の後に Ready / Draft へ戻す痕跡が来ても区間を開かない」テストと「その後にエントリが来れば始め直す」テストを足す
+- [x] `src/board/services/stage-timeline.ts:146` の `walk()` は、`中止` で `current` を `null` にした後に `readyAt`（`pr-review`）や `convertedToDraftAt`（`draft-returned`）の痕跡が来ると、そこから新しい区間を開いてしまう（例: PR中 で中止したカードの PR を後から Draft に戻すと、最後に `end: null` の `draft-returned` が残る）。計画の Decisions は「中止の後はエントリが続いたときだけ区間を始め直す」「中止で終わったカードは `end: null` を持たない」と決めている。中止で閉じた後は、`## レビュー` のエントリが来て区間を始め直すまで PR の痕跡では区間を開かない（`prReady` の更新は続ける）ようにし、`stage-timeline.test.ts` に「中止の後に Ready / Draft へ戻す痕跡が来ても区間を開かない」テストと「その後にエントリが来れば始め直す」テストを足す
 
 ### 見送った指摘
 

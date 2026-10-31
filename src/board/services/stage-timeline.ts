@@ -143,19 +143,29 @@ interface OpenSegment {
   readonly start: string;
 }
 
+/**
+ * 痕跡を時刻の順に読み、区間を閉じては次の区間を始める。
+ *
+ * 中止で閉じた後は、`## レビュー` のエントリが来て区間を始め直すまで、PR の痕跡（Ready・Draft へ戻す）では区間を開かない。
+ * 中止で終わったカードに `end: null` を残さないためである。PR が Ready かどうかは、閉じている間も追い続ける。
+ */
 function walk(traces: readonly Trace[]): TimelineSegment[] {
   const segments: TimelineSegment[] = [];
   let current = null as OpenSegment | null;
   let prReady = false;
+  let closed = false;
 
   for (const item of traces) {
     prReady = item.prReady ?? prReady;
+    if (closed && item.prReady !== undefined) continue;
+
     const next = resolveNext(item.next, prReady);
 
     if (current?.kind === next) continue;
 
     if (current !== null) segments.push(toSegment(current, item.at));
     current = next === CLOSE ? null : { kind: next, start: item.at };
+    closed = current === null;
 
     if (item.stop === true) break;
   }

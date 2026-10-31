@@ -346,6 +346,90 @@ describe('resolveTimeline: 差し戻しと中止', () => {
     ]);
   });
 
+  it('中止の後に Draft へ戻す痕跡が来ても区間を開かない', () => {
+    const segments = resolveTimeline(
+      makeTraces({
+        startedAt: at(1),
+        entries: [
+          entry(2, 'plan', '提出'),
+          entry(3, 'plan', '承認'),
+          entry(4, 'verify', '提出'),
+          entry(5, 'verify', '承認'),
+          entry(7, 'verify', '中止'),
+        ],
+        readyAt: at(6),
+        convertedToDraftAt: at(8),
+      })
+    );
+
+    expect(shape(segments).slice(-2)).toEqual([
+      ['readying', 5, 6],
+      ['pr-review', 6, 7],
+    ]);
+    expectWellFormed(segments, { closed: true });
+  });
+
+  it('中止の後に Ready にする痕跡が来ても区間を開かない', () => {
+    const segments = resolveTimeline(
+      makeTraces({
+        startedAt: at(1),
+        entries: [entry(2, 'plan', '提出'), entry(3, 'plan', '承認'), entry(4, 'verify', '中止')],
+        readyAt: at(5),
+      })
+    );
+
+    expect(shape(segments).slice(-1)).toEqual([['implementing', 3, 4]]);
+    expectWellFormed(segments, { closed: true });
+  });
+
+  it('中止の後の Ready の痕跡は覚えておき、続いたエントリから区間を始め直す', () => {
+    const segments = resolveTimeline(
+      makeTraces({
+        startedAt: at(1),
+        entries: [
+          entry(2, 'plan', '提出'),
+          entry(3, 'plan', '承認'),
+          entry(4, 'verify', '提出'),
+          entry(5, 'verify', '中止'),
+          entry(7, 'verify', '承認'),
+        ],
+        readyAt: at(6),
+      })
+    );
+
+    // 中止の間に PR が Ready になっているので、verify 承認は readying を飛ばして pr-review を始める
+    expect(shape(segments).slice(-2)).toEqual([
+      ['verifying', 4, 5],
+      ['pr-review', 7, null],
+    ]);
+    expectWellFormed(segments, { closed: false, gapsAt: [at(7)] });
+  });
+
+  it('中止の後の Draft へ戻す痕跡は覚えておき、続いたエントリから区間を始め直す', () => {
+    const segments = resolveTimeline(
+      makeTraces({
+        startedAt: at(1),
+        entries: [
+          entry(2, 'plan', '提出'),
+          entry(3, 'plan', '承認'),
+          entry(4, 'verify', '提出'),
+          entry(5, 'verify', '承認'),
+          entry(7, 'verify', '中止'),
+          entry(9, 'verify', '承認'),
+        ],
+        readyAt: at(6),
+        convertedToDraftAt: at(8),
+      })
+    );
+
+    // Draft に戻っているので、verify 承認は readying を始める
+    expect(shape(segments).slice(-2)).toEqual([
+      ['pr-review', 6, 7],
+      ['readying', 9, null],
+    ]);
+    expectWellFormed(segments, { closed: false, gapsAt: [at(9)] });
+  });
+
   it('Draft に戻された: pr-review が閉じ、draft-returned（人）が開いている', () => {
     const segments = resolveTimeline(
       makeTraces({
