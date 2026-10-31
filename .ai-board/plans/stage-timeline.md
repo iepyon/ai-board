@@ -239,7 +239,7 @@ node dist/cli.js status --json | jq '.cards[] | {id, stage, readyAt: .mrState.re
 
 ### 3. ボードと status に載せる
 
-- [ ] `BoardCard` と `BoardCardMr` に `timeline` と `readyAt` を足し、`get-board.query.ts` で組み立てる。`src/web/types.ts` に型を写す。
+- [x] `BoardCard` と `BoardCardMr` に `timeline` と `readyAt` を足し、`get-board.query.ts` で組み立てる。`src/web/types.ts` に型を写す。
       e2e（`board.e2e.test.ts`）で `GET /api/board` の `timeline` を、status のテストで `status --json` の `cards[].timeline` を確かめる
 
 ### 4. ドキュメント

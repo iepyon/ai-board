@@ -134,6 +134,33 @@ describe('ai-board status --json', () => {
     expect(report.cards[0]).not.toHaveProperty('body');
   });
 
+  it('カードごとに区間の並び（timeline）を出す', async () => {
+    await writeCard(
+      'reviewing',
+      "created: '2026-10-19T00:00:00.000Z'\nstartedAt: '2026-10-19T12:00:00.000Z'\n",
+      review('提出')
+    );
+    await writePlan('reviewing', '# 計画\n\n- [ ] 1');
+
+    const report = await runJson();
+
+    expect(report.cards[0]?.timeline).toEqual([
+      {
+        kind: 'idea',
+        owner: 'human',
+        start: '2026-10-19T00:00:00.000Z',
+        end: '2026-10-19T12:00:00.000Z',
+      },
+      {
+        kind: 'planning',
+        owner: 'ai',
+        start: '2026-10-19T12:00:00.000Z',
+        end: '2026-10-20T00:00:00.000Z',
+      },
+      { kind: 'plan-review', owner: 'human', start: '2026-10-20T00:00:00.000Z', end: null },
+    ]);
+  });
+
   it('提出したのに成果物の見えないカードは次の一手にせず、判断待ちに理由付きで出す', async () => {
     await writeCard('lost', "startedAt: '2026-10-22T00:00:00.000Z'\n", review('提出'));
 

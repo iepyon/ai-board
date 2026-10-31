@@ -11,6 +11,7 @@ import {
 } from '../../services/stage-resolver.js';
 import { latestGateEntry, parseReviewLog } from '../../../cards/services/review-log.js';
 import { resolveHold } from '../../services/next-action.js';
+import { resolveTimeline } from '../../services/stage-timeline.js';
 import type { ReviewEntry } from '../../../cards/models/review.js';
 import type { Stage } from '../../../shared/schemas/common.js';
 import { GATE_OF_STAGE } from '../../../shared/stage-gates.js';
@@ -81,7 +82,16 @@ export function createGetBoardQuery(
         latestReview(entries, resolution.stage),
         toBoardCardPlan(plan),
         toBoardCardMr(mr),
-        resolveHold({ ...resolution, entries, mr, mrKnown })
+        resolveHold({ ...resolution, entries, mr, mrKnown }),
+        resolveTimeline({
+          created: card.created,
+          startedAt: card.startedAt,
+          skipGates: card.skipGates,
+          entries,
+          readyAt: mr?.readyAt ?? null,
+          mergedAt: mr?.mergedAt ?? null,
+          convertedToDraftAt: mr?.convertedToDraftAt ?? null,
+        })
       );
     });
 
@@ -128,6 +138,7 @@ function toBoardCardMr(mr: MrState | null): BoardCardMr | null {
     latestCommitAt: mr.latestCommitAt,
     resubmitted: hasFixAfterReview(mr),
     mergedAt: mr.mergedAt,
+    readyAt: mr.readyAt,
     convertedToDraftAt: mr.convertedToDraftAt,
   };
 }
