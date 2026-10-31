@@ -33,6 +33,14 @@ export interface MrState {
   /** マージされた日時。マージされていなければ null */
   readonly mergedAt: string | null;
   /**
+   * 最後に Ready にした時刻（`ready_for_review` のイベント）。
+   * 作成時から Ready の PR はこのイベントを残さないので、Draft でない PR でイベントが無ければ PR の作成時刻。
+   * 今 Draft で一度も Ready にしていなければ null。
+   *
+   * Draft と Ready を行き来した PR では最後の 1 つを採る。PR レビューの区間はそこから数える
+   */
+  readonly readyAt: string | null;
+  /**
    * 最後に Draft へ戻された時刻（`convert_to_draft` のイベント）。
    * 戻されたことが無い、または今 open かつ Draft でなければ null。
    *

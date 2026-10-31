@@ -1,6 +1,6 @@
 import type { MergeRequestIid } from '../../shared/schemas/common.js';
 import type { ForgeConfig } from '../../shared/config.js';
-import type { ForgeKind, MrLifecycleState, MrSnapshot } from '../models/mr-state.js';
+import type { ForgeKind, MrLifecycleState, MrSnapshot, MrState } from '../models/mr-state.js';
 import { asArray, latestOf, toMergeRequestIid, type ForgeClient } from './forge-client.js';
 import {
   parseJson,
@@ -22,7 +22,7 @@ const PER_PAGE = 100;
  * 指紋の作り方の版。`enrich` の組み立て方を変えたら上げる。
  * 上げると保存済みの控えの指紋がすべて合わなくなり、1 度ずつ引き直される。
  */
-const FINGERPRINT_VERSION = 1;
+const FINGERPRINT_VERSION = 2;
 
 interface RawPullRequest {
   number: number;
@@ -33,6 +33,8 @@ interface RawPullRequest {
   head: { ref: string; sha: string };
   title: string;
   html_url: string;
+  /** 作成時から Ready の PR は `ready_for_review` を残さないので、Ready にした時刻の代わりに使う */
+  created_at?: string;
   updated_at?: string;
   /** issue comment の件数。`pulls/{n}` にだけあり、一覧（`pulls?head=`）には無い */
   comments?: number;
@@ -81,7 +83,7 @@ export class GhForgeClient implements ForgeClient {
   /**
    * PR 本体を 1 回引き、指紋が `previous` と同じなら `previous` をそのまま返す。
    *
-   * コメント・コミット・イベントの問い合わせは PR 1 枚につき 3〜4 回以上かかる。
+   * コメント・コミット・イベントの問い合わせは PR 1 枚につき 4 回以上かかる。
    * 変化の無い PR でこれを毎回繰り返すと、ポーリングのたびに PR の枚数の 4 倍以上を使い、GitHub の上限（5,000 回/時）に近づく。
    */
   async fetchByIid(
@@ -111,7 +113,7 @@ export class GhForgeClient implements ForgeClient {
   }
 
   /**
-   * PR 本体に加えてコメントと最新コミットを取得する。
+   * PR 本体に加えてコメント・最新コミット・イベントを取得する。
    *
    * GitHub は人のコメントを 2 か所に分けて記録する。PR 全体への返信は issue comment、
    * コード行への指摘は review comment で、エンドポイントが別。
@@ -128,11 +130,11 @@ export class GhForgeClient implements ForgeClient {
     const state = toLifecycleState(pr.state, pr.merged_at);
     const draft = pr.draft === true;
 
-    const [issueComments, reviewComments, headCommit, convertedToDraftAt] = await Promise.all([
+    const [issueComments, reviewComments, headCommit, events] = await Promise.all([
       this.getAll<RawComment>(`issues/${pr.number}/comments`),
       this.getAll<RawComment>(`pulls/${pr.number}/comments`),
       this.get<RawCommit>(`commits/${pr.head.sha}`),
-      state === 'opened' && draft ? this.fetchConvertedToDraftAt(pr.number) : null,
+      this.getAll<RawIssueEvent>(`issues/${pr.number}/events`),
     ]);
 
     // 自動生成のコメントは人のレビューではない
@@ -150,26 +152,10 @@ export class GhForgeClient implements ForgeClient {
       noteCount: comments.length,
       latestCommitAt: commitDate(headCommit),
       mergedAt: pr.merged_at,
-      convertedToDraftAt,
+      ...draftTransitionsOf(events, state, draft, pr.created_at ?? null),
     };
 
     return { mr, fingerprint };
-  }
-
-  /**
-   * 最後に Draft へ戻された時刻を、PR のイベントの `convert_to_draft` から引く。
-   *
-   * 使うのは open かつ Draft の PR だけなので、呼び出し側でそのときに限って問い合わせる
-   * （Ready の PR やマージ済みの PR に 1 回ずつ余計な問い合わせを足さない）。
-   * 作成時から Draft の PR はこのイベントを残さない。
-   * コメントと同じく既定は古い順の 1 ページ目なので、全ページ読んで最大値を取る。
-   */
-  private async fetchConvertedToDraftAt(iid: number): Promise<string | null> {
-    const events = await this.getAll<RawIssueEvent>(`issues/${iid}/events`);
-
-    return latestOf(
-      events.filter((event) => event.event === 'convert_to_draft').map((event) => event.created_at)
-    );
   }
 
   /** 404 は「存在しない」として null を返す。それ以外の失敗は例外にする */
@@ -241,6 +227,31 @@ function fingerprintOf(pr: RawPullRequest): string {
  */
 function isHumanComment(comment: RawComment): boolean {
   return comment.user?.type !== 'Bot';
+}
+
+/**
+ * PR のイベントから、最後に Ready にした時刻と最後に Draft へ戻された時刻を取る。
+ *
+ * `readyAt` は Ready の PR とマージ済みの PR でこそ要るので、イベントの一覧は PR の状態を問わず引く。
+ * 作成時から Ready の PR は `ready_for_review` を残さないので、Draft でなければ作成時刻で補う。
+ *
+ * `convertedToDraftAt` は今 open かつ Draft のときだけ値を持つ（止まりの判定がその前提で読む）。
+ * 作成時から Draft の PR は `convert_to_draft` を残さない。
+ * イベントの一覧も既定は古い順の 1 ページ目なので、全ページ読んで最大値を取る。
+ */
+function draftTransitionsOf(
+  events: readonly RawIssueEvent[],
+  state: MrLifecycleState,
+  draft: boolean,
+  createdAt: string | null
+): Pick<MrState, 'readyAt' | 'convertedToDraftAt'> {
+  const latestEvent = (name: string): string | null =>
+    latestOf(events.filter((event) => event.event === name).map((event) => event.created_at));
+
+  return {
+    readyAt: latestEvent('ready_for_review') ?? (draft ? null : createdAt),
+    convertedToDraftAt: state === 'opened' && draft ? latestEvent('convert_to_draft') : null,
+  };
 }
 
 /**

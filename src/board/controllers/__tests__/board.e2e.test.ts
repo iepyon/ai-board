@@ -149,6 +149,7 @@ describe('GET /api/board', () => {
       noteCount: 1,
       latestCommitAt: '2026-09-04T10:30:00.000Z',
       mergedAt: null,
+      readyAt: '2026-09-04T09:00:00.000Z',
       convertedToDraftAt: null,
     };
 
@@ -187,6 +188,7 @@ describe('GET /api/board', () => {
       noteCount: 0,
       latestCommitAt: null,
       mergedAt: '2026-09-25T03:00:00.000Z',
+      readyAt: '2026-09-25T00:00:00.000Z',
       convertedToDraftAt: null,
     };
 
@@ -311,6 +313,7 @@ describe('GET /api/board', () => {
       noteCount: 0,
       latestCommitAt: null,
       mergedAt: null,
+      readyAt: null,
       convertedToDraftAt: '2026-09-08T00:00:00Z',
     };
 
@@ -630,6 +633,7 @@ describe('移動できる先の制限', () => {
       noteCount: 0,
       latestCommitAt: null,
       mergedAt: null,
+      readyAt: null,
       convertedToDraftAt: null,
     };
 
@@ -908,6 +912,7 @@ describe('POST /api/cards/:id/reviews（動作確認）', () => {
     noteCount: 0,
     latestCommitAt: '2026-09-07T12:00:00.000Z',
     mergedAt: null,
+    readyAt: null,
     convertedToDraftAt: null,
   };
 

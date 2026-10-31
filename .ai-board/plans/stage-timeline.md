@@ -233,7 +233,7 @@ node dist/cli.js status --json | jq '.cards[] | {id, stage, readyAt: .mrState.re
 
 ### 2. PR を Ready にした時刻
 
-- [ ] `MrState` に `readyAt` を足し、`github-client.ts` の `enrich` が PR の状態を問わずイベントの一覧を 1 回引いて `readyAt`（最後の `ready_for_review`、無ければ Draft でない PR は `created_at`）と `convertedToDraftAt`（今の意味のまま）を取るようにする。
+- [x] `MrState` に `readyAt` を足し、`github-client.ts` の `enrich` が PR の状態を問わずイベントの一覧を 1 回引いて `readyAt`（最後の `ready_for_review`、無ければ Draft でない PR は `created_at`）と `convertedToDraftAt`（今の意味のまま）を取るようにする。
       控えのスキーマ（`.nullable()` の必須）と `isSameMrState` に足し、`MrState` を組み立てているテストの fixture をすべて直す。
       github-client のテストに、Ready を行き来した PR・作成時から Ready の PR・マージ済みの PR・今 Draft の PR の `readyAt` を足し、snapshot のテストに `readyAt` の無い古い控えが外れることを足す
 

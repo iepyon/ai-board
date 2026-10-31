@@ -20,6 +20,8 @@ const MrStateSchema = z.object({
   noteCount: z.number().int().nonnegative(),
   latestCommitAt: z.string().nullable(),
   mergedAt: z.string().nullable(),
+  // .optional() にしない。readyAt を持たない古い控えを外し、引き直させる（マージ済みの PR もこれで 1 度だけ引き直す）
+  readyAt: z.string().nullable(),
   convertedToDraftAt: z.string().nullable(),
 });
 
