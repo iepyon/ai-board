@@ -211,7 +211,7 @@ plan を飛ばすカードには plan 承認のエントリが無いので、こ
 ### 6. ループとスキル
 
 - [x] `.claude/agents/board-planner.md` の `revise-plan` で、立て直しの判定に「plan を飛ばす宣言のカードでは、否決より前の plan 提出 / 再提出」を足す
-- [ ] `.claude/skills/board-decide/SKILL.md` に「計画レビューを飛ばす」の操作（表と curl の例）を足し、説明の起動の言葉に足す。ハードルールの「`skipGates` の `plan` に触れない」を外す
+- [x] `.claude/skills/board-decide/SKILL.md` に「計画レビューを飛ばす」の操作（表と curl の例）を足し、説明の起動の言葉に足す。ハードルールの「`skipGates` の `plan` に触れない」を外す
 
 ### 7. ドキュメント
 
