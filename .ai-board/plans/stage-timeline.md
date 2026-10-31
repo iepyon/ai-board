@@ -261,3 +261,4 @@ node dist/cli.js status --json | jq '.cards[] | {id, stage, readyAt: .mrState.re
 ### 人に判断してほしいこと
 
 - `src/board/services/github-client.ts` の `draftTransitionsOf()` は、作成時から Ready の PR の `readyAt` を `created_at` で補う。`stage-timeline.ts` の `toTraces()` はこれを時刻どおりに並べるので、Ready で作った PR では `planning` の途中（plan 提出より前）に短い `pr-review` が挟まり、以後 `prReady` が真のままになって verify 承認で `readying` が飛ばされる。verify を飛ばすカードでは `implementing` がマージまで続き、PR レビューの時間が AI の区間に数えられる。計画の Decisions どおりの振る舞いで、今のループは Draft で PR を作るので古いカードや手で作った PR でだけ起きる。このままにするか、補った `readyAt` を最後のエントリより前なら使わないなどの形にするかは人が決める
+  - 判断（2026-10-31、人が動作確認の承認で決めた）: 今のまま（案 A）にする。今のボードで影響を受けるカードは 0 枚で、ループは必ず Draft で PR を出すため。手で Ready の PR を作ってカードに紐づける使い方が増えたら、`readyAt` が最初の `## レビュー` のエントリより前なら区間を始めない形（案 B）に直す。「最後のエントリより前」にすると、verify 承認より前に人が Ready にしたカードまで区間が消えるので採らない
