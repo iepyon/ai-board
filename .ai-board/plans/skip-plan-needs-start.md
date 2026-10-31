@@ -176,7 +176,7 @@ plan を飛ばすカードには plan 承認のエントリが無いので、こ
 
 ### 1. ゲートの読み替え
 
-- [ ] 宣言のあるゲートの 提出 / 再提出 を承認と読むように、ゲートの状態と古いエントリの区切りを変える。型と呼び出し側とテストを 1 つのコミットにまとめる
+- [x] 宣言のあるゲートの 提出 / 再提出 を承認と読むように、ゲートの状態と古いエントリの区切りを変える。型と呼び出し側とテストを 1 つのコミットにまとめる
   - `review-log.ts`: `gateState` の「宣言があれば `approved`」をやめ、最新が 提出 / 再提出 で宣言があれば `approved` にする。
     `currentEntries` の区切りに宣言のあるゲートの 提出 / 再提出 を含め、`latestGateEntry` に `skipGates` を足す。docstring（97 行目付近、169 行目付近）を直す
   - 呼び出し側: `get-board.query.ts` の `latestReview` と `resolveHold` の呼び出し、`next-action.ts` の `HoldInput`（`skipGates` を足す）と `draftReverted` / `since`。

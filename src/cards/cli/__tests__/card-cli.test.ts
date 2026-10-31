@@ -173,10 +173,14 @@ describe('runCardCli', () => {
     expect(await bodyOf('a')).not.toContain('verify 提出');
   });
 
-  it('submit は skipGates に plan があれば承認が無くても --gate verify を受け付ける', async () => {
+  it('submit は skipGates に plan があれば、承認が無くても plan 提出 の後の --gate verify を受け付ける', async () => {
     await seed('a');
     await deps.updateCardMetaCommand({ id: 'a' as CardId, patch: { skipGates: ['plan'] } });
 
+    expect(await run(['submit', 'a', '--gate', 'verify'])).toBe(1);
+    expect(await bodyOf('a')).not.toContain('verify 提出');
+
+    expect(await run(['submit', 'a', '--gate', 'plan'])).toBe(0);
     expect(await run(['submit', 'a', '--gate', 'verify'])).toBe(0);
     expect(await bodyOf('a')).toContain('verify 提出');
   });

@@ -207,7 +207,11 @@ describe('resolveStage — 自動導出', () => {
     },
     {
       name: 'tasks が 0 件でも impling',
-      card: makeCard({ startedAt: T1, skipGates: ['plan'] }),
+      card: makeCard({
+        startedAt: T1,
+        skipGates: ['plan'],
+        body: makeBody({ entries: [{ at: T2, gate: 'plan', kind: '提出' }] }),
+      }),
       plan: makePlan({ tasks: { completed: 0, total: 0 } }),
       mr: null,
       expected: 'impling',
@@ -517,30 +521,87 @@ describe('resolveStage — ゲートの状態', () => {
     expect(reapproved.gates).toEqual({ plan: 'approved', verify: 'none' });
   });
 
-  it('plan を飛ばす宣言のカードでは verify のエントリが外れない', () => {
+  it('plan を飛ばすカードで計画から立て直すと、再提出 の後は前の verify のエントリを数えない', () => {
+    const at = (minutes: number): string =>
+      new Date(Date.parse(T2) + minutes * 60_000).toISOString();
+    const log = [
+      { at: at(0), gate: 'plan', kind: '提出' },
+      { at: at(1), gate: 'verify', kind: '提出' },
+      { at: at(2), gate: 'verify', kind: '否決' },
+      { at: at(3), gate: 'plan', kind: '否決' },
+      { at: at(4), gate: 'plan', kind: '再提出' },
+    ];
+    const resolveAfter = (count: number) =>
+      resolveStage(
+        makeCard({
+          startedAt: T1,
+          skipGates: ['plan'],
+          body: makeBody({ entries: log.slice(0, count) }),
+        }),
+        makePlan(),
+        makeMr({ draft: true })
+      );
+
+    expect(resolveAfter(3).gates).toEqual({ plan: 'approved', verify: 'rejected' });
+    expect(resolveAfter(3).stage).toBe('impling');
+    expect(resolveAfter(4).gates).toEqual({ plan: 'rejected', verify: 'rejected' });
+    expect(resolveAfter(4).stage).toBe('planning');
+
+    const resubmitted = resolveAfter(5);
+    expect(resubmitted.gates).toEqual({ plan: 'approved', verify: 'none' });
+    expect(resubmitted.stage).toBe('impling');
+  });
+});
+
+describe('resolveStage — 計画レビューを飛ばす宣言', () => {
+  const submitted = makeBody({ entries: [{ at: T2, gate: 'plan', kind: '提出' }] });
+
+  it('着手していなければ、エントリが無いうちは idea に留まる', () => {
+    const card = makeCard({ skipGates: ['plan'] });
+
+    expect(resolveStage(card, null, null).stage).toBe('idea');
+  });
+
+  it('着手して、エントリが無ければ planning', () => {
+    const card = makeCard({ startedAt: T1, skipGates: ['plan'] });
+
+    const resolved = resolveStage(card, null, null);
+
+    expect(resolved.stage).toBe('planning');
+    expect(resolved.gates).toEqual({ plan: 'none', verify: 'none' });
+  });
+
+  it('plan 提出 があれば、計画ファイルと Draft の PR があっても計画レビューに留まらず impling', () => {
+    const card = makeCard({ startedAt: T1, skipGates: ['plan'], body: submitted });
+
+    const resolved = resolveStage(card, makePlan(), makeMr({ draft: true }));
+
+    expect(resolved.stage).toBe('impling');
+    expect(resolved.gates.plan).toBe('approved');
+  });
+
+  it('plan 否決 があれば planning へ戻る', () => {
     const card = makeCard({
       startedAt: T1,
       skipGates: ['plan'],
       body: makeBody({
         entries: [
-          { at: T2, gate: 'verify', kind: '提出' },
-          { at: T3, gate: 'verify', kind: '否決' },
+          { at: T2, gate: 'plan', kind: '提出' },
+          { at: T3, gate: 'plan', kind: '否決' },
         ],
       }),
     });
 
-    expect(resolveStage(card, makePlan(), makeMr({ draft: true })).gates).toEqual({
-      plan: 'approved',
-      verify: 'rejected',
-    });
+    expect(resolveStage(card, makePlan(), makeMr({ draft: true })).stage).toBe('planning');
   });
 
-  it('スキップを宣言したカードはレビュー列に留まらない', () => {
-    const card = makeCard({ startedAt: T1, skipGates: ['plan'] });
+  it('未着手の下限は、提出の前は idea、提出の後は impling', () => {
+    const before = makeCard({ startedAt: T1, skipGates: ['plan'] });
+    const after = makeCard({ startedAt: T1, skipGates: ['plan'], body: submitted });
 
-    const stage = resolveStage(card, makePlan(), null).stage;
-
-    expect(stage).not.toBe('plan-review');
+    expect(resolveFloorStage(before, null, null)).toBe('idea');
+    expect(droppableStages(resolveFloorStage(before, null, null))).toEqual(['idea', 'planning']);
+    expect(resolveFloorStage(after, makePlan(), makeMr({ draft: true }))).toBe('impling');
   });
 });
 

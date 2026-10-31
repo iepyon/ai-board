@@ -185,13 +185,14 @@ function entry(minute: number, gate: ReviewGate, kind: ReviewKind, reason = ''):
 function holdInput(
   stage: HoldInput['stage'],
   entries: ReviewEntry[],
-  overrides: Partial<HoldInput> & { skipGates?: ReviewGate[] } = {}
+  overrides: Partial<HoldInput> = {}
 ): HoldInput {
   const { skipGates = [], ...rest } = overrides;
   return {
     stage,
     aborted: false,
     gates: gateStates(entries, skipGates),
+    skipGates,
     entries,
     mr: null,
     mrKnown: true,
@@ -331,12 +332,78 @@ describe('resolveHold', () => {
     expect(hold).toEqual({ reason: HOLD_REASONS.draftReverted(38), since: convertedAt });
   });
 
-  it('レビューのエントリが 1 件も無いカードは、Draft に戻された時点で止まる', () => {
+  it('plan を飛ばす宣言のカードは、plan 提出 より後に Draft に戻されたら止まる', () => {
+    const submitted = [entry(0, 'plan', '提出')];
     const hold = resolveHold(
-      holdInput('impling', [], { skipGates: ['plan'], mr: draftMr('2026-10-20T01:00:00Z') })
+      holdInput('impling', submitted, { skipGates: ['plan'], mr: draftMr('2026-10-20T01:00:00Z') })
     );
 
     expect(hold?.reason).toBe(HOLD_REASONS.draftReverted(38));
+    expect(
+      resolveHold(
+        holdInput('impling', submitted, {
+          skipGates: ['plan'],
+          mr: draftMr('2026-10-19T23:00:00Z'),
+        })
+      )
+    ).toBeNull();
+  });
+
+  it('plan を飛ばす宣言の着手済みのカードには plan が選ばれ、提出の後は implement が選ばれる', () => {
+    const before = holdInput('planning', [], { skipGates: ['plan'] });
+    const after = holdInput('impling', [entry(0, 'plan', '提出')], { skipGates: ['plan'] });
+
+    expect(before.gates.plan).toBe('none');
+    expect(
+      pickNextAction([
+        makeCard({
+          id: 'a',
+          stage: 'planning',
+          gates: before.gates,
+          skipGates: ['plan'],
+          hold: resolveHold(before),
+        }),
+      ])?.action
+    ).toBe('plan');
+
+    expect(after.gates.plan).toBe('approved');
+    expect(
+      pickNextAction([
+        makeCard({
+          id: 'a',
+          stage: 'impling',
+          gates: after.gates,
+          skipGates: ['plan'],
+          hold: resolveHold(after),
+        }),
+      ])?.action
+    ).toBe('implement');
+  });
+
+  it('動作確認を飛ばす宣言のカードで、否決の後の verify 再提出 は implement が選ばれる', () => {
+    const input = holdInput(
+      'impling',
+      [
+        ...approvedPlan,
+        entry(2, 'verify', '提出'),
+        entry(3, 'verify', '否決'),
+        entry(4, 'verify', '再提出'),
+      ],
+      { skipGates: ['verify'] }
+    );
+
+    expect(input.gates.verify).toBe('approved');
+    expect(
+      pickNextAction([
+        makeCard({
+          id: 'a',
+          stage: 'impling',
+          gates: input.gates,
+          skipGates: ['verify'],
+          hold: resolveHold(input),
+        }),
+      ])?.action
+    ).toBe('implement');
   });
 
   it('Draft に戻されたことが無い PR では止まらない', () => {
