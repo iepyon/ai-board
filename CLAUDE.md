@@ -333,9 +333,17 @@ GitHub の PR は `state` が `open` / `closed` の 2 値しかなく、**マー
 最新コミットは `pulls/{n}/commits` ではなく `head.sha` を直接引く（件数で取り逃がさない）。
 自動生成のコメントを示すフラグは無く、`user.type === 'Bot'` で外す。
 
-Draft に戻された時刻（`convertedToDraftAt`）は `issues/{n}/events` の `convert_to_draft` から、
-同じく `--paginate` で全ページ引いて最大値を取る。使うのは open かつ Draft の PR だけなので、そのときにだけ問い合わせる
-（Ready の PR やマージ済みの PR に問い合わせを足さない）。
+PR のイベントの一覧（`issues/{n}/events`）は、PR の状態を問わず `enrich` のたびに 1 回、同じく `--paginate` で全ページ引く。
+そこから 2 つの時刻を取る（`draftTransitionsOf`）。
+
+- Ready にした時刻（`readyAt`）は、最後の `ready_for_review`。作成時から Ready の PR はこのイベントを残さないので、
+  Draft でない PR でイベントが無ければ PR の作成時刻（`created_at`）で補う。今 Draft で一度も Ready にしていなければ `null`。
+  区間の並び（`timeline`）の「PR レビュー」はここから数えるので、Ready の PR とマージ済みの PR でこそ要る
+- Draft に戻された時刻（`convertedToDraftAt`）は、最後の `convert_to_draft`。今 open かつ Draft のときだけ値を持ち、
+  それ以外は `null` にする（`resolveHold` がその前提で読む）
+
+かつてはイベントを open かつ Draft の PR にしか問い合わせなかったが、`readyAt` のために常に引くようにした。
+問い合わせが増えるのは `enrich` が走るとき（指紋が変わったとき）だけで、マージ済みの PR は下の `isSettled` で引き直さない。
 
 PR 一覧の全件取得はページングで取りこぼすため使わず、カード単位で問い合わせる。
 
@@ -373,7 +381,17 @@ GitLab の MR !1 と GitHub の PR #1 は別物で、番号をそのまま引く
 | `GET`    | `/api/events`            | SSE。ファイル変更・ポーリング結果を push                |
 
 `GET /api/board` の各カードは `hold`（止まり。`{ reason, since }` か `null`）と、
-`mrState.convertedToDraftAt`（最後に Draft へ戻された時刻）も持つ。
+`mrState.readyAt`（最後に Ready にした時刻）、`mrState.convertedToDraftAt`（最後に Draft へ戻された時刻）、
+`timeline`（区間の並び）も持つ。`ai-board status --json` の `cards[]` も同じものを持つ。
+
+`timeline` は、カードが各工程にいた時間を区間の配列として時刻の順に並べたもので、
+`src/board/services/stage-timeline.ts` の純関数 `resolveTimeline` が痕跡から毎回導出する（保存しない）。
+痕跡は `created`・`startedAt`・`## レビュー` の全エントリ・`readyAt`・`convertedToDraftAt`・`mergedAt` で、
+`## レビュー` は `currentEntries` を通さずに全部読む（「計画から立て直させる」のような今は効いていない古いエントリこそが区間の境目になる）。
+区間は `{ kind, owner, start, end }` で、種類（12 種類）と担当（`human` / `ai`）の一覧は `src/shared/timeline.ts` にある。
+今いる区間は `end: null` で、導出は今の時刻を受け取らない（長さを出す側が `generatedAt` までを数える）。
+マージと中止は今の区間を閉じるだけで次の区間を始めない。長さ 0 の区間は落とし、隣り合う同じ種類の区間はつなぐ。
+画面にはまだ出さない。
 `POST /api/cards/:id/reviews` は 提出 / 再提出 / 保留 を 400 で拒む。
 
 ## 計画ファイル

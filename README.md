@@ -481,9 +481,9 @@ PR 一覧の全件取得はページングで取りこぼすため使わず、�
 GitHub はレビューコメントが 2 か所（PR 全体への返信とコード行への指摘）に分かれるため、
 両方を合算して「人が書いた最新のコメント」とする。
 
-open かつ Draft の PR だけは、PR のイベント（`issues/{n}/events`）も引き、
-最後に Draft へ戻された時刻（`convert_to_draft`）を取る（前述の「止まり」）。
-Ready の PR やマージ済みの PR には、この問い合わせを足さない。
+PR のイベント（`issues/{n}/events`）は PR の状態を問わず引き、2 つの時刻を取る。
+最後に Ready にした時刻（`ready_for_review`。作成時から Ready の PR は作成時刻）は、区間の並び（`timeline`）の PR レビューの始まりになる。
+最後に Draft へ戻された時刻（`convert_to_draft`）は、今 open かつ Draft の PR でだけ値を持ち、前述の「止まり」に使う。
 
 ### GitLab 連携の廃止
 
@@ -552,9 +552,15 @@ src/
   判断待ちの区画が出す提出の本文と、待ち始めた時刻はここから取る
 - `plan.updatedAt` — 計画ファイルの mtime。「動きなし」の目安と、PR の無いマージ済みカードの日付
 - `mrState.mergedAt` — PR の `merged_at`
+- `mrState.readyAt` — 最後に Ready にした時刻（`ready_for_review` のイベント）。作成時から Ready の PR は作成時刻。
+  今 Draft で一度も Ready にしていなければ `null`
 - `mrState.convertedToDraftAt` — 最後に Draft へ戻された時刻。今 open かつ Draft でなければ `null`
 - `hold` — 止まり（前述）。`{ reason, since }` か `null`。`reason` は人が何をすればよいか、`since` は人を待ち始めた時刻。
   判断待ちの区画への振り分けと、AI ループが選ばないことの両方がこの値を読む
+- `timeline` — カードが各工程にいた時間を区間として時刻の順に並べたもの（区間の並び）。
+  各区間は `{ kind, owner, start, end }` で、`owner` は `human` / `ai`、今いる区間は `end: null`。
+  起票・着手・`## レビュー` の各エントリ・PR の Ready / Draft へ戻す / マージの時刻から毎回導出し、保存しない。
+  差し戻しがあれば同じ `kind` が何度も現れる。`ai-board status --json` の `cards[]` も同じものを持つ
 
 ステージを直接指定する入力口は無い。`POST /api/cards/:id/reviews` はゲート（`plan` / `verify`）・種別・理由文を
 受け取って本文へ追記するだけで、列は次の `GET /api/board` で導出し直される。

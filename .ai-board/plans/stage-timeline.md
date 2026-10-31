@@ -244,7 +244,7 @@ node dist/cli.js status --json | jq '.cards[] | {id, stage, readyAt: .mrState.re
 
 ### 4. ドキュメント
 
-- [ ] `CLAUDE.md`（レビュー要求の取得先の節のイベントの問い合わせの決まり、API の節）、`README.md`（`GET /api/board` の項目の一覧）、`docs/specs/board-stages/spec.md` に、区間の並びと `readyAt` を書く
+- [x] `CLAUDE.md`（レビュー要求の取得先の節のイベントの問い合わせの決まり、API の節）、`README.md`（`GET /api/board` の項目の一覧）、`docs/specs/board-stages/spec.md` に、区間の並びと `readyAt` を書く
 
 ### 5. 確かめる
 
