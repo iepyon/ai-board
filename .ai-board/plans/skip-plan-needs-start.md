@@ -200,7 +200,7 @@ plan を飛ばすカードには plan 承認のエントリが無いので、こ
 
 ### 4. 判断のボタン
 
-- [ ] `dashboard-sections.ts` の `decisionsFor` で、宣言のあるゲートの承認 / 否決を隠すのをやめる。`DecisionCard` から `skipGates` を外し、docstring を直す
+- [x] `dashboard-sections.ts` の `decisionsFor` で、宣言のあるゲートの承認 / 否決を隠すのをやめる。`DecisionCard` から `skipGates` を外し、docstring を直す
   - テスト: plan を飛ばすカードが実装中で止まると「計画から立て直させる」が出る / verify を飛ばすカードが Draft に戻されると「実装を直させる」が出る
 
 ### 5. 画面

@@ -134,7 +134,6 @@ export interface DecisionCard extends Pick<SectionCard, 'stage' | 'aborted' | 'h
   readonly gates: {
     readonly plan: 'none' | 'submitted' | 'held' | 'approved' | 'rejected';
   };
-  readonly skipGates: readonly DecisionGate[];
 }
 
 const approve = (gate: DecisionGate): Decision => ({
@@ -174,20 +173,13 @@ const replan = reject('plan', '計画から立て直させる');
  *
  * PR中 のカードは GitHub で PR をマージして判断するので出さない。中止のカードにも出さない。
  *
- * 飛ばす宣言（`skipGates`）のあるゲートの承認 / 否決は出さない。
- * そのゲートはログを見ずに通過扱いなので、否決を書いても差し戻しにならない
- * （verify を飛ばすカードで「実装を直させる」を押すと、何も直らないまま Ready にし直される）。
- * 中止はゲートの状態に効かないので残す。
+ * 飛ばす宣言（`skipGates`）の有無では出し分けない。
+ * 宣言のあるゲートでも、AI の 提出 / 再提出 を承認と読むだけで、人の否決 / 承認はふつうに効く（`gateState`）。
+ * plan を飛ばすカードでも「計画から立て直させる」を、verify を飛ばすカードでも「実装を直させる」を押せる。
  */
 export function decisionsFor(card: DecisionCard): Decision[] {
   if (card.aborted) return [];
 
-  return candidateDecisions(card).filter(
-    (decision) => decision.kind === '中止' || !card.skipGates.includes(decision.gate)
-  );
-}
-
-function candidateDecisions(card: DecisionCard): Decision[] {
   switch (card.stage) {
     case 'plan-review':
       return [approve('plan'), reject('plan', '否決して差し戻す'), abort('plan')];
