@@ -86,7 +86,7 @@ node dist/cli.js --root /path/to/your-project
   --root <path>          対象プロジェクトのルート (既定: カレントディレクトリ)
   --port <n>             待ち受けポート (既定: 5673、使用中なら自動で繰り上げ)
   --no-open              ブラウザを自動で開かない
-  --poll-interval <ms>   GitHub のポーリング間隔 (既定: 30000)
+  --poll-interval <ms>   GitHub のポーリング間隔 (既定: 60000)
   -h, --help             ヘルプを表示
 ```
 
