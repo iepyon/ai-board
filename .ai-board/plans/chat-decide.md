@@ -216,9 +216,9 @@ dummy-a には `card branch` でブランチを付けない。GitHub に接続�
 
 ### 4. 境界の明文化
 
-- [ ] `.claude/agents/board-worker.md`・`board-task.md`・`board-reviewer.md` のハードルールに「`board-decide` のスキルを呼ばない。人の API（`/api/...`）と `server.json` を使わない」を足す
-- [ ] `.claude/skills/board-loop/SKILL.md` に「周の中で自分から判断を書かない。人がチャットで頼んだときだけ `board-decide` で書く」を足す
-- [ ] `CLAUDE.md` の書き込み境界の表と「やってはいけないこと」、`status` の説明（`server` / `decisions` / `ideas`）、サーバが書くもの（`server.json`）を直す。`CLAUDE.md` に「人がこの会話で頼んだ判断は `board-decide` で書いてよい」を足す。`README.md` に `board-decide` を足す
+- [x] `.claude/agents/board-worker.md`・`board-task.md`・`board-reviewer.md` のハードルールに「`board-decide` のスキルを呼ばない。人の API（`/api/...`）と `server.json` を使わない」を足す
+- [x] `.claude/skills/board-loop/SKILL.md` に「周の中で自分から判断を書かない。人がチャットで頼んだときだけ `board-decide` で書く」を足す
+- [x] `CLAUDE.md` の書き込み境界の表と「やってはいけないこと」、`status` の説明（`server` / `decisions` / `ideas`）、サーバが書くもの（`server.json`）を直す。`CLAUDE.md` に「人がこの会話で頼んだ判断は `board-decide` で書いてよい」を足す。`README.md` に `board-decide` を足す
 
 ### 5. 確かめる
 

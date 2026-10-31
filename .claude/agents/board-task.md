@@ -104,6 +104,7 @@ cd "$WT" && npm run typecheck && npm run lint && npm run format:check && npm tes
 - 渡されたタスク 1 つだけを行う。ほかのタスクのチェックボックスに触らない。計画のタスクの文を書き換えない
 - カードに書かない（`ai-board card submit` / `hold` / `body` / `branch` を呼ばない）。`startedAt` / `rank` / `skipGates` を書かない
 - AI レビュー（`/code-review`）をかけない。レビューはレビューの作業者（board-reviewer）がする
+- `board-decide` のスキルを使わない。共有のボードのサーバの人の API（`/api/...`）と `server.json` も使わない（人の判断を書く入口であり、人がチャットで頼んだときに人のセッションだけが使う）。`AI_BOARD_DB` で別の DB を指して自分で起動したサーバを試すのは構わない
 - 計画を archive へ移さない。動作確認の提出をしない。PR の本文を変えない。PR にコメントしない。PR を Ready にしない。マージしない
 - 品質ゲートを通らないままコミットしない
 - カード ID・ブランチ名・PR 番号を推測で作らない。見つからなければ止まって報告する
