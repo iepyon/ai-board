@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ★ が人の判断を待つ HIL ゲート。計画レビューは計画を読み、動作確認はブランチを動かして振る舞いを確かめ、
 PR中 はコードの差分を読む。人が動かすのは `アイデア ⇄ 計画提案中` の 1 遷移だけ（「着手」「着手を戻す」ボタン）。
 
-スタックは TypeScript (ESM, Node >= 22.13。カードの保存に組み込みの `node:sqlite` を使う) / Express 5 + React 19 + Vite / Vitest。
+スタックは TypeScript (ESM, Node >= 26。カードの保存に組み込みの `node:sqlite` を使う) / Express 5 + React 19 + Vite / Vitest。
 サーバは `127.0.0.1:5673` にのみ bind するローカル専用ツールで、認証やレート制限は持たない。
 
 ## 品質ゲート
