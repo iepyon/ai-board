@@ -25,4 +25,12 @@ describe('withSkipGate', () => {
   it('無いものを外しても変わらない', () => {
     expect(withSkipGate(['plan'], 'verify', false)).toEqual(['plan']);
   });
+
+  it('plan を入れても verify の宣言を保つ', () => {
+    expect(withSkipGate(['verify'], 'plan', true)).toEqual(['verify', 'plan']);
+  });
+
+  it('plan を外しても verify の宣言を保つ', () => {
+    expect(withSkipGate(['plan', 'verify'], 'plan', false)).toEqual(['verify']);
+  });
 });
