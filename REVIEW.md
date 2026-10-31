@@ -36,7 +36,7 @@
 - 依存を usecase やリポジトリの中で `new` せず、`composition.ts` で組んでいるか。
 - ID を生の string で渡さず、`createCardId` などのファクトリを通しているか。
 - `PATCH` の入力で `undefined`（変更しない）と `null`（消す）を区別しているか。
-- 挙動を変える変更で、`CLAUDE.md` / `README.md` の該当箇所が古くなっていないか。
+- 挙動を変える変更で、`CLAUDE.md` / `README.md` / `docs/architecture.md` の該当箇所が古くなっていないか。
 
 ## 報告しないこと
 
