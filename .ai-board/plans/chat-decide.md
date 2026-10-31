@@ -222,4 +222,4 @@ dummy-a には `card branch` でブランチを付けない。GitHub に接続�
 
 ### 5. 確かめる
 
-- [ ] `npm run typecheck && npm run lint && npm run format:check && npm test` と `npm run build` を通し、`## 動作確認の手順` を `AI_BOARD_DB` の別の DB で試す
+- [x] `npm run typecheck && npm run lint && npm run format:check && npm test` と `npm run build` を通し、`## 動作確認の手順` を `AI_BOARD_DB` の別の DB で試す
