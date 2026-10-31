@@ -72,7 +72,7 @@ AI の列（計画提案中 / 実装中）にいても、人の判断を待っ�
 
 - 実装中で、人の最新の判断より後に PR が Draft に戻された（`mrState.convertedToDraftAt`）。
   verify の状態より先に見るので、`ready` と、動作確認を飛ばすカードの `implement` の両方が Ready にし直さない
-- 実装中で、verify の最新が 保留（作業者が `card hold --gate verify` を書いた）
+- 実装中で、verify の最新が 保留（`board-worker` が `card hold --gate verify` を書いた）
 - 計画提案中で、plan の最新が 保留
 - 計画提案中で、plan が提出済みなのに計画ファイルも Draft の PR も見えない（作り直すと PR を二重に作りかねない）。
   PR の状態を引けていない（取得先に未接続、または起動直後で初回の取得前。`MrStateProvider.synced`）ときは、
@@ -123,7 +123,7 @@ PR の状態は `refresh()` を 1 回だけ待って引き、`branch` から解�
 実装中の手は verify ゲートの状態で分ける（未提出 → `implement`、否決 → `revise-impl`、人の承認 → `ready`。飛ばす宣言なら `implement`）。
 `implement` は計画のタスクの進み具合では分けず、AI レビューの手（`review`）も無い。
 計画はブランチにあり、メインのチェックアウトからは読めないことが多いので、
-`implement` を受けた作業者がワークツリーの計画を読んで段（タスクを倒す / AI レビュー / 締め）を決める。
+`implement` を受けた `board-worker` がワークツリーの計画を読んで段（タスクを倒す / AI レビュー / 締め）を決める。
 GitHub に接続できないとき（`forge.status` が `connected` でないとき）は `next` を `null` にする。
 
 `status` の `waiting` は画面の判断待ちの区画（`groupBySection` の inbox）をそのまま使うので、止まっているカードも 1 度だけ出て、`working` には出ない。
