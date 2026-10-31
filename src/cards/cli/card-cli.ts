@@ -30,7 +30,8 @@ Commands:
   branch <id> <name>       ブランチを紐付ける。--clear で外す
   submit <id> [--gate <plan|verify>] [--resubmit] [--reason <text>]
                            ## レビュー に提出（--resubmit で再提出）を追記する
-                           （--gate はどのゲートへの提出か。既定は plan）
+                           （--gate はどのゲートへの提出か。既定は plan。
+                           plan は着手したカードにだけ、verify は plan の承認後にだけ書ける）
   hold <id> --gate <plan|verify> --reason <text>
                            ## レビュー に保留を追記する。その手を自分では進められず
                            止まるときに、なぜ止まったか、人に何を決めてほしいかを書く
@@ -230,6 +231,16 @@ async function runBranch(args: ParsedArgs, deps: CardDependencies, io: CardCliIo
   return report(result, io);
 }
 
+/**
+ * AI の手の区切りを `提出` / `再提出` として残す。
+ *
+ * plan の提出（再提出を含む）は、人が着手したカードにだけ書ける。plan を飛ばす宣言のあるカードでは
+ * 提出がそのまま承認と読まれるので、着手していないカードに書けると、人の着手を経ずにアイデアから
+ * 実装中へ進めてしまう。宣言の有無で分けないのは、宣言の無いカードでも着手していないカードに
+ * AI が計画を出す道は無く、振る舞いの上で失うものが無いためである。
+ *
+ * verify の提出は plan の通過を前提にするので、着手の条件は重ねない。
+ */
 async function runSubmit(args: ParsedArgs, deps: CardDependencies, io: CardCliIo): Promise<number> {
   const id = requireCardId(args, io);
   if (id === null) return 1;
@@ -237,6 +248,11 @@ async function runSubmit(args: ParsedArgs, deps: CardDependencies, io: CardCliIo
   const gate = parseGate(args.flags.get('--gate'));
   if (gate === null) {
     io.stderr(`--gate には plan か verify を指定してください\n${CARD_USAGE}`);
+    return 1;
+  }
+
+  if (gate === 'plan' && !(await started(id, deps))) {
+    io.stderr('plan の提出は着手したカードにしかできません（着手は人が指示します）\n');
     return 1;
   }
 
@@ -309,6 +325,14 @@ async function runHold(args: ParsedArgs, deps: CardDependencies, io: CardCliIo):
 /** 前後の改行だけを落とす。Markdown の行頭の空白は意味を持つので trim しない */
 function trimNewlines(text: string): string {
   return text.replace(/^\n+/, '').replace(/\n+$/, '');
+}
+
+/** 人が着手したか。カードが無ければ true を返し、見つからない旨は追記の usecase に任せる */
+async function started(id: CardId, deps: CardDependencies): Promise<boolean> {
+  const card = await deps.cardRepository.findById(id);
+  if (card === null) return true;
+
+  return card.startedAt !== null;
 }
 
 /**

@@ -190,7 +190,7 @@ plan を飛ばすカードには plan 承認のエントリが無いので、こ
 
 ### 2. AI の plan の提出を着手したカードに限る
 
-- [ ] `card-cli.ts` の `runSubmit` で、plan ゲート（`--resubmit` を含む）は `startedAt` が null のカードでは失敗させ、何も追記しない。使い方の文言と docstring を直す
+- [x] `card-cli.ts` の `runSubmit` で、plan ゲート（`--resubmit` を含む）は `startedAt` が null のカードでは失敗させ、何も追記しない。使い方の文言と docstring を直す
   - テスト: 未着手のカードの `submit` が 1 になり本文が変わらない / 着手済みなら 0。plan を飛ばす未着手のカードでも 1。既存の `submit` のテストは着手済みのカードで試すように直す
 
 ### 3. タイムライン
