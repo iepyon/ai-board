@@ -223,3 +223,21 @@ dummy-a には `card branch` でブランチを付けない。GitHub に接続�
 ### 5. 確かめる
 
 - [x] `npm run typecheck && npm run lint && npm run format:check && npm test` と `npm run build` を通し、`## 動作確認の手順` を `AI_BOARD_DB` の別の DB で試す
+
+## AI レビュー
+
+- [ ] `.claude/skills/board-decide/SKILL.md:62` の否決の理由の聞き返しは、AskUserQuestion の選択肢を「理由を書く」の 1 つだけにしているが、AskUserQuestion は 1 問に選択肢を 2 つ以上要るので呼び出しが失敗する。理由は AskUserQuestion を使わずにチャットで聞き返し、人が次に打った言葉をそのまま理由にする、と書き改める（理由を作らない決まりはそのまま残す）
+- [ ] `.claude/skills/board-decide/SKILL.md:119-124`（手順 6）は、カードの `decisions` の `label` だけを選択肢にするので、`decisions` が 1 つだけのカード（成果物が見えずに止まった計画提案中は「中止する」だけ）で選択肢が 1 つになり AskUserQuestion が失敗する。また 123 行の「手順 3 の確認を経ずに書いてよい」は、計画の Decisions「確認と理由の扱い」（承認 / 否決 / 中止は送る理由の文字列を見せて 1 回確かめてから書く）と食い違う。各問いに「今は何もしない」の選択肢を必ず足し、選ばれた承認 / 否決 / 中止は手順 3 の確認（否決は理由を聞いてから）を経て書く、と書き改める
+
+### 見送った指摘
+
+- `src/infrastructure/server-info.ts:96` の `isProcessAlive` は pid の生存だけを見るので、落ちたサーバの pid が別のプロセスに再利用されると古い URL を返す（EPERM も生きているとみなす）。計画の Decisions が pid の生存確認を採っており、別のボードへ判断を書いてしまうには pid の再利用・同じポートでの別のボードの起動・同じカード ID が重なる必要があるので見送る。多くは接続の失敗で止まる
+- `src/infrastructure/server-info.ts:74` の DB の一致を `path.resolve` の文字列で比べており、シンボリックリンクを解かない。サーバも status も同じ `resolvePaths` で DB のパスを決めるので通常は一致し、ずれても「サーバが無い」と安全側に止まるだけなので見送る
+- `src/infrastructure/server-info.ts:41` の `server.json` を一時ファイルと rename を使わずに直接書いている。書いている瞬間に status が読んでも `server` が `null` になるだけで、引き直せば直るので見送る
+- `src/board/cli/status-cli.ts` が `src/infrastructure/server-info.ts` の型 `ServerLocation` を import している。レイヤーの分け方の好みで、振る舞いに関わらないので見送る
+- `src/board/cli/__tests__/status-cli.test.ts` に、タスク 2 で挙げた「止まった計画提案中（plan 保留）」と「飛ばす宣言のあるカード」の `decisions` のテストが無い。status は `decisionsFor` の結果をそのまま通しており、その 2 つは `src/shared/__tests__/dashboard-sections.test.ts` の `decisionsFor` のテストが見ているので見送る
+
+### 人に判断してほしいこと
+
+- `server.json` は DB ごとに 1 つなので、同じ DB を使うサーバが 2 つ動くと（例: メインの `ai-board` を動かしたまま、ワークツリーで共有の DB のまま `npm run dev` を動かす）後から起動した方が上書きする。後の方が止まると、前のサーバが動いているのに `status` の `server` が `null` になる。開発用の `src/index.ts` は止まるときに `close()` を呼ばないので、ファイルは死んだ pid のまま残る。計画の Decisions は別の DB を指すサーバの場合しか扱っていない。安全側（「サーバが無い」）に止まるだけとして受け入れるか、生きているサーバがあれば上書きしない・`src/index.ts` にも SIGINT / SIGTERM で `close()` を呼ぶ、などで直すかは人が決める
+- `.claude/skills/board-decide/SKILL.md:23` はいつもメインのチェックアウトの `dist/cli.js` で `status --json` を読む。この変更がマージされるまではメインの `status` に `server` が無いので、`## 動作確認の手順` の 4（ワークツリーで Claude Code を起動して試す）ではスキルが「メインを更新して」と止まり、手順どおりに確かめられない。スキルが自分の入っているチェックアウトのビルドを使うように直すか、マージ後のメインを使う前提を残して動作確認の手順の方を直すかは人が決める
