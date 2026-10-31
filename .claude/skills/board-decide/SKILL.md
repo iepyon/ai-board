@@ -17,16 +17,18 @@ argument-hint: '[判断の依頼。例: chat-decide の計画を承認]'
 
 ## 1. ボードを読む
 
-メインのチェックアウト（以下 `$MAIN`）で `status --json` を読む。`dist/` が古ければ先にビルドする。
+このセッションが今いるチェックアウト（以下 `$ROOT`。メインでもワークツリーでもよい）の ai-board で `status --json` を読む。`dist/` が古ければ先にビルドする。
+DB はワークツリーからでもメインのチェックアウトのもの（`AI_BOARD_DB` があればそれ）に解決されるので、どこから読んでも同じボードに書く。
+メインに固定しないのは、このスキルの変更をマージ前にワークツリーで試せるようにするためである。
 
 ```bash
-MAIN=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
+ROOT=$(git rev-parse --show-toplevel)
 if ! node -e 'const fs=require("fs");const [f,t]=process.argv.slice(1);process.exit(fs.existsSync(f)&&fs.statSync(f).mtimeMs/1000>=Number(t)?0:1)' \
-    "$MAIN/dist/cli.js" "$(git -C "$MAIN" log -1 --format=%ct)"; then
-  npm --prefix "$MAIN" run build
+    "$ROOT/dist/cli.js" "$(git -C "$ROOT" log -1 --format=%ct)"; then
+  npm --prefix "$ROOT" run build
 fi
 # パイプでつなぐと status の失敗が jq のエラーに隠れるので、一度受けてから絞る
-if out=$(node "$MAIN/dist/cli.js" status --json --root "$MAIN"); then
+if out=$(node "$ROOT/dist/cli.js" status --json --root "$ROOT"); then
   printf '%s' "$out" | jq '{server, waiting, ideas, cards: [.cards[] | {id, title, stage, startedAt, skipGates, droppableStages, hold, latestReview, pr: .mrState.webUrl}]}'
 else
   echo "status が失敗した"
@@ -34,7 +36,7 @@ fi
 ```
 
 - `server` が `null` なら、サーバが動いていない（または別の DB のサーバしか無い）。`ai-board`（開発中は `npm run dev`）での起動を頼んで止まる。DB を直接書いたり、ポートを推して叩いたりしない
-- `status` が「不明なオプション」で失敗する、`server` の項目が無い、といったときは `$MAIN` のコードが古い。`$MAIN` を `origin/main` に更新してビルドし直すよう頼んで止まる
+- `status` が「不明なオプション」で失敗する、`server` の項目が無い、といったときは `$ROOT` のコードが古い。`$ROOT` を `origin/main` に更新してビルドし直すよう頼んで止まる（自分では更新しない）
 - `URL` は `server.url` を使う
 
 ## 2. 依頼を、カードと操作に読み分ける
