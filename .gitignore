@@ -20,3 +20,6 @@ coverage/
 
 # 各自の dev サーバ起動設定。launch.example.json をコピーして使う
 /.claude/launch.json
+
+# 起動中のサーバの場所（URL・pid）。サーバが起動時に書き、止まるときに消す
+/.ai-board/server.json

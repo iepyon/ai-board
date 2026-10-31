@@ -42,7 +42,7 @@
 
 ### Impact
 
-- サーバ: `src/server.ts`（`server.json` の書き込みと削除）、`src/shared/`（`server.json` の置き場所と形。ファイル入出力は持ち込まない）
+- サーバ: `src/server.ts`（`server.json` の書き込みと削除）、`src/infrastructure/server-info.ts`（`server.json` の置き場所・形・読み書き）
 - status: `src/board/cli/status-cli.ts` とテスト
 - スキル: `.claude/skills/board-decide/SKILL.md`（新規）
 - 作業者の手順書: `.claude/agents/board-worker.md`、`board-task.md`、`board-reviewer.md`、`.claude/skills/board-loop/SKILL.md`
@@ -94,7 +94,7 @@
 3. `pid` のプロセスが生きている（`process.kill(pid, 0)`）
 
 落ちたサーバが残したファイルは 3 で外れる。`tsx watch` の再起動は前のプロセスを止めてから次を起こすので、次のプロセスが上書きする。
-ファイルの読み書きと pid の確認は Node の API なので `src/shared/` には置かず、ファイル名と形（型と Zod スキーマ）だけを置く。
+ファイルの読み書きと pid の確認は Node の API で、画面からは使わないので、形（型と Zod スキーマ）も含めて `src/infrastructure/server-info.ts` に置く。
 
 #### 出せる判断を、どこから知るか
 
@@ -193,9 +193,9 @@ dummy-a には `card branch` でブランチを付けない。GitHub に接続�
 
 ### 1. サーバの場所を書き残す
 
-- [ ] `src/shared/` に `server.json` のファイル名と形（`url` / `pid` / `dbPath` / `startedAt` の型と Zod スキーマ）を置く
-- [ ] `startServer` が listen の後に DB の隣へ `server.json` を書き、`close()` で中の `pid` が自分のときだけ消す。書けなくても起動は続ける（`console.warn`）。テストは一時ディレクトリで、書く・消す・他の pid のファイルを消さないを見る
-- [ ] `.gitignore` に `/.ai-board/server.json` を足す
+- [x] `src/infrastructure/server-info.ts` に `server.json` のファイル名と形（`url` / `pid` / `dbPath` / `startedAt` の型と Zod スキーマ）、書く・消す・生きているサーバを探す関数を置く
+- [x] `startServer` が listen の後に DB の隣へ `server.json` を書き、`close()` で中の `pid` が自分のときだけ消す。書けなくても起動は続ける（`console.warn`）。テストは一時ディレクトリで、書く・消す・他の pid のファイルを消さないを見る
+- [x] `.gitignore` に `/.ai-board/server.json` を足す
 
 ### 2. status の出力
 
