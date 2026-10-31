@@ -1,10 +1,17 @@
 import type { CardCliIo } from '../../cards/cli/card-cli.js';
-import { groupBySection, isStale } from '../../shared/dashboard-sections.js';
+import {
+  decisionsFor,
+  groupBySection,
+  ideaRows,
+  isStale,
+  type Decision,
+} from '../../shared/dashboard-sections.js';
 import { STAGE_LABELS } from '../../shared/stage-labels.js';
 import type { Stage } from '../../shared/schemas/common.js';
 import type { GetBoardQuery } from '../usecases/queries/get-board.query.js';
 import type { Board, BoardCard } from '../models/board-card.js';
 import type { ForgeConnection } from '../models/mr-state.js';
+import type { ServerLocation } from '../../infrastructure/server-info.js';
 import { pickNextAction, type NextAction } from '../services/next-action.js';
 
 // ============================================================
@@ -17,23 +24,32 @@ export const STATUS_USAGE = `使い方: ai-board status [--json] [--root <path>]
   --json   機械向けの JSON で出す（AI ループはこちらを読む）
 `;
 
-/**
- * 人の番のカード。判断を待つ列（計画レビュー / 動作確認 / PR中）のカードと、
- * AI の列で止まっているカード（`hold`。ループはこれを選ばない）
- */
-export interface WaitingCard {
+interface CardSummary {
   readonly id: string;
   readonly title: string;
   readonly stage: Stage;
   readonly reason: string;
 }
 
+/**
+ * 人の番のカード。判断を待つ列（計画レビュー / 動作確認 / PR中）のカードと、
+ * AI の列で止まっているカード（`hold`。ループはこれを選ばない）。
+ * `decisions` は画面がボタンとして出す判断と同じもの（`decisionsFor`）。PR中 のカードは空
+ */
+export interface WaitingCard extends CardSummary {
+  readonly decisions: readonly Decision[];
+}
+
 export type StatusCard = Omit<BoardCard, 'body'>;
 
 /** AI が進めているカード。`stale` はしばらく動きが無いもの */
-export interface WorkingCard extends WaitingCard {
+export interface WorkingCard extends CardSummary {
   readonly stale: boolean;
 }
+
+/** アイデアの表の 1 行。画面の並び（`ideaRows`）と同じ順で、区切り線も 1 行として入る */
+export type IdeaListRow =
+  { readonly id: string; readonly title: string } | { readonly divider: true };
 
 export interface StatusReport {
   /** ループが次に進めるもの。無いか、GitHub につながっていなければ null */
@@ -41,12 +57,17 @@ export interface StatusReport {
   readonly waiting: readonly WaitingCard[];
   readonly working: readonly WorkingCard[];
   readonly cards: readonly StatusCard[];
+  readonly ideas: readonly IdeaListRow[];
   readonly forge: ForgeConnection;
+  /** 同じ DB を使って起動中のサーバ。人の API を叩くとき（`board-decide`）に使う。無ければ null */
+  readonly server: ServerLocation | null;
   readonly generatedAt: string;
 }
 
 export interface StatusDependencies {
   readonly getBoardQuery: GetBoardQuery;
+  /** 起動中のサーバを探す。省略時は null（サーバは無いものとする） */
+  readonly findServer?: () => ServerLocation | null;
 }
 
 export type StatusArgs = { readonly json: boolean } | 'help' | 'invalid';
@@ -80,7 +101,7 @@ export async function runStatusCli(
     return 1;
   }
 
-  const report = buildStatusReport(result.value, io.now());
+  const report = buildStatusReport(result.value, io.now(), deps.findServer?.() ?? null);
 
   io.stdout(args.json ? `${JSON.stringify(report, null, 2)}\n` : formatStatus(report));
   return 0;
@@ -93,24 +114,36 @@ export async function runStatusCli(
  * 計画レビュー / PR中 のカードが手前の AI の列に落ちて見え、人を待つカードを進めてしまうため。
  * `github:` の無いリポジトリでも同じで、ループは `gh` で PR を出すので GitHub を前提にする。
  */
-export function buildStatusReport(board: Board, now: Date): StatusReport {
+export function buildStatusReport(
+  board: Board,
+  now: Date,
+  server: ServerLocation | null = null
+): StatusReport {
   const cards = board.cards.map(({ body: _body, ...rest }) => rest);
   // 画面の判断待ちの区画と同じ振り分け。止まっているカードは inbox に入り、work には入らない
   const sections = groupBySection(cards);
 
   return {
     next: board.forge.status === 'connected' ? pickNextAction(cards) : null,
-    waiting: sections.inbox.map(toWaiting),
-    working: sections.work.map((card) => ({ ...toWaiting(card), stale: isStale(card, now) })),
+    waiting: sections.inbox.map((card) => ({ ...toSummary(card), decisions: decisionsFor(card) })),
+    working: sections.work.map((card) => ({ ...toSummary(card), stale: isStale(card, now) })),
     cards,
+    ideas: ideaRows(sections.idea, board.ideaDivider).map((row) =>
+      row.kind === 'card' ? { id: row.card.id, title: row.card.title } : { divider: true }
+    ),
     forge: board.forge,
+    server,
     generatedAt: board.generatedAt,
   };
 }
 
 /** 人向けの数行。判断待ち / AI 作業中 / 次の一手 の順に並べる */
 export function formatStatus(report: StatusReport): string {
-  const lines = [`GitHub: ${describeForge(report.forge)}`, ''];
+  const lines = [
+    `GitHub: ${describeForge(report.forge)}`,
+    `サーバ: ${report.server?.url ?? '起動していません'}`,
+    '',
+  ];
 
   lines.push(`判断待ち (${report.waiting.length})`);
   for (const card of report.waiting) {
@@ -130,7 +163,7 @@ export function formatStatus(report: StatusReport): string {
 }
 
 /** 止まっているカードは、ステージの理由ではなく人が何をすればよいか（`hold.reason`）を出す */
-function toWaiting(card: StatusCard): WaitingCard {
+function toSummary(card: StatusCard): CardSummary {
   return {
     id: card.id,
     title: card.title,

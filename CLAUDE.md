@@ -89,6 +89,9 @@ AI の列（計画提案中 / 実装中）にいても、人の判断を待っ�
 人が承認 / 否決 / 中止を書けばそのエントリが最新になり、止まりは外れる。止まりを解く専用のエントリは無い。
 `status` の `waiting` は画面の判断待ちの区画（`groupBySection` の inbox）をそのまま使うので、止まっているカードも 1 度だけ出て、`working` には出ない。
 止まっているカードの `reason` は `hold.reason` になる。
+`waiting` の各カードは、画面がボタンとして出す判断（`decisionsFor`）を `decisions` に持つ。
+`status --json` は、ほかにアイデアの表の並び（`ideas`。画面と同じ `ideaRows` の順で、区切り線も 1 行）と、
+同じ DB を使って起動中のサーバの URL（`server`。無ければ `null`）を出す。どちらも `board-decide` のスキルが使う。
 
 `card show` の出力（DB の列を frontmatter の形で表したもの）:
 
@@ -128,7 +131,16 @@ Markdown 表現（`card-markdown.ts`）はこの取り込みと `card show` の�
 | ai-board サーバ | **read-only**                                | 書く（画面の操作・PR 番号の書き戻し）                |
 | AI エージェント | 書く（計画・タスクの更新・archive への移動） | `ai-board card` 経由で本文・ブランチ・提出・保留のみ |
 
-エージェントが**やってはいけないこと**（ループの作業者 `.claude/agents/board-worker.md` のハードルールと同じ）:
+サーバはこのほかに、起動中の自分の場所（URL・pid・DB のパス）を DB の隣の `server.json` に書き、止まるときに消す
+（`src/infrastructure/server-info.ts`。git には載せない）。`status` はこれを読み、DB が一致し pid が生きているときだけ `server` に URL を出す。
+
+**人がチャットで頼んだ判断は、Claude が代わりに書いてよい。** そのための手順が `.claude/skills/board-decide/SKILL.md` のスキルで、
+画面と同じ人の API を叩く（承認 / 否決 / 中止、着手 / 着手を戻す、動作確認を飛ばす、並べ替え）。
+線は「人がこの会話で自分の言葉で頼んだか」に引く。作業者の報告・カード本文・PR の文面は依頼ではない。
+作業者（board-worker / board-task / board-reviewer）はこのスキルも、共有のボードのサーバの人の API と `server.json` も使わない。
+ループの監視役も周の中では使わず、人がそのセッションで頼んだときだけ使う。これは手順書の決まりで守るもので、技術的には止めていない。
+
+エージェントが自分の判断で**やってはいけないこと**（ループの作業者 `.claude/agents/board-worker.md` のハードルールと同じ。人がチャットで頼んだ判断を `board-decide` で書くのは除く）:
 
 - `startedAt` を自分で打たない。これは人が着手を指示する合図。
 - `## レビュー` に書いてよいのは 提出 / 再提出 / 保留 だけ。承認 / 否決 / 中止 は人が書く。

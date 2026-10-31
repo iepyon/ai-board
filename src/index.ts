@@ -7,3 +7,10 @@ const server = await startServer({
 });
 
 console.warn(`ai-board running on ${server.url}`);
+
+// 止まるときに close() を通し、server.json を死んだ pid のまま残さない
+const shutdown = (): void => {
+  void server.close().then(() => process.exit(0));
+};
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

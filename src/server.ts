@@ -7,6 +7,7 @@ import { createCliRunner } from './infrastructure/cli-runner.js';
 import { SseHub } from './infrastructure/sse.js';
 import { startWatching } from './infrastructure/watch.js';
 import { openDatabase, watchDatabase } from './infrastructure/database.js';
+import { removeServerInfo, writeServerInfo } from './infrastructure/server-info.js';
 import { createApp } from './app.js';
 
 // ============================================================
@@ -68,11 +69,16 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
 
   poller?.start();
 
+  const url = `http://${BIND_HOST}:${port}`;
+  const { dbPath } = config.paths;
+  writeServerInfo({ url, pid: process.pid, dbPath, startedAt: new Date().toISOString() });
+
   return {
-    url: `http://${BIND_HOST}:${port}`,
+    url,
     port,
     config,
     close: async () => {
+      removeServerInfo(dbPath, process.pid);
       poller?.stop();
       sse.close();
       dbWatcher.close();

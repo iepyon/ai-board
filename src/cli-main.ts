@@ -9,6 +9,7 @@ import { createCardDependencies } from './cards/composition.js';
 import { runCardCli, runImport, type CardCliIo } from './cards/cli/card-cli.js';
 import { createBoardDependencies, createMrStateSource } from './board/composition.js';
 import { parseStatusArgs, runStatusCli, STATUS_USAGE } from './board/cli/status-cli.js';
+import { findLiveServer } from './infrastructure/server-info.js';
 
 // ============================================================
 // ai-board CLI
@@ -160,7 +161,11 @@ async function runStatus(argv: readonly string[]): Promise<number> {
       provider
     );
 
-    return await runStatusCli(rest, board, io);
+    return await runStatusCli(
+      rest,
+      { ...board, findServer: () => findLiveServer(config.paths.dbPath) },
+      io
+    );
   } finally {
     db.close();
   }
