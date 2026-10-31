@@ -489,15 +489,80 @@ describe('resolveTimeline: 差し戻しと中止', () => {
 // ============================================================
 
 describe('resolveTimeline: 表に収まらない痕跡', () => {
-  it('plan を飛ばす: 着手から implementing が始まり、planning が無い', () => {
+  it('plan を飛ばす: 着手から planning が始まり、plan 提出から implementing が始まる', () => {
     const segments = resolveTimeline(
-      makeTraces({ startedAt: at(1), skipGates: ['plan'], entries: [entry(2, 'verify', '提出')] })
+      makeTraces({ startedAt: at(1), skipGates: ['plan'], entries: [entry(2, 'plan', '提出')] })
     );
 
     expect(shape(segments)).toEqual([
       ['idea', 0, 1],
-      ['implementing', 1, 2],
-      ['verifying', 2, null],
+      ['planning', 1, 2],
+      ['implementing', 2, null],
+    ]);
+    expectWellFormed(segments, { closed: false });
+  });
+
+  it('plan を飛ばす: 否決の後の plan 再提出から implementing に戻る', () => {
+    const segments = resolveTimeline(
+      makeTraces({
+        startedAt: at(1),
+        skipGates: ['plan'],
+        entries: [entry(2, 'plan', '提出'), entry(3, 'plan', '否決'), entry(4, 'plan', '再提出')],
+      })
+    );
+
+    expect(shape(segments)).toEqual([
+      ['idea', 0, 1],
+      ['planning', 1, 2],
+      ['implementing', 2, 3],
+      ['plan-rework', 3, 4],
+      ['implementing', 4, null],
+    ]);
+    expectWellFormed(segments, { closed: false });
+  });
+
+  it('verify を飛ばす: 否決の後の verify 再提出から readying が始まる', () => {
+    const segments = resolveTimeline(
+      makeTraces({
+        startedAt: at(1),
+        skipGates: ['verify'],
+        entries: [
+          entry(2, 'plan', '提出'),
+          entry(3, 'plan', '承認'),
+          entry(4, 'verify', '否決'),
+          entry(5, 'verify', '再提出'),
+        ],
+      })
+    );
+
+    expect(shape(segments).slice(3)).toEqual([
+      ['implementing', 3, 4],
+      ['verify-rework', 4, 5],
+      ['readying', 5, null],
+    ]);
+    expectWellFormed(segments, { closed: false });
+  });
+
+  it('verify を飛ばす: verify 再提出の時点で PR がもう Ready なら pr-review になる', () => {
+    const segments = resolveTimeline(
+      makeTraces({
+        startedAt: at(1),
+        skipGates: ['verify'],
+        entries: [
+          entry(2, 'plan', '提出'),
+          entry(3, 'plan', '承認'),
+          entry(5, 'verify', '否決'),
+          entry(6, 'verify', '再提出'),
+        ],
+        readyAt: at(4),
+      })
+    );
+
+    expect(shape(segments).slice(3)).toEqual([
+      ['implementing', 3, 4],
+      ['pr-review', 4, 5],
+      ['verify-rework', 5, 6],
+      ['pr-review', 6, null],
     ]);
     expectWellFormed(segments, { closed: false });
   });

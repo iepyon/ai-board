@@ -195,7 +195,7 @@ plan を飛ばすカードには plan 承認のエントリが無いので、こ
 
 ### 3. タイムライン
 
-- [ ] `stage-timeline.ts` で、着手は宣言によらず `planning` を始め、宣言のあるゲートの 提出 / 再提出 は 承認 と同じ区間を始めるようにする
+- [x] `stage-timeline.ts` で、着手は宣言によらず `planning` を始め、宣言のあるゲートの 提出 / 再提出 は 承認 と同じ区間を始めるようにする
   - テスト: plan を飛ばす: 着手 → plan 提出 で `idea` / `planning` / `implementing`。verify を飛ばす: verify 再提出 で `readying` が始まる。今の「着手から implementing が始まり、planning が無い」を直す
 
 ### 4. 判断のボタン
