@@ -249,3 +249,15 @@ node dist/cli.js status --json | jq '.cards[] | {id, stage, readyAt: .mrState.re
 ### 5. 確かめる
 
 - [x] `npm run typecheck && npm run lint && npm run format:check && npm test` と `npm run build` を通し、`## 動作確認の手順` を `AI_BOARD_DB` の別の DB で試す
+
+## AI レビュー
+
+- [ ] `src/board/services/stage-timeline.ts:146` の `walk()` は、`中止` で `current` を `null` にした後に `readyAt`（`pr-review`）や `convertedToDraftAt`（`draft-returned`）の痕跡が来ると、そこから新しい区間を開いてしまう（例: PR中 で中止したカードの PR を後から Draft に戻すと、最後に `end: null` の `draft-returned` が残る）。計画の Decisions は「中止の後はエントリが続いたときだけ区間を始め直す」「中止で終わったカードは `end: null` を持たない」と決めている。中止で閉じた後は、`## レビュー` のエントリが来て区間を始め直すまで PR の痕跡では区間を開かない（`prReady` の更新は続ける）ようにし、`stage-timeline.test.ts` に「中止の後に Ready / Draft へ戻す痕跡が来ても区間を開かない」テストと「その後にエントリが来れば始め直す」テストを足す
+
+### 見送った指摘
+
+- `src/board/services/stage-timeline.ts` で、Ready → Draft → Ready と行き来した PR は最後の `ready_for_review` だけが痕跡になるので、間にエントリが無ければ前の `pr-review` と `draft-returned` の時間が手前の区間（たとえば `readying`）に数えられる。計画の Non-Goals が「Draft と Ready の行き来をすべて区間にすること」を外しているので見送る
+
+### 人に判断してほしいこと
+
+- `src/board/services/github-client.ts` の `draftTransitionsOf()` は、作成時から Ready の PR の `readyAt` を `created_at` で補う。`stage-timeline.ts` の `toTraces()` はこれを時刻どおりに並べるので、Ready で作った PR では `planning` の途中（plan 提出より前）に短い `pr-review` が挟まり、以後 `prReady` が真のままになって verify 承認で `readying` が飛ばされる。verify を飛ばすカードでは `implementing` がマージまで続き、PR レビューの時間が AI の区間に数えられる。計画の Decisions どおりの振る舞いで、今のループは Draft で PR を作るので古いカードや手で作った PR でだけ起きる。このままにするか、補った `readyAt` を最後のエントリより前なら使わないなどの形にするかは人が決める
