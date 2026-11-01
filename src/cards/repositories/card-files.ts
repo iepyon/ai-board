@@ -580,6 +580,31 @@ interface CurrentCard {
   readonly file: ParsedCardFile;
 }
 
+/**
+ * 判断を 1 件足すときに書く `log/` のファイルを求める。
+ *
+ * 判断は値のまま受け取り、理由はファイルの中身になるだけで、見出しとして読み直さない。
+ * ファイル名は `logFileName`（同じミリ秒に重なれば `-2`）、中身は理由の前後の空白を落としたもので、
+ * `planCardWrite` が判断の追記に書くものと同じになる。`card.md` には触らない。
+ *
+ * 今の `card.md` が読めなければ `MalformedCardFile`、時刻がファイル名にできなければ `InvalidLogTime`。
+ */
+export function planReviewAppend(
+  id: CardId,
+  stored: StoredCard,
+  entry: ReviewEntry
+): Result<LogFile, CardWriteError> {
+  if (parseCardFile(id, stored.files.cardMd) === null) {
+    return err({ type: 'MalformedCardFile', id });
+  }
+
+  const taken = new Set(stored.files.log.map((file) => file.name));
+  const name = logFileName(entry.at, entry.gate, entry.kind, taken);
+  if (name === null) return err({ type: 'InvalidLogTime', id, at: entry.at });
+
+  return ok({ name, content: logContent(entry.reason) });
+}
+
 /** 今のカードを読む。新しいカードなら null、`card.md` が読めなければ undefined */
 function readStored(id: CardId, stored: StoredCard | null): CurrentCard | null | undefined {
   if (stored === null) return null;
