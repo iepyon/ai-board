@@ -143,4 +143,4 @@ API は 400（`INVALID_REVIEW_REASON`）、CLI は今の `reasonWritable` と同
 
 ### 3. ドキュメント
 
-- [ ] `docs/architecture.md` の API のエラーと書き込み境界の説明に、理由に判断の見出しとして読める行を書けないこと、本文の差し替えで `## レビュー` のエントリを変えられないことが、CLI と API の両方で usecase により守られることを書く。`docs/specs/card-review/spec.md` と `README.md` に該当の記述があれば合わせる
+- [x] `docs/architecture.md` の API のエラーと書き込み境界の説明に、理由に判断の見出しとして読める行を書けないこと、本文の差し替えで `## レビュー` のエントリを変えられないことが、CLI と API の両方で usecase により守られることを書く。`docs/specs/card-review/spec.md` と `README.md` に該当の記述があれば合わせる
