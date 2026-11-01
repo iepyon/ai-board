@@ -595,6 +595,27 @@ describe('runCardCli とデータ用ブランチ', () => {
     expect(stderr).toContain('ai-board migrate --empty');
   });
 
+  it('人がデータのワークツリーを消しても、次のコマンドが作り直して読み書きできる', async () => {
+    const repo = path.join(tmp, 'code');
+    sh(['clone', '--quiet', origin, repo]);
+    const dataDir = path.join(repo, '.ai-board', 'data');
+    deps = {
+      store: createDataStore({ dataDir, repoRoot: repo, runner, lockPollMs: 10 }),
+      cards: createFileCardDependencies(dataDir),
+      legacyDb: null,
+    };
+    expect(await run(['create', '--title', 'x', '--id', 'before'])).toBe(0);
+
+    fs.rmSync(dataDir, { recursive: true, force: true });
+
+    stdout = '';
+    expect(await run(['show', 'before'])).toBe(0);
+    expect(stdout).toContain('id: before');
+    expect(await run(['create', '--title', 'y', '--id', 'after'])).toBe(0);
+    expect(originLog()[0]).toBe('data: after を作る');
+    expect(stderr).toBe('');
+  });
+
   it('origin のデータの形の版がこの CLI より新しければ、list も submit も読まずに 1 にし、何も書かない', async () => {
     await seed('a');
     await start('a');

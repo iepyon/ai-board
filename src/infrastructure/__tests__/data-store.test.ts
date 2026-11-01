@@ -553,6 +553,21 @@ describe('prepare', () => {
     expect(git(dataDir, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe(DATA_BRANCH);
   });
 
+  it('人がデータのワークツリーを消しても、登録の残りを片付けて作り直す', async () => {
+    const repo = mainRepo();
+    const dataDir = path.join(repo, '.ai-board', 'data');
+    expect(await store(dataDir, { repoRoot: repo }).prepare()).toEqual(ok(undefined));
+
+    // git にはワークツリーの登録が残る（missing but already registered worktree）
+    fs.rmSync(dataDir, { recursive: true, force: true });
+
+    const result = await store(dataDir, { repoRoot: repo }).prepare();
+
+    expect(result).toEqual(ok(undefined));
+    expect(fs.readFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'utf-8')).toBe('version: 1\n');
+    expect(git(dataDir, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe(DATA_BRANCH);
+  });
+
   it('origin にデータ用ブランチが無ければ DataBranchMissing', async () => {
     const empty = path.join(tmp, 'empty.git');
     sh(['init', '--quiet', '--bare', empty]);

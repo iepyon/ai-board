@@ -310,6 +310,11 @@ class GitDataStore implements DataStore {
     const local = await inRepo(['rev-parse', '--verify', '--quiet', `refs/heads/${DATA_BRANCH}`]);
     if (isErr(local) && !withOrigin) return err({ type: 'DataBranchMissing', dataDir });
 
+    // 人がデータのワークツリーを消すと登録だけが残り、worktree add が
+    // 「missing but already registered worktree」で拒む。消えたワークツリーの登録を先に片付ける
+    const pruned = await inRepo(['worktree', 'prune']);
+    if (isErr(pruned)) return err(gitFailed('worktree prune', pruned.error));
+
     const args = isErr(local)
       ? ['worktree', 'add', '--quiet', '-b', DATA_BRANCH, dataDir, DATA_REMOTE_REF]
       : ['worktree', 'add', '--quiet', dataDir, DATA_BRANCH];
