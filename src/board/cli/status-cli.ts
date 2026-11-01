@@ -13,15 +13,18 @@ import type { Board, BoardCard } from '../models/board-card.js';
 import type { ForgeConnection } from '../models/mr-state.js';
 import type { ServerLocation } from '../../infrastructure/server-info.js';
 import { pickNextAction, type NextAction } from '../services/next-action.js';
+import { describeForge, describeNext } from './status-describe.js';
+import { formatStatusHtml } from './status-html.js';
 
 // ============================================================
 // ai-board status — サーバを起動せずにボードの状態を読む
 // ============================================================
 
-export const STATUS_USAGE = `使い方: ai-board status [--json] [--root <path>]
+export const STATUS_USAGE = `使い方: ai-board status [--json | --html] [--root <path>]
 
 ボードの状態（導出したステージ、判断待ち、次の一手）を出します。サーバは要りません。
   --json   機械向けの JSON で出す（AI ループはこちらを読む）
+  --html   ボードを 1 枚の自己完結の HTML で出す（Artifact として公開して読む）
 `;
 
 interface CardSummary {
@@ -70,7 +73,10 @@ export interface StatusDependencies {
   readonly findServer?: () => ServerLocation | null;
 }
 
-export type StatusArgs = { readonly json: boolean } | 'help' | 'invalid';
+/** 出す形。`text` は人向けの数行 */
+export type StatusFormat = 'text' | 'json' | 'html';
+
+export type StatusArgs = { readonly format: StatusFormat } | 'help' | 'invalid';
 
 /**
  * 引数を解釈する。DB を開いたり GitHub に問い合わせたりする前に呼ぶ
@@ -78,9 +84,14 @@ export type StatusArgs = { readonly json: boolean } | 'help' | 'invalid';
  */
 export function parseStatusArgs(argv: readonly string[]): StatusArgs {
   if (argv.includes('--help') || argv.includes('-h')) return 'help';
-  if (argv.some((arg) => arg !== '--json')) return 'invalid';
+  if (argv.some((arg) => arg !== '--json' && arg !== '--html')) return 'invalid';
 
-  return { json: argv.includes('--json') };
+  const json = argv.includes('--json');
+  const html = argv.includes('--html');
+  // 2 つの形を同時には出せない
+  if (json && html) return 'invalid';
+
+  return { format: json ? 'json' : html ? 'html' : 'text' };
 }
 
 /** `ai-board status` を実行し、終了コードを返す */
@@ -103,8 +114,19 @@ export async function runStatusCli(
 
   const report = buildStatusReport(result.value, io.now(), deps.findServer?.() ?? null);
 
-  io.stdout(args.json ? `${JSON.stringify(report, null, 2)}\n` : formatStatus(report));
+  io.stdout(formatReport(report, args.format));
   return 0;
+}
+
+function formatReport(report: StatusReport, format: StatusFormat): string {
+  switch (format) {
+    case 'json':
+      return `${JSON.stringify(report, null, 2)}\n`;
+    case 'html':
+      return formatStatusHtml(report);
+    case 'text':
+      return formatStatus(report);
+  }
 }
 
 /**
@@ -157,7 +179,7 @@ export function formatStatus(report: StatusReport): string {
     lines.push(`  ${card.id}  [${STAGE_LABELS[card.stage]}]  ${card.title}${stale}`);
   }
 
-  lines.push('', `次の一手: ${describeNext(report)}`);
+  lines.push('', `次の一手: ${describeNext(report.next, report.forge)}`);
 
   return `${lines.join('\n')}\n`;
 }
@@ -170,23 +192,4 @@ function toSummary(card: StatusCard): CardSummary {
     stage: card.stage,
     reason: card.hold?.reason ?? card.reason,
   };
-}
-
-function describeNext({ next, forge }: StatusReport): string {
-  if (next !== null) return `${next.action} ${next.cardId}（${next.reason}）`;
-
-  return forge.status === 'connected'
-    ? 'なし（AI が進められるカードはありません）'
-    : 'なし（GitHub に接続できないため、ループは止まります）';
-}
-
-function describeForge(forge: ForgeConnection): string {
-  switch (forge.status) {
-    case 'connected':
-      return '接続済み';
-    case 'error':
-      return `エラー（${forge.message}）`;
-    case 'disabled':
-      return forge.reason === null ? '未設定' : `使えません（${forge.reason}）`;
-  }
 }

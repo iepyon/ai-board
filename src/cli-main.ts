@@ -45,7 +45,8 @@ interface CliOptions {
 
 const USAGE = `使い方: ai-board [options]
        ai-board card <command> [--root <path>]    カードの読み書き（ai-board card --help）
-       ai-board status [--json] [--root <path>]   ボードの状態と次の一手（サーバ不要）
+       ai-board status [--json | --html] [--root <path>]
+                                                  ボードの状態と次の一手（サーバ不要）
        ai-board migrate [--from <db>] [--empty] [--root <path>]
                                                   board.db をデータ用ブランチへ書き出す（ai-board migrate --help）
        ai-board pr <command> [--root <path>]      PR の読み書き（gh api の REST。ai-board pr --help）

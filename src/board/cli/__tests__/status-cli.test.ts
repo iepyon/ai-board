@@ -397,6 +397,29 @@ describe('ai-board status', () => {
 });
 
 // ============================================================
+// --html
+// ============================================================
+
+describe('ai-board status --html', () => {
+  it('判断待ちの提出の本文を含む、1 枚の HTML を出す', async () => {
+    await writeCard(
+      'reviewing',
+      "startedAt: '2026-10-21T00:00:00.000Z'\n",
+      `${review('提出')}\n判断してほしい点がある\n`
+    );
+    await writePlan('reviewing', '# 計画');
+    await writeCard('idea', '');
+
+    expect(await run(['--html'])).toBe(0);
+
+    expect(stdout.startsWith('<!doctype html>')).toBe(true);
+    expect(stdout).toContain('reviewing のタイトル');
+    expect(stdout).toContain('判断してほしい点がある');
+    expect(stdout).toContain('idea のタイトル');
+  });
+});
+
+// ============================================================
 // 引数
 // ============================================================
 
@@ -414,9 +437,11 @@ describe('ai-board status の引数', () => {
 });
 
 describe('parseStatusArgs', () => {
-  it('--json の有無、--help、不明な引数を見分ける', () => {
-    expect(parseStatusArgs([])).toEqual({ json: false });
-    expect(parseStatusArgs(['--json'])).toEqual({ json: true });
+  it('--json / --html の有無、--help、不明な引数を見分ける', () => {
+    expect(parseStatusArgs([])).toEqual({ format: 'text' });
+    expect(parseStatusArgs(['--json'])).toEqual({ format: 'json' });
+    expect(parseStatusArgs(['--html'])).toEqual({ format: 'html' });
+    expect(parseStatusArgs(['--json', '--html'])).toBe('invalid');
     expect(parseStatusArgs(['--json', '--help'])).toBe('help');
     expect(parseStatusArgs(['-h'])).toBe('help');
     expect(parseStatusArgs(['--jsno'])).toBe('invalid');
