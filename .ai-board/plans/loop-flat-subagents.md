@@ -253,7 +253,7 @@
 - [x] `.claude/agents/board-reviewer.md` を、監視役から `cardId` / `action` / `MAIN` を受けて自分でワークツリーに入り、`mr` をカードから読む形に直す。報告の先頭の `結果:` をそろえ、frontmatter の description も直す
 - [x] `.claude/agents/board-worker.md` から、サブエージェントを立てて待つ節とタスクを倒す段・レビューの段の節を消す。段の表のその 2 行を「ここに来たら止まる」に変え、報告の AI レビューの項目を直す。frontmatter の description も直す
 - [x] `.claude/skills/board-loop/subagent-rules.md` の呼び名の表と「ワークツリーに入る」を、4 つのサブエージェントがどれも監視役から立ち、`board-task` / `board-reviewer` も自分でワークツリーに入る形に直す
-- [ ] `.claude/skills/board-loop/SKILL.md` の手の表と手順 3 に `next.step` による渡し先を足し、手順 0 から入れ子の記述を外す。手順 1 の絞り込みは `next` をそのまま出すので変えない。frontmatter の description も直す
+- [x] `.claude/skills/board-loop/SKILL.md` の手の表と手順 3 に `next.step` による渡し先を足し、手順 0 から入れ子の記述を外す。手順 1 の絞り込みは `next` をそのまま出すので変えない。frontmatter の description も直す
 
 ### 4. ドキュメント
 
