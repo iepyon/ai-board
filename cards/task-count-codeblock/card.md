@@ -3,7 +3,7 @@ id: task-count-codeblock
 title: ユーザは、計画にチェックボックスの例を書いても、進捗やループの判定がそれに引きずられないでほしい
 created: '2026-10-30T06:47:49.653Z'
 skipGates: []
-branch: null
+branch: task-count-codeblock
 mr: null
 ---
 
