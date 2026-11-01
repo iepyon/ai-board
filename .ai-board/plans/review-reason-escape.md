@@ -127,7 +127,7 @@ API は 400（`INVALID_REVIEW_REASON`）、CLI は今の `reasonWritable` と同
 
 ### 1. 理由の検査を usecase に寄せる
 
-- [ ] `src/cards/services/review-log.ts` に、理由の中で判断の見出しとして読める最初の行を返す純関数を足す（`\r\n` / `\r` / `\n` で分け、`parseEntryHeading` で判定する）。docstring に、拒む行を判断の見出しに限る理由（`## ` は `demoteHeadings` が守る）を書く
+- [x] `src/cards/services/review-log.ts` に、理由の中で判断の見出しとして読める最初の行を返す純関数を足す（`\r\n` / `\r` / `\n` で分け、`parseEntryHeading` で判定する）。docstring に、拒む行を判断の見出しに限る理由（`## ` は `demoteHeadings` が守る）を書く
   - テスト（`review-log.test.ts`）: 承認 / 否決 / 中止 / 提出 の見出し、`\r\n` の改行、コードブロックの中の見出しを見つける。`## 手順`、`### 動かす手順`、時刻の読めない `### 2099 plan 承認` は見つけない
 - [ ] `src/cards/errors/card-errors.ts` に `ReasonHasEntryHeading` と `AppendReviewError` を足し、`createAppendReviewCommand` が上の関数で拒むようにする。`card-error-mappings.ts` に 400（`INVALID_REVIEW_REASON`）のマッピングを足し、`POST /api/cards/:id/reviews` で使う
   - テスト（`card-commands.test.ts`）: 見出しを含む理由は `ReasonHasEntryHeading` を返し、保存しない
