@@ -472,7 +472,16 @@ describe('ai-board status', () => {
     expect(stdout).toContain('AI 作業中 (1)');
     // 計画ファイルが無いので着手の時刻から数え、3 日以上たっている
     expect(stdout).toContain('impl  [実装中]  impl のタイトル  ※ 動きなし');
-    expect(stdout).toContain('次の一手: implement impl（計画が承認されている）');
+    expect(stdout).toContain('次の一手: implement impl 段=不明（計画が承認されている）');
+  });
+
+  it('implement の次の一手に、カードのブランチの計画から決めた段を出す', async () => {
+    await writeCard('impl', IMPLING, review('承認'));
+    const reader = stubPlanReader({ location: 'active', text: '- [x] 1\n' });
+
+    expect(await run([], stubProvider(), undefined, reader)).toBe(0);
+
+    expect(stdout).toContain('次の一手: implement impl 段=review（計画が承認されている）');
   });
 
   it('進められるカードが無ければ、次の一手は なし', async () => {

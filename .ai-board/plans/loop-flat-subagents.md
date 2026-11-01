@@ -244,7 +244,7 @@
 - [x] `NextAction` に `step` を足し（`pickNextAction` は `null` を返す）、`judgeImpling` と `NextActionKind` の docstring を、段は `status` が `next.step` で出す形に直す
 - [x] `status-cli.ts` で、`next.action` が `implement` のときだけ読み手で計画を読み、`resolveImplStep` で `step` を埋める。依存は `StatusDependencies` に足し、`cli-main.ts` で組む。
       `status-cli.test.ts` に、`implement` で段が載ること、ほかの手では `null` のこと、読めないときに `null` で `status` が成功することのテストを足す
-- [ ] `status-describe.ts` の `describeNext` で、人向けの数行に段を出す。テストを足す
+- [x] `status-describe.ts` の `describeNext` で、人向けの数行に段を出す。テストを足す
 
 ### 3. ループ
 
