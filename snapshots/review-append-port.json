@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-11-01T23:56:50Z\",false,\"aa356620809a9a136a19401ee5814cdb0549ee24\",0,0,\"2026-11-01T23:56:51Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 62,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "review-append-port",
+    "title": "判断をリポジトリの専用の口で書き、本文の文字列を往復させない",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/62",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-11-01T23:38:07Z",
+    "mergedAt": "2026-11-01T23:56:50Z",
+    "readyAt": "2026-11-01T23:38:11Z",
+    "convertedToDraftAt": null
+  }
+}
