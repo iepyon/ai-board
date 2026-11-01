@@ -501,12 +501,8 @@ function describeError(error: WriteFailure | DataStoreError, legacyDb: string | 
       return error.message;
     case 'CardWriteRefused':
       return `カードのファイルへの書き込みを拒みました（${error.reason}）`;
-    case 'DataBranchMissing':
-    case 'DataDirNotRepository':
-    case 'DataStoreLockTimeout':
-    case 'DataStoreFetchFailed':
-    case 'DataStorePushFailed':
-    case 'DataStoreGitFailed':
+    default:
+      // 残りは DataStoreError。describeDataStoreError の switch が種別を網羅する
       return describeDataStoreError(error, legacyDb);
   }
 }

@@ -363,6 +363,73 @@ describe('refresh', () => {
   });
 });
 
+describe('形の版', () => {
+  /** ほかの clone から、origin の ai-board-data.yaml を書き換える（消すなら null） */
+  function pushVersionFile(content: string | null): void {
+    const other = cloneData(path.join(tmp, 'other'));
+    if (content === null) {
+      git(other, 'rm', '--quiet', 'ai-board-data.yaml');
+    } else {
+      write(other, 'ai-board-data.yaml', content);
+      git(other, 'add', '-A');
+    }
+    git(other, 'commit', '--quiet', '-m', 'data: 形の版を変える');
+    git(other, 'push', '--quiet', 'origin', `HEAD:refs/heads/${DATA_BRANCH}`);
+  }
+
+  it('取り直した版がこの CLI より新しければ、refresh は UnsupportedDataVersion で止まる', async () => {
+    const a = cloneData(path.join(tmp, 'a'));
+    pushVersionFile('version: 2\n');
+
+    expect(await store(a).refresh()).toEqual(
+      err({ type: 'UnsupportedDataVersion', found: 2, supported: 1 })
+    );
+  });
+
+  it('取り直した版がこの CLI より新しければ、transact は op を走らせずに止まり、何も push しない', async () => {
+    const a = cloneData(path.join(tmp, 'a'));
+    pushVersionFile('version: 2\n');
+    const before = originLog();
+    let calls = 0;
+
+    const result = await store(a).transact('data: a が書く', async (dir) => {
+      calls++;
+      write(dir, 'cards/a/card.md', 'a\n');
+      return ok(undefined);
+    });
+
+    expect(result).toEqual(err({ type: 'UnsupportedDataVersion', found: 2, supported: 1 }));
+    expect(calls).toBe(0);
+    expect(originLog()).toEqual(before);
+    expect(git(a, 'status', '--porcelain')).toBe('');
+  });
+
+  it('版が読めなければ MalformedDataVersion で止まる', async () => {
+    const a = cloneData(path.join(tmp, 'a'));
+    pushVersionFile('version: two\n');
+
+    expect(await store(a).refresh()).toMatchObject(err({ type: 'MalformedDataVersion' }));
+  });
+
+  it('origin に届かなくても、手元の版が新しければ止まる', async () => {
+    const a = cloneData(path.join(tmp, 'a'));
+    pushVersionFile('version: 2\n');
+    git(a, 'fetch', '--quiet', 'origin');
+    git(a, 'remote', 'set-url', 'origin', path.join(tmp, 'missing.git'));
+
+    expect(await store(a).refresh()).toEqual(
+      err({ type: 'UnsupportedDataVersion', found: 2, supported: 1 })
+    );
+  });
+
+  it('ai-board-data.yaml が無ければ確かめずに読む', async () => {
+    const a = cloneData(path.join(tmp, 'a'));
+    pushVersionFile(null);
+
+    expect(await store(a).refresh()).toEqual(ok({ kind: 'fetched' }));
+  });
+});
+
 describe('prepare', () => {
   function mainRepo(): string {
     const repo = path.join(tmp, 'main');

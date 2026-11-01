@@ -28,6 +28,13 @@ export function describeDataStoreError(error: DataStoreError, legacyDb: string |
       return `データ用ブランチへ push できませんでした（${error.attempts} 回試しました: ${error.message}）`;
     case 'DataStoreGitFailed':
       return `データ用ブランチの git ${error.step} に失敗しました（${error.message}）`;
+    case 'UnsupportedDataVersion':
+      return (
+        `データ用ブランチの形の版（${error.found}）が、この ai-board が読める版（${error.supported}）より新しいため、読まずに止まりました。` +
+        'ai-board を新しくしてからやり直してください'
+      );
+    case 'MalformedDataVersion':
+      return `データ用ブランチの ai-board-data.yaml が読めないため、読まずに止まりました（${error.reason}）`;
   }
 }
 

@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {
+  DATA_VERSION_FILE,
+  parseDataVersion,
+  type DataVersionError,
+} from '../cards/repositories/card-files.js';
 import { err, isErr, ok, type Result } from '../shared/result.js';
 import { describeCliError, type CliError, type CliRunner } from './cli-runner.js';
 
@@ -50,7 +55,12 @@ export type DataStoreError =
   /** push に失敗した（ネットワーク、拒否が上限まで続いた） */
   | { readonly type: 'DataStorePushFailed'; readonly attempts: number; readonly message: string }
   /** fetch / push 以外の git の操作に失敗した */
-  | { readonly type: 'DataStoreGitFailed'; readonly step: string; readonly message: string };
+  | { readonly type: 'DataStoreGitFailed'; readonly step: string; readonly message: string }
+  /**
+   * 取り直した `ai-board-data.yaml` の版が、この CLI より新しい（`UnsupportedDataVersion`）か読めない（`MalformedDataVersion`）。
+   * 古い CLI が新しい形を今の形として読み書きしないよう、中身を読まずに止まる
+   */
+  | DataVersionError;
 
 /** 取り直しの結果 */
 export type RefreshOutcome =
@@ -294,14 +304,20 @@ class GitDataStore implements DataStore {
     return isErr(added) ? err(gitFailed('worktree add', added.error)) : ok(undefined);
   }
 
-  /** fetch して `origin` の最新に合わせる。fetch に失敗したら、最後に知っている `origin` の内容に合わせる */
+  /**
+   * fetch して `origin` の最新に合わせる。fetch に失敗したら、最後に知っている `origin` の内容に合わせる。
+   *
+   * 合わせた後に形の版を確かめる。`refresh` と `transact`（`op` の前）はどちらもここを通るので、
+   * この CLI より新しい版のデータは、読み出しでも書き込みでも中身に触れる前に止まる。
+   */
   private async sync(): Promise<Result<RefreshOutcome, DataStoreError>> {
     const remotes = await this.gitStep('remote', ['remote']);
     if (isErr(remotes)) return remotes;
 
     if (!includesOrigin(remotes.value)) {
       const discarded = await this.discardTo('HEAD');
-      return isErr(discarded) ? discarded : ok({ kind: 'no-origin' });
+      if (isErr(discarded)) return discarded;
+      return this.checkVersion({ kind: 'no-origin' });
     }
 
     const fetched = await this.git(['fetch', '--quiet', 'origin', DATA_FETCH_REFSPEC]);
@@ -309,9 +325,24 @@ class GitDataStore implements DataStore {
     const discarded = await this.discardTo(DATA_REMOTE_REF);
     if (isErr(discarded)) return discarded;
 
-    return isErr(fetched)
-      ? ok({ kind: 'offline', reason: describeCliError(fetched.error) })
-      : ok({ kind: 'fetched' });
+    return this.checkVersion(
+      isErr(fetched)
+        ? { kind: 'offline', reason: describeCliError(fetched.error) }
+        : { kind: 'fetched' }
+    );
+  }
+
+  /**
+   * `ai-board-data.yaml` の版が、この CLI が読み書きできる版かを確かめる。
+   *
+   * ファイルが無ければ確かめない（`migrate` は必ず書くので、無いのは版を持たない試しのデータだけである）。
+   */
+  private checkVersion(outcome: RefreshOutcome): Result<RefreshOutcome, DataStoreError> {
+    const raw = readFileOrNull(path.join(this.dataDir, DATA_VERSION_FILE));
+    if (raw === null) return ok(outcome);
+
+    const version = parseDataVersion(raw);
+    return isErr(version) ? version : ok(outcome);
   }
 
   /**
@@ -677,6 +708,15 @@ function readLock(lockPath: string): LockContent | null {
     return null;
   } catch {
     return null;
+  }
+}
+
+function readFileOrNull(file: string): string | null {
+  try {
+    return fs.readFileSync(file, 'utf-8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
   }
 }
 

@@ -595,6 +595,33 @@ describe('runCardCli とデータ用ブランチ', () => {
     expect(stderr).toContain('ai-board migrate --empty');
   });
 
+  it('origin のデータの形の版がこの CLI より新しければ、list も submit も読まずに 1 にし、何も書かない', async () => {
+    await seed('a');
+    await start('a');
+
+    // 新しい ai-board が、形の版を上げて push した
+    const newer = cloneData(path.join(tmp, 'newer'));
+    fs.writeFileSync(path.join(newer, 'ai-board-data.yaml'), 'version: 2\n');
+    git(newer, 'commit', '--quiet', '-am', 'data: 形の版を 2 に上げる');
+    git(newer, 'push', '--quiet', 'origin', `HEAD:refs/heads/${DATA_BRANCH}`);
+    const before = originLog();
+
+    expect(await run(['list'])).toBe(1);
+    expect(stdout).toBe('');
+    expect(stderr).toContain('形の版（2）');
+    expect(stderr).toContain('ai-board を新しくして');
+
+    stderr = '';
+    expect(await run(['submit', 'a'])).toBe(1);
+    expect(stderr).toContain('形の版（2）');
+    expect(originLog()).toEqual(before);
+    expect(
+      git(origin, 'ls-tree', '-r', '--name-only', DATA_BRANCH, 'cards/a/log/')
+        .split('\n')
+        .filter((name) => name.endsWith('.plan.submit.md'))
+    ).toHaveLength(0);
+  });
+
   it('引数の誤りでは、データ用ブランチに触らない', async () => {
     deps = cliDeps(path.join(tmp, 'none', 'data'));
 
