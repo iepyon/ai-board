@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { withSkipGate } from '../stage-gates.js';
+import { offersSkipVerify, withSkipGate } from '../stage-gates.js';
 
 // ============================================================
 // 飛ばす宣言の出し入れ
@@ -32,5 +32,26 @@ describe('withSkipGate', () => {
 
   it('plan を外しても verify の宣言を保つ', () => {
     expect(withSkipGate(['plan', 'verify'], 'plan', false)).toEqual(['verify']);
+  });
+});
+
+// ============================================================
+// 動作確認を飛ばすチェックボックスの出し分け
+// ============================================================
+
+describe('offersSkipVerify', () => {
+  it.each(['idea', 'planning', 'plan-review', 'impling', 'verifying'] as const)(
+    '動作確認の列をまだ通っていない %s のカードには出す',
+    (stage) => {
+      expect(offersSkipVerify({ stage, aborted: false })).toBe(true);
+    }
+  );
+
+  it.each(['pr', 'merged'] as const)('動作確認の後にいる %s のカードには出さない', (stage) => {
+    expect(offersSkipVerify({ stage, aborted: false })).toBe(false);
+  });
+
+  it('実装中でも中止のカードには出さない', () => {
+    expect(offersSkipVerify({ stage: 'impling', aborted: true })).toBe(false);
   });
 });
