@@ -14,7 +14,8 @@ import { latestGateEntry } from '../../cards/services/review-log.js';
  *                 （未チェックのタスクがあれば倒す / 倒し終えて `## AI レビュー` 節が無ければレビューする /
  *                 節があれば動作確認を頼む。verify を飛ばす宣言があれば Ready にする）
  * - `revise-impl` 実装中で、動作確認の最新の判断が 否決。理由を読んで直し、動作確認を頼み直す
- * - `ready`       実装中で、動作確認を人が承認した。計画を archive へ移し、PR を Ready にする
+ * - `ready`       実装中で、verify ゲートを通った（人の承認、または verify を飛ばすカードの 提出 / 再提出）。
+ *                 計画を archive へ移し、PR を Ready にする
  * - `plan`        計画提案中で、まだ何も提出していない。計画を書いて Draft の PR を出し、提出する
  * - `revise-plan` 計画提案中で、最新の判断が 否決。理由を読んで計画を直し、再提出する
  *
@@ -48,8 +49,6 @@ export interface NextActionCard {
   readonly stage: Stage;
   readonly aborted: boolean;
   readonly gates: { readonly plan: GateState; readonly verify: GateState };
-  /** verify の approved が人の承認か、宣言のあるゲートの 提出 / 再提出 の読み替えかを見分けるのに使う */
-  readonly skipGates: readonly ReviewGate[];
   /** 人の判断を待っていれば、その止まり。`resolveHold` で導く */
   readonly hold: CardHold | null;
 }
@@ -185,10 +184,12 @@ function judge(card: NextActionCard): NextAction | null {
  * ここでブランチの計画を `git show` で読む案は、サーバと `status` に git の読み取りを持ち込み、
  * 「計画ファイルがあれば列が立つ」という読み方とも二重になるので採らない。
  *
- * verify を飛ばす宣言のカードでは、AI の `verify 提出 / 再提出` も approved と読まれる（`gateState`）。
- * 人の承認とは `skipGates` で見分ける。宣言のあるカードの approved は、動作確認で否決された実装を
- * `revise-impl` が直して再提出した後に来るので、`implement` を返して締めの段（archive して Ready にする）を
- * `board-worker` に任せる。
+ * verify の approved は、人の承認でも、verify を飛ばす宣言のカードの AI の `verify 提出 / 再提出` の
+ * 読み替え（`gateState`）でも、同じく `ready` を返す。宣言のあるカードの approved は、動作確認で否決された実装を
+ * `revise-impl` が直して再提出した後か、提出の後に人が宣言を入れた後に来る。どちらも AI レビューと
+ * PR の本文の見送りの節を済ませているので、締めの段（見送りの節を計画から差し替え、判断してほしい点を
+ * PR にコメントする）を通さずに、archive して Ready にするだけにする。
+ * 締めの段を通すと、`revise-impl` が PR の本文に足した見送りが消え、計画の判断してほしい点のコメントが重なる。
  */
 function judgeImpling(card: NextActionCard): NextAction | null {
   switch (card.gates.verify) {
@@ -197,9 +198,7 @@ function judgeImpling(card: NextActionCard): NextAction | null {
     case 'rejected':
       return { cardId: card.id, action: 'revise-impl', reason: '動作確認で否決された' };
     case 'approved':
-      return card.skipGates.includes('verify')
-        ? { cardId: card.id, action: 'implement', reason: '計画が承認され、動作確認は飛ばす' }
-        : { cardId: card.id, action: 'ready', reason: '動作確認が承認された' };
+      return { cardId: card.id, action: 'ready', reason: '動作確認が承認された' };
     case 'held':
       // 止まり（`resolveHold`）として扱い、pickNextAction がここへ来る前に飛ばす
       return null;

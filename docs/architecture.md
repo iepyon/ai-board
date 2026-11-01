@@ -77,7 +77,7 @@ AI の列（計画提案中 / 実装中）にいても、人の判断を待っ�
 止まりは次の 4 つで、`reason` には人が何をすればよいかを書く（`HOLD_REASONS`）。
 
 - 実装中で、人の最新の判断より後に PR が Draft に戻された（`mrState.convertedToDraftAt`）。
-  verify の状態より先に見るので、`ready` と、動作確認を飛ばすカードの `implement` の両方が Ready にし直さない
+  verify の状態より先に見るので、`ready` も、動作確認を飛ばすカードの `implement` も Ready にし直さない
 - 実装中で、verify の最新が 保留（`board-worker` が `card hold --gate verify` を書いた）
 - 計画提案中で、plan の最新が 保留
 - 計画提案中で、plan が提出済みなのに計画ファイルも Draft の PR も見えない（作り直すと PR を二重に作りかねない）。
@@ -90,6 +90,8 @@ AI の列（計画提案中 / 実装中）にいても、人の判断を待っ�
 
 CLI（`src/cards/cli/card-cli.ts`）には `startedAt` / `rank` / `skipGates` を書く入口も、承認 / 否決 / 中止を追記する入口も無く、
 `body` は `## レビュー` のエントリが変わる差し替えを拒む。
+`submit` の plan ゲートは、着手したカードで、plan が未提出か否決のときにだけ書ける
+（plan を飛ばすカードの `plan 再提出` は承認と同じ区切りになるので、いつでも書けると人の `verify 否決` を打ち消せてしまう）。
 逆に人の API（`POST /api/cards/:id/reviews`）は `HUMAN_REVIEW_KINDS`（承認 / 否決 / 中止）だけを受け、提出 / 再提出 / 保留 は 400 で拒む。
 
 どのカードにどの判断のボタンを出すかは `src/shared/dashboard-sections.ts` の `decisionsFor` が決める。
@@ -130,7 +132,9 @@ PR の状態は `refresh()` を 1 回だけ待って引き、`branch` から解�
 
 次の一手は `src/board/services/next-action.ts` の `pickNextAction`（実装中 → 計画提案中、列の中は `rank` の順）が決める。
 手は `plan` / `revise-plan`（計画提案中）と `implement` / `revise-impl` / `ready`（実装中）の 5 種類で、
-実装中の手は verify ゲートの状態で分ける（未提出 → `implement`、否決 → `revise-impl`、人の承認 → `ready`。飛ばす宣言なら `implement`）。
+実装中の手は verify ゲートの状態で分ける（未提出 → `implement`、否決 → `revise-impl`、承認 → `ready`）。
+verify を飛ばすカードの `verify 提出` / `verify 再提出` も承認と読まれて `ready` になり、締めの段を通さずに Ready にする
+（締めの段は PR の本文の見送りの節を計画から差し替えるので、`revise-impl` が足した見送りが消える）。
 `implement` は計画のタスクの進み具合では分けず、AI レビューの手（`review`）も無い。
 計画はブランチにあり、メインのチェックアウトからは読めないことが多いので、
 `implement` を受けた `board-worker` がワークツリーの計画を読んで段（タスクを倒す / AI レビュー / 締め）を決める。

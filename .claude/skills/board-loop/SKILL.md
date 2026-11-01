@@ -21,7 +21,7 @@ description: ai-board のボードを読み、AI が進めてよいカード（�
 | `revise-plan` | 計画提案中で、計画が否決された       | `board-planner` | 理由を読んで計画を直し、再提出する                                                                                                                     |
 | `implement`   | 実装中で、動作確認をまだ頼んでいない | `board-worker`  | 計画から段を決めて 1 段進める。`board-task` にタスクを倒させる / `board-reviewer` に指摘を書かせる / 動作確認を頼む（飛ばす宣言があれば Ready にする） |
 | `revise-impl` | 実装中で、動作確認で否決された       | `board-worker`  | 理由を読んで直し、動作確認を頼み直す                                                                                                                   |
-| `ready`       | 実装中で、動作確認を人が承認した     | `board-worker`  | 計画を archive へ移し、PR を Ready にする                                                                                                              |
+| `ready`       | 実装中で、動作確認を通った           | `board-worker`  | 計画を archive へ移し、PR を Ready にする                                                                                                              |
 
 動作確認を頼んだカードは 動作確認 の列に移り、人が承認か否決をするまで `next` に選ばれない（`waiting` に出る）。
 

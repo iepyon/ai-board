@@ -17,7 +17,7 @@ import { gateStates } from '../../../cards/services/review-log.js';
 function makeCard(
   overrides: Partial<NextActionCard> & Pick<NextActionCard, 'id' | 'stage'>
 ): NextActionCard {
-  return { aborted: false, gates: gate('none'), skipGates: [], hold: null, ...overrides };
+  return { aborted: false, gates: gate('none'), hold: null, ...overrides };
 }
 
 const HOLD = { reason: '止まっている', since: '2026-10-30T00:00:00.000Z' };
@@ -102,19 +102,6 @@ describe('pickNextAction', () => {
     ]);
 
     expect(next).toEqual({ cardId: 'a', action: 'ready', reason: '動作確認が承認された' });
-  });
-
-  it('動作確認を飛ばす宣言による承認は ready ではなく implement', () => {
-    const next = pickNextAction([
-      makeCard({
-        id: 'a',
-        stage: 'impling',
-        gates: gate('approved', 'approved'),
-        skipGates: ['verify'],
-      }),
-    ]);
-
-    expect(next?.action).toBe('implement');
   });
 
   it('動作確認を待つカードは選ばず、次のカードを選ぶ', () => {
@@ -301,9 +288,7 @@ describe('resolveHold', () => {
 
     expect(hold?.reason).toBe(HOLD_REASONS.draftReverted(38));
     expect(
-      pickNextAction([
-        makeCard({ id: 'a', stage: 'impling', gates: input.gates, skipGates: ['verify'], hold }),
-      ])
+      pickNextAction([makeCard({ id: 'a', stage: 'impling', gates: input.gates, hold })])
     ).toBeNull();
   });
 
@@ -360,7 +345,6 @@ describe('resolveHold', () => {
           id: 'a',
           stage: 'planning',
           gates: before.gates,
-          skipGates: ['plan'],
           hold: resolveHold(before),
         }),
       ])?.action
@@ -373,14 +357,13 @@ describe('resolveHold', () => {
           id: 'a',
           stage: 'impling',
           gates: after.gates,
-          skipGates: ['plan'],
           hold: resolveHold(after),
         }),
       ])?.action
     ).toBe('implement');
   });
 
-  it('動作確認を飛ばす宣言のカードで、否決の後の verify 再提出 は implement が選ばれる', () => {
+  it('動作確認を飛ばす宣言のカードで、否決の後の verify 再提出 は締めの段を通さずに ready が選ばれる', () => {
     const input = holdInput(
       'impling',
       [
@@ -399,11 +382,10 @@ describe('resolveHold', () => {
           id: 'a',
           stage: 'impling',
           gates: input.gates,
-          skipGates: ['verify'],
           hold: resolveHold(input),
         }),
       ])?.action
-    ).toBe('implement');
+    ).toBe('ready');
   });
 
   it('Draft に戻されたことが無い PR では止まらない', () => {

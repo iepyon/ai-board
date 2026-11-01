@@ -157,16 +157,24 @@ AI レビューはレビューの段で済んでいる。自分で `/code-review
      本文を読んで `$WT` の外のファイルに作り、`gh pr edit <mr> --body-file` で書き戻す。
      節が既にあれば、中身が `なし` ならそれを置き換え、箇条があればその後ろに足す（前の周の見送りを消さない）。節が無ければ締めの段の 1 と同じ場所に足す。
      見送った指摘が無ければ本文に触らない
-4. `implement` と同じく手順を動かせるところは動かし、`ai-board card submit <id> --gate verify --resubmit --reason "<本文>"` を書く。
+4. `skipGates` に `verify` があるカードでは、5 の `verify 再提出` が人の承認と読まれ、判断待ちの区画に出ずに次の手が `ready` になる
+   （締めの段は通らない）。3 で「人に判断してほしい」に分けた指摘があれば、その箇条だけを
+   `cd "$WT" && gh pr comment <mr> --body-file <ファイル>` で PR のコメントに書く（ファイルは `$WT` の外に作る）。
+   計画の `### 人に判断してほしいこと` は締めの段で人に伝えてあるので、もう一度書かない
+5. `implement` と同じく手順を動かせるところは動かし、`ai-board card submit <id> --gate verify --resubmit --reason "<本文>"` を書く。
    本文には直した点と、`implement` の提出と同じ項目（手順、動かした結果、計画から変わった点、確かめられなかった部分）を書く。
    3 で「人に判断してほしい」に分けた指摘があれば、それも本文に書く（人は動作確認と合わせて決める）
 
-## 4. `ready` — 動作確認で承認された実装を Ready にする
+## 4. `ready` — verify ゲートを通った実装を Ready にする
 
-1. `ai-board card show <id>` の `## レビュー` で、verify の最新のエントリが人の 承認 であることを確かめる。そうでなければ止まって報告する
-2. コードには触らない（AI レビューは動作確認を頼む前に済んでいる）
-3. 計画がまだ `plans/` にあれば、`git mv .ai-board/plans/<id>.md .ai-board/plans/archive/<id>.md` をコミット（`chore: 〜の計画を archive へ移す`）→ push → `gh pr ready <mr>`
-4. 計画が既に `plans/archive/` にあれば、前の周で `gh pr ready` だけが失敗している。`gh pr ready <mr>` だけをやり直す
+1. `ai-board card show <id>` の `## レビュー` で、verify の最新のエントリが次のどちらかであることを確かめる。そうでなければ止まって報告する
+   - 人の 承認
+   - `skipGates` に `verify` があり、AI の 提出 / 再提出（宣言で承認と読まれる。`revise-impl` が直して再提出した後か、提出の後に人が宣言を入れた後）
+2. コードにも PR の本文にも触らない（AI レビューと見送りの節は、動作確認を頼む前か `revise-impl` で済んでいる）
+3. 計画がまだ `plans/` にあれば、未チェックのタスクが無いことを確かめる（あれば止まって報告する）。
+   そのうえで `git mv .ai-board/plans/<id>.md .ai-board/plans/archive/<id>.md` をコミット（`chore: 〜の計画を archive へ移す`）→ push → `gh pr ready <mr>`
+4. 計画が既に `plans/archive/` にあれば、前の周で `gh pr ready` だけが失敗したか、Ready にした後に人が Draft に戻して直させた後である。
+   `gh pr ready <mr>` だけを行う
 
 ## 5. 報告
 
@@ -180,7 +188,7 @@ AI レビューはレビューの段で済んでいる。自分で `/code-review
   - `implement` の締めの段（動作確認を頼んだ / Ready にした）: 「レビューの段で済んでいる」と書き、PR の本文に写した見送った指摘の件数（無ければ「なし」）を添える
   - `implement` のタスクを倒す段と archive 済みの段: 「この段では行わない」と書く
   - `revise-impl`: `/code-review` で行った / 代わりに `gh pr diff` を見直した、のどちらかと、直した件数と PR の本文に足した見送りの件数
-  - `ready`: 「動作確認を頼む前に済ませた」と書く
+  - `ready`: 「動作確認を頼む前か `revise-impl` で済ませた」と書く
 - 止まった理由と、人にしてほしいこと（止まったときだけ）
 
 ## ハードルール
