@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
 import type { PlanDoc, PlanState, TaskProgress } from '../models/plan-state.js';
+import { COMPLETED_TASK_PATTERN, TASK_PATTERN } from '../models/plan-task.js';
 
 // ============================================================
 // .ai-board/plans/ の読み取り（read-only）
@@ -26,17 +27,6 @@ export interface PlanRepository {
 
 const ARCHIVE_DIR = 'archive';
 const PLAN_EXTENSION = '.md';
-
-/**
- * タスクのチェックボックス行。
- *
- * 先頭の空白を許すのは、インデントされたサブタスクを親と同じように数えるため
- * （列 0 に固定すると `  - [ ] 1.1.1 …` が進捗から消える）。
- * 箇条点とブラケットの間も `\s*` で、`-[ ]` のような詰めた書き方も拾う。
- * 狭めると数えていた行が落ちるだけなので、意図的に緩くしてある。
- */
-const TASK_PATTERN = /^\s*[-*]\s*\[[\sx]\]/i;
-const COMPLETED_TASK_PATTERN = /^\s*[-*]\s*\[x\]/i;
 
 export class FsPlanRepository implements PlanRepository {
   constructor(private readonly plansDir: string) {}
