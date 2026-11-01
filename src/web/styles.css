@@ -968,6 +968,100 @@ a.detail-summary-item {
   font-weight: 700;
 }
 
+/* ---------- 詳細パネルの判断の記録 ---------- */
+
+.review-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.review-entry {
+  border-left: 3px solid var(--border);
+  padding: 2px 0 2px 12px;
+  margin: 0 0 12px;
+}
+
+.review-entry-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.review-entry-kind {
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 1px 8px;
+  color: var(--text-2);
+  background: var(--surface-2);
+}
+
+.review-entry-at {
+  font-size: 11.5px;
+  color: var(--text-2);
+  font-family: 'SF Mono', Menlo, monospace;
+}
+
+.review-entry.tone-approve {
+  border-left-color: var(--src-archive);
+}
+
+.review-entry.tone-approve .review-entry-kind {
+  color: var(--src-archive);
+  background: var(--src-archive-bg);
+}
+
+.review-entry.tone-reject {
+  border-left-color: var(--warn);
+}
+
+.review-entry.tone-reject .review-entry-kind {
+  color: var(--warn);
+  background: var(--warn-bg);
+}
+
+.review-entry.tone-abort {
+  border-left-color: var(--danger);
+}
+
+.review-entry.tone-abort .review-entry-kind {
+  color: var(--danger);
+}
+
+.review-entry.tone-submit {
+  border-left-color: var(--accent);
+}
+
+.review-entry.tone-submit .review-entry-kind {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.review-entry.tone-hold {
+  border-left-color: var(--src-forge);
+}
+
+.review-entry.tone-hold .review-entry-kind {
+  color: var(--src-forge);
+  background: var(--src-forge-bg);
+}
+
+.review-entry-reason .md-paragraph:last-child,
+.review-entry-reason .md-list:last-child,
+.review-entry-reason .md-code:last-child,
+.review-entry-reason .md-rows:last-child {
+  margin-bottom: 0;
+}
+
+.review-entry-empty {
+  font-size: 12px;
+  color: var(--text-2);
+  margin: 0;
+}
+
 /* ---------- 詳細パネルのステージ表示 ---------- */
 
 .stage-now {

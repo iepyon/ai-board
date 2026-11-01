@@ -24,8 +24,22 @@ export function BodyView({ body }: { body: string }) {
     return <p className="movable">本文はまだありません。</p>;
   }
 
+  return <MarkdownBlocks blocks={blocks} />;
+}
+
+/**
+ * 変換済みのブロックの木を要素に写す。本文の欄と、判断の記録の理由（`parseReasonBlocks` の木）で使う。
+ * 木の作り方は呼び出し側が決め、ここは描くだけにする。
+ */
+export function MarkdownBlocks({
+  blocks,
+  className,
+}: {
+  blocks: readonly Block[];
+  className?: string;
+}) {
   return (
-    <div className="md-body">
+    <div className={className === undefined ? 'md-body' : `md-body ${className}`}>
       {blocks.map((block, index) => (
         <BlockView key={index} block={block} />
       ))}

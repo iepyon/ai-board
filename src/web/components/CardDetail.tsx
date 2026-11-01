@@ -5,6 +5,7 @@ import { ReviewActions } from './detail/ReviewActions.js';
 import { LinkFields } from './detail/LinkFields.js';
 import { SkipGateField } from './detail/SkipGateField.js';
 import { BodyEditor } from './detail/BodyEditor.js';
+import { ReviewLog } from './detail/ReviewLog.js';
 import { SummaryLine } from './detail/SummaryLine.js';
 import { HoldNote } from './detail/HoldNote.js';
 import { updateCardMeta, type CardMetaPatch } from '../api.js';
@@ -50,6 +51,7 @@ export function CardDetail({ card, onClose, onChanged }: CardDetailProps) {
         <HoldNote card={card} />
         {awaitsDecision(card) && <ReviewActions card={card} saving={saving} onRun={run} />}
         <BodyEditor card={card} saving={saving} onRun={run} />
+        <ReviewLog reviews={card.reviews} />
         <StageSection card={card} />
         <PlanSection card={card} />
         <SkipGateField card={card} saving={saving} onPatch={patch} />
