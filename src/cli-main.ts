@@ -24,6 +24,7 @@ import { runMigrateCli } from './cards/cli/migrate-cli.js';
 import { describeDataStoreError, describeOfflineRead } from './cards/cli/data-store-messages.js';
 import {
   createBoardDependencies,
+  createBranchPlanRepository,
   createFileMrSnapshotRepository,
   createMrStateSource,
 } from './board/composition.js';
@@ -224,7 +225,12 @@ async function runStatus(argv: readonly string[]): Promise<number> {
 
   return runStatusCli(
     rest,
-    { ...board, findServer: () => findLiveServer(config.paths.dataDir) },
+    {
+      ...board,
+      findServer: () => findLiveServer(config.paths.dataDir),
+      // implement の段（next.step）を、カードのブランチの計画から読む。git fetch はしない
+      branchPlanRepository: createBranchPlanRepository(runner, paths.root),
+    },
     io
   );
 }

@@ -13,6 +13,9 @@ import type { Board, BoardCard } from '../models/board-card.js';
 import type { ForgeConnection } from '../models/mr-state.js';
 import type { ServerLocation } from '../../infrastructure/server-info.js';
 import { pickNextAction, type NextAction } from '../services/next-action.js';
+import { resolveImplStep, type ImplStep } from '../services/impl-step.js';
+import type { BranchPlanRepository } from '../repositories/branch-plan.repository.js';
+import { createCardId } from '../../shared/schemas/common.js';
 import { describeForge, describeNext } from './status-describe.js';
 import { formatStatusHtml } from './status-html.js';
 
@@ -71,6 +74,11 @@ export interface StatusDependencies {
   readonly getBoardQuery: GetBoardQuery;
   /** 起動中のサーバを探す。省略時は null（サーバは無いものとする） */
   readonly findServer?: () => ServerLocation | null;
+  /**
+   * カードのブランチの計画を読む。`next.action` が `implement` のときだけ使い、`next.step` を埋める。
+   * 省略時は段を読まず、`next.step` は null のまま
+   */
+  readonly branchPlanRepository?: BranchPlanRepository;
 }
 
 /** 出す形。`text` は人向けの数行 */
@@ -112,10 +120,41 @@ export async function runStatusCli(
     return 1;
   }
 
-  const report = buildStatusReport(result.value, io.now(), deps.findServer?.() ?? null);
+  const built = buildStatusReport(result.value, io.now(), deps.findServer?.() ?? null);
+  const report = await withImplStep(built, deps.branchPlanRepository);
 
   io.stdout(formatReport(report, args.format));
   return 0;
+}
+
+/**
+ * `next.action` が `implement` のときだけ、カードのブランチの計画を読んで `next.step` を埋める。
+ *
+ * 読むのは `next` に選ばれた 1 枚だけ。サーバとステージの導出には持ち込まない。
+ * 読めない（読み手が無い、`branch` が null、ブランチや計画が無い）ときは `step: null` のままにし、
+ * `status` は失敗させない（次の一手そのものは読めているため）。
+ */
+async function withImplStep(
+  report: StatusReport,
+  reader: BranchPlanRepository | undefined
+): Promise<StatusReport> {
+  const next = report.next;
+  if (next === null || next.action !== 'implement' || reader === undefined) return report;
+
+  const step = await readImplStep(next.cardId, report.cards, reader);
+  return { ...report, next: { ...next, step } };
+}
+
+async function readImplStep(
+  cardId: string,
+  cards: readonly StatusCard[],
+  reader: BranchPlanRepository
+): Promise<ImplStep | null> {
+  const branch = cards.find((card) => card.id === cardId)?.branch ?? null;
+  if (branch === null) return null;
+
+  const plan = await reader.find(createCardId(cardId), branch);
+  return plan === null ? null : resolveImplStep(plan);
 }
 
 function formatReport(report: StatusReport, format: StatusFormat): string {
