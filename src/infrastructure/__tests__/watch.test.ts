@@ -57,6 +57,30 @@ describe('startWatching', () => {
     expect(onChange.mock.calls.length).toBeLessThanOrEqual(2);
   });
 
+  it('git の管理のファイルと、ignoredPaths の下の変更は通知しない', async () => {
+    const onChange = vi.fn();
+    await fs.mkdir(path.join(root, '.git'), { recursive: true });
+    await fs.mkdir(path.join(root, 'cache'), { recursive: true });
+    watcher = startWatching({
+      paths: [root],
+      onChange,
+      ignoredPaths: [path.join(root, 'data.lock'), path.join(root, 'cache')],
+      debounceMs: 50,
+    });
+    await sleep(300);
+
+    await fs.writeFile(path.join(root, '.git', 'FETCH_HEAD'), 'abc', 'utf-8');
+    await fs.writeFile(path.join(root, 'data.lock'), '{}', 'utf-8');
+    await fs.rm(path.join(root, 'data.lock'));
+    await fs.writeFile(path.join(root, 'cache', 'mr-snapshots.json'), '{}', 'utf-8');
+    await sleep(500);
+    expect(onChange).not.toHaveBeenCalled();
+
+    // 名前が前方一致するだけのファイルは見る
+    await fs.writeFile(path.join(root, 'cache-note.md'), '内容', 'utf-8');
+    expect(await waitFor(() => onChange.mock.calls.length > 0)).toBe(true);
+  });
+
   it('存在しないディレクトリを渡してもエラーにしない', () => {
     const onChange = vi.fn();
 

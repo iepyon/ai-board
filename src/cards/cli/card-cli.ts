@@ -1,11 +1,15 @@
 import { isDeepStrictEqual } from 'node:util';
+import { err, isErr, type Result } from '../../shared/result.js';
 import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
+import type { CommitMessage, DataStore, DataStoreError } from '../../infrastructure/data-store.js';
 import type { CardDependencies } from '../composition.js';
 import type { Card } from '../models/card.js';
 import type { CreateCardError, UpdateCardError } from '../errors/card-errors.js';
-import { readCardFiles, serializeCard } from '../repositories/card-markdown.js';
+import { serializeCard } from '../repositories/card-markdown.js';
+import { CardWriteRefusedError } from '../repositories/file-card.repository.js';
 import { isReviewGate, type ReviewGate } from '../models/review.js';
-import { gateStates, parseReviewLog } from '../services/review-log.js';
+import { gateStates, parseEntryHeading, parseReviewLog } from '../services/review-log.js';
+import { describeDataStoreError, describeOfflineRead } from './data-store-messages.js';
 
 // ============================================================
 // ai-board card — エージェントがカードに書くための CLI
@@ -17,6 +21,11 @@ import { gateStates, parseReviewLog } from '../services/review-log.js';
  * `startedAt`・`rank`・`skipGates` の書き換えと、承認 / 否決 / 中止の追記は
  * 人の判断であり、ここには入口を置かない（UI と HTTP API からだけ行える）。
  * 本文の差し替えも、`## レビュー` のエントリを変えるものは拒否する。
+ * 提出 / 保留の理由に、判断の見出しとして読める行を紛れ込ませるものも拒否する（`reasonWritable`）。
+ *
+ * カードの正本はデータ用ブランチにある。読むコマンドは頭で 1 回取り直してから読み、
+ * 書くコマンドは検査（`submitRefusal` など）から usecase までを `DataStore.transact` の中で走らせる。
+ * push が拒否されると取り直した状態で検査からやり直すので、検査は必ず最新のカードに対して行われる。
  */
 export const CARD_USAGE = `使い方: ai-board card <command> [--root <path>]
 
@@ -52,7 +61,25 @@ interface ParsedArgs {
   readonly flags: ReadonlyMap<string, string | true>;
 }
 
-type Handler = (args: ParsedArgs, deps: CardDependencies, io: CardCliIo) => Promise<number>;
+export interface CardCliDependencies {
+  /** データのワークツリー。読む前に取り直し、書き込みは `transact` の中で行う */
+  readonly store: Pick<DataStore, 'refresh' | 'transact'>;
+  /** `store` のデータのワークツリーを読み書きするカードの依存 */
+  readonly cards: CardDependencies;
+  /** 移行前の DB（`board.db`）の場所。無ければ null。データ用ブランチが無いときの案内を変える */
+  readonly legacyDb: string | null;
+}
+
+type Handler = (args: ParsedArgs, deps: CardCliDependencies, io: CardCliIo) => Promise<number>;
+
+/** CLI の検査で書き込みを拒んだ */
+interface Refused {
+  readonly type: 'Refused';
+  readonly message: string;
+}
+
+/** usecase のエラーには、リポジトリの拒否（`CardWriteRefused`）と `transact` の失敗が含まれる */
+type WriteFailure = CreateCardError | UpdateCardError | Refused;
 
 const VALUE_FLAGS = new Set(['--title', '--id', '--reason', '--from', '--gate']);
 
@@ -69,7 +96,7 @@ const HANDLERS: Readonly<Record<string, Handler>> = {
 /** `ai-board card <command>` を実行し、終了コードを返す */
 export async function runCardCli(
   argv: readonly string[],
-  deps: CardDependencies,
+  deps: CardCliDependencies,
   io: CardCliIo
 ): Promise<number> {
   const [command, ...rest] = argv;
@@ -87,27 +114,6 @@ export async function runCardCli(
   }
 
   return handler(parsed, deps, io);
-}
-
-/** `ai-board import`。移行前の Markdown カードを DB に取り込む。既存の ID は上書きしない */
-export async function runImport(
-  cardsDir: string,
-  deps: CardDependencies,
-  io: CardCliIo
-): Promise<number> {
-  const cards = await readCardFiles(cardsDir);
-  let imported = 0;
-
-  for (const card of cards) {
-    if (await deps.cardRepository.create(card)) {
-      imported += 1;
-    } else {
-      io.stderr(`既に DB にあるため読み飛ばしました: ${card.id}\n`);
-    }
-  }
-
-  io.stdout(`${imported} 件のカードを取り込みました（${cardsDir}）\n`);
-  return 0;
 }
 
 /** 引数を位置引数とフラグに分ける。`--root` は呼び出し側で取り除いてある */
@@ -143,19 +149,30 @@ export function parseCommandArgs(argv: readonly string[]): ParsedArgs | string {
 // サブコマンド
 // ============================================================
 
-async function runList(_args: ParsedArgs, deps: CardDependencies, io: CardCliIo): Promise<number> {
-  const cards = await deps.cardRepository.findAll();
+async function runList(
+  _args: ParsedArgs,
+  deps: CardCliDependencies,
+  io: CardCliIo
+): Promise<number> {
+  if (!(await refreshForRead(deps, io))) return 1;
+
+  const cards = await deps.cards.cardRepository.findAll();
   const summaries = cards.map(({ body: _body, ...meta }) => meta);
 
   io.stdout(`${JSON.stringify(summaries, null, 2)}\n`);
   return 0;
 }
 
-async function runShow(args: ParsedArgs, deps: CardDependencies, io: CardCliIo): Promise<number> {
+async function runShow(
+  args: ParsedArgs,
+  deps: CardCliDependencies,
+  io: CardCliIo
+): Promise<number> {
   const id = requireCardId(args, io);
   if (id === null) return 1;
+  if (!(await refreshForRead(deps, io))) return 1;
 
-  const card = await deps.cardRepository.findById(id);
+  const card = await deps.cards.cardRepository.findById(id);
   if (card === null) {
     io.stderr(`カードが見つかりません: ${id}\n`);
     return 1;
@@ -165,7 +182,11 @@ async function runShow(args: ParsedArgs, deps: CardDependencies, io: CardCliIo):
   return 0;
 }
 
-async function runCreate(args: ParsedArgs, deps: CardDependencies, io: CardCliIo): Promise<number> {
+async function runCreate(
+  args: ParsedArgs,
+  deps: CardCliDependencies,
+  io: CardCliIo
+): Promise<number> {
   const title = args.flags.get('--title');
   if (typeof title !== 'string' || title.trim() === '') {
     io.stderr('--title を指定してください\n');
@@ -174,18 +195,27 @@ async function runCreate(args: ParsedArgs, deps: CardDependencies, io: CardCliIo
 
   const id = args.flags.get('--id');
   const body = await io.readStdin();
+  const createdAt = io.now();
 
-  const result = await deps.createCardCommand({
-    title: title.trim(),
-    id: typeof id === 'string' ? id : undefined,
-    body: body ?? undefined,
-    createdAt: io.now(),
-  });
-
-  return report(result, io);
+  return write(
+    deps,
+    io,
+    (card) => `data: ${card.id} を作る`,
+    () =>
+      deps.cards.createCardCommand({
+        title: title.trim(),
+        id: typeof id === 'string' ? id : undefined,
+        body: body ?? undefined,
+        createdAt,
+      })
+  );
 }
 
-async function runBody(args: ParsedArgs, deps: CardDependencies, io: CardCliIo): Promise<number> {
+async function runBody(
+  args: ParsedArgs,
+  deps: CardCliDependencies,
+  io: CardCliIo
+): Promise<number> {
   const id = requireCardId(args, io);
   if (id === null) return 1;
 
@@ -195,24 +225,26 @@ async function runBody(args: ParsedArgs, deps: CardDependencies, io: CardCliIo):
     return 1;
   }
 
-  const existing = await deps.cardRepository.findById(id);
-  if (existing === null) {
-    io.stderr(`カードが見つかりません: ${id}\n`);
-    return 1;
-  }
+  return write(deps, io, `data: ${id} の本文を差し替える`, async () => {
+    const existing = await deps.cards.cardRepository.findById(id);
+    if (existing === null) return err({ type: 'CardNotFound', id });
 
-  // 人の判断はレビューログにだけ残る。本文の差し替えでそれを書き換えさせない
-  if (!isDeepStrictEqual(parseReviewLog(existing.body), parseReviewLog(body))) {
-    io.stderr(
-      '## レビュー のエントリが変わる差し替えはできません。提出 / 再提出は submit で追記してください\n'
-    );
-    return 1;
-  }
+    // 人の判断はレビューログにだけ残る。本文の差し替えでそれを書き換えさせない
+    if (!isDeepStrictEqual(parseReviewLog(existing.body), parseReviewLog(body))) {
+      return refused(
+        '## レビュー のエントリが変わる差し替えはできません。提出 / 再提出は submit で追記してください'
+      );
+    }
 
-  return report(await deps.updateCardBodyCommand({ id, body: trimNewlines(body) }), io);
+    return deps.cards.updateCardBodyCommand({ id, body: trimNewlines(body) });
+  });
 }
 
-async function runBranch(args: ParsedArgs, deps: CardDependencies, io: CardCliIo): Promise<number> {
+async function runBranch(
+  args: ParsedArgs,
+  deps: CardCliDependencies,
+  io: CardCliIo
+): Promise<number> {
   const id = requireCardId(args, io);
   if (id === null) return 1;
 
@@ -224,12 +256,12 @@ async function runBranch(args: ParsedArgs, deps: CardDependencies, io: CardCliIo
     return 1;
   }
 
-  const result = await deps.updateCardMetaCommand({
-    id,
-    patch: { branch: clear ? null : (name ?? null) },
-  });
+  // コミットにブランチ名は入れない（ID・ゲート・種別だけを入れる）
+  const message = clear ? `data: ${id} のブランチを外す` : `data: ${id} にブランチを紐付ける`;
 
-  return report(result, io);
+  return write(deps, io, message, () =>
+    deps.cards.updateCardMetaCommand({ id, patch: { branch: clear ? null : (name ?? null) } })
+  );
 }
 
 /**
@@ -247,7 +279,11 @@ async function runBranch(args: ParsedArgs, deps: CardDependencies, io: CardCliIo
  *
  * verify の提出は plan の通過を前提にするので、着手の条件は重ねない。
  */
-async function runSubmit(args: ParsedArgs, deps: CardDependencies, io: CardCliIo): Promise<number> {
+async function runSubmit(
+  args: ParsedArgs,
+  deps: CardCliDependencies,
+  io: CardCliIo
+): Promise<number> {
   const id = requireCardId(args, io);
   if (id === null) return 1;
 
@@ -257,23 +293,24 @@ async function runSubmit(args: ParsedArgs, deps: CardDependencies, io: CardCliIo
     return 1;
   }
 
-  const refusal = await submitRefusal(id, gate, deps);
-  if (refusal !== null) {
-    io.stderr(`${refusal}\n`);
-    return 1;
-  }
-
   const reason = args.flags.get('--reason');
+  if (typeof reason === 'string' && !reasonWritable(reason, io)) return 1;
 
-  const result = await deps.appendReviewCommand({
-    id,
-    gate,
-    kind: args.flags.get('--resubmit') === true ? '再提出' : '提出',
-    reason: typeof reason === 'string' ? reason : '',
-    at: io.now(),
+  const kind = args.flags.get('--resubmit') === true ? '再提出' : '提出';
+  const at = io.now();
+
+  return write(deps, io, `data: ${id} に ${gate} ${kind} を足す`, async () => {
+    const refusal = await submitRefusal(id, gate, deps.cards);
+    if (refusal !== null) return refused(refusal);
+
+    return deps.cards.appendReviewCommand({
+      id,
+      gate,
+      kind,
+      reason: typeof reason === 'string' ? reason : '',
+      at,
+    });
   });
-
-  return report(result, io);
 }
 
 /**
@@ -287,7 +324,11 @@ async function runSubmit(args: ParsedArgs, deps: CardDependencies, io: CardCliIo
  * （`revise-plan` / `revise-impl`）で止まるときだけで、それ以外で書けると、承認済みの plan に保留を書いて
  * 人の承認を打ち消したり、計画レビュー / 動作確認 で人を待つカードを AI の列へ落としたりできてしまう。
  */
-async function runHold(args: ParsedArgs, deps: CardDependencies, io: CardCliIo): Promise<number> {
+async function runHold(
+  args: ParsedArgs,
+  deps: CardCliDependencies,
+  io: CardCliIo
+): Promise<number> {
   const id = requireCardId(args, io);
   if (id === null) return 1;
 
@@ -303,21 +344,70 @@ async function runHold(args: ParsedArgs, deps: CardDependencies, io: CardCliIo):
     io.stderr('--reason に、なぜ止まったか、人に何を決めてほしいかを書いてください\n');
     return 1;
   }
+  if (!reasonWritable(reason, io)) return 1;
 
-  if (!(await gateRejected(id, gate, deps))) {
-    io.stderr(`保留は ${gate} の最新の判断が否決のときにしか書けません\n`);
-    return 1;
+  const at = io.now();
+
+  return write(deps, io, `data: ${id} に ${gate} 保留 を足す`, async () => {
+    if (!(await gateRejected(id, gate, deps.cards))) {
+      return refused(`保留は ${gate} の最新の判断が否決のときにしか書けません`);
+    }
+
+    return deps.cards.appendReviewCommand({ id, gate, kind: '保留', reason: reason.trim(), at });
+  });
+}
+
+// ============================================================
+// データ用ブランチの読み書き
+// ============================================================
+
+/**
+ * 読む前に 1 回取り直す。読めなければ理由を出して false。
+ *
+ * fetch に失敗したとき（オフライン）は、警告を出して手元の内容で読む。
+ */
+async function refreshForRead(deps: CardCliDependencies, io: CardCliIo): Promise<boolean> {
+  const refreshed = await deps.store.refresh();
+  if (isErr(refreshed)) {
+    io.stderr(`${describeDataStoreError(refreshed.error, deps.legacyDb)}\n`);
+    return false;
   }
 
-  const result = await deps.appendReviewCommand({
-    id,
-    gate,
-    kind: '保留',
-    reason: reason.trim(),
-    at: io.now(),
+  if (refreshed.value.kind === 'offline') {
+    io.stderr(`${describeOfflineRead(refreshed.value.reason)}\n`);
+  }
+  return true;
+}
+
+/**
+ * 検査から usecase までを、書き込みの 1 操作（`transact`）の中で走らせる。
+ *
+ * `op` は push が拒否されると取り直した状態で頭から呼び直されるので、標準出力にも標準エラーにも書かない。
+ * 拒むときは Err を返す（`transact` が書きかけのファイルを捨て、コミットしない）。
+ * 出力は `transact` が返ってから 1 回だけ行う。
+ */
+async function write(
+  deps: CardCliDependencies,
+  io: CardCliIo,
+  message: CommitMessage<Card>,
+  op: () => Promise<Result<Card, WriteFailure>>
+): Promise<number> {
+  const result = await deps.store.transact<Card, WriteFailure>(message, async () => {
+    try {
+      return await op();
+    } catch (error) {
+      if (error instanceof CardWriteRefusedError) {
+        return err({ type: 'CardWriteRefused', reason: error.reason.type });
+      }
+      throw error;
+    }
   });
 
-  return report(result, io);
+  return report(result, deps, io);
+}
+
+function refused(message: string): Result<never, Refused> {
+  return err({ type: 'Refused', message });
 }
 
 // ============================================================
@@ -327,6 +417,26 @@ async function runHold(args: ParsedArgs, deps: CardDependencies, io: CardCliIo):
 /** 前後の改行だけを落とす。Markdown の行頭の空白は意味を持つので trim しない */
 function trimNewlines(text: string): string {
   return text.replace(/^\n+/, '').replace(/\n+$/, '');
+}
+
+/**
+ * `--reason` をそのまま判断の理由に書いてよいか。だめなら理由を出して false。
+ *
+ * 理由は判断の見出しの下にそのまま書かれ、本文を読む側（`parseReviewLog`）も、データ用ブランチへ書く側
+ * （`card-files.ts` の `appendedEntries`）も、行ごとに `parseEntryHeading` で判断の見出しを探す。
+ * 理由に `### <時刻> plan 承認` の行があると別の判断として読まれ、AI が CLI だけで承認 / 否決 / 中止を
+ * 書けてしまうので、見出しとして読める行を含む理由は拒む。`### 動かす手順` のような、時刻・ゲート・種別の
+ * 揃わない見出しは判断と読まれないので書ける。
+ * 本文を読む側は `\n` でしか行を分けないが、`\r` でも分けて確かめる（広く拒むぶんには害が無い）。
+ */
+function reasonWritable(reason: string, io: CardCliIo): boolean {
+  const heading = reason.split(/\r\n|\r|\n/).find((line) => parseEntryHeading(line) !== null);
+  if (heading === undefined) return true;
+
+  io.stderr(
+    `--reason に判断の見出し（### <時刻> <gate> <種別>）として読める行は書けません: ${heading}\n`
+  );
+  return false;
 }
 
 /**
@@ -388,22 +498,22 @@ function requireCardId(args: ParsedArgs, io: CardCliIo): CardId | null {
   return parsed.data as CardId;
 }
 
-type CardResult =
-  | { readonly ok: true; readonly value: Card }
-  | { readonly ok: false; readonly error: CreateCardError | UpdateCardError };
-
 /** 成功なら書き込んだカードの ID を出す。失敗なら理由を stderr に出す */
-function report(result: CardResult, io: CardCliIo): number {
+function report(
+  result: Result<Card, WriteFailure | DataStoreError>,
+  deps: CardCliDependencies,
+  io: CardCliIo
+): number {
   if (result.ok) {
     io.stdout(`${result.value.id}\n`);
     return 0;
   }
 
-  io.stderr(`${describeError(result.error)}\n`);
+  io.stderr(`${describeError(result.error, deps.legacyDb)}\n`);
   return 1;
 }
 
-function describeError(error: CreateCardError | UpdateCardError): string {
+function describeError(error: WriteFailure | DataStoreError, legacyDb: string | null): string {
   switch (error.type) {
     case 'CardNotFound':
       return `カードが見つかりません: ${error.id}`;
@@ -411,5 +521,12 @@ function describeError(error: CreateCardError | UpdateCardError): string {
       return `同じ ID のカードが既にあります: ${error.id}`;
     case 'InvalidCardId':
       return `カード ID が不正です: ${error.reason}`;
+    case 'Refused':
+      return error.message;
+    case 'CardWriteRefused':
+      return `カードのファイルへの書き込みを拒みました（${error.reason}）`;
+    default:
+      // 残りは DataStoreError。describeDataStoreError の switch が種別を網羅する
+      return describeDataStoreError(error, legacyDb);
   }
 }

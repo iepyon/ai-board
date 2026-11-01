@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "deny": [
+      "Edit(/.ai-board/data/**)",
+      "Edit(**/.ai-board/data/**)",
+      "Write(/.ai-board/data/**)",
+      "Write(**/.ai-board/data/**)",
+      "Bash(git push *ai-board/data*)",
+      "Bash(git * push *ai-board/data*)"
+    ]
+  }
+}

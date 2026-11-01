@@ -35,12 +35,13 @@ Bash の作業ディレクトリは、呼び出しをまたいで保たれると
    構成は `.ai-board/plans/archive/` の計画にならう: `# 題` / `## 提案`（Why / What Changes / Impact）/ `## 設計`（Decisions / Risks / Trade-offs / Non-Goals）/ `## 動作確認の手順` / `## タスク`（`- [ ]` のチェックボックス）。日本語で書く。
    `## 動作確認の手順` には、実装後に人が動かして確かめる手順（起動のコマンド、見る画面、期待する結果）を書く。
    古い archive の計画にはこの節が無いので、`.ai-board/plans/archive/verify-gate.md` を手本にする
-3. コミット（`docs: 〜の計画を立てる`）→ `git push -u origin <branch>` → `gh pr create --draft`（本文に計画ファイルの場所、概要、判断してほしい点）
+3. コミット（`docs: 〜の計画を立てる`）→ `git push -u origin <branch>` → `ai-board pr create --draft --head <branch> --title "<題>" --body-file <ファイル>`
+   （本文に計画ファイルの場所、概要、判断してほしい点。ファイルは `$WT` の外（スクラッチパッドなど）に作る）
 4. `ai-board card branch <id> <branch>` → `ai-board card submit <id> --reason "<判断してほしい点>"`
 
 ## 3. `revise-plan` — 否決された計画を直して再提出する
 
-1. `ai-board card show <id>` の `## レビュー` の最新の plan 否決 の理由と、`gh pr view <mr> --comments` を読む
+1. `ai-board card show <id>` の `## レビュー` の最新の plan 否決 の理由と、`ai-board pr view <mr> --comments` を読む
 2. 計画を直してコミット（`docs: 〜の計画を直す`）→ push。
    否決の理由が読み取れない、または直し方に人の判断が要るときは、手を付けずに共通の決まりの「直しきれないとき」に従い、`--gate plan` で保留を書いて止まる
 3. `ai-board card submit <id> --resubmit --reason "<直した点>"`

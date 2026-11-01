@@ -1,52 +1,19 @@
-import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import matter from 'gray-matter';
 import type { CardId, MergeRequestIid } from '../../shared/schemas/common.js';
 import { CardFrontmatterSchema } from '../models/schemas/card.schema.js';
 import type { Card } from '../models/card.js';
-import { compareCards } from '../services/card-order.js';
 
 // ============================================================
 // カードの Markdown 表現
 // ============================================================
 
-const CARD_EXTENSION = '.md';
-
 /**
- * カードの正本は SQLite にある。Markdown 表現は次の 2 か所でだけ使う。
- *
- * - 移行前の `.ai-board/cards/<id>.md` の取り込み（`ai-board import`）
- * - `ai-board card show` の出力（エージェントが読む形を移行前と揃える）
- *
- * ここから `.ai-board/` へ書き込むことは無い。
+ * カードの正本はデータ用ブランチにある（`card-files.ts` の形）。Markdown 表現は `ai-board card show` の出力でだけ使い、
+ * エージェントが読む形を移行前と揃える。ここからデータのワークツリーへ書き込むことは無い。
  */
-export async function readCardFiles(cardsDir: string): Promise<Card[]> {
-  const files = await listCardFiles(cardsDir);
 
-  const cards = await Promise.all(
-    files.map(async (file) => parseCard(file, await fs.readFile(file, 'utf-8')))
-  );
-
-  return cards.filter((card): card is Card => card !== null).sort(compareCards);
-}
-
-async function listCardFiles(cardsDir: string): Promise<string[]> {
-  try {
-    const entries = await fs.readdir(cardsDir, { withFileTypes: true });
-    return entries
-      .filter((entry) => entry.isFile() && entry.name.endsWith(CARD_EXTENSION))
-      .map((entry) => path.join(cardsDir, entry.name));
-  } catch (error) {
-    if (isErrnoException(error) && error.code === 'ENOENT') {
-      return [];
-    }
-    throw error;
-  }
-}
-
-// ============================================================
-// シリアライズ / パース
-// ============================================================
+const CARD_EXTENSION = '.md';
 
 /**
  * Markdown を Card に変換する。
@@ -139,8 +106,4 @@ export function serializeCard(card: Card): string {
 
 function warnMalformed(filePath: string, reason: string): void {
   console.warn(`[ai-board] カードファイルを読み飛ばしました: ${filePath} — ${reason}`);
-}
-
-function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
-  return error instanceof Error && 'code' in error;
 }

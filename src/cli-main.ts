@@ -2,18 +2,35 @@ import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { startServer, DEFAULT_PORT } from './server.js';
-import { BOARD_DIR, DB_ENV, loadConfig, resolvePaths, type AppConfig } from './shared/config.js';
-import { openDatabase } from './infrastructure/database.js';
+import {
+  BOARD_DIR,
+  CONFIG_FILE,
+  DATA_ENV,
+  legacyDbPath,
+  loadConfig,
+  resolvePaths,
+  type AppConfig,
+  type BoardPaths,
+} from './shared/config.js';
+import { readLegacyBoard } from './infrastructure/database.js';
 import { createCliRunner } from './infrastructure/cli-runner.js';
-import { createCardDependencies } from './cards/composition.js';
-import { runCardCli, runImport, type CardCliIo } from './cards/cli/card-cli.js';
+import {
+  createBoardDataStore,
+  createFileCardDependencies,
+  createTransactionalMrWriter,
+} from './cards/composition.js';
+import { runCardCli, type CardCliIo } from './cards/cli/card-cli.js';
+import { runMigrateCli } from './cards/cli/migrate-cli.js';
+import { describeDataStoreError, describeOfflineRead } from './cards/cli/data-store-messages.js';
 import {
   createBoardDependencies,
-  createMrSnapshotRepository,
+  createFileMrSnapshotRepository,
   createMrStateSource,
 } from './board/composition.js';
 import { parseStatusArgs, runStatusCli, STATUS_USAGE } from './board/cli/status-cli.js';
+import { isPrCommand, runPrCli } from './board/cli/pr-cli.js';
 import { findLiveServer } from './infrastructure/server-info.js';
+import { isErr } from './shared/result.js';
 
 // ============================================================
 // ai-board CLI
@@ -28,9 +45,11 @@ interface CliOptions {
 
 const USAGE = `使い方: ai-board [options]
        ai-board card <command> [--root <path>]    カードの読み書き（ai-board card --help）
-       ai-board status [--json] [--root <path>]   ボードの状態と次の一手（サーバ不要）
-       ai-board import [--from <dir>] [--root <path>]
-                                                  .ai-board/cards/*.md を DB に取り込む
+       ai-board status [--json | --html] [--root <path>]
+                                                  ボードの状態と次の一手（サーバ不要）
+       ai-board migrate [--from <db>] [--empty] [--root <path>]
+                                                  board.db をデータ用ブランチへ書き出す（ai-board migrate --help）
+       ai-board pr <command> [--root <path>]      PR の読み書き（gh api の REST。ai-board pr --help）
 
 計画ファイル駆動のローカル Web ダッシュボードを起動します。
 
@@ -104,34 +123,58 @@ function takeInteger(
 }
 
 /**
- * `card` / `import` サブコマンド。サーバを起動せず DB を直接開く。
- * サーバが動いていれば、その書き込みは data_version 経由で画面に届く。
+ * `card` サブコマンド。サーバを起動せず、データのワークツリーを直接読み書きする。
+ *
+ * 読むコマンドは頭で取り直し、書くコマンドは書き込みの 1 操作（コミットと push）として行う。
  */
-async function runSubcommand(command: 'card' | 'import', argv: readonly string[]): Promise<number> {
+async function runCard(argv: readonly string[]): Promise<number> {
   const { root, rest } = extractRoot(argv);
   const paths = resolvePaths(root);
-  const db = openDatabase(paths.dbPath);
+  const store = createBoardDataStore(paths, createCliRunner());
 
-  try {
-    const deps = createCardDependencies(db);
-    const io = createProcessIo();
+  return runCardCli(
+    rest,
+    { store, cards: createFileCardDependencies(store.dataDir), legacyDb: legacyDbOf(paths) },
+    createProcessIo()
+  );
+}
 
-    if (command === 'card') {
-      return await runCardCli(rest, deps, io);
-    }
+/**
+ * `migrate` サブコマンド。移行前の `board.db` を読み、データ用ブランチを作って push する。
+ *
+ * 既定の置き場所（`.ai-board/data/`）なら `root` のリポジトリからワークツリーを足して作る。
+ * `AI_BOARD_DATA` なら、そのディレクトリ（`origin` を持つ空の clone）に作る。
+ */
+async function runMigrate(argv: readonly string[]): Promise<number> {
+  const { root, rest } = extractRoot(argv);
+  const paths = resolvePaths(root);
 
-    const fromIndex = rest.indexOf('--from');
-    const from =
-      fromIndex === -1 ? paths.cardsDir : path.resolve(takeValue(rest, fromIndex + 1, '--from'));
-    return await runImport(from, deps, io);
-  } finally {
-    db.close();
-  }
+  return runMigrateCli(
+    rest,
+    {
+      target: {
+        dataDir: paths.dataDir,
+        ...(paths.dataSource === 'env' ? {} : { repoRoot: paths.root }),
+        runner: createCliRunner(),
+      },
+      defaultFrom: legacyDbPath(paths),
+      configFile: path.join(paths.sharedBoardDir, CONFIG_FILE),
+      readLegacy: readLegacyBoard,
+    },
+    createProcessIo()
+  );
+}
+
+/** 移行前の DB があればその場所。データ用ブランチが無いときに `ai-board migrate` を案内するのに使う */
+function legacyDbOf(paths: BoardPaths): string | null {
+  const dbPath = legacyDbPath(paths);
+  return fs.existsSync(dbPath) ? dbPath : null;
 }
 
 /**
  * `status` サブコマンド。サーバを起動せず、ボードと同じ組み立てでステージを導出する。
  *
+ * カードは頭で 1 回データ用ブランチを取り直してから読む。
  * PR の状態はポーリングせず、`refresh()` を 1 回だけ待ってから読む。
  * `branch` から解決した PR 番号の書き戻しも、サーバと同じくここで起きる。
  */
@@ -146,34 +189,74 @@ async function runStatus(argv: readonly string[]): Promise<number> {
     return args === 'help' ? 0 : 1;
   }
 
-  const config = loadConfig(root);
-  const db = openDatabase(config.paths.dbPath);
+  // config.yaml はデータ用ブランチの根にあるので、取り直してから読む
+  const paths = resolvePaths(root);
+  const runner = createCliRunner();
+  const store = createBoardDataStore(paths, runner);
 
-  try {
-    const cards = createCardDependencies(db);
-    const { provider, poller } = await createMrStateSource(
-      config.forge,
-      cards.cardRepository,
-      createMrSnapshotRepository(db),
-      createCliRunner()
-    );
-    await poller?.refresh();
-
-    const board = createBoardDependencies(
-      config.paths.plansDir,
-      cards.cardRepository,
-      cards.ideaDividerRepository,
-      provider
-    );
-
-    return await runStatusCli(
-      rest,
-      { ...board, findServer: () => findLiveServer(config.paths.dbPath) },
-      io
-    );
-  } finally {
-    db.close();
+  const refreshed = await store.refresh();
+  if (isErr(refreshed)) {
+    io.stderr(`${describeDataStoreError(refreshed.error, legacyDbOf(paths))}\n`);
+    return 1;
   }
+  if (refreshed.value.kind === 'offline') {
+    io.stderr(`${describeOfflineRead(refreshed.value.reason)}\n`);
+  }
+
+  const config = loadConfig(root);
+  const cards = createFileCardDependencies(store.dataDir);
+  const { provider, poller } = await createMrStateSource(
+    config.forge,
+    cards.cardRepository,
+    createFileMrSnapshotRepository(store),
+    runner,
+    // ブランチから解決した PR 番号は、コミットして push する。ファイルに書くだけでは次の取り直しで捨てられる
+    { writeMr: createTransactionalMrWriter(store) }
+  );
+  await poller?.refresh();
+
+  const board = createBoardDependencies(
+    config.paths.plansDir,
+    cards.cardRepository,
+    cards.ideaDividerRepository,
+    provider
+  );
+
+  return runStatusCli(
+    rest,
+    { ...board, findServer: () => findLiveServer(config.paths.dataDir) },
+    io
+  );
+}
+
+/** `ai-board pr` の `gh` の上限。差分やコメントの全ページは、ポーリングの既定（10 秒）では足りないことがある */
+const PR_TIMEOUT_MS = 60_000;
+
+/**
+ * `pr` サブコマンド。手順書の `gh pr` を、REST（`gh api`）で置き換える。カードには書かない。
+ *
+ * `config.yaml` はデータ用ブランチの根にあるので、頭で 1 回取り直してから読む。
+ * 取り直せなくても止めない（移行前はデータ用ブランチが無く、`.ai-board/config.yaml` を読む）。
+ */
+async function runPr(argv: readonly string[]): Promise<number> {
+  const { root, rest } = extractRoot(argv);
+  const io = createProcessIo();
+  const runner = createCliRunner({ timeoutMs: PR_TIMEOUT_MS });
+
+  // 使い方の誤りや --help で、データ用ブランチの取り直しを起こさない
+  if (!isPrCommand(rest[0]) || rest.includes('--help') || rest.includes('-h')) {
+    return runPrCli(rest, { forge: null, runner }, io);
+  }
+
+  const paths = resolvePaths(root);
+  const refreshed = await createBoardDataStore(paths, runner).refresh();
+  if (isErr(refreshed)) {
+    io.stderr(`${describeDataStoreError(refreshed.error, legacyDbOf(paths))}\n`);
+  } else if (refreshed.value.kind === 'offline') {
+    io.stderr(`${describeOfflineRead(refreshed.value.reason)}\n`);
+  }
+
+  return runPrCli(rest, { forge: loadConfig(root).forge, runner }, io);
 }
 
 /** `--root <path>` を取り除いた残りの引数を返す */
@@ -207,13 +290,23 @@ function createProcessIo(): CardCliIo {
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2);
 
-  if (command === 'card' || command === 'import') {
-    process.exitCode = await runSubcommand(command, rest);
+  if (command === 'card') {
+    process.exitCode = await runCard(rest);
+    return;
+  }
+
+  if (command === 'migrate') {
+    process.exitCode = await runMigrate(rest);
     return;
   }
 
   if (command === 'status') {
     process.exitCode = await runStatus(rest);
+    return;
+  }
+
+  if (command === 'pr') {
+    process.exitCode = await runPr(rest);
     return;
   }
 
@@ -241,7 +334,7 @@ async function main(): Promise<void> {
   console.warn(`ai-board  ${server.url}`);
   console.warn(`  対象      ${server.config.paths.root}`);
   console.warn(`  取得先    ${describeForge(server.config.forge)}`);
-  console.warn(`  DB        ${describeDb(server.config.paths)}`);
+  console.warn(`  データ    ${describeData(server.config.paths)}`);
 
   if (open) {
     openBrowser(server.url);
@@ -287,14 +380,14 @@ function describeForge(forge: AppConfig['forge']): string {
   return `GitHub ${forge.owner}/${forge.repo}（gh のログインを使用）`;
 }
 
-/** 起動ログに出す DB の 1 行。ワークツリーから共有しているときは、そうと分かるようにする */
-function describeDb(paths: AppConfig['paths']): string {
-  switch (paths.dbSource) {
+/** 起動ログに出すデータのワークツリーの 1 行。ワークツリーから共有しているときは、そうと分かるようにする */
+function describeData(paths: AppConfig['paths']): string {
+  switch (paths.dataSource) {
     case 'main-checkout':
-      return `${paths.dbPath}（メインのチェックアウトと共有）`;
+      return `${paths.dataDir}（メインのチェックアウトと共有）`;
     case 'env':
-      return `${paths.dbPath}（${DB_ENV} で指定）`;
+      return `${paths.dataDir}（${DATA_ENV} で指定）`;
     case 'local':
-      return paths.dbPath;
+      return paths.dataDir;
   }
 }

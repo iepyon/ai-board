@@ -21,8 +21,6 @@ function stubRunner(routes: RouteMap, notFound: readonly string[] = []) {
 
   const runner: CliRunner = {
     run: vi.fn(async (_command: string, args: readonly string[]) => {
-      if (args[0] === 'auth') return ok('logged in');
-
       const path = args[args.length - 1] ?? '';
       paths.push(path);
       argv.push([...args]);
@@ -492,10 +490,24 @@ describe('GhForgeClient', () => {
 });
 
 describe('GhForgeClient.checkAuth', () => {
-  it('ログイン済みなら null を返す', async () => {
+  it('リポジトリを REST で引ければ null を返す', async () => {
     const { runner } = stubRunner({});
 
     expect(await new GhForgeClient(config, runner).checkAuth()).toBeNull();
+  });
+
+  it('gh auth status ではなく gh api でリポジトリを引く', async () => {
+    const { runner, argv } = stubRunner({});
+
+    await new GhForgeClient(config, runner).checkAuth();
+
+    expect(argv).toEqual([['api', 'repos/iepyon/ai-board']]);
+  });
+
+  it('リポジトリを引けなければ理由を返す', async () => {
+    const { runner } = stubRunner({}, ['repos/iepyon/ai-board']);
+
+    expect(await new GhForgeClient(config, runner).checkAuth()).toContain('失敗した');
   });
 
   it('gh が無ければ理由を返す', async () => {

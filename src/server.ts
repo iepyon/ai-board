@@ -1,17 +1,32 @@
+import * as fs from 'node:fs';
 import * as http from 'node:http';
+import * as path from 'node:path';
 import type { FSWatcher } from 'chokidar';
-import { loadConfig, type AppConfig } from './shared/config.js';
-import { createCardDependencies } from './cards/composition.js';
+import { legacyDbPath, loadConfig, resolvePaths, type AppConfig } from './shared/config.js';
+import { isErr } from './shared/result.js';
+import {
+  createBoardDataStore,
+  createTransactionalCardDependencies,
+  createTransactionalMrWriter,
+} from './cards/composition.js';
+import { describeDataStoreError, describeOfflineRead } from './cards/cli/data-store-messages.js';
 import {
   createBoardDependencies,
-  createMrSnapshotRepository,
+  createFileMrSnapshotRepository,
   createMrStateSource,
 } from './board/composition.js';
 import { createCliRunner } from './infrastructure/cli-runner.js';
+import { LOCK_FILE } from './infrastructure/data-store.js';
+import { startDataRefresher, type RefreshProblem } from './infrastructure/data-refresher.js';
+import { DEFAULT_POLL_INTERVAL_MS } from './infrastructure/forge-poller.js';
+import { MR_SNAPSHOT_CACHE_FILE } from './board/repositories/file-mr-snapshot.repository.js';
 import { SseHub } from './infrastructure/sse.js';
 import { startWatching } from './infrastructure/watch.js';
-import { openDatabase, watchDatabase } from './infrastructure/database.js';
-import { removeServerInfo, writeServerInfo } from './infrastructure/server-info.js';
+import {
+  removeServerInfo,
+  SERVER_INFO_FILE,
+  writeServerInfo,
+} from './infrastructure/server-info.js';
 import { createApp } from './app.js';
 
 // ============================================================
@@ -35,21 +50,45 @@ export interface RunningServer {
   close(): Promise<void>;
 }
 
+/**
+ * サーバを起動する。
+ *
+ * カードはデータのワークツリーのファイルから読み、画面の書き込みは `DataStore.transact` を通して
+ * コミットと push が終わってから応答する。起動の前に 1 回取り直す（`config.yaml` もデータ用ブランチにある）。
+ *
+ * ほかの場所（CLI、クラウドのセッション）からの書き込みは、PR のポーリングと同じ間隔でデータ用ブランチを
+ * 取り直して拾う。画面へは、計画ファイルとデータのワークツリーのファイル監視が知らせる。
+ */
 export async function startServer(options: StartServerOptions): Promise<RunningServer> {
+  const runner = createCliRunner();
+  const paths = resolvePaths(options.root);
+  const store = createBoardDataStore(paths, runner);
+
+  const refreshed = await store.refresh();
+  if (isErr(refreshed)) {
+    const legacyDb = fs.existsSync(legacyDbPath(paths)) ? legacyDbPath(paths) : null;
+    throw new Error(describeDataStoreError(refreshed.error, legacyDb));
+  }
+  if (refreshed.value.kind === 'offline') {
+    console.warn(`[ai-board] ${describeOfflineRead(refreshed.value.reason)}`);
+  }
+
   const config = loadConfig(options.root);
   const sse = new SseHub();
+  const intervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
 
-  const db = openDatabase(config.paths.dbPath);
-  const cards = createCardDependencies(db, () => sse.broadcast('board-changed'));
+  const cards = createTransactionalCardDependencies(store, () => sse.broadcast('board-changed'));
 
   const { provider: mrProvider, poller } = await createMrStateSource(
     config.forge,
     cards.cardRepository,
-    createMrSnapshotRepository(db),
-    createCliRunner(),
+    createFileMrSnapshotRepository(store),
+    runner,
     {
-      ...(options.pollIntervalMs !== undefined ? { intervalMs: options.pollIntervalMs } : {}),
+      intervalMs,
       onUpdate: () => sse.broadcast('board-changed'),
+      // ブランチから解決した PR 番号も、コミットして push する
+      writeMr: createTransactionalMrWriter(store),
     }
   );
 
@@ -65,33 +104,59 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
 
   const port = await listen(server, options.port ?? DEFAULT_PORT);
 
-  // 計画ファイルはファイル監視、カードは DB の data_version で拾う
+  // 計画ファイルとデータのワークツリーの変化はファイル監視で拾う（CLI の書き込み、取り直しで届いた書き込み）。
+  // サーバ自身のカードの書き込みは、push の後に onWrite でも知らせる
+  const { boardDir, dataDir } = config.paths;
+  const dataParent = path.dirname(dataDir);
   const watcher: FSWatcher = startWatching({
-    paths: [config.paths.boardDir],
+    paths: [boardDir, dataDir],
+    // 既定の置き場所では、データのワークツリーの親は `.ai-board/` である。書き込みのたびに作っては消すロック、
+    // PR の控え（変化はポーラーが知らせる）、server.json は、ボードのカードの変化ではない
+    ignoredPaths: [
+      path.join(dataParent, LOCK_FILE),
+      path.join(dataParent, path.dirname(MR_SNAPSHOT_CACHE_FILE)),
+      path.join(dataParent, SERVER_INFO_FILE),
+    ],
     onChange: () => sse.broadcast('board-changed'),
   });
-  const dbWatcher = watchDatabase(db, () => sse.broadcast('board-changed'));
+
+  // 同じ store で取り直す。サーバの書き込みと 1 列に並ぶ
+  const refresher = startDataRefresher({ store, intervalMs, onProblem: warnRefreshProblem });
 
   poller?.start();
 
   const url = `http://${BIND_HOST}:${port}`;
-  const { dbPath } = config.paths;
-  writeServerInfo({ url, pid: process.pid, dbPath, startedAt: new Date().toISOString() });
+  writeServerInfo({ url, pid: process.pid, dataDir, startedAt: new Date().toISOString() });
 
   return {
     url,
     port,
     config,
     close: async () => {
-      removeServerInfo(dbPath, process.pid);
+      removeServerInfo(dataDir, process.pid);
       poller?.stop();
+      // 走っている取り直しを待つ。閉じた後に git がデータのワークツリーを触らないように
+      await refresher.stop();
       sse.close();
-      dbWatcher.close();
       await watcher.close();
       await new Promise<void>((resolve) => server.close(() => resolve()));
-      db.close();
     },
   };
+}
+
+/** 定期の取り直しの失敗を警告する。オフラインは続く間 1 回だけ届く */
+function warnRefreshProblem(problem: RefreshProblem): void {
+  switch (problem.kind) {
+    case 'offline':
+      console.warn(`[ai-board] ${describeOfflineRead(problem.reason)}`);
+      return;
+    case 'failed':
+      console.warn(`[ai-board] ${describeDataStoreError(problem.error, null)}`);
+      return;
+    case 'threw':
+      console.warn('[ai-board] データ用ブランチの取り直しでエラーが発生しました:', problem.error);
+      return;
+  }
 }
 
 /**

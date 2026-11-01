@@ -1,138 +1,172 @@
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { err, ok, type Result } from '../shared/result.js';
+import type { CardId, MergeRequestIid } from '../shared/schemas/common.js';
+import { CardFrontmatterSchema } from '../cards/models/schemas/card.schema.js';
+import type { Card } from '../cards/models/card.js';
+import type { MrSnapshot } from '../board/models/mr-state.js';
+import { parseMrSnapshot } from '../board/repositories/file-mr-snapshot.repository.js';
 
 // ============================================================
-// カードの保存先 — SQLite
+// 移行前のカードの保存先 — SQLite の読み出しだけ
 // ============================================================
 
 /**
- * スキーマの版。`PRAGMA user_version` に書く。
+ * 読める DB のスキーマの版（`PRAGMA user_version`）。
  *
- * 列を足すときは MIGRATIONS に 1 要素を追記し、既存の要素は書き換えない。
- * 書き換えると、古い版の DB を持つ人だけが違うスキーマで動く。
+ * カードの正本はデータ用ブランチに移った。ここは `ai-board migrate` が移行前の `board.db` を読むためだけに残す。
+ * 最後の版（`cards` / `idea_divider` / `mr_snapshots` の 3 つの表があり、GitLab の番号を消した後）だけを読む。
+ * それより古い DB は、GitLab の MR 番号を PR 番号として持ち込みうるので読まない。
  */
-const MIGRATIONS: readonly string[] = [
-  `CREATE TABLE cards (
-     id         TEXT PRIMARY KEY NOT NULL,
-     title      TEXT NOT NULL,
-     created    TEXT NOT NULL,
-     started_at TEXT,
-     skip_gates TEXT NOT NULL DEFAULT '[]',
-     branch     TEXT,
-     mr         INTEGER,
-     forge      TEXT,
-     rank       REAL,
-     body       TEXT NOT NULL DEFAULT ''
-   ) STRICT`,
-  // GitLab 連携の廃止。GitLab の MR 番号を GitHub の PR 番号として引かないよう、
-  // 番号ごと消して branch から解決し直させる
-  `UPDATE cards SET mr = NULL, forge = NULL WHERE forge = 'gitlab'`,
-  // 取得先が GitHub だけになり、番号の出どころを記録する forge 列は要らなくなった。
-  // 出どころの記録が無い番号は、これまでどおり branch があればそちらから解決し直させる
-  `UPDATE cards SET mr = NULL WHERE forge IS NULL AND branch IS NOT NULL;
-   ALTER TABLE cards DROP COLUMN forge`,
-  // アイデアの表の区切り線。rank と同じ物差しの値を 1 行だけ持つ（無ければ未設定）
-  `CREATE TABLE idea_divider (
-     id   INTEGER PRIMARY KEY NOT NULL CHECK (id = 1),
-     rank REAL NOT NULL
-   ) STRICT`,
-  // PR の状態の控え。マージ済みの PR と変化の無い PR を引き直さないために、
-  // サーバの再起動や `ai-board status` のたびに新しいプロセスでも前回の結果を使う
-  `CREATE TABLE mr_snapshots (
-     card_id     TEXT PRIMARY KEY NOT NULL,
-     fingerprint TEXT NOT NULL,
-     mr          TEXT NOT NULL
-   ) STRICT`,
-];
+export const LEGACY_SCHEMA_VERSION = 5;
 
-/** 別プロセスの書き込みでロックが取れないとき、失敗にする前に待つ時間 */
-const BUSY_TIMEOUT_MS = 5000;
-
-/**
- * DB を開き、スキーマを最新の版まで進める。
- *
- * サーバと `ai-board card` の CLI が同じファイルを同時に開くため WAL にする。
- * 読み手が書き手を待たずに済む。
- */
-export function openDatabase(dbPath: string): DatabaseSync {
-  if (dbPath !== ':memory:') {
-    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-  }
-
-  const db = new DatabaseSync(dbPath);
-  db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`);
-  db.exec('PRAGMA journal_mode = WAL');
-  migrate(db);
-
-  return db;
+/** 移行前の DB の中身 */
+export interface LegacyBoard {
+  /** すべてのカード。本文には `## レビュー` の節がそのまま入っている */
+  readonly cards: readonly Card[];
+  /** アイデアの表の区切り線。一度も動かしていなければ null */
+  readonly divider: number | null;
+  /** PR の状態の控え。形の合わない古い控えは外してある */
+  readonly mrSnapshots: ReadonlyMap<CardId, MrSnapshot>;
 }
 
-function migrate(db: DatabaseSync): void {
-  const current = readPragmaNumber(db, 'user_version');
+export type LegacyDatabaseError =
+  /** 指定した場所に DB が無い */
+  | { readonly type: 'LegacyDatabaseMissing'; readonly dbPath: string }
+  /** DB を開けない・版が違う・読めない行がある */
+  | { readonly type: 'LegacyDatabaseUnreadable'; readonly dbPath: string; readonly reason: string };
 
-  if (current > MIGRATIONS.length) {
-    // 新しい版の ai-board が作った DB を古い版で開いた。黙って書くと列を失う
-    throw new Error(
-      `DB のスキーマ (v${current}) がこの ai-board (v${MIGRATIONS.length}) より新しいです。ai-board を更新してください`
-    );
+const CARD_COLUMNS = 'id, title, created, started_at, skip_gates, branch, mr, rank, body';
+
+/**
+ * 移行前の DB を読み出し専用で開き、中身をすべて読む。
+ *
+ * 読み出し専用で開くのは、移行元のファイルを変えないためである（普通に開くと、無いファイルは空の DB として
+ * 作られ、WAL の設定などが書き込まれる）。
+ * 規定外の値を持つ行が 1 つでもあれば失敗にする。読み飛ばすと、そのカードは移行の後に黙って消える。
+ */
+export function readLegacyBoard(dbPath: string): Result<LegacyBoard, LegacyDatabaseError> {
+  if (!fs.existsSync(dbPath)) return err({ type: 'LegacyDatabaseMissing', dbPath });
+
+  const unreadable = (reason: string): Result<never, LegacyDatabaseError> =>
+    err({ type: 'LegacyDatabaseUnreadable', dbPath, reason });
+
+  let db: DatabaseSync;
+  try {
+    db = new DatabaseSync(dbPath, { readOnly: true });
+  } catch (error) {
+    return unreadable(errorMessage(error));
   }
 
-  for (let version = current; version < MIGRATIONS.length; version += 1) {
-    db.exec('BEGIN IMMEDIATE');
-    try {
-      db.exec(MIGRATIONS[version] ?? '');
-      db.exec(`PRAGMA user_version = ${version + 1}`);
-      db.exec('COMMIT');
-    } catch (error) {
-      db.exec('ROLLBACK');
-      throw error;
+  try {
+    const version = readUserVersion(db);
+    if (version !== LEGACY_SCHEMA_VERSION) {
+      return unreadable(
+        `スキーマの版が v${version} です（読めるのは v${LEGACY_SCHEMA_VERSION} だけです）`
+      );
     }
+
+    const cards: Card[] = [];
+    const invalid: string[] = [];
+    for (const row of db.prepare(`SELECT ${CARD_COLUMNS} FROM cards ORDER BY id`).all()) {
+      const card = toCard(row);
+      if (typeof card === 'string') invalid.push(card);
+      else cards.push(card);
+    }
+    if (invalid.length > 0) {
+      return unreadable(`読めない行があります: ${invalid.join(' / ')}`);
+    }
+
+    return ok({ cards, divider: readDivider(db), mrSnapshots: readMrSnapshots(db) });
+  } catch (error) {
+    return unreadable(errorMessage(error));
+  } finally {
+    db.close();
   }
 }
 
-// ============================================================
-// 別プロセスの書き込みの検知
-// ============================================================
-
-const DEFAULT_POLL_MS = 500;
-
-export interface DatabaseWatcher {
-  close(): void;
-}
-
-/**
- * 別の接続（`ai-board card` の CLI など）がコミットしたら通知する。
- *
- * `PRAGMA data_version` は他の接続がコミットしたときだけ増え、
- * 自分の接続の書き込みでは変わらない。サーバ自身の書き込みは
- * リポジトリの `onWrite` で通知しているので、ここで二重に拾わない。
- *
- * WAL のファイルをファイル監視する方法は、チェックポイントでも発火し、
- * 書き込みの無い変更を拾ってしまうため採らない。
- */
-export function watchDatabase(
-  db: DatabaseSync,
-  onChange: () => void,
-  intervalMs: number = DEFAULT_POLL_MS
-): DatabaseWatcher {
-  let last = readPragmaNumber(db, 'data_version');
-
-  const timer = setInterval(() => {
-    const current = readPragmaNumber(db, 'data_version');
-    if (current !== last) {
-      last = current;
-      onChange();
-    }
-  }, intervalMs);
-  timer.unref?.();
-
-  return { close: () => clearInterval(timer) };
-}
-
-function readPragmaNumber(db: DatabaseSync, name: 'user_version' | 'data_version'): number {
-  const row = db.prepare(`PRAGMA ${name}`).get() as Record<string, unknown> | undefined;
-  const value = row?.[name];
+function readUserVersion(db: DatabaseSync): number {
+  const row = db.prepare('PRAGMA user_version').get() as Record<string, unknown> | undefined;
+  const value = row?.['user_version'];
 
   return typeof value === 'number' ? value : 0;
+}
+
+function readDivider(db: DatabaseSync): number | null {
+  const rank = db.prepare('SELECT rank FROM idea_divider WHERE id = 1').get()?.['rank'];
+
+  return typeof rank === 'number' ? rank : null;
+}
+
+/** 形の合わない控えは外す。控えは問い合わせを省くためのもので、無くても引き直すだけで済む */
+function readMrSnapshots(db: DatabaseSync): Map<CardId, MrSnapshot> {
+  const snapshots = new Map<CardId, MrSnapshot>();
+
+  for (const row of db.prepare('SELECT card_id, fingerprint, mr FROM mr_snapshots').all()) {
+    const cardId = row['card_id'];
+    const raw = row['mr'];
+    if (typeof cardId !== 'string' || typeof raw !== 'string') continue;
+
+    const snapshot = parseMrSnapshot({ fingerprint: row['fingerprint'], mr: parseJsonOrNull(raw) });
+    if (snapshot !== null) snapshots.set(cardId as CardId, snapshot);
+  }
+
+  return snapshots;
+}
+
+/** 行を Card に戻す。規定外の値なら、どの行の何が悪いかの文を返す */
+function toCard(row: Record<string, unknown>): Card | string {
+  const result = CardFrontmatterSchema.safeParse({
+    id: row['id'],
+    title: row['title'],
+    created: row['created'],
+    startedAt: row['started_at'],
+    skipGates: parseJsonOrRaw(row['skip_gates']),
+    branch: row['branch'],
+    mr: row['mr'],
+    rank: row['rank'],
+  });
+
+  if (!result.success) {
+    return `${String(row['id'])}（${result.error.issues.map((issue) => issue.message).join(', ')}）`;
+  }
+  if (typeof row['body'] !== 'string') {
+    return `${String(row['id'])}（body が文字列ではありません）`;
+  }
+
+  const fields = result.data;
+
+  return {
+    id: fields.id as CardId,
+    title: fields.title,
+    created: fields.created,
+    startedAt: fields.startedAt,
+    skipGates: fields.skipGates,
+    branch: fields.branch,
+    mr: fields.mr as MergeRequestIid | null,
+    rank: fields.rank,
+    body: row['body'],
+  };
+}
+
+function parseJsonOrRaw(raw: unknown): unknown {
+  if (typeof raw !== 'string') return raw;
+
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    return raw;
+  }
+}
+
+function parseJsonOrNull(raw: string): unknown {
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

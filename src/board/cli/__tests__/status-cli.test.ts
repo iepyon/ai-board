@@ -2,11 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import type { DatabaseSync } from 'node:sqlite';
-import { openDatabase } from '../../../infrastructure/database.js';
-import { createCardDependencies } from '../../../cards/composition.js';
+import { createFileCardDependencies } from '../../../cards/composition.js';
 import { parseCard } from '../../../cards/repositories/card-markdown.js';
-import { SqliteCardRepository } from '../../../cards/repositories/sqlite-card.repository.js';
+import { REVIEW_HEADING, parseReviewLog } from '../../../cards/services/review-log.js';
+import { isErr } from '../../../shared/result.js';
 import { createBoardDependencies } from '../../composition.js';
 import type { MrStateProvider } from '../../services/mr-state-provider.js';
 import type { ForgeConnection } from '../../models/mr-state.js';
@@ -19,7 +18,8 @@ import { parseStatusArgs, runStatusCli, type StatusReport } from '../status-cli.
 // ============================================================
 
 let root: string;
-let db: DatabaseSync;
+/** データのワークツリーの代わりのディレクトリ。git は使わず、ファイルのリポジトリで直に読み書きする */
+let dataDir: string;
 let stdout: string;
 let stderr: string;
 
@@ -27,7 +27,7 @@ const NOW = new Date('2026-10-23T00:00:00.000Z');
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-board-status-'));
-  db = openDatabase(':memory:');
+  dataDir = path.join(root, 'data');
   stdout = '';
   stderr = '';
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -35,7 +35,6 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.restoreAllMocks();
-  db.close();
   await fs.rm(root, { recursive: true, force: true });
 });
 
@@ -45,7 +44,23 @@ async function writeCard(id: string, frontmatter: string, body = ''): Promise<vo
     `---\nid: ${id}\ntitle: ${id} のタイトル\n${frontmatter}---\n${body}`
   );
   if (card === null) throw new Error(`テスト用のカードが読めません: ${id}`);
-  await new SqliteCardRepository(db).create(card);
+
+  // 新しいカードの本文に判断があると、ファイルのリポジトリは書かずに拒む。判断は元の時刻のまま 1 件ずつ足す
+  const cards = createFileCardDependencies(dataDir);
+  const index = card.body.indexOf(REVIEW_HEADING);
+  const prose = index === -1 ? card.body : card.body.slice(0, index).replace(/\n+$/, '');
+  if (!(await cards.cardRepository.create({ ...card, body: prose }))) {
+    throw new Error(`テスト用のカードを作れません: ${id}`);
+  }
+
+  for (const entry of parseReviewLog(card.body)) {
+    const appended = await cards.appendReviewCommand({
+      ...entry,
+      id: card.id,
+      at: new Date(entry.at),
+    });
+    if (isErr(appended)) throw new Error(`判断を足せません: ${JSON.stringify(appended.error)}`);
+  }
 }
 
 async function writePlan(id: string, content: string): Promise<void> {
@@ -69,7 +84,7 @@ async function run(
   provider = stubProvider(),
   findServer?: () => ServerLocation | null
 ): Promise<number> {
-  const cards = createCardDependencies(db);
+  const cards = createFileCardDependencies(dataDir);
   const board = createBoardDependencies(
     path.join(root, '.ai-board', 'plans'),
     cards.cardRepository,
@@ -269,7 +284,7 @@ describe('ai-board status --json', () => {
     await writeCard('third', 'rank: 300\n');
     await writeCard('second', 'rank: 200\n');
     await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\nrank: 50\n");
-    await createCardDependencies(db).ideaDividerRepository.set(250);
+    await createFileCardDependencies(dataDir).ideaDividerRepository.set(250);
 
     const report = await runJson();
 
@@ -382,6 +397,29 @@ describe('ai-board status', () => {
 });
 
 // ============================================================
+// --html
+// ============================================================
+
+describe('ai-board status --html', () => {
+  it('判断待ちの提出の本文を含む、1 枚の HTML を出す', async () => {
+    await writeCard(
+      'reviewing',
+      "startedAt: '2026-10-21T00:00:00.000Z'\n",
+      `${review('提出')}\n判断してほしい点がある\n`
+    );
+    await writePlan('reviewing', '# 計画');
+    await writeCard('idea', '');
+
+    expect(await run(['--html'])).toBe(0);
+
+    expect(stdout.startsWith('<!doctype html>')).toBe(true);
+    expect(stdout).toContain('reviewing のタイトル');
+    expect(stdout).toContain('判断してほしい点がある');
+    expect(stdout).toContain('idea のタイトル');
+  });
+});
+
+// ============================================================
 // 引数
 // ============================================================
 
@@ -399,9 +437,11 @@ describe('ai-board status の引数', () => {
 });
 
 describe('parseStatusArgs', () => {
-  it('--json の有無、--help、不明な引数を見分ける', () => {
-    expect(parseStatusArgs([])).toEqual({ json: false });
-    expect(parseStatusArgs(['--json'])).toEqual({ json: true });
+  it('--json / --html の有無、--help、不明な引数を見分ける', () => {
+    expect(parseStatusArgs([])).toEqual({ format: 'text' });
+    expect(parseStatusArgs(['--json'])).toEqual({ format: 'json' });
+    expect(parseStatusArgs(['--html'])).toEqual({ format: 'html' });
+    expect(parseStatusArgs(['--json', '--html'])).toBe('invalid');
     expect(parseStatusArgs(['--json', '--help'])).toBe('help');
     expect(parseStatusArgs(['-h'])).toBe('help');
     expect(parseStatusArgs(['--jsno'])).toBe('invalid');

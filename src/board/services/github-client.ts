@@ -1,3 +1,6 @@
+import { promises as fs } from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import type { MergeRequestIid } from '../../shared/schemas/common.js';
 import type { ForgeConfig } from '../../shared/config.js';
 import type { ForgeKind, MrLifecycleState, MrSnapshot, MrState } from '../models/mr-state.js';
@@ -6,8 +9,10 @@ import {
   parseJson,
   describeCliError,
   unwrap,
+  type CliError,
   type CliRunner,
 } from '../../infrastructure/cli-runner.js';
+import { err, isErr, ok, type Result } from '../../shared/result.js';
 
 // ============================================================
 // GitHub — gh CLI 経由
@@ -74,8 +79,14 @@ export class GhForgeClient implements ForgeClient {
     this.base = `repos/${config.owner}/${config.repo}`;
   }
 
+  /**
+   * リポジトリを REST で 1 回引けるかで確かめる。
+   *
+   * `gh auth status` は使わない。クラウドのセッションでは「GH_TOKEN が無効」と失敗するが、
+   * 同じ認証で `gh api` は動く。ポーリングで使うのも `gh api` なので、同じ経路で確かめる。
+   */
   async checkAuth(): Promise<string | null> {
-    const result = await this.runner.run(GH, ['auth', 'status']);
+    const result = await this.runner.run(GH, ['api', this.base]);
 
     return result.ok ? null : describeCliError(result.error);
   }
@@ -263,4 +274,255 @@ function draftTransitionsOf(
  */
 function commitDate(commit: RawCommit | null): string | null {
   return commit?.commit?.committer?.date ?? null;
+}
+
+// ============================================================
+// PR の読み書き — `ai-board pr` が使う
+// ============================================================
+
+/** `ai-board pr view` に出す PR の項目 */
+export interface PullRequestView {
+  readonly number: number;
+  readonly title: string;
+  readonly state: MrLifecycleState;
+  readonly draft: boolean;
+  readonly head: string;
+  readonly base: string;
+  readonly url: string;
+  readonly author: string | null;
+  readonly body: string;
+}
+
+/** PR のコメント。`path` は review comment（コード行への指摘）にだけある */
+export interface PullRequestComment {
+  readonly author: string | null;
+  readonly createdAt: string;
+  readonly body: string;
+  readonly url: string;
+  readonly path: string | null;
+  readonly line: number | null;
+}
+
+export interface CreatePullRequestInput {
+  readonly head: string;
+  /** null なら、リポジトリの既定のブランチ（`gh pr create` と同じ） */
+  readonly base: string | null;
+  readonly title: string;
+  readonly body: string;
+  readonly draft: boolean;
+}
+
+/** Ready にした経路。`gh` は `gh pr ready`（GraphQL）、`ccr` は `ccr/ready_for_review` */
+export type ReadyRoute = 'gh' | 'ccr';
+
+/** Ready にする 2 つの経路が、どちらも失敗した理由 */
+export interface ReadyFailure {
+  readonly gh: CliError;
+  readonly ccr: CliError;
+}
+
+interface RawPullRequestDetail extends RawPullRequest {
+  base: { ref: string };
+  body?: string | null;
+  user?: { login?: string } | null;
+}
+
+interface RawRepository {
+  default_branch: string;
+}
+
+interface RawCommentDetail {
+  created_at: string;
+  body?: string | null;
+  html_url: string;
+  user?: { login?: string } | null;
+  path?: string;
+  line?: number | null;
+  original_line?: number | null;
+}
+
+interface RawCreated {
+  html_url: string;
+}
+
+interface RawCreatedPullRequest extends RawCreated {
+  number: number;
+}
+
+const DIFF_ACCEPT = 'Accept: application/vnd.github.diff';
+
+/**
+ * `gh` で PR を作る・読む・書き換える。手順書の `gh pr` を置き換える。
+ *
+ * クラウドのセッションでは GraphQL が 403 になり `gh pr` が動かないので、REST（`gh api`）で行う。
+ * Ready にする操作だけは REST の `PATCH draft=false` で Draft が外れないため、
+ * `gh pr ready` を先に試し、失敗したら `ccr/ready_for_review` を試す。
+ *
+ * 本文は引数に載せず、JSON にして一時ファイルへ書き、`gh api --input` で渡す。
+ * `--input` を使うと `-f` / `-F` の項目はクエリ文字列に回るので、送る項目はすべて JSON に入れる。
+ */
+export class GhPullRequestClient {
+  private readonly base: string;
+
+  constructor(
+    private readonly config: ForgeConfig,
+    private readonly runner: CliRunner
+  ) {
+    this.base = `repos/${config.owner}/${config.repo}`;
+  }
+
+  /** PR を作り、番号と URL を返す。`base` が null ならリポジトリの既定のブランチへ向ける */
+  async create(
+    input: CreatePullRequestInput
+  ): Promise<Result<{ number: number; url: string }, CliError>> {
+    let base = input.base;
+    if (base === null) {
+      const repository = await this.getJson<RawRepository>(this.base);
+      if (isErr(repository)) return repository;
+      base = repository.value.default_branch;
+    }
+
+    const created = await this.send<RawCreatedPullRequest>('POST', `${this.base}/pulls`, {
+      title: input.title,
+      head: input.head,
+      base,
+      body: input.body,
+      draft: input.draft,
+    });
+    if (isErr(created)) return created;
+
+    return ok({ number: created.value.number, url: created.value.html_url });
+  }
+
+  async view(iid: MergeRequestIid): Promise<Result<PullRequestView, CliError>> {
+    const pr = await this.getJson<RawPullRequestDetail>(`${this.base}/pulls/${iid}`);
+    if (isErr(pr)) return pr;
+
+    const raw = pr.value;
+    return ok({
+      number: raw.number,
+      title: raw.title,
+      state: toLifecycleState(raw.state, raw.merged_at),
+      draft: raw.draft === true,
+      head: raw.head.ref,
+      base: raw.base.ref,
+      url: raw.html_url,
+      author: raw.user?.login ?? null,
+      body: raw.body ?? '',
+    });
+  }
+
+  /**
+   * PR 全体への返信（issue comment）とコード行への指摘（review comment）を、時刻の順に並べて返す。
+   * どちらの一覧も既定は 1 ページ目だけなので、全ページを読む。
+   */
+  async comments(iid: MergeRequestIid): Promise<Result<PullRequestComment[], CliError>> {
+    const [issueComments, reviewComments] = await Promise.all([
+      this.getAllJson<RawCommentDetail>(`${this.base}/issues/${iid}/comments`),
+      this.getAllJson<RawCommentDetail>(`${this.base}/pulls/${iid}/comments`),
+    ]);
+    if (isErr(issueComments)) return issueComments;
+    if (isErr(reviewComments)) return reviewComments;
+
+    const comments = [...issueComments.value, ...reviewComments.value].map(toComment);
+    return ok(comments.sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
+  }
+
+  /** PR の本文を差し替え、PR の URL を返す */
+  async editBody(iid: MergeRequestIid, body: string): Promise<Result<string, CliError>> {
+    const edited = await this.send<RawCreated>('PATCH', `${this.base}/pulls/${iid}`, { body });
+
+    return isErr(edited) ? edited : ok(edited.value.html_url);
+  }
+
+  /** PR にコメントを書き、コメントの URL を返す */
+  async comment(iid: MergeRequestIid, body: string): Promise<Result<string, CliError>> {
+    const created = await this.send<RawCreated>('POST', `${this.base}/issues/${iid}/comments`, {
+      body,
+    });
+
+    return isErr(created) ? created : ok(created.value.html_url);
+  }
+
+  /** PR の差分を unified diff の文字列で返す */
+  async diff(iid: MergeRequestIid): Promise<Result<string, CliError>> {
+    return this.runner.run(GH, ['api', '-H', DIFF_ACCEPT, `${this.base}/pulls/${iid}`]);
+  }
+
+  /**
+   * PR を Ready にする。`gh pr ready`（GraphQL）を試し、失敗したら `ccr/ready_for_review` を試す。
+   *
+   * 手元では `gh pr ready` が通り、クラウドでは GraphQL が 403 で `ccr/` の経路が通る見込みである。
+   * どちらも失敗したら、両方の理由を返す。
+   */
+  async ready(iid: MergeRequestIid): Promise<Result<ReadyRoute, ReadyFailure>> {
+    const repo = `${this.config.owner}/${this.config.repo}`;
+    const viaGh = await this.runner.run(GH, ['pr', 'ready', String(iid), '--repo', repo]);
+    if (!isErr(viaGh)) return ok('gh');
+
+    const viaCcr = await this.runner.run(GH, [
+      'api',
+      '--method',
+      'POST',
+      `${this.base}/pulls/${iid}/ccr/ready_for_review`,
+    ]);
+    if (!isErr(viaCcr)) return ok('ccr');
+
+    return err({ gh: viaGh.error, ccr: viaCcr.error });
+  }
+
+  private async getJson<T>(endpoint: string): Promise<Result<T, CliError>> {
+    const result = await this.runner.run(GH, ['api', endpoint]);
+
+    return isErr(result) ? result : parseJson<T>(GH, result.value);
+  }
+
+  private async getAllJson<T>(endpoint: string): Promise<Result<T[], CliError>> {
+    const result = await this.runner.run(GH, [
+      'api',
+      '--paginate',
+      `${endpoint}?per_page=${PER_PAGE}`,
+    ]);
+    if (isErr(result)) return result;
+
+    const parsed = parseJson<T[]>(GH, result.value);
+    return isErr(parsed) ? parsed : ok(asArray(parsed.value));
+  }
+
+  /** 項目を JSON にして一時ファイルへ書き、`gh api --input` で送る。一時ファイルは必ず消す */
+  private async send<T>(
+    method: 'POST' | 'PATCH',
+    endpoint: string,
+    payload: Readonly<Record<string, unknown>>
+  ): Promise<Result<T, CliError>> {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-board-pr-'));
+
+    try {
+      const input = path.join(dir, 'input.json');
+      await fs.writeFile(input, JSON.stringify(payload), 'utf-8');
+
+      const result = await this.runner.run(GH, [
+        'api',
+        '--method',
+        method,
+        endpoint,
+        '--input',
+        input,
+      ]);
+      return isErr(result) ? result : parseJson<T>(GH, result.value);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }
+}
+
+function toComment(raw: RawCommentDetail): PullRequestComment {
+  return {
+    author: raw.user?.login ?? null,
+    createdAt: raw.created_at,
+    body: raw.body ?? '',
+    url: raw.html_url,
+    path: raw.path ?? null,
+    line: raw.line ?? raw.original_line ?? null,
+  };
 }

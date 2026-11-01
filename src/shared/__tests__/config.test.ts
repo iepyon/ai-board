@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { loadConfig, resolvePaths } from '../config.js';
+import { legacyDbPath, loadConfig, resolvePaths } from '../config.js';
 
 let root: string;
 
@@ -27,7 +27,6 @@ describe('resolvePaths', () => {
     const paths = resolvePaths(root);
 
     expect(paths.boardDir).toBe(path.join(root, '.ai-board'));
-    expect(paths.cardsDir).toBe(path.join(root, '.ai-board', 'cards'));
     expect(paths.plansDir).toBe(path.join(root, '.ai-board', 'plans'));
   });
 
@@ -112,20 +111,20 @@ async function makeLinkedWorktree(name: string): Promise<string> {
 }
 
 describe('ワークツリーでの置き場所', () => {
-  it('メインのチェックアウトでは DB も計画も root の下', () => {
+  it('メインのチェックアウトでは、移行前の DB も計画も root の下', () => {
     const paths = resolvePaths(root, {});
 
-    expect(paths.dbPath).toBe(path.join(root, '.ai-board', 'board.db'));
-    expect(paths.dbSource).toBe('local');
+    expect(paths.sharedBoardDir).toBe(path.join(root, '.ai-board'));
+    expect(legacyDbPath(paths)).toBe(path.join(root, '.ai-board', 'board.db'));
   });
 
-  it('リンクされたワークツリーでは DB をメインのチェックアウトから、計画をワークツリーから読む', async () => {
+  it('リンクされたワークツリーでは、移行前の DB をメインのチェックアウトから、計画をワークツリーから読む', async () => {
     const tree = await makeLinkedWorktree('feature');
 
     const paths = resolvePaths(tree, {});
 
-    expect(paths.dbPath).toBe(path.join(root, '.ai-board', 'board.db'));
-    expect(paths.dbSource).toBe('main-checkout');
+    expect(paths.sharedBoardDir).toBe(path.join(root, '.ai-board'));
+    expect(legacyDbPath(paths)).toBe(path.join(root, '.ai-board', 'board.db'));
     expect(paths.plansDir).toBe(path.join(tree, '.ai-board', 'plans'));
   });
 
@@ -136,30 +135,117 @@ describe('ワークツリーでの置き場所', () => {
     expect(loadConfig(tree).forge).toEqual({ kind: 'github', owner: 'iepyon', repo: 'ai-board' });
   });
 
-  it('AI_BOARD_DB があれば、それを DB の場所にする（相対パスはカレントディレクトリから）', async () => {
-    const tree = await makeLinkedWorktree('feature');
-
-    const paths = resolvePaths(tree, { AI_BOARD_DB: 'dev.db' });
-
-    expect(paths.dbPath).toBe(path.resolve('dev.db'));
-    expect(paths.dbSource).toBe('env');
-  });
-
-  it('AI_BOARD_DB が空なら無いものとして扱う', () => {
-    expect(resolvePaths(root, { AI_BOARD_DB: '' }).dbSource).toBe('local');
-  });
-
-  it('ワークツリーを読み解けなければ警告し、root の下の DB を使う', async () => {
+  it('ワークツリーを読み解けなければ警告し、root の下のデータを使う', async () => {
     await fs.writeFile(path.join(root, '.git'), 'garbage\n');
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     try {
-      expect(resolvePaths(root, {}).dbPath).toBe(path.join(root, '.ai-board', 'board.db'));
+      expect(resolvePaths(root, {}).dataDir).toBe(path.join(root, '.ai-board', 'data'));
       expect(warn).toHaveBeenCalledWith(
         expect.stringContaining('メインのチェックアウトを求められない')
       );
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+// ============================================================
+// データのワークツリーと、config.yaml の置き場所
+// ============================================================
+
+async function writeDataConfig(dataDir: string, yaml: string): Promise<void> {
+  await fs.mkdir(dataDir, { recursive: true });
+  await fs.writeFile(path.join(dataDir, 'config.yaml'), yaml, 'utf-8');
+}
+
+describe('データのワークツリーの置き場所', () => {
+  it('メインのチェックアウトでは .ai-board/data/', () => {
+    const paths = resolvePaths(root, {});
+
+    expect(paths.dataDir).toBe(path.join(root, '.ai-board', 'data'));
+    expect(paths.dataSource).toBe('local');
+  });
+
+  it('リンクされたワークツリーではメインのチェックアウトの .ai-board/data/', async () => {
+    const tree = await makeLinkedWorktree('feature');
+
+    const paths = resolvePaths(tree, {});
+
+    expect(paths.dataDir).toBe(path.join(root, '.ai-board', 'data'));
+    expect(paths.dataSource).toBe('main-checkout');
+  });
+
+  it('AI_BOARD_DATA があれば、それをデータのワークツリーにする（相対パスはカレントディレクトリから）', async () => {
+    const tree = await makeLinkedWorktree('feature');
+
+    const paths = resolvePaths(tree, { AI_BOARD_DATA: 'dev-data' });
+
+    expect(paths.dataDir).toBe(path.resolve('dev-data'));
+    expect(paths.dataSource).toBe('env');
+  });
+
+  it('AI_BOARD_DATA が空なら無いものとして扱う', () => {
+    expect(resolvePaths(root, { AI_BOARD_DATA: '' }).dataSource).toBe('local');
+  });
+
+  it('AI_BOARD_DATA があっても、移行前の DB は .ai-board/ の下のものを指す', () => {
+    const paths = resolvePaths(root, { AI_BOARD_DATA: 'dev-data' });
+
+    expect(legacyDbPath(paths)).toBe(path.join(root, '.ai-board', 'board.db'));
+  });
+});
+
+describe('config.yaml の置き場所', () => {
+  it('データ用ブランチの根に config.yaml があれば、それを読む', async () => {
+    await writeConfig('github:\n  repository: old/repo\n');
+    await writeDataConfig(path.join(root, '.ai-board', 'data'), githubYaml);
+
+    expect(loadConfig(root, {}).forge).toEqual({
+      kind: 'github',
+      owner: 'iepyon',
+      repo: 'ai-board',
+    });
+  });
+
+  it('データ用ブランチに無ければ .ai-board/config.yaml を読む', async () => {
+    await writeConfig(githubYaml);
+    await fs.mkdir(path.join(root, '.ai-board', 'data'), { recursive: true });
+
+    expect(loadConfig(root, {}).forge).toEqual({
+      kind: 'github',
+      owner: 'iepyon',
+      repo: 'ai-board',
+    });
+  });
+
+  it('リンクされたワークツリーでは、メインのチェックアウトのデータのワークツリーの config.yaml を読む', async () => {
+    await writeDataConfig(path.join(root, '.ai-board', 'data'), githubYaml);
+    const tree = await makeLinkedWorktree('feature');
+
+    expect(loadConfig(tree, {}).forge).toEqual({
+      kind: 'github',
+      owner: 'iepyon',
+      repo: 'ai-board',
+    });
+  });
+
+  it('AI_BOARD_DATA を指せば、そのディレクトリの config.yaml を読む', async () => {
+    await writeConfig('github:\n  repository: old/repo\n');
+    const dataDir = path.join(root, 'elsewhere');
+    await writeDataConfig(dataDir, githubYaml);
+
+    expect(loadConfig(root, { AI_BOARD_DATA: dataDir }).forge).toEqual({
+      kind: 'github',
+      owner: 'iepyon',
+      repo: 'ai-board',
+    });
+  });
+
+  it('データ用ブランチの config.yaml が不正なら、そのファイルの名前を出してエラーにする', async () => {
+    const dataDir = path.join(root, '.ai-board', 'data');
+    await writeDataConfig(dataDir, 'github:\n  repository: 3\n');
+
+    expect(() => loadConfig(root, {})).toThrow(path.join(dataDir, 'config.yaml'));
   });
 });
