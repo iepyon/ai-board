@@ -77,13 +77,8 @@ interface Refused {
   readonly message: string;
 }
 
-/** リポジトリが書き込みを拒んだ（壊れた `card.md` や `order.yaml`、判断の書き換え） */
-interface WriteRefused {
-  readonly type: 'WriteRefused';
-  readonly reason: string;
-}
-
-type WriteFailure = CreateCardError | UpdateCardError | Refused | WriteRefused;
+/** usecase のエラーには、リポジトリの拒否（`CardWriteRefused`）と `transact` の失敗が含まれる */
+type WriteFailure = CreateCardError | UpdateCardError | Refused;
 
 const VALUE_FLAGS = new Set(['--title', '--id', '--reason', '--from', '--gate']);
 
@@ -419,7 +414,7 @@ async function write(
       return await op();
     } catch (error) {
       if (error instanceof CardWriteRefusedError) {
-        return err({ type: 'WriteRefused', reason: error.reason.type });
+        return err({ type: 'CardWriteRefused', reason: error.reason.type });
       }
       throw error;
     }
@@ -525,7 +520,7 @@ function describeError(error: WriteFailure | DataStoreError, legacyDb: string | 
       return `カード ID が不正です: ${error.reason}`;
     case 'Refused':
       return error.message;
-    case 'WriteRefused':
+    case 'CardWriteRefused':
       return `カードのファイルへの書き込みを拒みました（${error.reason}）`;
     case 'DataBranchMissing':
     case 'DataDirNotRepository':

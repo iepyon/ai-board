@@ -1,37 +1,98 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
+import { execFileSync } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type { Application } from 'express';
 import { createApp } from '../../../app.js';
-import { createCardDependencies } from '../../../cards/composition.js';
+import {
+  createFileCardDependencies,
+  createTransactionalCardDependencies,
+  type CardDependencies,
+} from '../../../cards/composition.js';
 import { createBoardDependencies } from '../../composition.js';
 import type { MrStateProvider } from '../../services/mr-state-provider.js';
 import type { MrState } from '../../models/mr-state.js';
-import type { MergeRequestIid } from '../../../shared/schemas/common.js';
-import type { DatabaseSync } from 'node:sqlite';
-import { openDatabase } from '../../../infrastructure/database.js';
+import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
+import { createCliRunner } from '../../../infrastructure/cli-runner.js';
+import {
+  createDataStore,
+  DATA_BRANCH,
+  type DataStore,
+} from '../../../infrastructure/data-store.js';
 import { parseCard } from '../../../cards/repositories/card-markdown.js';
-import { SqliteCardRepository } from '../../../cards/repositories/sqlite-card.repository.js';
+import { REVIEW_HEADING, parseReviewLog } from '../../../cards/services/review-log.js';
+import type { Card } from '../../../cards/models/card.js';
+import { isErr, ok } from '../../../shared/result.js';
 
 // ============================================================
 // テスト用プロジェクトの組み立て
+//
+// カードは、一時ディレクトリの bare リポジトリを origin にしたデータ用ブランチの clone に置く。
+// 画面の書き込みは本物の git で取り直し・コミット・push を通る。
 // ============================================================
 
+let tmp: string;
 let root: string;
-let db: DatabaseSync;
+let origin: string;
+let store: DataStore;
+/** 準備と読み出しに使う、transact を通さないカードの依存 */
+let files: CardDependencies;
+
+const runner = createCliRunner({ timeoutMs: 30_000 });
+
+// 書き込みのたびに本物の git で fetch・commit・push が走るので、既定の 5 秒では足りないことがある
+vi.setConfig({ testTimeout: 30_000 });
+
+function sh(args: readonly string[]): string {
+  return execFileSync('git', [...args], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
+}
+
+function git(cwd: string, ...args: string[]): string {
+  return sh(['-C', cwd, ...args]).trim();
+}
 
 beforeEach(async () => {
-  root = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-board-e2e-'));
-  db = openDatabase(':memory:');
+  tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-board-e2e-'));
+  root = path.join(tmp, 'project');
+  await fs.mkdir(root);
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+  // 利用者の git の設定（署名など）に左右されないよう、空の設定と名前を与える
+  const globalConfig = path.join(tmp, 'gitconfig');
+  await fs.writeFile(globalConfig, '');
+  vi.stubEnv('GIT_CONFIG_GLOBAL', globalConfig);
+  vi.stubEnv('GIT_CONFIG_NOSYSTEM', '1');
+  vi.stubEnv('GIT_AUTHOR_NAME', 'ai-board');
+  vi.stubEnv('GIT_AUTHOR_EMAIL', 'ai-board@example.com');
+  vi.stubEnv('GIT_COMMITTER_NAME', 'ai-board');
+  vi.stubEnv('GIT_COMMITTER_EMAIL', 'ai-board@example.com');
+
+  origin = path.join(tmp, 'origin.git');
+  sh(['init', '--quiet', '--bare', origin]);
+
+  const seedDir = path.join(tmp, 'seed');
+  sh(['clone', '--quiet', origin, seedDir]);
+  git(seedDir, 'checkout', '--quiet', '--orphan', DATA_BRANCH);
+  await fs.writeFile(path.join(seedDir, 'ai-board-data.yaml'), 'version: 1\n');
+  git(seedDir, 'add', '-A');
+  git(seedDir, 'commit', '--quiet', '-m', 'data: 始める');
+  git(seedDir, 'push', '--quiet', 'origin', `HEAD:refs/heads/${DATA_BRANCH}`);
+
+  // 手元と同じく .ai-board/data/ に置く。ロックはその親（.ai-board/）に作られる
+  const dataDir = path.join(root, '.ai-board', 'data');
+  await fs.mkdir(path.dirname(dataDir), { recursive: true });
+  sh(['clone', '--quiet', '--branch', DATA_BRANCH, origin, dataDir]);
+
+  store = createDataStore({ dataDir, runner, lockPollMs: 10 });
+  files = createFileCardDependencies(dataDir);
 });
 
 afterEach(async () => {
   vi.restoreAllMocks();
-  db.close();
-  await fs.rm(root, { recursive: true, force: true });
+  vi.unstubAllEnvs();
+  await fs.rm(tmp, { recursive: true, force: true });
 });
 
 async function writeFile(relativePath: string, content: string): Promise<void> {
@@ -40,15 +101,47 @@ async function writeFile(relativePath: string, content: string): Promise<void> {
   await fs.writeFile(target, content, 'utf-8');
 }
 
-/** カードを Markdown で書いて DB に入れる。移行前のカードファイルと同じ書式で用意できる */
+/**
+ * カードを Markdown で書いてデータ用ブランチに入れる。移行前のカードファイルと同じ書式で用意できる。
+ *
+ * 本文の `## レビュー` の判断は、元の時刻のまま 1 件ずつ追記する
+ * （新しいカードの本文に判断があると、ファイルのリポジトリは書かずに拒む）。
+ * 直に書くと次の書き込みの取り直しで消えるので、transact を通して origin へ push する。
+ */
 async function writeCard(id: string, content: string): Promise<void> {
   const card = parseCard(`${id}.md`, content);
   if (card === null) throw new Error(`テスト用のカードが読めません: ${id}`);
-  await new SqliteCardRepository(db).create(card);
+
+  const index = card.body.indexOf(REVIEW_HEADING);
+  const prose = index === -1 ? card.body : card.body.slice(0, index).replace(/\n+$/, '');
+
+  const result = await store.transact('data: テストの準備', async () => {
+    if (!(await files.cardRepository.create({ ...card, body: prose }))) {
+      throw new Error(`テスト用のカードを作れません: ${id}`);
+    }
+
+    for (const entry of parseReviewLog(card.body)) {
+      const appended = await files.appendReviewCommand({
+        id: card.id,
+        gate: entry.gate,
+        kind: entry.kind,
+        reason: entry.reason,
+        at: new Date(entry.at),
+      });
+      if (isErr(appended)) return appended;
+    }
+    return ok(undefined);
+  });
+  if (isErr(result)) throw new Error(`準備に失敗しました: ${JSON.stringify(result.error)}`);
 }
 
-async function readCard(id: string): Promise<Record<string, unknown> | undefined> {
-  return db.prepare('SELECT * FROM cards WHERE id = ?').get(id);
+async function readCard(id: string): Promise<Card | null> {
+  return files.cardRepository.findById(id as CardId);
+}
+
+/** origin のデータ用ブランチのコミットの件名。新しい順 */
+function originLog(): string[] {
+  return git(origin, 'log', '--format=%s', DATA_BRANCH).split('\n');
 }
 
 function stubMrProvider(states: Record<string, MrState> = {}): MrStateProvider {
@@ -60,7 +153,7 @@ function stubMrProvider(states: Record<string, MrState> = {}): MrStateProvider {
 }
 
 function buildApp(mrProvider?: MrStateProvider): Application {
-  const cards = createCardDependencies(db);
+  const cards = createTransactionalCardDependencies(store);
   const board = createBoardDependencies(
     path.join(root, '.ai-board', 'plans'),
     cards.cardRepository,
@@ -687,6 +780,150 @@ describe('カード API', () => {
 
   it('GET /api/health は ok を返す', async () => {
     await request(buildApp()).get('/api/health').expect(200, { status: 'ok' });
+  });
+});
+
+// ============================================================
+// データ用ブランチへの書き込み
+// ============================================================
+
+describe('画面の書き込みはデータ用ブランチへ push してから応答する', () => {
+  /** origin が push を受け付けないようにする。fetch はできるので、取り直しても先頭が動かない拒否になる */
+  async function rejectPushes(): Promise<void> {
+    const hook = path.join(origin, 'hooks', 'pre-receive');
+    await fs.mkdir(path.dirname(hook), { recursive: true });
+    await fs.writeFile(hook, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  }
+
+  it('書き込み 1 回が 1 コミットとして origin に積まれる。コミットに理由は入れない', async () => {
+    await writeCard(
+      'target',
+      "---\nid: target\ntitle: 対象\nstartedAt: '2026-09-05T00:00:00.000Z'\n---\n"
+    );
+    const app = buildApp();
+
+    await request(app).post('/api/cards').send({ title: 'Audit Log' }).expect(201);
+    await request(app).patch('/api/cards/target').send({ branch: 'feat/secret-name' }).expect(200);
+    await request(app).put('/api/cards/target/body').send({ body: 'メモ' }).expect(200);
+    await request(app)
+      .post('/api/cards/target/reviews')
+      .send({ gate: 'plan', kind: '否決', reason: '理由の文' })
+      .expect(200);
+    await request(app)
+      .post('/api/cards/audit-log/move')
+      .send({ after: null, before: 'target' })
+      .expect(200);
+    await request(app)
+      .post('/api/idea-divider/move')
+      .send({ after: 'audit-log', before: null })
+      .expect(200);
+
+    expect(originLog().slice(0, 6)).toEqual([
+      'data: 区切り線を動かす',
+      'data: audit-log を並べ替える',
+      'data: target に plan 否決 を足す',
+      'data: target の本文を差し替える',
+      'data: target の branch を変える',
+      'data: audit-log を作る',
+    ]);
+    expect(originLog().join('\n')).not.toContain('理由の文');
+    expect(originLog().join('\n')).not.toContain('feat/secret-name');
+  });
+
+  it('何も変えない書き込みはコミットしない', async () => {
+    await writeCard('same', '---\nid: same\ntitle: 同じ\n---\n本文');
+    const before = originLog();
+
+    await request(buildApp()).put('/api/cards/same/body').send({ body: '本文' }).expect(200);
+
+    expect(originLog()).toEqual(before);
+  });
+
+  it('push が拒まれ続けたら 503 の DATA_STORE_PUSH_FAILED を返し、書きかけを残さない', async () => {
+    await writeCard('target', '---\nid: target\ntitle: 対象\n---\n');
+    await rejectPushes();
+    const app = buildApp();
+
+    const created = await request(app).post('/api/cards').send({ title: 'lost', id: 'lost' });
+    expect(created.status).toBe(503);
+    expect(created.body.code).toBe('DATA_STORE_PUSH_FAILED');
+
+    const reviewed = await request(app)
+      .post('/api/cards/target/reviews')
+      .send({ gate: 'plan', kind: '承認', reason: '' });
+    expect(reviewed.status).toBe(503);
+    expect(reviewed.body.code).toBe('DATA_STORE_PUSH_FAILED');
+
+    const board = await request(app).get('/api/board').expect(200);
+    expect(board.body.cards.map((card: { id: string }) => card.id)).toEqual(['target']);
+    expect(board.body.cards[0].stage).toBe('idea');
+    expect(git(store.dataDir, 'status', '--porcelain')).toBe('');
+  });
+
+  it('origin に届かなければ 503 の DATA_STORE_FETCH_FAILED を返す', async () => {
+    await writeCard('target', '---\nid: target\ntitle: 対象\n---\n');
+    await fs.rename(origin, `${origin}.gone`);
+
+    const response = await request(buildApp())
+      .patch('/api/cards/target')
+      .send({ branch: 'feat/x' });
+
+    expect(response.status).toBe(503);
+    expect(response.body.code).toBe('DATA_STORE_FETCH_FAILED');
+    expect((await readCard('target'))?.branch).toBeNull();
+  });
+
+  it('push の前に、ほかの場所から push された最新を取り直してから書く', async () => {
+    await writeCard('target', '---\nid: target\ntitle: 対象\n---\n');
+
+    // ほかの clone（クラウドのセッションなど）が先にカードを足す
+    const other = path.join(tmp, 'other', 'data');
+    sh(['clone', '--quiet', '--branch', DATA_BRANCH, origin, other]);
+    const otherStore = createDataStore({ dataDir: other, runner, lockPollMs: 10 });
+    const pushed = await otherStore.transact('data: other を作る', () =>
+      createFileCardDependencies(other).createCardCommand({
+        title: 'other',
+        id: 'other',
+        createdAt: new Date('2026-09-01T00:00:00.000Z'),
+      })
+    );
+    expect(isErr(pushed)).toBe(false);
+
+    await request(buildApp()).patch('/api/cards/target').send({ branch: 'feat/x' }).expect(200);
+
+    const board = await request(buildApp()).get('/api/board').expect(200);
+    expect(board.body.cards.map((card: { id: string }) => card.id).sort()).toEqual([
+      'other',
+      'target',
+    ]);
+    expect(originLog()[0]).toBe('data: target の branch を変える');
+  });
+
+  it('判断のエントリを変える本文の差し替えは 409 の CARD_WRITE_REFUSED で拒む', async () => {
+    await writeCard(
+      'reviewed',
+      [
+        '---',
+        'id: reviewed',
+        'title: 判断済み',
+        '---',
+        '## レビュー',
+        '',
+        '### 2026-09-05T00:00:00.000Z plan 否決',
+        '',
+        '直してほしい',
+      ].join('\n')
+    );
+    const before = originLog();
+
+    const response = await request(buildApp())
+      .put('/api/cards/reviewed/body')
+      .send({ body: '## レビュー\n\n### 2026-09-05T00:00:00.000Z plan 承認' });
+
+    expect(response.status).toBe(409);
+    expect(response.body.code).toBe('CARD_WRITE_REFUSED');
+    expect(originLog()).toEqual(before);
+    expect((await readCard('reviewed'))?.body).toContain('plan 否決');
   });
 });
 

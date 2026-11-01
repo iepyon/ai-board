@@ -1,16 +1,18 @@
+import * as fs from 'node:fs';
 import * as http from 'node:http';
 import type { FSWatcher } from 'chokidar';
-import { loadConfig, type AppConfig } from './shared/config.js';
-import { createCardDependencies } from './cards/composition.js';
+import { loadConfig, resolvePaths, type AppConfig } from './shared/config.js';
+import { isErr } from './shared/result.js';
+import { createBoardDataStore, createTransactionalCardDependencies } from './cards/composition.js';
+import { describeDataStoreError, describeOfflineRead } from './cards/cli/data-store-messages.js';
 import {
   createBoardDependencies,
-  createMrSnapshotRepository,
+  createFileMrSnapshotRepository,
   createMrStateSource,
 } from './board/composition.js';
 import { createCliRunner } from './infrastructure/cli-runner.js';
 import { SseHub } from './infrastructure/sse.js';
 import { startWatching } from './infrastructure/watch.js';
-import { openDatabase, watchDatabase } from './infrastructure/database.js';
 import { removeServerInfo, writeServerInfo } from './infrastructure/server-info.js';
 import { createApp } from './app.js';
 
@@ -35,18 +37,36 @@ export interface RunningServer {
   close(): Promise<void>;
 }
 
+/**
+ * サーバを起動する。
+ *
+ * カードはデータのワークツリーのファイルから読み、画面の書き込みは `DataStore.transact` を通して
+ * コミットと push が終わってから応答する。起動の前に 1 回取り直す（`config.yaml` もデータ用ブランチにある）。
+ */
 export async function startServer(options: StartServerOptions): Promise<RunningServer> {
+  const runner = createCliRunner();
+  const paths = resolvePaths(options.root);
+  const store = createBoardDataStore(paths, runner);
+
+  const refreshed = await store.refresh();
+  if (isErr(refreshed)) {
+    const legacyDb = fs.existsSync(paths.dbPath) ? paths.dbPath : null;
+    throw new Error(describeDataStoreError(refreshed.error, legacyDb));
+  }
+  if (refreshed.value.kind === 'offline') {
+    console.warn(`[ai-board] ${describeOfflineRead(refreshed.value.reason)}`);
+  }
+
   const config = loadConfig(options.root);
   const sse = new SseHub();
 
-  const db = openDatabase(config.paths.dbPath);
-  const cards = createCardDependencies(db, () => sse.broadcast('board-changed'));
+  const cards = createTransactionalCardDependencies(store, () => sse.broadcast('board-changed'));
 
   const { provider: mrProvider, poller } = await createMrStateSource(
     config.forge,
     cards.cardRepository,
-    createMrSnapshotRepository(db),
-    createCliRunner(),
+    createFileMrSnapshotRepository(store),
+    runner,
     {
       ...(options.pollIntervalMs !== undefined ? { intervalMs: options.pollIntervalMs } : {}),
       onUpdate: () => sse.broadcast('board-changed'),
@@ -65,12 +85,11 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
 
   const port = await listen(server, options.port ?? DEFAULT_PORT);
 
-  // 計画ファイルはファイル監視、カードは DB の data_version で拾う
+  // 計画ファイルはファイル監視で拾う。サーバ自身のカードの書き込みは、push の後に onWrite で知らせる
   const watcher: FSWatcher = startWatching({
     paths: [config.paths.boardDir],
     onChange: () => sse.broadcast('board-changed'),
   });
-  const dbWatcher = watchDatabase(db, () => sse.broadcast('board-changed'));
 
   poller?.start();
 
@@ -86,10 +105,8 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
       removeServerInfo(dataDir, process.pid);
       poller?.stop();
       sse.close();
-      dbWatcher.close();
       await watcher.close();
       await new Promise<void>((resolve) => server.close(() => resolve()));
-      db.close();
     },
   };
 }

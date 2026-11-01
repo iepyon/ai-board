@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import { startServer, DEFAULT_PORT } from './server.js';
 import {
   BOARD_DIR,
-  DB_ENV,
+  DATA_ENV,
   loadConfig,
   resolvePaths,
   type AppConfig,
@@ -280,7 +280,7 @@ async function main(): Promise<void> {
   console.warn(`ai-board  ${server.url}`);
   console.warn(`  対象      ${server.config.paths.root}`);
   console.warn(`  取得先    ${describeForge(server.config.forge)}`);
-  console.warn(`  DB        ${describeDb(server.config.paths)}`);
+  console.warn(`  データ    ${describeData(server.config.paths)}`);
 
   if (open) {
     openBrowser(server.url);
@@ -326,14 +326,14 @@ function describeForge(forge: AppConfig['forge']): string {
   return `GitHub ${forge.owner}/${forge.repo}（gh のログインを使用）`;
 }
 
-/** 起動ログに出す DB の 1 行。ワークツリーから共有しているときは、そうと分かるようにする */
-function describeDb(paths: AppConfig['paths']): string {
-  switch (paths.dbSource) {
+/** 起動ログに出すデータのワークツリーの 1 行。ワークツリーから共有しているときは、そうと分かるようにする */
+function describeData(paths: AppConfig['paths']): string {
+  switch (paths.dataSource) {
     case 'main-checkout':
-      return `${paths.dbPath}（メインのチェックアウトと共有）`;
+      return `${paths.dataDir}（メインのチェックアウトと共有）`;
     case 'env':
-      return `${paths.dbPath}（${DB_ENV} で指定）`;
+      return `${paths.dataDir}（${DATA_ENV} で指定）`;
     case 'local':
-      return paths.dbPath;
+      return paths.dataDir;
   }
 }
