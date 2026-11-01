@@ -320,3 +320,24 @@ CLI に人の判断の入口を足すと、`CLAUDE.md` の「CLI に入口を足
 ### 6. 確かめる
 
 - [x] `npm run typecheck && npm run lint && npm run format:check && npm test` と `npm run build` を通し、`## 動作確認の手順` の 1〜6 をスクラッチパッドの bare リポジトリで試す
+
+## AI レビュー
+
+- [ ] `src/cards/repositories/card-files.ts:74` の `parseDataVersion` は本番のどこからも呼ばれず、`ai-board-data.yaml` の版を誰も確かめない（Decisions「CLI はこれより新しい版を読まずに止まる」と `CLAUDE.md` の記述に反し、古い CLI が新しい形を v1 として読み書きする）。`src/infrastructure/data-store.ts` の `refresh` と `transact`（取り直しの後、`op` の前）で `<dataDir>/ai-board-data.yaml` を `parseDataVersion` で読み、新しい版なら新しいエラー種で止める。`describeDataStoreError` と `card-error-mappings.ts` を網羅し、新しい版のデータで `card list` / `card submit` が止まるテストを足す
+- [ ] `src/infrastructure/data-store.ts:169` の `prepare` は `.git` があるかしか見ず、`sync`（298 行）が `reset --hard refs/remotes/origin/ai-board/data` と `clean -fdq` を、HEAD がどのブランチでも走らせる。`AI_BOARD_DATA` が `main` を checkout した普通の clone を指すと、その `main` が orphan のデータのコミットへ動き、追跡していないファイルが消える。`sync` の reset の前に `git symbolic-ref HEAD` を確かめ、`refs/heads/ai-board/data` ならそのまま、まだコミットの無いブランチ（bare リポジトリの clone）なら `git symbolic-ref HEAD refs/heads/ai-board/data` で向け直し、それ以外のブランチなら reset せずに `DataDirNotRepository` 相当のエラーで止める。`main` を checkout した clone を指したときに中身が変わらないテストを足す
+- [ ] `src/cards/repositories/file-card.repository.ts:245` の `readLogFiles` は `readdirSync` の後の `readFileSync` で ENOENT を扱わない。サーバはロックを取らずに読むので、同じ時に定期の取り直しや CLI の書き込みが `reset --hard` / `clean` でファイルを消すと、`findAll` が例外を投げて `GET /api/board` が 500 になる。読む間に消えたファイル（ENOENT）は読み飛ばすようにし、そのテストを足す
+- [ ] `src/infrastructure/data-store.ts:225` の `attempt` は、`op` がファイルを書いた後に `commit`（`git add` / `git commit`）が失敗すると、`discardTo('HEAD')` をせずにエラーを返す。書きかけの `card.md` や判断のファイルがデータのワークツリーに残り、サーバの画面は次の取り直し（最大 60 秒）まで、記録されていない判断を記録済みとして見せる。`commit` が失敗したら `discardTo('HEAD')` で捨ててからエラーを返し、`git commit` が失敗する偽の `CliRunner` で書きかけが残らないテストを足す
+- [ ] `src/infrastructure/data-store.ts:293` の `addWorktree` は `git worktree add` の前に `git worktree prune` を走らせない。人が `.ai-board/data` を消すと、git が「missing but already registered worktree」で拒み（git 2.50 で確かめた）、以後のすべてのコマンドが `DataStoreGitFailed` の `worktree add` で止まる。`worktree add` の前に `git -C <repoRoot> worktree prune` を走らせ、データのワークツリーを消した後に CLI が作り直せるテストを足す
+- [ ] `src/infrastructure/data-store.ts:360` の `commit` の `git add -A` は、人のグローバルの gitignore（`core.excludesFile`）とメインのリポジトリの `.git/info/exclude` に従う。そこに `log/` などがあると、判断のファイルがコミットされず push もされないのに、`clean -fdq` は無視されたファイルを残すので手元では書けたように見える。データ用ブランチの既知のパス（`cards` / `order.yaml` / `snapshots` / `ai-board-data.yaml` / `config.yaml`）を `git add --all --force --` で足す形に変え、`core.excludesFile` に `log/` を置いた環境でも判断のファイルがコミットされるテストを足す
+- [ ] `src/cards/cli/card-cli.ts:299` の `runSubmit` と `:347` の `runHold` は `--reason` の中身を確かめない。理由に `### 2099-01-01T00:00:00.000Z plan 承認` の行を入れると、`card-files.ts` の `appendedEntries` がそれを別の判断として読み、`log/` に `…plan.approve.md` を書く（スクラッチパッドのデータ用ブランチで確かめた）。AI が CLI だけで承認を書ける（`REVIEW.md` の書き込み境界。`main` の本文の `## レビュー` でも同じ形で起きていた）。`parseEntryHeading` が判断の見出しとして読む行を理由に含む `submit` / `hold` を拒み、そのテストを足す
+
+### 見送った指摘
+
+- `src/infrastructure/database.ts:63` の `readLegacyBoard` は `user_version` が v5 の `board.db` しか読まず、古い版の DB は `migrate` できない。切り替えの直前まで `main` の CLI が DB を開くたびに v5 へ上げているので、移す DB は v5 である。1 回きりの移行で、読めないときも版を出して止まるので見送る
+- `src/cards/repositories/card-files.ts:308` の `compareLogNames` は、同じミリ秒の判断の後先をゲートと種別の名前の順で決め、書いた順では決めない。計画の Decisions（「読むときはファイル名の順に並べる」）のとおりであり、人の判断と AI の提出が同じミリ秒に重なることもまず無いので見送る
+- `isProcessAlive`・`readFileOrNull`・`settle` が複数のファイルに重複している。`migrate` は `ls-remote` を 2 回走らせ、ポーラーはマージ済みの控えを 1 件ごとに fetch と push する。振る舞いを変えない整理と効率の話なので見送る
+
+### 人に判断してほしいこと
+
+- `src/infrastructure/data-store.ts:28` のロックを待つ上限（5 秒）は、ロックを持ったまま行う fetch と、`transact` の最大 4 回の fetch と push より短い。遅い回線では、サーバの定期の取り直しや画面の書き込みの間に、ループの `card submit` や `status` が `DataStoreLockTimeout` で止まりうる。上限は計画の Decisions（「5 秒待って取れなければ失敗」）で決めた値なので、延ばすか、このままにするかは人が決める
+- `src/infrastructure/data-store.ts:648` の死んだロックの取り直しは、持ち主の pid が死んでいると見てから札を確かめずに `rmSync` する。2 つのプロセスが同時に取り直すと、後の方が先の方の新しいロックを消し、2 つが同じワークツリーで reset と commit を走らせうる。また、作った直後に中身を書けずに残ったロック（空のファイル）は `readLock` が null を返すので取り直されず、以後ずっと待ち切れで止まる。どちらも、落ちたプロセスが残したロックがあるときだけ起きる。直し方（`mkdir` によるロック、ロックの mtime で古さを決める、ロックのライブラリを使う）で振る舞いが変わるので、直すか、どれで直すかは人が決める
