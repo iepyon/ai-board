@@ -8,10 +8,10 @@ import { CardFrontmatterSchema } from '../models/schemas/card.schema.js';
 import type { Card } from '../models/card.js';
 import type { ReviewEntry, ReviewGate, ReviewKind } from '../models/review.js';
 import {
-  REVIEW_HEADING,
   appendReviewEntry,
   hasReviewSection,
   parseReviewLog,
+  stripReviewSection,
 } from '../services/review-log.js';
 
 // ============================================================
@@ -694,21 +694,6 @@ function planStartedAt(
 // ============================================================
 // ヘルパー
 // ============================================================
-
-/**
- * 本文から `## レビュー` の節（見出しから次の h2 の手前まで）を除く。
- * `parseReviewLog` と同じ切り方なので、節の後ろに置かれた節は本文に残る。
- */
-export function stripReviewSection(body: string): string {
-  const lines = body.split('\n');
-  const start = lines.findIndex((line) => line.trim() === REVIEW_HEADING);
-  if (start === -1) return trimNewlines(body);
-
-  const offset = lines.slice(start + 1).findIndex((line) => line.startsWith('## '));
-  const end = offset === -1 ? lines.length : start + 1 + offset;
-
-  return trimNewlines([...lines.slice(0, start), ...lines.slice(end)].join('\n'));
-}
 
 function trimNewlines(text: string): string {
   return text.replace(/^\n+/, '').replace(/\n+$/, '');

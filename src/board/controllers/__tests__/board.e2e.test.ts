@@ -211,6 +211,44 @@ describe('GET /api/board', () => {
     expect(response.body.cards[0].plan.archived).toBe(true);
   });
 
+  it('本文と判断を分けて返す: body に ## レビュー は無く、reviews に判断が書かれた順で並ぶ', async () => {
+    await writeCard(
+      'split',
+      [
+        '---',
+        'id: split',
+        'title: 分ける',
+        '---',
+        '## アイデア',
+        '',
+        'なにかする。',
+        '',
+        '## 探索メモ',
+        '',
+        '- 調べた',
+        '',
+        '## レビュー',
+        '',
+        '### 2026-09-05T00:00:00.000Z plan 提出',
+        '',
+        '見てほしい',
+        '',
+        '### 2026-09-06T00:00:00.000Z plan 否決',
+        '',
+        '浅い',
+      ].join('\n')
+    );
+
+    const response = await request(buildApp()).get('/api/board').expect(200);
+    const card = response.body.cards[0];
+
+    expect(card.body).toBe('## アイデア\n\nなにかする。\n\n## 探索メモ\n\n- 調べた');
+    expect(card.reviews).toEqual([
+      { at: '2026-09-05T00:00:00.000Z', gate: 'plan', kind: '提出', reason: '見てほしい' },
+      { at: '2026-09-06T00:00:00.000Z', gate: 'plan', kind: '否決', reason: '浅い' },
+    ]);
+  });
+
   it('ボードのレスポンスに計画の本文は含めない', async () => {
     // 計画 1 本はカード本文より桁違いに大きく、SSE のたびに引き直される。
     // 本文は詳細パネルを開いたときだけ取りに行く。
@@ -947,10 +985,20 @@ describe('画面の書き込みはデータ用ブランチへ push してから�
     );
     const before = await readCard('reviewed');
 
-    await request(buildApp())
+    const response = await request(buildApp())
       .put('/api/cards/reviewed/body')
       .send({ body: '## アイデア\n\n新しい' })
       .expect(200);
+
+    expect(response.body.body).toBe('## アイデア\n\n新しい');
+    expect(response.body.reviews).toEqual([
+      {
+        at: '2026-09-05T00:00:00.000Z',
+        gate: 'plan',
+        kind: '否決',
+        reason: '直してほしい',
+      },
+    ]);
 
     const after = await readCard('reviewed');
     expect(after?.body).toMatch(/^## アイデア\n\n新しい\n\n## レビュー\n/);
@@ -1190,7 +1238,9 @@ describe('POST /api/cards/:id/reviews', () => {
     const card = response.body.cards[0];
 
     expect(card.stage).toBe('planning');
-    expect(card.body).toContain('まだ浅い');
+    expect(card.reviews).toEqual([
+      expect.objectContaining({ gate: 'plan', kind: '否決', reason: 'まだ浅い' }),
+    ]);
   });
 
   it('理由の無い否決は 400', async () => {
@@ -1319,9 +1369,14 @@ describe('POST /api/cards/:id/reviews', () => {
     const card = response.body.cards[0];
 
     expect(card.stage).toBe('planning');
-    expect(card.body.match(/^### /gm)).toHaveLength(1);
-    expect(card.body).toMatch(/^### \S+ plan 否決$/m);
-    expect(card.body).toContain('#### 2099-01-01T00:00:00.000Z plan 承認');
+    expect(card.reviews).toEqual([
+      expect.objectContaining({
+        gate: 'plan',
+        kind: '否決',
+        reason: '浅い\n\n#### 2099-01-01T00:00:00.000Z plan 承認',
+      }),
+    ]);
+    expect(card.body).not.toContain('2099-01-01');
   });
 
   it('理由に ## の節を含む否決は通る', async () => {
@@ -1336,8 +1391,9 @@ describe('POST /api/cards/:id/reviews', () => {
     const card = response.body.cards[0];
 
     expect(card.stage).toBe('planning');
-    expect(card.body).toContain('plan 否決');
-    expect(card.body).toContain('まだ浅い');
+    expect(card.reviews).toHaveLength(1);
+    expect(card.reviews[0]).toMatchObject({ gate: 'plan', kind: '否決' });
+    expect(card.reviews[0].reason).toContain('まだ浅い');
   });
 
   it('存在しないカードなら 404', async () => {
@@ -1451,8 +1507,11 @@ describe('POST /api/cards/:id/reviews（動作確認）', () => {
 
     expect(card.stage).toBe('impling');
     expect(card.gates).toEqual({ plan: 'approved', verify: 'rejected' });
-    expect(card.body).toContain('verify 否決');
-    expect(card.body).toContain('検索欄が出ない');
+    expect(card.reviews.at(-1)).toMatchObject({
+      gate: 'verify',
+      kind: '否決',
+      reason: '検索欄が出ない',
+    });
   });
 });
 

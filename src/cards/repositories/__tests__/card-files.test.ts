@@ -15,7 +15,6 @@ import {
   serializeCardFile,
   serializeDataVersion,
   serializeOrder,
-  stripReviewSection,
   toLogStamp,
   withRank,
   type CardFiles,
@@ -25,7 +24,12 @@ import {
 } from '../card-files.js';
 import type { Card } from '../../models/card.js';
 import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
-import { appendReviewEntry, gateState, parseReviewLog } from '../../services/review-log.js';
+import {
+  appendReviewEntry,
+  gateState,
+  parseReviewLog,
+  stripReviewSection,
+} from '../../services/review-log.js';
 import type { ReviewEntry } from '../../models/review.js';
 
 const ID = 'refresh-token' as CardId;
