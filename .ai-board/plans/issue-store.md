@@ -312,7 +312,7 @@ CLI に人の判断の入口を足すと、`CLAUDE.md` の「CLI に入口を足
 
 ### 5. 書き込み境界とドキュメント
 
-- [ ] `.claude/settings.json` を作り、`.ai-board/data/**` への Edit / Write と、データ用ブランチへの直接の push を deny にする
+- [x] `.claude/settings.json` を作り、`.ai-board/data/**` への Edit / Write と、データ用ブランチへの直接の push を deny にする
 - [ ] `subagent-rules.md` の `AI_BOARD_DB` を `AI_BOARD_DATA`（bare リポジトリを `origin` にした clone）に、`CLAUDE.md` の「タスクは board.db にある」・書き込み境界の表・ワークツリーの共有の注意を直す
 - [ ] `README.md` に、切り替えの手順（マージ → `dist` を作り直す → `ai-board migrate`）、クラウドのセッションでの回し方（会話で `/loop`、ルーティンは保険）、リポジトリの「Automatically delete head branches」を有効にすることを書く
 - [ ] `docs/architecture.md` の「カードの保存と通知」「GitHub の PR の取得」を、データ用ブランチと控えの置き場所、`checkAuth` に合わせて直す。`docs/specs/` で `board.db` や `AI_BOARD_DB` に触れている箇所を直す
