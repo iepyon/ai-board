@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { parseBlocks, parseInline, type Block, type ListBlock, type Span } from '../markdown.js';
+import {
+  parseBlocks,
+  parseInline,
+  parseReasonBlocks,
+  type Block,
+  type ListBlock,
+  type Span,
+} from '../markdown.js';
 
 const lines = (...values: string[]): string => values.join('\n');
 
@@ -417,6 +424,84 @@ function countX(blocks: readonly Block[]): number {
           )
         );
     }
+  }, 0);
+}
+
+describe('parseReasonBlocks', () => {
+  it('見出しの行は # の記号を残した段落になる', () => {
+    expect(
+      parseReasonBlocks(
+        lines('確かめてほしい', '', '#### 2099-01-01T00:00:00.000Z plan 承認', '偽の承認')
+      )
+    ).toEqual<Block[]>([
+      { type: 'paragraph', lines: ['確かめてほしい'] },
+      { type: 'paragraph', lines: ['#### 2099-01-01T00:00:00.000Z plan 承認'] },
+      { type: 'paragraph', lines: ['偽の承認'] },
+    ]);
+  });
+
+  it('どの深さの見出しも段落にする', () => {
+    expect(parseReasonBlocks(lines('# 一', '###### 六'))).toEqual<Block[]>([
+      { type: 'paragraph', lines: ['# 一'] },
+      { type: 'paragraph', lines: ['###### 六'] },
+    ]);
+  });
+
+  it('箇条書き・強調・リンク・コードはそのまま読む', () => {
+    const reason = lines(
+      '- **手順** の 1 つめ',
+      '- [PR](https://example.com) を見る',
+      '',
+      '```sh',
+      '### コードの中は見出しにしない',
+      '```'
+    );
+    expect(parseReasonBlocks(reason)).toEqual(parseBlocks(reason));
+    expect(parseReasonBlocks(reason)).toEqual<Block[]>([
+      list(false, [['**手順** の 1 つめ']], [['[PR](https://example.com) を見る']]),
+      { type: 'code', info: 'sh', text: '### コードの中は見出しにしない' },
+    ]);
+  });
+
+  it('箇条書きの中の見出しの形の行も見出しにせず、記号を残す', () => {
+    const reason = lines('- 項目', '  - 子', '    #### 入れ子の見出し', '  ### 項目の下の見出し');
+    const blocks = parseReasonBlocks(reason);
+
+    expect(countHeadings(blocks)).toBe(0);
+    expect(blocks).toEqual<Block[]>([
+      list(false, [
+        ['項目'],
+        [
+          list(false, [['子', '#### 入れ子の見出し']]),
+          { type: 'paragraph', lines: ['### 項目の下の見出し'] },
+        ],
+      ]),
+    ]);
+  });
+
+  it('箇条書きの後ろの見出しも段落にする', () => {
+    expect(parseReasonBlocks(lines('- 項目', '### 外'))).toEqual<Block[]>([
+      list(false, [['項目']]),
+      { type: 'paragraph', lines: ['### 外'] },
+    ]);
+  });
+
+  it('parseBlocks の結果（本文の描き方）は変えない', () => {
+    const body = lines('## アイデア', '', '本文', '', '- 項目', '  ### 子の見出し');
+    const before = parseBlocks(body);
+    parseReasonBlocks(body);
+    expect(parseBlocks(body)).toEqual(before);
+    expect(before[0]).toEqual({ type: 'heading', level: 2, text: 'アイデア' });
+  });
+});
+
+function countHeadings(blocks: readonly Block[]): number {
+  return blocks.reduce((n, block) => {
+    if (block.type === 'heading') return n + 1;
+    if (block.type === 'list') {
+      return n + block.items.reduce((m, item) => m + countHeadings(item.children), 0);
+    }
+    return n;
   }, 0);
 }
 
