@@ -75,7 +75,9 @@ snapshots/<id>.json         マージ済みの PR の控え
 
 - `card.md` の形は `ai-board card show` の Markdown にそろえるが、`startedAt` と `rank` と `## レビュー` は持たない。この 3 つは、それぞれ `log/` と `order.yaml` から組み立てる
 - `skipGates` は `card.md` の frontmatter に置く。人の判断だが、書けるのは人の API だけで（CLI に入口は無い）、ファイルを直接書く道は deny ルールで止める。履歴はコミットに残る
-- `card.md` の本文に `## レビュー` の節があっても読まない。リポジトリは `log/` から組み立てた `## レビュー` を、本文の末尾に付けて `Card.body` にする。今の本文と同じく `## 探索メモ` などの後ろに来る
+- `card.md` の本文に `## レビュー` の節があっても読まない。リポジトリは `log/` から組み立てた `## レビュー` を、本文の末尾に付けて `Card.body` にする。`card show` でも、`## レビュー` は常に最後の節になる
+- 理由の中の `#` で始まる見出しの行は、組み立てるときに `####` へ下げる。下げないと、理由の中の `## ` で `## レビュー` の節が途中で切れる。
+  今も 3 枚のカード（`stage-timeline` / `chat-decide` / `skip-plan-needs-start`）で、`verify 提出` の本文の `## 動かす手順` などが節を切り、後ろの見出しが本文の節として読まれている。判断のファイルには元の文のまま残す
 - 判断のファイル名は `<時刻>.<gate>.<種別>.md`。時刻はコロンを含まない `20261101T035208.000Z` の形（ミリ秒まで）、`gate` は `plan` / `verify` / `start`、種別は英字の `submit` / `resubmit` / `hold` / `approve` / `reject` / `abort` / `start` / `unstart`。
   日本語のファイル名は `git` の出力で引用符付きにエスケープされ、人が読みにくいので避ける
 - 同じミリ秒に同じ `gate` と種別が重なったら、`-2`、`-3` を後ろに付ける。読むときはファイル名の順に並べる。`gateState` は時刻の順で、同じ時刻なら後ろのものを採るので、並びが決まれば結果も決まる
@@ -87,8 +89,9 @@ snapshots/<id>.json         マージ済みの PR の控え
 
 `DataStore.transact(op)` が、次の順で行う。`op` は「今のカードを読んで、検査して、書く」関数で、usecase と CLI の検査（`submitRefusal`・`gateRejected`・`card body` の拒否）をまるごと含む。
 
-1. ロックを取る（`.ai-board/data.lock` を排他作成。中に pid と時刻。持ち主の pid が死んでいれば取り直す。5 秒待って取れなければ失敗）
-2. 取り直す（`git fetch origin ai-board/data` → `git reset --hard origin/ai-board/data`）
+1. ロックを取る（`<dataDir の親>/data.lock` を排他作成。中に pid と時刻。持ち主の pid が死んでいれば取り直す。5 秒待って取れなければ失敗）
+2. 取り直す（`git fetch origin +refs/heads/ai-board/data:refs/remotes/origin/ai-board/data` → `git reset --hard origin/ai-board/data`）。
+   refspec を明示するのは、単一ブランチや浅い clone（クラウドの clone がそうでありうる）では、ブランチ名だけの fetch が `FETCH_HEAD` しか更新せず、追跡のブランチが古いまま残るからである
 3. `op` を走らせる。何も書かなければ（検査で拒んだ、変化が無い）コミットせずに終わる
 4. `git add -A` → `git commit`（メッセージは `data: <id> に plan 提出 を足す` のように操作から作る）
 5. `git push origin HEAD:ai-board/data`。拒否されたら 2 に戻る（3 回まで）。rebase はしない
@@ -110,14 +113,15 @@ git はすべて `cli-runner.ts` を通し、引数は配列で渡す（カー�
 `config.ts` の `sharedBoardDir` は今もリンクされたワークツリーからメインの `.ai-board/` を求めているので、`dataDir = <sharedBoardDir>/data` とすれば、どのワークツリーから動かしても同じ場所に解決される。
 `git-worktree.ts` の解決は変えない。
 
-データのワークツリーが無ければ、CLI とサーバが最初に作る（`git fetch origin ai-board/data` → `git worktree add .ai-board/data ai-board/data`）。
+データのワークツリーが無ければ、CLI とサーバが最初に作る（上と同じ refspec で fetch → `git worktree add .ai-board/data ai-board/data`）。
 データ用ブランチが `origin` に無く、`.ai-board/board.db` があれば、「`ai-board migrate` を走らせてください」と言って止まる。どちらも無ければ空のデータ用ブランチを作るよう `ai-board migrate --empty` を案内する。
 
 `AI_BOARD_DB` は `AI_BOARD_DATA` に置き換える。データのワークツリーの代わりに使うディレクトリ（git のリポジトリ）を指す。
 ワークツリーでスキーマを変えるコードを試すときや、動作確認で共有のカードを汚さないときに使う。
 そのディレクトリの `origin` に push するので、試すときはスクラッチパッドの bare リポジトリを `origin` にした clone を指す。
 
-`server.json` は `<dataDir>` の親（`.ai-board/server.json`、`AI_BOARD_DATA` ならその隣）に置き、`dbPath` の代わりに `dataDir` で照らし合わせる。
+`server.json`・ロック（`data.lock`）・PR の控え（`cache/`）は、どれも `dataDir` の親に置く（既定なら `.ai-board/` の下、`AI_BOARD_DATA` ならそのディレクトリの隣）。
+試しのデータが、本物のデータとロックや控えを共有しないようにするためである。`server.json` は `dbPath` の代わりに `dataDir` で照らし合わせる。
 
 #### サーバ
 
@@ -130,7 +134,7 @@ git はすべて `cli-runner.ts` を通し、引数は配列で渡す（カー�
 #### PR の状態の控え
 
 - マージ済みの PR の控えは `snapshots/<id>.json` に置く（二度と変わらないので、全員で 1 度引けば足りる）。書くのはポーラーで、`transact` を通す
-- 開いている PR の控えは、git に載せない使い捨ての `.ai-board/cache/mr-snapshots.json` に置く。クラウドでは毎回空から始まり、1 回目の `status` が引き直す
+- 開いている PR の控えは、git に載せない使い捨ての `<dataDir の親>/cache/mr-snapshots.json` に置く。クラウドでは毎回空から始まり、1 回目の `status` が引き直す
 - 指紋で詳細を省くしくみ（`fingerprintOf`）はそのまま使う。ETag と 304 は使わない（Non-Goals）
 
 #### GitHub の接続の確かめ方
@@ -198,7 +202,9 @@ CLI に人の判断の入口を足すと、`CLAUDE.md` の「CLI に入口を足
 - `## レビュー` の各エントリを、元の `at` のまま `log/` の 1 件 1 ファイルに分ける。分けた後の本文には `## レビュー` を残さない
 - `startedAt` が入っているカードは、その時刻の `start.start` を 1 件書く（着手を戻した履歴は DB に無いので作らない）
 - `rank` と区切り線を `order.yaml` に、マージ済みの PR の控えを `snapshots/` に、`.ai-board/config.yaml` を `config.yaml` に書く
-- 書き出した後、データ用ブランチから組み立て直した全カードが DB のカードと一致するか（`Card` の全項目）を確かめ、食い違えば push せずに止まる
+- 書き出した後、データ用ブランチから組み立て直した全カードが DB のカードと一致するかを確かめ、食い違えば push せずに止まる。
+  比べるのは、frontmatter の項目（`startedAt` と `rank` を含む）、`parseReviewLog` のエントリ、`## レビュー` の節を除いた本文の 3 つである。
+  `## レビュー` は最後の節へ動き、理由の中の見出しは下がるので、本文をそのまま比べると一致しない
 - `origin` に `ai-board/data` が既にあれば、何もせずに止まる。`--empty` は DB を読まずに空のデータ用ブランチを作る
 
 #### ルーティンの重複起動
@@ -272,24 +278,24 @@ CLI に人の判断の入口を足すと、`CLAUDE.md` の「CLI に入口を足
 - [ ] `src/cards/repositories/card-files.ts` に、データ用ブランチのファイルの形を読み書きする純関数を書く
   - `card.md`（frontmatter と本文）・`log/` のファイル名（時刻・gate・種別、`-2` の連番）・`order.yaml`・`ai-board-data.yaml` の版
   - `log/` から `## レビュー` の節と `startedAt` を組み立てる関数と、`Card` の差分から足すファイルを求める関数（既存のエントリが変わる差分は拒む）
-  - テスト: 往復で `Card` が変わらない / 同じミリ秒の連番 / 着手と着手を戻すの最新で `startedAt` が決まる / `## レビュー` の書き換えを拒む / 新しい版を読まずに止まる
+  - テスト: 往復で `Card` が変わらない / 同じミリ秒の連番 / 着手と着手を戻すの最新で `startedAt` が決まる / `## レビュー` の書き換えを拒む / 理由の中の `## ` の見出しで節が切れない / 新しい版を読まずに止まる
 - [ ] `src/infrastructure/data-store.ts` に `DataStore` を書く。データのワークツリーの用意、ロック、取り直し、`transact`（コミットと push、拒否されたら 3 回まで頭からやり直す）
   - git は `cli-runner.ts` を通し、引数は配列で渡す。`origin` が無ければ fetch と push を飛ばす
   - テスト: 一時ディレクトリの bare リポジトリを `origin` にした 2 つの clone から同時に書き、拒否された側が取り直してやり直す / 検査で拒めばコミットしない / 生きていない pid のロックは取り直す
 - [ ] `FileCardRepository` と `FileIdeaDividerRepository` を書き、`CardRepository` / `IdeaDividerRepository` を満たす。今の SQLite のリポジトリのテストをファイルのリポジトリに移す
-- [ ] PR の状態の控えを、マージ済みは `snapshots/<id>.json`（`transact` を通す）、それ以外は `.ai-board/cache/mr-snapshots.json` に置く `MrSnapshotRepository` の実装にする。`forge-poller.test.ts` を合わせる
+- [ ] PR の状態の控えを、マージ済みは `snapshots/<id>.json`（`transact` を通す）、それ以外は `<dataDir の親>/cache/mr-snapshots.json` に置く `MrSnapshotRepository` の実装にする。`forge-poller.test.ts` を合わせる
 
 ### 2. 組み立てと設定
 
-- [ ] `config.ts` の `dbPath` / `dbSource` を `dataDir` / `dataSource` に、`AI_BOARD_DB` を `AI_BOARD_DATA` に変える。`config.yaml` をデータ用ブランチの根から読み、無ければ `.ai-board/config.yaml` を読む
+- [ ] `config.ts` に `dataDir` / `dataSource` と `AI_BOARD_DATA` を足す（`dbPath` / `dbSource` / `AI_BOARD_DB` は `migrate` が使うので、SQLite を消すタスクまで残す）。`config.yaml` をデータ用ブランチの根から読み、無ければ `.ai-board/config.yaml` を読む
 - [ ] `server-info.ts` を `dataDir` で照らし合わせるように変える
 - [ ] `card-cli.ts` の各コマンドと `status` を、頭で取り直してから読むようにし、書き込みのコマンドを `transact` の中で走らせる（`submitRefusal` などの検査も中に入れる）。データ用ブランチが無いときの案内を出す
   - テスト: `card-cli.test.ts` を一時の bare リポジトリで動かす。2 つの clone からの同時の `submit` で 1 つだけ通る（ルーティンの重複起動）
 - [ ] サーバの書き込みを `transact` に通し、push の失敗を `DataStorePushFailed`（503）にする。`card-errors.ts` と `card-error-mappings.ts` を網羅する。`board.e2e.test.ts` を一時の bare リポジトリで動かす
 - [ ] サーバの変更検知を、`watchDatabase` から chokidar のデータのワークツリーの監視と、ポーリングの間隔での取り直しに変える。ポーラーの `saveMr` を `transact` に通す
 - [ ] `checkAuth` を `gh api repos/<owner>/<repo>` に変える。テストを合わせる
-- [ ] `ai-board migrate [--from <db>] [--empty]` を足し、`ai-board import` を消す。`database.ts` を読み出しだけに縮め、SQLite のリポジトリを消す
-  - テスト: `## レビュー` の時刻を保って分ける / `startedAt` から着手を 1 件書く / 組み立て直したカードが DB と一致しなければ push しない / 既にデータ用ブランチがあれば止まる
+- [ ] `ai-board migrate [--from <db>] [--empty]` を足し、`ai-board import` を消す。`database.ts` を読み出しだけに縮め、SQLite のリポジトリと `config.ts` の `dbPath` / `dbSource` / `AI_BOARD_DB` を消す（`migrate` は `--from` の既定に `.ai-board/board.db` を使う）
+  - テスト: `## レビュー` の時刻を保って分ける / `startedAt` から着手を 1 件書く / `## レビュー` の後ろに節があるカードも一致と判定する / 組み立て直したカードが DB と一致しなければ push しない / 既にデータ用ブランチがあれば止まる
 - [ ] `.gitignore` に `.ai-board/data/`、`.ai-board/cache/`、`.ai-board/data.lock` を足す
 
 ### 3. `ai-board pr`
