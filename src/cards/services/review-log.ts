@@ -73,23 +73,6 @@ export function parseEntryHeading(line: string): PendingEntry | null {
   return match === null ? null : toPendingEntry(match);
 }
 
-/**
- * 理由の中で、判断の見出し（`### <ISO8601> <gate> <種別>`）として読める最初の行を返す。無ければ null。
- *
- * 理由は見出しの下にそのまま書かれ、読む側（`parseReviewLog` と `card-files.ts` の `appendedEntries`）は
- * 行頭の見出しで新しいエントリと見なす。理由にこの形の行があると、別の判断（承認など）が増えてしまう。
- *
- * 拒む行は判断の見出しとして読める行だけに限る。`## 手順` のような見出しは、動作確認を頼む理由に
- * 手順書が求める書き方であり、組み立てるときに `demoteHeadings` で `####` へ下がるので節からはみ出さない。
- * 判定は読む側と同じ `parseEntryHeading` で行い、読む側の規則が変われば拒む側も一緒に変わるようにする。
- *
- * 行は `\r\n` / `\r` / `\n` のどれでも分ける（読む側は `\n` でしか分けないが、広く拒むほうが安全）。
- * 読む側はコードブロックを区別しないので、コードブロックの中の行も見つける。
- */
-export function findEntryHeadingLine(text: string): string | null {
-  return text.split(/\r\n|\r|\n/).find((line) => parseEntryHeading(line) !== null) ?? null;
-}
-
 /** 正規表現のキャプチャを検証済みのエントリ見出しへ変換する。不正なら null */
 function toPendingEntry(match: RegExpExecArray): PendingEntry | null {
   const [, at, gate, kind] = match;

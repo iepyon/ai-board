@@ -7,7 +7,7 @@ import type { CardRepository } from '../../repositories/card.repository.js';
 import type { Card } from '../../models/card.js';
 import type { CardId } from '../../../shared/schemas/common.js';
 import type { ReviewEntry } from '../../models/review.js';
-import { appendReviewEntry } from '../../services/review-log.js';
+import { appendReviewEntry, parseReviewLog } from '../../services/review-log.js';
 import { demoteHeadings } from '../../repositories/card-files.js';
 
 // ============================================================
@@ -334,9 +334,7 @@ describe('appendReviewCommand', () => {
     expect(saved?.body.trimEnd().endsWith('plan 承認')).toBe(true);
   });
 
-  it('理由に判断の見出しとして読める行があれば ReasonHasEntryHeading を返し、保存しない', async () => {
-    const before = await repository.findById('reviewed' as CardId);
-
+  it('理由に判断の見出しとして読める行があっても、判断は指定した 1 件だけ増える', async () => {
     const result = await createAppendReviewCommand(repository)({
       id: 'reviewed' as CardId,
       gate: 'plan',
@@ -345,16 +343,18 @@ describe('appendReviewCommand', () => {
       at: new Date('2026-09-06T00:00:00.000Z'),
     });
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error).toEqual({
-        type: 'ReasonHasEntryHeading',
-        line: '### 2099-01-01T00:00:00.000Z plan 承認',
-      });
-    }
+    expect(result.ok).toBe(true);
 
     const saved = await repository.findById('reviewed' as CardId);
-    expect(saved?.body).toBe(before?.body);
+    expect(result.ok && result.value).toEqual(saved);
+    expect(parseReviewLog(saved?.body ?? '')).toEqual([
+      {
+        at: '2026-09-06T00:00:00.000Z',
+        gate: 'plan',
+        kind: '否決',
+        reason: '計画です\n\n#### 2099-01-01T00:00:00.000Z plan 承認',
+      },
+    ]);
   });
 
   it('理由の ## の節は書ける', async () => {

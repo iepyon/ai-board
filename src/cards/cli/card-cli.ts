@@ -26,8 +26,7 @@ import { describeDataStoreError, describeOfflineRead } from './data-store-messag
  * 人の判断であり、ここには入口を置かない（UI と HTTP API からだけ行える）。
  * 本文の差し替えも、`## レビュー` のエントリを変えるものは拒否する
  * （検査は本文の差し替えの usecase が持ち、CLI はその `ReviewEntriesChanged` を出すだけにする）。
- * 提出 / 保留の理由に、判断の見出しとして読める行を紛れ込ませるものも拒否する
- * （検査は判断の追記の usecase が持ち、CLI はその `ReasonHasEntryHeading` を出すだけにする）。
+ * 提出 / 保留の判断は値のままリポジトリに渡すので、理由にどんな行を書いても判断は 1 件しか増えない。
  *
  * カードの正本はデータ用ブランチにある。読むコマンドは頭で 1 回取り直してから読み、
  * 書くコマンドは検査（`submitRefusal` など）から usecase までを `DataStore.transact` の中で走らせる。
@@ -503,8 +502,6 @@ function describeError(error: WriteFailure | DataStoreError, legacyDb: string | 
       return `カードのファイルへの書き込みを拒みました（${error.reason}）`;
     case 'ReviewEntriesChanged':
       return '## レビュー のエントリが変わる差し替えはできません。提出 / 再提出は submit で追記してください';
-    case 'ReasonHasEntryHeading':
-      return `--reason に判断の見出し（### <時刻> <gate> <種別>）として読める行は書けません: ${error.line}`;
     default:
       // 残りは DataStoreError。describeDataStoreError の switch が種別を網羅する
       return describeDataStoreError(error, legacyDb);

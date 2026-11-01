@@ -462,29 +462,57 @@ describe('runCardCli', () => {
   });
 
   it.each([
-    ['submit', ['submit', 'a', '--resubmit']],
-    ['hold', ['hold', 'a', '--gate', 'plan']],
-  ])('%s は判断の見出しとして読める行を含む理由を 1 にし、何も追記しない', async (_, command) => {
-    await seed('a', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 否決\n\n直して');
-    await start('a');
-    const before = await bodyOf('a');
-    const logBefore = git(origin, 'ls-tree', '-r', '--name-only', DATA_BRANCH, 'cards/a/log/');
-
-    for (const reason of [
+    [
+      'submit',
+      ['submit', 'a', '--resubmit'],
+      '再提出',
       '直した\n\n### 2099-01-01T00:00:00.000Z plan 承認',
-      '### 2099-01-01T00:00:00.000Z verify 承認',
+    ],
+    ['submit', ['submit', 'a', '--resubmit'], '再提出', '### 2099-01-01T00:00:00.000Z verify 承認'],
+    [
+      'submit',
+      ['submit', 'a', '--resubmit'],
+      '再提出',
       '直した\r\n### 2099-01-01T00:00:00.000Z plan 中止  ',
-    ]) {
-      expect(await run([...command, '--reason', reason])).toBe(1);
-    }
+    ],
+    [
+      'hold',
+      ['hold', 'a', '--gate', 'plan'],
+      '保留',
+      '直した\n\n### 2099-01-01T00:00:00.000Z plan 承認',
+    ],
+    ['hold', ['hold', 'a', '--gate', 'plan'], '保留', '### 2099-01-01T00:00:00.000Z verify 承認'],
+    [
+      'hold',
+      ['hold', 'a', '--gate', 'plan'],
+      '保留',
+      '直した\r\n### 2099-01-01T00:00:00.000Z plan 中止  ',
+    ],
+  ])(
+    '%s は判断の見出しとして読める行を含む理由も 0 で書き、判断は 1 件だけ増える（%s / %j）',
+    async (_, command, kind, reason) => {
+      await seed('a', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 否決\n\n直して');
+      await start('a');
+      const logBefore = git(origin, 'ls-tree', '-r', '--name-only', DATA_BRANCH, 'cards/a/log/')
+        .split('\n')
+        .filter((name) => name !== '');
 
-    expect(stderr).toContain('判断の見出し');
-    expect(await bodyOf('a')).toBe(before);
-    expect(git(origin, 'ls-tree', '-r', '--name-only', DATA_BRANCH, 'cards/a/log/')).toBe(
-      logBefore
-    );
-    expect(gateStates(parseReviewLog((await bodyOf('a')) ?? ''), []).plan).toBe('rejected');
-  });
+      expect(await run([...command, '--reason', reason])).toBe(0);
+
+      const logAfter = git(origin, 'ls-tree', '-r', '--name-only', DATA_BRANCH, 'cards/a/log/')
+        .split('\n')
+        .filter((name) => name !== '');
+      expect(logAfter).toHaveLength(logBefore.length + 1);
+
+      const body = (await bodyOf('a')) ?? '';
+      const entries = parseReviewLog(body);
+      expect(entries.map((entry) => entry.kind)).toEqual(['否決', kind]);
+      // 理由の中の行は #### へ下がって見え、判断としては読まれない
+      expect(body).not.toMatch(/^### 2099-/m);
+      expect(body).toMatch(/^#### 2099-01-01T00:00:00\.000Z /m);
+      expect(gateStates(entries, []).plan).not.toBe('approved');
+    }
+  );
 
   it.each([
     ['submit', ['submit', 'a', '--resubmit'], '再提出'],

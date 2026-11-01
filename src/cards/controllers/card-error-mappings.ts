@@ -65,20 +65,9 @@ export function mapUpdateCardBodyErrorToResponse(error: UpdateCardBodyError): Er
   }
 }
 
+/** 判断の追記のエラーは UpdateCardError と同じ種だけ。種を足したら、ここに switch を置いて網羅する */
 export function mapAppendReviewErrorToResponse(error: AppendReviewError): ErrorResponse {
-  switch (error.type) {
-    case 'ReasonHasEntryHeading':
-      return {
-        status: 400,
-        response: {
-          code: 'INVALID_REVIEW_REASON',
-          message: `理由に判断の見出し（### <時刻> <gate> <種別>）として読める行は書けません: ${error.line}`,
-        },
-      };
-    // 残りは UpdateCardError と同じ種だけ。ほかの種を足すと、ここが型で通らなくなる
-    default:
-      return mapUpdateCardErrorToResponse(error);
-  }
+  return mapUpdateCardErrorToResponse(error);
 }
 
 export function mapMoveCardErrorToResponse(error: MoveCardError): ErrorResponse {

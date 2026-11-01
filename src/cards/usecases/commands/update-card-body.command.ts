@@ -23,8 +23,9 @@ export type UpdateCardBodyCommand = (
  * カードの本文を差し替える。
  *
  * `## レビュー` のエントリ（`parseReviewLog` で読んだもの）が今と変わる本文は、書かずに `ReviewEntriesChanged` を返す。
- * 判断は追記の usecase（`createAppendReviewCommand`）からだけ足す。リポジトリ（`planCardWrite`）は
- * 今の本文の末尾に判断の見出しを足しただけの本文を判断の追記として受け付けるので、差し替えではその手前で拒む。
+ * 判断は追記の usecase（`createAppendReviewCommand`）から、リポジトリの `appendReview` に値のまま渡してだけ足す。
+ * 本文の差し替えでは判断を足させない。人に「判断は判断のボタンから足す」と返す `ReviewEntriesChanged` は、
+ * リポジトリの拒否（`CardWriteRefused`）より手前のここで返す。
  * CLI と API のどちらから書いてもここを通るので、入口ごとに検査を持たない。
  *
  * 本文の途中に偽の `## レビュー` 節を書いても、`parseReviewLog` は最初の節を読むので、エントリがあれば食い違って拒まれる。

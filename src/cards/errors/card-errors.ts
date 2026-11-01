@@ -27,16 +27,6 @@ export type CardFileMalformed = {
 export type CardWriteRefused = { readonly type: 'CardWriteRefused'; readonly reason: string };
 
 /**
- * 判断の理由に、判断の見出し（`### <ISO8601> <gate> <種別>`）として読める行がある。`line` はその最初の行。
- *
- * そのまま書くと、理由の中の行が別の判断（承認など）として読まれるので、書かずに拒む（`findEntryHeadingLine`）。
- */
-export type ReasonHasEntryHeading = {
-  readonly type: 'ReasonHasEntryHeading';
-  readonly line: string;
-};
-
-/**
  * 本文の差し替えで、`## レビュー` のエントリ（`parseReviewLog` で読んだもの）が今と変わる。
  *
  * 判断は追記の usecase からだけ足す。末尾に判断の見出しを足しただけの本文はリポジトリが判断の追記として受け付けるので、
@@ -59,6 +49,6 @@ export type CreateCardError = DuplicateCardId | InvalidCardId | CardWriteFailure
 export type GetCardError = CardNotFound;
 export type UpdateCardError = CardNotFound | CardWriteFailure;
 export type UpdateCardBodyError = UpdateCardError | ReviewEntriesChanged;
-export type AppendReviewError = UpdateCardError | ReasonHasEntryHeading;
+export type AppendReviewError = UpdateCardError;
 export type ListCardsError = CardFileMalformed;
 export type MoveCardError = CardNotFound | StaleOrder | CardWriteFailure;
