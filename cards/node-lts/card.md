@@ -4,7 +4,7 @@ title: ユーザは、研修 PC に入れやすい Node の LTS（24）で ai-bo
 created: '2026-10-31T06:52:00.070Z'
 skipGates:
   - plan
-branch: null
+branch: node-lts
 mr: null
 ---
 
