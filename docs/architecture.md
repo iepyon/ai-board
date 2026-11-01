@@ -121,7 +121,7 @@ UI が `startedAt` を書き換えるのは「着手」「着手を戻す」の�
 「`startedAt` を外したときに残るステージ」（AI の成果物とレビュー記録が課す下限）より
 前へは戻せない（`resolveFloorStage` / `droppableStages`）。
 
-アイデアの表の区切り線は `rank` と同じ物差しの値を 1 つだけ持つ（DB の `idea_divider`）。
+アイデアの表の区切り線は `rank` と同じ物差しの値を 1 つだけ持つ（データ用ブランチの `order.yaml` の `divider`）。
 並べ替えの中ではカードと同じ 1 項目（`DIVIDER_ID`）として扱い、隙間が尽きた振り直しでも一緒に振り直す
 （`src/cards/usecases/commands/move-in-order.ts`）。
 
@@ -144,39 +144,91 @@ GitHub に接続できないとき（`forge.status` が `connected` でないと
 止まっているカードの `reason` は `hold.reason` になる。
 `waiting` の各カードは、画面がボタンとして出す判断（`decisionsFor`）を `decisions` に持つ。
 `status --json` は、ほかにアイデアの表の並び（`ideas`。画面と同じ `ideaRows` の順で、区切り線も 1 行）と、
-同じ DB を使って起動中のサーバの URL（`server`。無ければ `null`）を出す。どちらも `board-decide` のスキルが使う。
+同じデータのワークツリーを使って起動中のサーバの URL（`server`。無ければ `null`）を出す。どちらも `board-decide` のスキルが使う。
 
-サーバは起動中の自分の場所（URL・pid・DB のパス）を DB の隣の `server.json` に書き、止まるときに消す
-（`src/infrastructure/server-info.ts`。git には載せない）。`status` はこれを読み、DB が一致し pid が生きているときだけ `server` に URL を出す。
+サーバは起動中の自分の場所（URL・pid・データのワークツリーのパス `dataDir`）を、データのワークツリーの親の `server.json` に書き、止まるときに消す
+（`src/infrastructure/server-info.ts`。git には載せない）。`status` はこれを読み、`dataDir` が一致し pid が生きているときだけ `server` に URL を出す。
 
 ## カードの保存と通知
 
-`card show` の出力（DB の列を frontmatter の形で表したもの）:
+カードの正本は、`origin` の orphan のブランチ `ai-board/data`（データ用ブランチ）にある。コードの履歴とは交わらない。
+中身は次のとおり（形は `src/cards/repositories/card-files.ts` の純関数が読み書きする）。
+
+```
+ai-board-data.yaml                      形の版（version: 1）。CLI はこれより新しい版を読まずに止まる
+config.yaml                             GitHub の接続設定（ai-board migrate が .ai-board/config.yaml を写す）
+order.yaml                              rank とアイデアの区切り線（{ divider, ranks: { <id>: <数> } }）
+cards/<id>/card.md                      frontmatter（id, title, created, skipGates, branch, mr）と本文
+cards/<id>/log/<時刻>.<gate>.<種別>.md   判断 1 件。中身は理由の本文。追記だけで、書き換えも削除もしない
+snapshots/<id>.json                     マージ済みの PR の控え
+```
+
+`card show` の出力（`card.md`・`log/`・`order.yaml` から組み立てた `Card` を frontmatter の形で表したもの）:
 
 ```yaml
 ---
-id: board-search # 不変。生成後は変えない。ファイル名と一致する kebab-case
+id: board-search # 不変。生成後は変えない。ディレクトリ名と一致する kebab-case
 title: カードを絞り込めるようにする
 created: '2026-09-04T06:48:23.416Z'
-startedAt: null # 人が着手を指示した時刻（人が打つ）
+startedAt: null # 人が着手を指示した時刻（人が打つ）。log/ の着手・着手を戻すの最新から組み立てる
 skipGates: [] # 人が事前に見ないと宣言したゲート（plan / verify）
 branch: null
 mr: null # レビュー要求の番号（branch から自動解決して書き戻す）
-rank: 1500 # 並び順（任意）。小さいほど上。人が並べ替えたときだけ書かれる
+rank: 1500 # 並び順（任意）。小さいほど上。人が並べ替えたときだけ order.yaml に書かれる
 ---
 ```
 
-CLI の書き込みはサーバが `PRAGMA data_version` の変化で拾い、SSE 経由でブラウザへ即座に反映される
-（`src/infrastructure/database.ts` の `watchDatabase`）。サーバ自身の書き込みは
-`data_version` に現れないので、リポジトリの `onWrite` から通知する。
+本文の `## レビュー` の節は `log/` の判断のファイルから組み立て、本文の末尾に付ける（`card.md` の本文にあっても読まない）。
+理由の中の `#` で始まる見出しは、節を途中で切らないよう `####` へ下げて組み立てる。
+`card.md` が読めない、frontmatter の項目が不正、`id` がディレクトリ名と食い違う、のどれかなら、そのカードは警告して読み飛ばす。
+Markdown 表現（`card-markdown.ts`）は `card show` の出力にだけ使う。
 
-移行前の `.ai-board/cards/<id>.md` は `ai-board import` で取り込む。
-Markdown 表現（`card-markdown.ts`）はこの取り込みと `card show` の出力にだけ使う。
+**置き場所。** 手元では、メインのチェックアウトの `.ai-board/data/` に `git worktree add` でデータ用ブランチのワークツリー
+（データのワークツリー、`dataDir`）を 1 か所置く。`sharedBoardDir` はリンクされたワークツリーからもメインの `.ai-board/` に解決されるので、
+どのワークツリーから動かしても同じ場所になる。無ければ CLI とサーバが最初に作る。
+データ用ブランチが `origin` に無ければ止まり、`.ai-board/board.db` があれば `ai-board migrate` を、無ければ `ai-board migrate --empty` を案内する。
+`AI_BOARD_DATA` を指すと、データのワークツリーの代わりにそのディレクトリ（git のリポジトリ）を使い、その `origin` に push する。
+試すときはスクラッチパッドの bare リポジトリを `origin` にした clone を指す。
+`server.json`・ロック（`data.lock`）・開いている PR の控え（`cache/`）は、どれも `dataDir` の親に置き、git に載せない
+（既定なら `.ai-board/` の下、`AI_BOARD_DATA` ならそのディレクトリの隣）。試しのデータが本物とロックや控えを共有しないためである。
+
+**書き込み。** CLI とサーバの書き込みは、どれも `DataStore.transact`（`src/infrastructure/data-store.ts`）の 1 操作として走る。
+
+1. ロックを取る（`data.lock` を排他作成。持ち主の pid が死んでいれば取り直す。5 秒待って取れなければ失敗）
+2. 取り直す（`git fetch origin +refs/heads/ai-board/data:refs/remotes/origin/ai-board/data` → `reset --hard` → `clean`）
+3. 操作を走らせる。usecase と CLI の検査（`submitRefusal` など）はこの中にあり、取り直した最新の状態に対して行われる。何も書かなければコミットしない
+4. `git add -A` → `git commit`（メッセージは ID・ゲート・種別だけで、理由の文は入れない）→ `git push origin HEAD:refs/heads/ai-board/data`
+5. push が拒否されたら、rebase せずに 2 に戻り、操作を頭からやり直す（3 回まで）
+
+rebase しないのは、離れた行の編集を git が黙って混ぜ、検査を経ないままの状態が push されうるからである。
+2 つの clone から同じカードに同時に `submit` を書いても、1 つだけが通り、後から来た方は取り直した状態で拒まれる。
+git はすべて `cli-runner.ts` を通し、引数は配列で渡す。`origin` の無いデータのワークツリー（テスト用）では fetch と push を飛ばしてコミットだけする。
+
+読み出しは、CLI のコマンドの頭とサーバの起動時に 1 回取り直す。fetch に失敗したら（オフライン）警告して手元の内容で読むが、書き込みは失敗にする。
+画面の書き込みは push が終わるまで応答を待つ。push・fetch の失敗とロック待ちは 503、データ用ブランチが無いなどの置き場所の不備は 500、
+判断のエントリを書き換える保存の拒否は 409 になる（`card-error-mappings.ts` の `mapCardWriteFailureToResponse`）。
+
+**通知。** サーバは計画のディレクトリとデータのワークツリーを chokidar で見て（`src/infrastructure/watch.ts`）、変化を SSE 経由でブラウザへ知らせる。
+`.git` の下、`data.lock`、`cache/`、`server.json` は見ない（カードの変化が無くても発火するため）。
+ほかの場所（CLI、クラウドのセッション）からの書き込みは、PR のポーリングと同じ間隔（既定 60 秒）でデータ用ブランチを取り直して拾い
+（`src/infrastructure/data-refresher.ts`）、取り直しで書き換わったファイルをファイル監視が拾う。
+手元にしか無い変更は持たない前提なので、取り直しで失うものは無い。サーバ自身の書き込みは、push の後に `onWrite` からも知らせる。
+
+移行前の `.ai-board/board.db` は `ai-board migrate` で 1 回だけデータ用ブランチへ書き出す（`src/cards/cli/migrate-cli.ts`）。
+`## レビュー` の各エントリを元の時刻のまま `log/` の 1 件 1 ファイルに分け、`startedAt` は着手を 1 件書く。
+書き出した後、組み立て直した全カードが DB と一致するかを確かめ、食い違えば push しない。
+SQLite（`src/infrastructure/database.ts`）は、この読み出しのためだけに残っている。
 
 ## GitHub の PR の取得
 
-`.ai-board/config.yaml` に `github:` を書いたときだけ有効で、無ければ `PR中` / `マージ済み` の列が空になるだけでボードは動く。
-`gh` の有無とログイン状態は起動時に 1 度だけ確かめ（`ForgeClient.checkAuth`）、使えなければ理由付きで `disabled` にする。
+`config.yaml` に `github:` を書いたときだけ有効で、無ければ `PR中` / `マージ済み` の列が空になるだけでボードは動く。
+`config.yaml` はデータ用ブランチの根から読み、無ければ `.ai-board/config.yaml` を読む（`src/shared/config.ts`）。
+クラウドのセッションの clone には、git に載らない各自のファイルが無いからである。
+
+`gh` で GitHub を引けるかは起動時に 1 度だけ確かめ（`ForgeClient.checkAuth`）、使えなければ理由付きで `disabled` にする。
+確かめ方は `gh api repos/<owner>/<repo>` を 1 回引けるかで、`gh auth status` は使わない。
+クラウドのセッションでは `gh auth status` が「GH_TOKEN が無効」と失敗するが、同じ認証で `gh api` は動く。
+ポーリングで使うのも `gh api` なので、同じ経路で確かめる。`connected` にならないと `status` の `next` が `null` になり、ループが回らない。
 
 GitHub の PR は `state` が `open` / `closed` の 2 値しかなく、**マージ済みも `closed`** で返る。
 区別は `merged_at` の有無で付ける（`toLifecycleState`）。ここを取り違えるとカードが `merged` へ進まない。
@@ -202,19 +254,28 @@ PR 一覧の全件取得はページングで取りこぼすため使わず、�
 カードの `mr` が分かっていれば番号で、無ければ `branch` から解決して書き戻す（`ForgePoller.fetchFor`）。
 
 詳細（コメント 2 種・イベント・コミット）まで引くと PR 1 枚で 4 回以上になり、1 分ごとのポーリングでも
-GitHub の上限（5,000 回/時）の大半を使う。そこで引いた結果を DB の `mr_snapshots` に控えとして残し、次の 2 つで問い合わせを省く。
+GitHub の上限（5,000 回/時）の大半を使う。そこで引いた結果を控えとして残し、次の 2 つで問い合わせを省く。
 
 - マージ済みの PR は二度と引かない（`isSettled`）。マージされずに閉じた PR は reopen がありうるので引き続ける
 - `pulls/{n}` を 1 回引き、指紋（状態・Draft・`head.sha`・コメントの件数・`updated_at`。`fingerprintOf`）が
   前回と同じなら詳細を引かずに前回の結果を使う
 
+控えは 2 か所に分けて置く（`src/board/repositories/file-mr-snapshot.repository.ts`）。
+
+- マージ済みの PR は、データ用ブランチの `snapshots/<id>.json` に `transact` を通して書く。二度と変わらないので、全員で 1 度引けば足り、クラウドの新しい clone でも引き直さずに済む
+- それ以外は、git に載せない使い捨ての `<dataDir の親>/cache/mr-snapshots.json` に置く。クラウドでは毎回空から始まり、1 回目の `status` が引き直す
+
+同じカードが両方にあれば、マージ済みの方を採る。控えはステージの導出の入力ではないので、データ用ブランチへ書けなくても
+（オフライン、push の拒否、ロックの待ち切れ）警告するだけで、ポーラーを止めない。書けなかった控えは次のプロセスが引き直して書く。
 控えはサーバと `ai-board status` のポーラーだけが書き、最初の `refresh` で読み戻す。
 `status` は呼ばれるたびに新しいプロセスなので、控えが無いと毎回すべての PR を詳細まで引き直す。
+`branch` から解決した PR 番号の書き戻しも、サーバと `status` では `transact` を通し（`createTransactionalMrWriter`）、取り直した後に番号が既に入っていれば何も書かない。
 `MrState` に項目を足すと古い控えは検証で外れて引き直され、`enrich` の組み立てを変えたら `FINGERPRINT_VERSION` を上げる。
 
 かつて GitLab の MR の番号も同じ `mr` 列に入っていた。GitLab の MR !1 と GitHub の PR #1 は別物で、
 番号をそのまま引くと列は正しく埋まったままリンクだけが別の PR を指す。そのため出どころを確かめられない番号は
-DB のマイグレーション（v2・v3）で消し、`branch` から解決し直させている。`ai-board import` も `forge: gitlab` の番号は捨てる。
+移行前の DB のマイグレーション（v2・v3）で消し、`branch` から解決し直させていた。
+`ai-board migrate` は、その後の版（`LEGACY_SCHEMA_VERSION`）の `board.db` だけを読み、ほかの版の DB は読まずに止まる。
 
 ## API
 
