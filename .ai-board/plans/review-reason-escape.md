@@ -144,3 +144,15 @@ API は 400（`INVALID_REVIEW_REASON`）、CLI は今の `reasonWritable` と同
 ### 3. ドキュメント
 
 - [x] `docs/architecture.md` の API のエラーと書き込み境界の説明に、理由に判断の見出しとして読める行を書けないこと、本文の差し替えで `## レビュー` のエントリを変えられないことが、CLI と API の両方で usecase により守られることを書く。`docs/specs/card-review/spec.md` と `README.md` に該当の記述があれば合わせる
+
+## AI レビュー
+
+### 見送った指摘
+
+- `src/cards/controllers/card-error-mappings.ts:59` の 409（`REVIEW_ENTRIES_CHANGED`）の文言は「判断は判断のボタンから足してください」だが、画面で編集を始めた後に AI が提出を足し、古い書きかけを保存したときにも出る。この場合の本当の直し方は読み直しである。ただし画面は `BodyEditor.tsx:75` で外での書き換えを知らせており、この PR の前も同じ場面で 409（`CARD_WRITE_REFUSED`）の別の文言が出ていた。文言の改善はこの PR の目的の外なので見送る
+- `src/cards/usecases/commands/update-card-body.command.ts:40` の比較は最初の `## レビュー` 節しか読まないので、本物の節の後ろに 2 つ目の `## レビュー` 節（エントリあり）を足した本文は通り、`card.md` にその節が残る。ただし `card.md` を読むのは `parseCardFile`（`card-files.ts:418`）だけで、そこで `stripReviewSection` が除くので判断は増えず、表示にも出ない。main の CLI の検査と同じ振る舞いで、偽造にはならないので見送る
+- `src/cards/repositories/card-files.ts:626` の `planBody` が本文の形から判断の追記を推し量る作りをやめ、リポジトリに判断の追記の口を分けるべきという指摘。今 `save` に変わった本文を渡す usecase は本文の差し替えと判断の追記の 2 つだけで、どちらも検査を持つ。計画の Decisions で `planCardWrite` は残すと決めており、作りの変更はこの PR の目的の外なので見送る
+- `update-card-body.command.ts:40` の `parseReviewLog` の比較が `card-files.ts:641` の比較と重なる。振る舞いを変えない重複なので見送る
+- 人の API で、理由に既にあるエントリの見出しを貼ると 400 になるので、拒まず `demoteHeadings` で下げて書くべきという指摘。計画の Decisions「拒む。無害化はしない」で決めて承認されているので見送る
+- `src/cards/cli/card-cli.ts:352` の `card hold` で、理由の検査が `transact` の中の usecase に移ったため、見出しを含む理由でも先に保留の可否の拒否文や fetch の失敗が出るようになった。どちらでも書かずに 1 で終わり、境界は崩れない。エラーの出る順の好みなので見送る
+- `append-review.command.ts:37` で理由の検査が `findById` の後にあり、拒む理由でもカードを読む。性能の小さな改善なので見送る
