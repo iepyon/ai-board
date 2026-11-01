@@ -107,10 +107,12 @@ function entry(overrides: Partial<ReviewEntry> = {}): ReviewEntry {
   return { at: '2026-11-01T04:00:00.000Z', gate: 'plan', kind: '提出', reason: '', ...overrides };
 }
 
-/** 判断を 1 件足して保存し直す（`append-review` の usecase と同じ流れ） */
-function appendAndSave(stored: StoredCard, review: ReviewEntry, now = NOW): StoredCard {
-  const card = read(stored);
-  return save(stored, { ...card, body: appendReviewEntry(card.body, review) }, now);
+/** 判断を 1 件足し、足した後のファイルを返す（`appendReview` の口と同じ流れ） */
+function append(stored: StoredCard, review: ReviewEntry): StoredCard {
+  const result = planReviewAppend(ID, stored, review);
+  if (!result.ok) throw new Error(`足せませんでした: ${result.error.type}`);
+
+  return { ...stored, files: { ...stored.files, log: [...stored.files.log, result.value] } };
 }
 
 // ============================================================
@@ -374,8 +376,8 @@ describe('planCardWrite', () => {
 
     let stored = create(card);
     stored = save(stored, { ...read(stored), startedAt: '2026-11-01T03:00:00.000Z' });
-    stored = appendAndSave(stored, entry({ reason: '判断してほしい点: なし' }));
-    stored = appendAndSave(stored, entry({ at: '2026-11-01T05:00:00.000Z', kind: '承認' }));
+    stored = append(stored, entry({ reason: '判断してほしい点: なし' }));
+    stored = append(stored, entry({ at: '2026-11-01T05:00:00.000Z', kind: '承認' }));
 
     const assembled = read(stored);
     expect(assembled).toEqual({
@@ -394,84 +396,8 @@ describe('planCardWrite', () => {
     });
   });
 
-  it('判断の追記は 1 件 1 ファイルにし、card.md は書き換えない', () => {
-    const stored = create(makeCard());
-    const card = read(stored);
-    const write = planCardWrite(
-      stored,
-      { ...card, body: appendReviewEntry(card.body, entry({ reason: '見て' })) },
-      NOW
-    );
-
-    expect(write).toEqual({
-      ok: true,
-      value: {
-        cardMd: null,
-        logFiles: [{ name: '20261101T040000.000Z.plan.submit.md', content: '見て\n' }],
-        rankChanged: false,
-      },
-    });
-  });
-
-  it('理由に ## の見出しがある判断も、全文を 1 つのファイルにする', () => {
-    const reason =
-      '動作確認を頼みます。\n\n## 動かす手順\n\n1. npm run build\n\n## 見てほしい点\n\n- 画面';
-    let stored = create(makeCard());
-    stored = appendAndSave(stored, entry({ gate: 'verify', reason }));
-
-    expect(stored.files.log).toEqual([
-      { name: '20261101T040000.000Z.verify.submit.md', content: `${reason}\n` },
-    ]);
-    expect(stored.files.cardMd).toBe(create(makeCard()).files.cardMd);
-
-    // 組み立て直しても、理由の後ろの見出しが本文の節にならない
-    const card = read(stored);
-    expect(parseReviewLog(card.body).map((e) => e.reason)).toEqual([demoteHeadings(reason)]);
-    expect(gateState(parseReviewLog(card.body), 'verify', [])).toBe('submitted');
-
-    // 次の判断も節の末尾に足せる
-    stored = appendAndSave(
-      stored,
-      entry({ at: '2026-11-01T06:00:00.000Z', gate: 'verify', kind: '承認' })
-    );
-    expect(parseReviewLog(read(stored).body).map((e) => e.kind)).toEqual(['提出', '承認']);
-  });
-
-  it('同じミリ秒の同じ判断は連番を付け、書いた順に読める', () => {
-    let stored = create(makeCard());
-    stored = appendAndSave(stored, entry({ reason: '1 回目' }));
-    stored = appendAndSave(stored, entry({ reason: '2 回目' }));
-    stored = appendAndSave(stored, entry({ reason: '3 回目' }));
-
-    expect(stored.files.log.map((file) => file.name)).toEqual([
-      '20261101T040000.000Z.plan.submit.md',
-      '20261101T040000.000Z.plan.submit-2.md',
-      '20261101T040000.000Z.plan.submit-3.md',
-    ]);
-    expect(parseReviewLog(read(stored).body).map((e) => e.reason)).toEqual([
-      '1 回目',
-      '2 回目',
-      '3 回目',
-    ]);
-  });
-
-  it('1 回の保存で足した複数の判断にも連番を付ける', () => {
-    const stored = create(makeCard());
-    const card = read(stored);
-    const body = appendReviewEntry(
-      appendReviewEntry(card.body, entry({ reason: 'a' })),
-      entry({ reason: 'b' })
-    );
-    const write = planCardWrite(stored, { ...card, body }, NOW);
-
-    expect(write.ok && write.value.logFiles.map((file) => file.name)).toEqual([
-      '20261101T040000.000Z.plan.submit.md',
-      '20261101T040000.000Z.plan.submit-2.md',
-    ]);
-  });
-
   describe('## レビュー の書き換えを拒む', () => {
-    const base = appendAndSave(create(makeCard()), entry({ reason: '元の理由' }));
+    const base = append(create(makeCard()), entry({ reason: '元の理由' }));
     const card = read(base);
 
     it.each([
@@ -485,11 +411,33 @@ describe('planCardWrite', () => {
           '## レビュー\n\n### 2026-10-01T00:00:00.000Z plan 承認\n'
         ),
       ],
+      ['末尾に判断を足す', appendReviewEntry(card.body, entry({ kind: '承認' }))],
+      [
+        '末尾に判断を 2 件足す',
+        appendReviewEntry(
+          appendReviewEntry(card.body, entry({ reason: 'a' })),
+          entry({ reason: 'b' })
+        ),
+      ],
     ])('%s', (_label, body) => {
       expect(planCardWrite(base, { ...card, body }, NOW)).toEqual({
         ok: false,
         error: { type: 'ReviewEntriesChanged', id: ID },
       });
+    });
+
+    it('判断の追記は本文の保存では受け付けず、log/ に何も足さない', () => {
+      const stored = create(makeCard());
+      const current = read(stored);
+
+      // 判断の無いカードの末尾に、## レビュー の節ごと判断を足した本文
+      expect(
+        planCardWrite(
+          stored,
+          { ...current, body: appendReviewEntry(current.body, entry({ reason: '見て' })) },
+          NOW
+        )
+      ).toEqual({ ok: false, error: { type: 'ReviewEntriesChanged', id: ID } });
     });
 
     it('新しいカードの本文に判断があれば拒む', () => {
@@ -503,7 +451,7 @@ describe('planCardWrite', () => {
   });
 
   it('本文の差し替えは card.md に書き、判断を変えない限り ## レビュー の後ろの節も本文に移す', () => {
-    const stored = appendAndSave(create(makeCard()), entry());
+    const stored = append(create(makeCard()), entry());
     const card = read(stored);
     const body =
       card.body.replace('トークンを更新する。', '期限前に更新する。') + '\n## 探索メモ\n\nB';
@@ -580,14 +528,6 @@ describe('planCardWrite', () => {
 });
 
 describe('planReviewAppend', () => {
-  /** 判断を 1 件足し、足した後のファイルを返す */
-  function append(stored: StoredCard, review: ReviewEntry): StoredCard {
-    const result = planReviewAppend(ID, stored, review);
-    if (!result.ok) throw new Error(`足せませんでした: ${result.error.type}`);
-
-    return { ...stored, files: { ...stored.files, log: [...stored.files.log, result.value] } };
-  }
-
   it('判断を 1 件 1 ファイルにし、理由の前後の空白を落として中身にする', () => {
     const stored = create(makeCard());
 
@@ -601,11 +541,28 @@ describe('planReviewAppend', () => {
     });
   });
 
-  it('本文の追記で足した判断と、同じファイルになる', () => {
-    const stored = create(makeCard());
-    const review = entry({ reason: '動作確認を頼みます。\n\n## 動かす手順\n\n1. npm run build' });
+  it('理由に ## の見出しがある判断も、全文を 1 つのファイルにし、card.md は変えない', () => {
+    const reason =
+      '動作確認を頼みます。\n\n## 動かす手順\n\n1. npm run build\n\n## 見てほしい点\n\n- 画面';
+    const created = create(makeCard());
+    let stored = append(created, entry({ gate: 'verify', reason }));
 
-    expect(append(stored, review).files.log).toEqual(appendAndSave(stored, review).files.log);
+    expect(stored.files.log).toEqual([
+      { name: '20261101T040000.000Z.verify.submit.md', content: `${reason}\n` },
+    ]);
+    expect(stored.files.cardMd).toBe(created.files.cardMd);
+
+    // 組み立て直しても、理由の後ろの見出しが本文の節にならない
+    const card = read(stored);
+    expect(parseReviewLog(card.body).map((e) => e.reason)).toEqual([demoteHeadings(reason)]);
+    expect(gateState(parseReviewLog(card.body), 'verify', [])).toBe('submitted');
+
+    // 次の判断も節の末尾に足せる
+    stored = append(
+      stored,
+      entry({ at: '2026-11-01T06:00:00.000Z', gate: 'verify', kind: '承認' })
+    );
+    expect(parseReviewLog(read(stored).body).map((e) => e.kind)).toEqual(['提出', '承認']);
   });
 
   it('同じミリ秒の同じ判断は連番を付け、書いた順に読める', () => {

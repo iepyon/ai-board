@@ -146,33 +146,57 @@ describe('FileCardRepository', () => {
     expect((await repository.findById(ID))?.startedAt).toBeNull();
   });
 
-  it('判断を本文の末尾に足して保存すると、log/ に 1 件 1 ファイルで足し、card.md は変えない', async () => {
-    const repository = repo();
+  it('save は判断を作らない。判断を本文の末尾に足した保存は、何も書かずに CardWriteRefusedError を投げる', async () => {
+    const onWrite = vi.fn();
+    const repository = repo({ onWrite });
     await repository.create(makeCard({ body: '## アイデア\n\n本文' }));
     const cardMd = read('cards/refresh-token/card.md');
+    onWrite.mockClear();
 
     const existing = (await repository.findById(ID)) as Card;
-    const appended = {
+    const saving = repository.save({
       ...existing,
+      title: '別のタイトル',
       body: appendReviewEntry(existing.body, {
         at: '2026-11-01T04:00:00.000Z',
         gate: 'plan',
-        kind: '提出',
-        reason: '計画を出しました。\n\n## 動かす手順\n\n1. 起動する',
+        kind: '承認',
+        reason: '',
       }),
-    };
+    });
 
-    expect(await repository.save(appended)).toBe(true);
+    await expect(saving).rejects.toBeInstanceOf(CardWriteRefusedError);
+    await expect(saving).rejects.toMatchObject({
+      reason: { type: 'ReviewEntriesChanged', id: ID },
+    });
+    expect(logNames()).toEqual([]);
+    expect(read('cards/refresh-token/card.md')).toBe(cardMd);
+    expect(onWrite).not.toHaveBeenCalled();
+  });
+
+  it('save は判断のあるカードの本文とメタを書き換えても、log/ に何も足さない', async () => {
+    const repository = repo();
+    await repository.create(makeCard({ body: '## アイデア\n\n本文' }));
+    await repository.appendReview(ID, {
+      at: '2026-11-01T04:00:00.000Z',
+      gate: 'plan',
+      kind: '提出',
+      reason: '見て',
+    });
+    const existing = (await repository.findById(ID)) as Card;
+
+    expect(
+      await repository.save({
+        ...existing,
+        branch: 'refresh-token',
+        body: existing.body.replace('本文', '書き換えた本文'),
+      })
+    ).toBe(true);
 
     expect(logNames()).toEqual(['20261101T040000.000Z.plan.submit.md']);
-    expect(read('cards/refresh-token/log/20261101T040000.000Z.plan.submit.md')).toBe(
-      '計画を出しました。\n\n## 動かす手順\n\n1. 起動する\n'
-    );
-    expect(read('cards/refresh-token/card.md')).toBe(cardMd);
-    // 読み戻した本文は、保存した本文から理由の中の見出しを下げたもの
-    expect((await repository.findById(ID))?.body).toBe(
-      appended.body.replace('\n## 動かす手順', '\n#### 動かす手順')
-    );
+    const saved = await repository.findById(ID);
+    expect(saved?.branch).toBe('refresh-token');
+    expect(saved?.body).toBe(existing.body.replace('本文', '書き換えた本文'));
   });
 
   describe('appendReview', () => {
@@ -280,15 +304,11 @@ describe('FileCardRepository', () => {
   it('既存の判断を変える保存は、何も書かずに CardWriteRefusedError を投げる', async () => {
     const repository = repo();
     await repository.create(makeCard());
-    const existing = (await repository.findById(ID)) as Card;
-    await repository.save({
-      ...existing,
-      body: appendReviewEntry(existing.body, {
-        at: '2026-11-01T04:00:00.000Z',
-        gate: 'plan',
-        kind: '提出',
-        reason: '元の理由',
-      }),
+    await repository.appendReview(ID, {
+      at: '2026-11-01T04:00:00.000Z',
+      gate: 'plan',
+      kind: '提出',
+      reason: '元の理由',
     });
     const submitted = (await repository.findById(ID)) as Card;
     const cardMd = read('cards/refresh-token/card.md');

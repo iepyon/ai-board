@@ -7,12 +7,7 @@ import { CardIdSchema, type CardId, type MergeRequestIid } from '../../shared/sc
 import { CardFrontmatterSchema } from '../models/schemas/card.schema.js';
 import type { Card } from '../models/card.js';
 import type { ReviewEntry, ReviewGate, ReviewKind } from '../models/review.js';
-import {
-  REVIEW_HEADING,
-  appendReviewEntry,
-  parseEntryHeading,
-  parseReviewLog,
-} from '../services/review-log.js';
+import { REVIEW_HEADING, appendReviewEntry, parseReviewLog } from '../services/review-log.js';
 
 // ============================================================
 // データ用ブランチのファイルの形 — 純関数のみ。I/O は持たない
@@ -536,17 +531,15 @@ export interface CardWrite {
 /**
  * 保存しようとする `Card` と今のファイルを比べて、書くファイルを求める。
  *
- * - 本文が「今の本文の末尾に判断を足したもの」（`appendReviewEntry` の結果）なら、足した判断を
- *   1 件 1 ファイルにする。理由は次の判断の見出しか本文の終わりまでで、`## ` の行では切らない
- * - そうでなければ本文の差し替えとして扱う。`parseReviewLog` で読んだ判断が今と同じでなければ
- *   書かずに失敗する（判断のファイルは追記だけで、書き換えも削除もしない）。
+ * - 本文とメタ（と着手）だけを書き、判断のファイルは決して作らない。判断を足すのは `planReviewAppend` である
+ * - `parseReviewLog` で読んだ判断が今と同じでなければ、書かずに `ReviewEntriesChanged` で失敗する
+ *   （判断を足した本文・変えた本文・消した本文のどれも拒む）。
  *   `card.md` の本文には、`## レビュー` の節を除いた本文を書く
- * - 新しいカード（`stored` が null）は本文の差し替えとして扱うので、本文に判断があれば失敗する
+ * - 新しいカード（`stored` が null）は、本文に判断があれば失敗する
  * - `startedAt` が変われば、着手（その時刻）か着手を戻す（`now`）のファイルを足す
  *
- * 足した判断が本文の差し替えなのか判断の追記なのかは、ここでは区別できない。
- * 本文の差し替えで判断を足させない検査は、本文の差し替えの usecase（`createUpdateCardBodyCommand`）が持つ。
- * CLI の `card body` も API の `PUT /api/cards/:id/body` もその usecase を通るので、入口ごとに検査を持たない。
+ * 本文の形から判断の追記を推し量らないので、理由に判断の見出しの形の行が混ざっていても、
+ * 本文の保存から判断が増えることはない。
  */
 export function planCardWrite(
   stored: StoredCard | null,
@@ -558,7 +551,7 @@ export function planCardWrite(
 
   const additions = new LogAdditions(next.id, stored?.files.log ?? []);
 
-  const body = planBody(current, next, additions);
+  const body = planBody(current, next);
   if (!body.ok) return body;
 
   const started = planStartedAt(current, next, now, additions);
@@ -584,8 +577,8 @@ interface CurrentCard {
  * 判断を 1 件足すときに書く `log/` のファイルを求める。
  *
  * 判断は値のまま受け取り、理由はファイルの中身になるだけで、見出しとして読み直さない。
- * ファイル名は `logFileName`（同じミリ秒に重なれば `-2`）、中身は理由の前後の空白を落としたもので、
- * `planCardWrite` が判断の追記に書くものと同じになる。`card.md` には触らない。
+ * ファイル名は `logFileName`（同じミリ秒に重なれば `-2`）、中身は理由の前後の空白を落としたもの。
+ * `card.md` には触らない。
  *
  * 今の `card.md` が読めなければ `MalformedCardFile`、時刻がファイル名にできなければ `InvalidLogTime`。
  */
@@ -647,22 +640,11 @@ class LogAdditions {
   }
 }
 
-/** 本文の差分から、足す判断のファイルを求め、`card.md` に書く本文を返す */
-function planBody(
-  current: CurrentCard | null,
-  next: Card,
-  additions: LogAdditions
-): Result<string, CardWriteError> {
-  const appended = current === null ? null : appendedEntries(current.card.body, next.body);
-
-  if (current !== null && appended !== null) {
-    for (const entry of appended) {
-      const failure = additions.add(entry.at, entry.gate, entry.kind, entry.reason);
-      if (failure !== null) return err(failure);
-    }
-    return ok(current.file.body);
-  }
-
+/**
+ * `card.md` に書く本文を返す。`## レビュー` の判断が今と違えば `ReviewEntriesChanged`。
+ * 判断の追記は `planReviewAppend` の口だけで行い、ここでは判断のファイルを足さない。
+ */
+function planBody(current: CurrentCard | null, next: Card): Result<string, CardWriteError> {
   if (!isDeepStrictEqual(parseReviewLog(current?.card.body ?? ''), parseReviewLog(next.body))) {
     return err({ type: 'ReviewEntriesChanged', id: next.id });
   }
@@ -692,62 +674,6 @@ function planStartedAt(
   }
 
   return ok(null);
-}
-
-/**
- * `next` が `current` の末尾に判断を足しただけの本文なら、足した判断を返す。そうでなければ null。
- *
- * `appendReviewEntry` は、`## レビュー` が無ければ本文の末尾に節ごと作り、あれば節の末尾に足す。
- * 組み立てた本文では `## レビュー` が常に最後の節なので、どちらも本文の末尾に付く。
- * 足した部分は判断の見出しだけで区切り、`## ` の行では切らない（理由の中の `## 動かす手順` を残すため）。
- */
-function appendedEntries(current: string, next: string): ReviewEntry[] | null {
-  const prefix = current === '' ? '' : `${current.trimEnd()}\n\n`;
-  if (!next.startsWith(prefix)) return null;
-
-  let rest = next.slice(prefix.length);
-  const hasSection = current.split('\n').some((line) => line.trim() === REVIEW_HEADING);
-  if (!hasSection) {
-    const opening = `${REVIEW_HEADING}\n\n`;
-    if (!rest.startsWith(opening)) return null;
-    rest = rest.slice(opening.length);
-  }
-
-  const entries: ReviewEntry[] = [];
-  let reasonLines: string[] = [];
-
-  for (const line of rest.split('\n')) {
-    const heading = readableHeading(line);
-
-    if (heading === null) {
-      // 最初の行が判断の見出しでなければ、判断の追記ではない
-      if (entries.length === 0) return null;
-      reasonLines.push(line);
-      continue;
-    }
-
-    closeLast(entries, reasonLines);
-    reasonLines = [];
-    entries.push({ ...heading, reason: '' });
-  }
-
-  closeLast(entries, reasonLines);
-
-  return entries.length === 0 ? null : entries;
-}
-
-/** 判断の見出しとして読める行か。時刻がファイル名にできないものは見出しとみなさない */
-function readableHeading(line: string): Omit<ReviewEntry, 'reason'> | null {
-  const heading = parseEntryHeading(line);
-
-  return heading === null || toLogStamp(heading.at) === null ? null : heading;
-}
-
-function closeLast(entries: ReviewEntry[], reasonLines: readonly string[]): void {
-  const last = entries.at(-1);
-  if (last === undefined) return;
-
-  entries[entries.length - 1] = { ...last, reason: reasonLines.join('\n').trim() };
 }
 
 // ============================================================

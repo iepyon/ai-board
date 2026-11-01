@@ -16,7 +16,10 @@ export interface CardRepository {
   findById(id: CardId): Promise<Card | null>;
   /** 既存 ID があれば false を返し、何も書かない */
   create(card: Card): Promise<boolean>;
-  /** 存在しなければ false を返す */
+  /**
+   * 本文とメタ（と着手）を書く。存在しなければ false を返す。
+   * 判断は決して作らない。判断を足すのは `appendReview` である
+   */
   save(card: Card): Promise<boolean>;
   /**
    * 判断を 1 件、値のまま足す。存在しなければ false を返し、何も書かない。

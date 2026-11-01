@@ -63,16 +63,6 @@ export function parseReviewLog(body: string): ReviewEntry[] {
   return entries;
 }
 
-/**
- * 1 行をエントリの見出し（`### <ISO8601> <gate> <種別>`）として読む。見出しでない・値が不正なら null。
- * `parseReviewLog` と同じ規則で、データ用ブランチのファイルの形（`card-files.ts`）も見出しを読む。
- */
-export function parseEntryHeading(line: string): PendingEntry | null {
-  const match = ENTRY_HEADING.exec(line);
-
-  return match === null ? null : toPendingEntry(match);
-}
-
 /** 正規表現のキャプチャを検証済みのエントリ見出しへ変換する。不正なら null */
 function toPendingEntry(match: RegExpExecArray): PendingEntry | null {
   const [, at, gate, kind] = match;

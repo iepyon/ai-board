@@ -29,8 +29,9 @@ export type CardWriteRefused = { readonly type: 'CardWriteRefused'; readonly rea
 /**
  * 本文の差し替えで、`## レビュー` のエントリ（`parseReviewLog` で読んだもの）が今と変わる。
  *
- * 判断は追記の usecase からだけ足す。末尾に判断の見出しを足しただけの本文はリポジトリが判断の追記として受け付けるので、
- * 差し替えの usecase がその手前で拒む（`createUpdateCardBodyCommand`）。
+ * 判断は追記の usecase からリポジトリの `appendReview` でだけ足す。リポジトリの `save` も判断の変わる本文を拒むが、
+ * そのときは `CardWriteRefused` になるので、人に判断のボタンを案内するこのエラーは差し替えの usecase が手前で返す
+ * （`createUpdateCardBodyCommand`）。
  */
 export type ReviewEntriesChanged = { readonly type: 'ReviewEntriesChanged'; readonly id: string };
 
