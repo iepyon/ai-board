@@ -102,10 +102,14 @@ CLI（`src/cards/cli/card-cli.ts`）には `startedAt` / `rank` / `skipGates` �
   理由はファイルの中身になるだけで、見出しとして読み直さない。理由に `### <時刻> <gate> <種別>` の形の行があっても拒まず、
   判断は指定した 1 件だけが増える。その行は組み立てるときに `####` へ下がり、理由の一部として見える
 - **本文の保存は判断を作らない。** `save`（`planCardWrite`）は本文とメタ（と着手）だけを書き、判断のファイルを決して作らない。
-  `parseReviewLog` で読んだ `## レビュー` のエントリが今と変わる本文（末尾に判断の見出しを足しただけの本文も）は、書かずに `ReviewEntriesChanged` で拒む
-- **本文の差し替えで `## レビュー` のエントリを変えられない。** `createUpdateCardBodyCommand` も同じ比較を書く前に行い、`ReviewEntriesChanged` を返す。
-  CLI の `body` は 1 で終わり、API（`PUT /api/cards/:id/body`）は 409（`REVIEW_ENTRIES_CHANGED`）を返す。
-  リポジトリの拒否は保存の拒否（`CardWriteRefused`）になるので、人に「判断は判断のボタンから足す」と返すのは usecase の役目である
+  本文の `## レビュー` の節は次の 2 つで読む（節があるかは `review-log.ts` の `hasReviewSection`）
+  - 節が無い（画面の本文の編集が送る形）: 判断は変えないと読み、本文をそのまま `card.md` に書く。判断は `log/` にあり、本文の保存はそこに触らないので消えない
+  - 節がある（CLI で `card show` の出力を直して送る形など）: `parseReviewLog` で読んだエントリが今と同じなら、節を除いた本文を書く。
+    違えば（末尾に判断の見出しを足しただけの本文も、今の判断があるカードにエントリの無い `## レビュー` の見出しだけを送る本文も）、書かずに `ReviewEntriesChanged` で拒む
+- **本文の差し替えで `## レビュー` のエントリを変えられない。** `createUpdateCardBodyCommand` も同じ 2 つの読み方で書く前に比べ、節があってエントリが違えば `ReviewEntriesChanged` を返す。
+  CLI の `body` は 1 で終わり、API（`PUT /api/cards/:id/body`）は 409（`REVIEW_ENTRIES_CHANGED`）を返す。節の無い本文はどちらも受け付ける。
+  リポジトリの拒否は保存の拒否（`CardWriteRefused`）になるので、人に「判断は判断のボタンから足す」と返すのは usecase の役目である。
+  保存した後は `findById` で読み直して返す（節の無い本文から作った `Card` をそのまま返すと、応答の `reviews` が空になるため）
 
 どのカードにどの判断のボタンを出すかは `src/shared/dashboard-sections.ts` の `decisionsFor` が決める。
 
@@ -317,6 +321,13 @@ GitHub の上限（5,000 回/時）の大半を使う。そこで引いた結果
 | `POST`   | `/api/cards/:id/move`    | 直前・直後のカード（`after` / `before`）の間へ並べ替え  |
 | `POST`   | `/api/idea-divider/move` | アイデアの表の区切り線を直前・直後のカードの間へ動かす  |
 | `GET`    | `/api/events`            | SSE。ファイル変更・ポーリング結果を push                |
+
+カードを返す口（`GET /api/board` の各カードと、`PUT /api/cards/:id/body` などの応答）は、本文と判断を分けて返す。
+`body` は `## レビュー` の節を除いた本文（`stripReviewSection`）、`reviews` は判断を書かれた順（`log/` の順）に並べた `{ at, gate, kind, reason }` の配列である
+（`toBoardCard` と `card.controller.ts` の `toCardResponse`）。`Card.body` は組み立てた本文のままで、読む側（ステージの導出・`get-board.query`・CLI）と `card show` の出力は変えていない。
+`reviews` の理由は組み立てた本文から読むので、`#`〜`###` の行は `####` に下がった文になる（`log/` の元の文ではない）。
+画面の詳細パネルは `body` を本文の欄に、`reviews` を「判断の記録」の欄（`ReviewLog.tsx`）に出す。
+理由は `src/shared/markdown.ts` の `parseReasonBlocks`（`parseBlocks` の木の見出しを、記号付きの段落に置き換える）で整形するので、見出しの行は見出しにならない。
 
 `GET /api/board` の各カードは `hold`（止まり。`{ reason, since }` か `null`）と、
 `mrState.readyAt`（最後に Ready にした時刻）、`mrState.convertedToDraftAt`（最後に Draft へ戻された時刻）、
