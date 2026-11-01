@@ -20,6 +20,11 @@ export function describeDataStoreError(error: DataStoreError, legacyDb: string |
             `ai-board migrate を走らせて、${legacyDb} のカードを書き出してください`;
     case 'DataDirNotRepository':
       return `${error.dataDir} は git のワークツリーではありません。中身を確かめ、要らなければ消してからやり直してください`;
+    case 'DataDirWrongBranch':
+      return (
+        `${error.dataDir} は ai-board/data ではないブランチ（${error.branch ?? 'detached HEAD'}）を checkout しているため、何も変えずに止まりました。` +
+        'AI_BOARD_DATA には、データ用ブランチ（ai-board/data）を checkout した clone を指してください'
+      );
     case 'DataStoreLockTimeout':
       return `ほかの ai-board がデータ用ブランチを使っています（${error.lockPath}）。しばらくしてからやり直してください`;
     case 'DataStoreFetchFailed':

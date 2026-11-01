@@ -25,15 +25,8 @@ export function mapCreateCardErrorToResponse(error: CreateCardError): ErrorRespo
         status: 400,
         response: { code: 'INVALID_CARD_ID', message: error.reason },
       };
-    case 'CardWriteRefused':
-    case 'DataBranchMissing':
-    case 'DataDirNotRepository':
-    case 'DataStoreLockTimeout':
-    case 'DataStoreFetchFailed':
-    case 'DataStorePushFailed':
-    case 'DataStoreGitFailed':
-    case 'UnsupportedDataVersion':
-    case 'MalformedDataVersion':
+    // 残りは書き込みの 1 操作の失敗だけ。書き込みの失敗でない種を足すと、ここが型で通らなくなる
+    default:
       return mapCardWriteFailureToResponse(error);
   }
 }
@@ -48,32 +41,14 @@ export function mapUpdateCardErrorToResponse(error: UpdateCardError): ErrorRespo
           message: `カードが見つかりません: ${error.id}`,
         },
       };
-    case 'CardWriteRefused':
-    case 'DataBranchMissing':
-    case 'DataDirNotRepository':
-    case 'DataStoreLockTimeout':
-    case 'DataStoreFetchFailed':
-    case 'DataStorePushFailed':
-    case 'DataStoreGitFailed':
-    case 'UnsupportedDataVersion':
-    case 'MalformedDataVersion':
+    // 残りは書き込みの 1 操作の失敗だけ。書き込みの失敗でない種を足すと、ここが型で通らなくなる
+    default:
       return mapCardWriteFailureToResponse(error);
   }
 }
 
 export function mapMoveCardErrorToResponse(error: MoveCardError): ErrorResponse {
   switch (error.type) {
-    case 'CardNotFound':
-    case 'CardWriteRefused':
-    case 'DataBranchMissing':
-    case 'DataDirNotRepository':
-    case 'DataStoreLockTimeout':
-    case 'DataStoreFetchFailed':
-    case 'DataStorePushFailed':
-    case 'DataStoreGitFailed':
-    case 'UnsupportedDataVersion':
-    case 'MalformedDataVersion':
-      return mapUpdateCardErrorToResponse(error);
     case 'StaleOrder':
       return {
         status: 409,
@@ -82,6 +57,9 @@ export function mapMoveCardErrorToResponse(error: MoveCardError): ErrorResponse 
           message: `並び順が変わっています（${error.after} が ${error.before} より後ろにあります）。ボードを読み直してください`,
         },
       };
+    // 残りは UpdateCardError と同じ種だけ。ほかの種を足すと、ここが型で通らなくなる
+    default:
+      return mapUpdateCardErrorToResponse(error);
   }
 }
 
@@ -89,7 +67,7 @@ export function mapMoveCardErrorToResponse(error: MoveCardError): ErrorResponse 
  * 書き込みの 1 操作（`DataStore.transact`）の失敗。
  *
  * push・fetch の失敗とロック待ちは、ネットワークやほかの書き込みの都合で、時間を置けば通りうるので 503 にする。
- * データ用ブランチが無い・ワークツリーが壊れている・git の操作が失敗した・形の版がこの ai-board より新しいか読めない、
+ * データ用ブランチが無い・ワークツリーが壊れているか別のブランチにある・git の操作が失敗した・形の版がこの ai-board より新しいか読めない、
  * は置き場所の不備なので 500 にする。
  * 理由の文は `DataStoreError` の時点で終了コードまでにとどめてあり、git の stderr（資格情報が混じりうる）は含まない。
  */
@@ -142,6 +120,14 @@ export function mapCardWriteFailureToResponse(error: CardWriteFailure): ErrorRes
         response: {
           code: 'DATA_DIR_NOT_REPOSITORY',
           message: `${error.dataDir} は git のワークツリーではありません`,
+        },
+      };
+    case 'DataDirWrongBranch':
+      return {
+        status: 500,
+        response: {
+          code: 'DATA_DIR_WRONG_BRANCH',
+          message: `${error.dataDir} は ai-board/data ではないブランチ（${error.branch ?? 'detached HEAD'}）を checkout しているため、読み書きしませんでした`,
         },
       };
     case 'DataStoreGitFailed':

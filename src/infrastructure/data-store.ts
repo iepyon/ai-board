@@ -48,6 +48,15 @@ export type DataStoreError =
   | { readonly type: 'DataBranchMissing'; readonly dataDir: string }
   /** データのワークツリーの場所が、git のワークツリーではない */
   | { readonly type: 'DataDirNotRepository'; readonly dataDir: string }
+  /**
+   * データのワークツリーの HEAD が、データ用ブランチでもコミットの無いブランチでもない
+   * （`AI_BOARD_DATA` がコードの clone を指しているなど）。`branch` は HEAD の指す ref で、ブランチを指していなければ null
+   */
+  | {
+      readonly type: 'DataDirWrongBranch';
+      readonly dataDir: string;
+      readonly branch: string | null;
+    }
   /** ほかのプロセスがロックを持ったまま、待つ上限を過ぎた */
   | { readonly type: 'DataStoreLockTimeout'; readonly lockPath: string }
   /** 書き込みの前の取り直しで fetch に失敗した（オフラインなど）。push できないので書けない */
@@ -314,6 +323,10 @@ class GitDataStore implements DataStore {
     const remotes = await this.gitStep('remote', ['remote']);
     if (isErr(remotes)) return remotes;
 
+    // reset と clean はブランチを動かし、追跡していないファイルを消す。データ用ブランチの上でしか走らせない
+    const onDataBranch = await this.ensureDataBranchHead();
+    if (isErr(onDataBranch)) return onDataBranch;
+
     if (!includesOrigin(remotes.value)) {
       const discarded = await this.discardTo('HEAD');
       if (isErr(discarded)) return discarded;
@@ -330,6 +343,30 @@ class GitDataStore implements DataStore {
         ? { kind: 'offline', reason: describeCliError(fetched.error) }
         : { kind: 'fetched' }
     );
+  }
+
+  /**
+   * HEAD がデータ用ブランチを指しているかを確かめる。
+   *
+   * - データ用ブランチ: そのまま
+   * - まだコミットの無いブランチ（データ用ブランチしか無い `origin` の clone）: HEAD をデータ用ブランチへ向け直す
+   * - それ以外（コードの clone の `main`、detached など）: 何も変えずに止まる。
+   *   続く `reset --hard` がそのブランチをデータのコミットへ動かし、`clean` が追跡していないファイルを消してしまう
+   */
+  private async ensureDataBranchHead(): Promise<Result<void, DataStoreError>> {
+    const dataRef = `refs/heads/${DATA_BRANCH}`;
+    const head = await this.git(['symbolic-ref', '--quiet', 'HEAD']);
+    if (isErr(head))
+      return err({ type: 'DataDirWrongBranch', dataDir: this.dataDir, branch: null });
+
+    const branch = head.value.trim();
+    if (branch === dataRef) return ok(undefined);
+
+    const born = await this.git(['rev-parse', '--verify', '--quiet', 'HEAD']);
+    if (!isErr(born)) return err({ type: 'DataDirWrongBranch', dataDir: this.dataDir, branch });
+
+    const pointed = await this.gitStep('symbolic-ref', ['symbolic-ref', 'HEAD', dataRef]);
+    return isErr(pointed) ? pointed : ok(undefined);
   }
 
   /**

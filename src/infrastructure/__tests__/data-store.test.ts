@@ -260,7 +260,7 @@ describe('transact', () => {
   it('origin が無ければ fetch と push を飛ばし、コミットだけする', async () => {
     const dir = path.join(tmp, 'local', 'data');
     fs.mkdirSync(dir, { recursive: true });
-    git(dir, 'init', '--quiet');
+    git(dir, 'init', '--quiet', '--initial-branch', DATA_BRANCH);
     write(dir, 'ai-board-data.yaml', 'version: 1\n');
     git(dir, 'add', '-A');
     git(dir, 'commit', '--quiet', '-m', 'data: 始める');
@@ -427,6 +427,100 @@ describe('形の版', () => {
     pushVersionFile(null);
 
     expect(await store(a).refresh()).toEqual(ok({ kind: 'fetched' }));
+  });
+});
+
+describe('データのワークツリーの HEAD', () => {
+  /** `main` を checkout し、コミットと追跡していないファイルを持つ、コードの普通の clone */
+  function codeClone(): string {
+    const dir = path.join(tmp, 'code', 'repo');
+    fs.mkdirSync(path.dirname(dir), { recursive: true });
+    sh(['clone', '--quiet', origin, dir]);
+    git(dir, 'checkout', '--quiet', '-b', 'main');
+    write(dir, 'src/app.ts', 'export {};\n');
+    git(dir, 'add', '-A');
+    git(dir, 'commit', '--quiet', '-m', 'feat: 始める');
+    write(dir, 'notes.txt', '追跡していない\n');
+    return dir;
+  }
+
+  /** clone の中身が変わっていないことを確かめるための控え */
+  function snapshot(dir: string): Record<string, string> {
+    return {
+      head: git(dir, 'symbolic-ref', 'HEAD'),
+      main: git(dir, 'rev-parse', 'refs/heads/main'),
+      status: git(dir, 'status', '--porcelain'),
+      app: fs.readFileSync(path.join(dir, 'src/app.ts'), 'utf-8'),
+      notes: fs.readFileSync(path.join(dir, 'notes.txt'), 'utf-8'),
+    };
+  }
+
+  it('main を checkout した clone を指すと、refresh は reset も clean もせずに DataDirWrongBranch で止まる', async () => {
+    const dir = codeClone();
+    const before = snapshot(dir);
+
+    const result = await store(dir).refresh();
+
+    expect(result).toEqual(
+      err({ type: 'DataDirWrongBranch', dataDir: dir, branch: 'refs/heads/main' })
+    );
+    expect(snapshot(dir)).toEqual(before);
+  });
+
+  it('main を checkout した clone を指すと、transact は op を走らせずに止まり、何も push しない', async () => {
+    const dir = codeClone();
+    const before = snapshot(dir);
+    let calls = 0;
+
+    const result = await store(dir).transact('data: 書く', async (d) => {
+      calls++;
+      write(d, 'cards/x/card.md', 'x\n');
+      return ok(undefined);
+    });
+
+    expect(result).toEqual(
+      err({ type: 'DataDirWrongBranch', dataDir: dir, branch: 'refs/heads/main' })
+    );
+    expect(calls).toBe(0);
+    expect(originLog()).toEqual(['data: 始める']);
+    expect(snapshot(dir)).toEqual(before);
+  });
+
+  it('origin が無くても、main を checkout した clone なら clean せずに止まる', async () => {
+    const dir = codeClone();
+    git(dir, 'remote', 'remove', 'origin');
+    const before = snapshot(dir);
+
+    const result = await store(dir).refresh();
+
+    expect(result).toMatchObject(err({ type: 'DataDirWrongBranch' }));
+    expect(snapshot(dir)).toEqual(before);
+  });
+
+  it('HEAD がブランチを指していなければ（detached）止まる', async () => {
+    const dir = cloneData(path.join(tmp, 'a'));
+    git(dir, 'checkout', '--quiet', '--detach');
+
+    const result = await store(dir).refresh();
+
+    expect(result).toEqual(err({ type: 'DataDirWrongBranch', dataDir: dir, branch: null }));
+  });
+
+  it('まだコミットの無いブランチの clone なら、HEAD をデータ用ブランチへ向け直して取り直す', async () => {
+    // origin の HEAD はまだ無いブランチを指すので、この clone の HEAD もコミットの無いブランチになる
+    const dir = path.join(tmp, 'fresh', 'data');
+    fs.mkdirSync(path.dirname(dir), { recursive: true });
+    sh(['clone', '--quiet', origin, dir]);
+    expect(git(dir, 'symbolic-ref', 'HEAD')).not.toBe(`refs/heads/${DATA_BRANCH}`);
+
+    const result = await store(dir).refresh();
+
+    expect(result).toEqual(ok({ kind: 'fetched' }));
+    expect(git(dir, 'symbolic-ref', 'HEAD')).toBe(`refs/heads/${DATA_BRANCH}`);
+    expect(fs.existsSync(path.join(dir, 'ai-board-data.yaml'))).toBe(true);
+    expect(git(dir, 'for-each-ref', '--format=%(refname)', 'refs/heads')).toBe(
+      `refs/heads/${DATA_BRANCH}`
+    );
   });
 });
 
