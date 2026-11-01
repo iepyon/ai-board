@@ -282,7 +282,7 @@ CLI に人の判断の入口を足すと、`CLAUDE.md` の「CLI に入口を足
 - [x] `src/infrastructure/data-store.ts` に `DataStore` を書く。データのワークツリーの用意、ロック、取り直し、`transact`（コミットと push、拒否されたら 3 回まで頭からやり直す）
   - git は `cli-runner.ts` を通し、引数は配列で渡す。`origin` が無ければ fetch と push を飛ばす
   - テスト: 一時ディレクトリの bare リポジトリを `origin` にした 2 つの clone から同時に書き、拒否された側が取り直してやり直す / 検査で拒めばコミットしない / 生きていない pid のロックは取り直す
-- [ ] `FileCardRepository` と `FileIdeaDividerRepository` を書き、`CardRepository` / `IdeaDividerRepository` を満たす。今の SQLite のリポジトリのテストをファイルのリポジトリに移す
+- [x] `FileCardRepository` と `FileIdeaDividerRepository` を書き、`CardRepository` / `IdeaDividerRepository` を満たす。今の SQLite のリポジトリのテストをファイルのリポジトリに移す
 - [ ] PR の状態の控えを、マージ済みは `snapshots/<id>.json`（`transact` を通す）、それ以外は `<dataDir の親>/cache/mr-snapshots.json` に置く `MrSnapshotRepository` の実装にする。`forge-poller.test.ts` を合わせる
 
 ### 2. 組み立てと設定
