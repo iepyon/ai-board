@@ -109,7 +109,7 @@ PR中・マージ済み・中止のカードで入れても、そのカードは
 
 ### 2. 画面
 
-- [ ] `SkipGateField` で、`offersSkipVerify(card)` が偽なら「動作確認を飛ばす」のチェックボックスと説明文を出さない。`verifying` のカードでは説明文を実装中へ戻る旨の文に差し替える。コンポーネントの docstring を直す
+- [x] `SkipGateField` で、`offersSkipVerify(card)` が偽なら「動作確認を飛ばす」のチェックボックスと説明文を出さない。`verifying` のカードでは説明文を実装中へ戻る旨の文に差し替える。コンポーネントの docstring を直す
 
 ### 3. ドキュメントとスキル
 
