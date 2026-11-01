@@ -258,3 +258,13 @@
 ### 4. ドキュメント
 
 - [x] `README.md` の AI ループの節（段の表、作業中の判定）と、`docs/architecture.md` の `status` の出力に `next.step` を書く。`CLAUDE.md` に食い違う記述があれば直す
+
+## AI レビュー
+
+### 見送った指摘
+
+- `src/board/services/impl-step.ts:23` の `CODE_FENCE_PATTERN` は ` ``` ` の囲みだけを見るので、`~~~` の囲みや 4 つのバッククォートの囲みの中の ` ``` ` で、コードブロックの内外の判定がずれる。計画の Decisions と共通の決まりがコードブロックを ` ``` ` で囲まれた範囲と定めており、それに沿っているので見送る
+- `src/board/repositories/branch-plan.repository.ts:164` の `resolveRef` の `rev-parse --verify` は、`git show <ref>:<path>` が ref の無いときに失敗するので省ける（`git` の起動が 1 回の `find` で最大 6 回になる）。振る舞いを変えない整理なので見送る
+- `src/board/repositories/branch-plan.repository.ts:112` の `PLANS_DIR` / `ARCHIVE_DIR` は、`src/shared/config.ts` と `plan.repository.ts` の同じ値を書き直している。振る舞いを変えない重複なので見送る
+- `src/board/services/impl-step.ts:51` の `isOpenTask` は、`TASK_PATTERN` と `COMPLETED_TASK_PATTERN` の 2 つで判定しており、未チェックの行の正規表現 1 つを `plan-task.ts` に置けば済む。振る舞いを変えない整理なので見送る
+- `.claude/skills/board-loop/subagent-rules.md:55` は `TASK_PATTERN` の在りかを `src/board/repositories/plan.repository.ts` と書いているが、この PR で `src/board/models/plan-task.ts` へ移った。`plan.repository.ts` の import からたどれ、数え方の決まりは変わらないので見送る
