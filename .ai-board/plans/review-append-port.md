@@ -164,3 +164,16 @@ PR #61 で入れたテストを、作りを変えた後も同じ攻撃で確か�
 - [x] `planCardWrite` から本文の形で判断の追記を推し量る部分（`appendedEntries` / `readableHeading` / `closeLast`、`planBody` の追記の分岐）を消し、docstring を直す。`card-files.test.ts` の追記のテストを `planReviewAppend` へ寄せ、判断を足した本文の `planCardWrite` は `ReviewEntriesChanged` になるテストを足す。`file-card.repository.test.ts` に `save` が判断を作らないことのテストを足す
 - [x] `docs/architecture.md` の「判断のボタンと画面の区画」と `docs/specs/card-review-authority/spec.md` を新しい振る舞いに合わせる
 - [x] 品質ゲートと `npm run build` を通し、`## 動作確認の手順` を `AI_BOARD_DATA` の試しのデータで試す
+
+## AI レビュー
+
+- [ ] `docs/specs/card-review-authority/spec.md:103` の「理由文はそのエントリの理由として元の文のまま残る」と、同じ節の Scenario「理由文にエントリの見出しを混ぜる」の「その行は理由文の一部として残る」は、読む側の振る舞いと食い違う。`log/` のファイルには元の文のまま残るが、組み立てた本文（API の 201 の応答・`card show`・画面）では `assembleCard` の `demoteHeadings`（`src/cards/repositories/card-files.ts`）で `#`〜`###` の行が `####` へ下がって見える。この 2 か所を「`log/` のファイルには元の文のまま記録され、カードの本文では `####` の見出しへ下げて理由の一部として示される」旨に書き直す
+
+### 見送った指摘
+
+- `src/cards/repositories/file-card.repository.ts:126` の `appendReview` は、`card.md` が読めないカードで `MalformedCardFile` を `CardWriteRefusedError` として投げ、API は 404 ではなく 409（`CARD_WRITE_REFUSED`）になる。計画の Decisions「判断の追記の口の形」で決めたとおりで、`save` の同じ場合とそろっており、壊れたカードはボードにも出ないので見送る
+- `src/cards/usecases/commands/append-review.command.ts:37` で理由の検査を外したので、偽造を防ぐのは読む側の `demoteHeadings` だけになり、`log/` のファイルには `### <時刻> <gate> <種別>` の行がそのまま残りうる。計画の Decisions「理由の検査を外す」で多層の守りとの比較を済ませ、人が承認しているので見送る
+- `src/cards/repositories/card-files.ts:594` の `planReviewAppend` が、`LogAdditions.add` とファイル名・中身の決め方を重ねて書いている。振る舞いを変えない重複の整理なので見送る
+- `src/cards/repositories/file-card.repository.ts:129` の `appendReview` が、`write()` の `log/` を `wx` で書く部分を写している。振る舞いを変えない重複の整理なので見送る
+- `src/cards/repositories/file-card.repository.ts:123` の `appendReview` が使わない `rank` のために `order.yaml` を読み、usecase が続けて `findById` でもう一度読む。ローカルのファイルで、計画の Risks で受け入れているので見送る
+- `src/cards/usecases/commands/append-review.command.ts:41` の `reason.trim()` と `logContent` の trim が重なっている。振る舞いを変えないので見送る
