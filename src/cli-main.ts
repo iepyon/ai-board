@@ -16,6 +16,7 @@ import {
   createBoardDataStore,
   createCardDependencies,
   createFileCardDependencies,
+  createTransactionalMrWriter,
 } from './cards/composition.js';
 import { runCardCli, runImport, type CardCliIo } from './cards/cli/card-cli.js';
 import { describeDataStoreError, describeOfflineRead } from './cards/cli/data-store-messages.js';
@@ -192,7 +193,9 @@ async function runStatus(argv: readonly string[]): Promise<number> {
     config.forge,
     cards.cardRepository,
     createFileMrSnapshotRepository(store),
-    runner
+    runner,
+    // ブランチから解決した PR 番号は、コミットして push する。ファイルに書くだけでは次の取り直しで捨てられる
+    { writeMr: createTransactionalMrWriter(store) }
   );
   await poller?.refresh();
 

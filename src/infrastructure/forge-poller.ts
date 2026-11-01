@@ -12,10 +12,24 @@ import type { ForgeConnection, MrSnapshot, MrState } from '../board/models/mr-st
 
 export const DEFAULT_POLL_INTERVAL_MS = 60_000;
 
+/**
+ * ブランチから解決した PR 番号を、カードに書き戻す。
+ *
+ * 書く直前にカードを読み直し、番号以外は触らない。番号が既に入っていれば何も書かない。
+ * 書けなかったときは例外を投げずに警告にとどめる（番号は次の問い合わせでブランチから解決し直される）。
+ */
+export type MrNumberWriter = (cardId: CardId, iid: MrState['iid']) => Promise<void>;
+
 export interface ForgePollerOptions {
   readonly intervalMs?: number;
   /** PR の状態が変わったときに呼ばれる（SSE 通知に使う） */
   readonly onUpdate?: () => void;
+  /**
+   * PR 番号の書き戻し。データ用ブランチでは `DataStore.transact` を通すものを渡す
+   * （ファイルを書くだけでは、次の取り直しで捨てられる）。
+   * 既定はカードのリポジトリへ直接書く。
+   */
+  readonly writeMr?: MrNumberWriter;
 }
 
 /**
@@ -174,25 +188,25 @@ export class ForgePoller implements MrStateProvider {
     }
 
     if (card.mr !== snapshot.mr.iid) {
-      await this.saveMr(card.id, snapshot.mr.iid);
+      await (this.options.writeMr ?? this.saveMr)(card.id, snapshot.mr.iid);
     }
 
     return !isSameMrState(previous?.mr, snapshot.mr);
   }
 
   /**
-   * PR 番号だけを書き戻す。
+   * PR 番号だけを、カードのリポジトリへ直接書き戻す（`writeMr` を渡さなかったとき）。
    *
    * `refresh()` の最初に読んだカードは、問い合わせを待つ数秒のうちに古くなっている
    * （人が承認・着手・並べ替えをしているかもしれない）。書く直前に読み直し、番号以外は触らない。
    */
-  private async saveMr(cardId: Card['id'], iid: MrState['iid']): Promise<void> {
+  private readonly saveMr: MrNumberWriter = async (cardId, iid) => {
     const latest = await this.cardRepository.findById(cardId);
 
     if (latest !== null && latest.mr !== iid) {
       await this.cardRepository.save({ ...latest, mr: iid });
     }
-  }
+  };
 
   /** 番号が分かっていれば番号で、無ければブランチから解決する */
   private async fetchFor(card: Card, previous: MrSnapshot | null): Promise<MrSnapshot | null> {

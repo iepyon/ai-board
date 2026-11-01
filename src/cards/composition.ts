@@ -1,12 +1,13 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { BoardPaths } from '../shared/config.js';
 import type { CliRunner } from '../infrastructure/cli-runner.js';
-import { err, type Result } from '../shared/result.js';
+import { err, isErr, ok, type Result } from '../shared/result.js';
 import {
   createDataStore,
   type CommitMessage,
   type DataStore,
 } from '../infrastructure/data-store.js';
+import type { MrNumberWriter } from '../infrastructure/forge-poller.js';
 import type { CardWriteFailure } from './errors/card-errors.js';
 import type { CardRepository } from './repositories/card.repository.js';
 import { SqliteCardRepository } from './repositories/sqlite-card.repository.js';
@@ -140,6 +141,48 @@ export function createTransactionalCardDependencies(
       () => 'data: 区切り線を動かす',
       files.moveIdeaDividerCommand
     ),
+  };
+}
+
+/**
+ * ポーラーが PR 番号を書き戻すとき、書き込みの 1 操作（`DataStore.transact`）の中で書く。
+ *
+ * データのワークツリーのファイルを書くだけでは、コミットも push もされず、次の取り直しで捨てられる。
+ * 取り直した最新のカードを読み直し、番号が違うときだけ番号を書く（人がその間に書いた判断などを消さない）。
+ * コミットには ID だけを入れ、ブランチ名は入れない。
+ *
+ * 書けなくても（オフライン、push の拒否、ロックの待ち切れ、リポジトリの拒否）、警告するだけで例外を投げない。
+ * 投げるとポーラーの接続の状態が error になり、ループが止まる。番号は次の問い合わせで解決し直される。
+ * `transact` の中から呼ばないこと（同じプロセスの中で 1 列に並ぶので、自分を待って止まる）。
+ */
+export function createTransactionalMrWriter(
+  store: Pick<DataStore, 'transact'>,
+  warn: (message: string) => void = (message) => console.warn(message)
+): MrNumberWriter {
+  return async (cardId, iid) => {
+    const result = await store.transact<void, CardWriteRefusedError['reason']>(
+      `data: ${cardId} の mr を書き戻す`,
+      async (dataDir) => {
+        const repository = new FileCardRepository(dataDir);
+        const latest = await repository.findById(cardId);
+
+        // 取り直した後に番号が既に入っていれば、何も書かない（transact はコミットしない）
+        if (latest === null || latest.mr === iid) return ok(undefined);
+
+        try {
+          await repository.save({ ...latest, mr: iid });
+        } catch (error) {
+          // 今の card.md が読めないなど。書きかけは transact が捨てる
+          if (error instanceof CardWriteRefusedError) return err(error.reason);
+          throw error;
+        }
+        return ok(undefined);
+      }
+    );
+
+    if (isErr(result)) {
+      warn(`[ai-board] ${cardId} の PR 番号を書き戻せませんでした: ${result.error.type}`);
+    }
   };
 }
 

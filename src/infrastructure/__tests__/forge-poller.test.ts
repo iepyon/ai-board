@@ -153,6 +153,17 @@ describe('ForgePoller', () => {
     expect(repository.cards.get('refresh-token')?.mr).toBe(42);
   });
 
+  it('writeMr を渡せば、リポジトリへ直接書かずにそれで書き戻す', async () => {
+    const repository = new InMemoryCardRepository([makeCard({ branch: 'feat/refresh-token' })]);
+    const client = stubClient({ fetchByBranch: vi.fn(async () => snap()) });
+    const writeMr = vi.fn(async () => undefined);
+
+    await new ForgePoller(repository, client, snapshots, { onUpdate, writeMr }).refresh();
+
+    expect(writeMr).toHaveBeenCalledWith('refresh-token', 42);
+    expect(repository.cards.get('refresh-token')?.mr).toBeNull();
+  });
+
   it('問い合わせ中に人が書いた内容を、書き戻しで上書きしない', async () => {
     const repository = new InMemoryCardRepository([makeCard({ branch: 'feat/refresh-token' })]);
     const client = stubClient({
