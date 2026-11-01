@@ -26,6 +26,7 @@ ranks:
   pr-closed-unmerged: 18000
   pr-feedback-ai-turn: 21000
   rename-mr-to-pr: 30000
+  review-append-port: 2000
   review-reason-escape: 12000
   server-shutdown-sse: 16000
   setup-doctor: 7000
