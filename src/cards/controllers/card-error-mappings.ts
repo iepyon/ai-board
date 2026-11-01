@@ -4,6 +4,7 @@ import type {
   CardWriteFailure,
   CreateCardError,
   MoveCardError,
+  UpdateCardBodyError,
   UpdateCardError,
 } from '../errors/card-errors.js';
 
@@ -45,6 +46,22 @@ export function mapUpdateCardErrorToResponse(error: UpdateCardError): ErrorRespo
     // 残りは書き込みの 1 操作の失敗だけ。書き込みの失敗でない種を足すと、ここが型で通らなくなる
     default:
       return mapCardWriteFailureToResponse(error);
+  }
+}
+
+export function mapUpdateCardBodyErrorToResponse(error: UpdateCardBodyError): ErrorResponse {
+  switch (error.type) {
+    case 'ReviewEntriesChanged':
+      return {
+        status: 409,
+        response: {
+          code: 'REVIEW_ENTRIES_CHANGED',
+          message: `## レビュー のエントリが変わる本文の差し替えはできません（${error.id}）。判断は判断のボタンから足してください`,
+        },
+      };
+    // 残りは UpdateCardError と同じ種だけ。ほかの種を足すと、ここが型で通らなくなる
+    default:
+      return mapUpdateCardErrorToResponse(error);
   }
 }
 

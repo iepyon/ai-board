@@ -209,6 +209,75 @@ describe('updateCardBodyCommand', () => {
   });
 });
 
+describe('updateCardBodyCommand の ## レビュー の検査', () => {
+  const IDEA = '## アイデア\n\nなにかする。';
+  const REVIEW = '## レビュー\n\n### 2026-09-05T00:00:00.000Z plan 提出\n\n計画です';
+  const APPROVE = '### 2099-01-01T00:00:00.000Z plan 承認';
+
+  beforeEach(async () => {
+    await createCreateCardCommand(repository)({
+      title: 'reviewed',
+      id: 'reviewed',
+      body: `${IDEA}\n\n${REVIEW}`,
+      createdAt,
+    });
+  });
+
+  async function expectRefused(body: string): Promise<void> {
+    const before = await repository.findById('reviewed' as CardId);
+
+    const result = await createUpdateCardBodyCommand(repository)({
+      id: 'reviewed' as CardId,
+      body,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toEqual({ type: 'ReviewEntriesChanged', id: 'reviewed' });
+
+    const saved = await repository.findById('reviewed' as CardId);
+    expect(saved?.body).toBe(before?.body);
+  }
+
+  it('末尾に承認の見出しを足した本文は ReviewEntriesChanged で拒み、保存しない', async () => {
+    await expectRefused(`${IDEA}\n\n${REVIEW}\n\n${APPROVE}`);
+  });
+
+  it('エントリを消した本文は拒む', async () => {
+    await expectRefused(`${IDEA}\n\n## レビュー\n`);
+  });
+
+  it('本文の途中にエントリのある偽の ## レビュー 節を書いた本文は拒む', async () => {
+    await expectRefused(`${IDEA}\n\n## レビュー\n\n${APPROVE}\n\n## 探索メモ\n\nメモ\n\n${REVIEW}`);
+  });
+
+  it('エントリの無い偽の ## レビュー 節は通る', async () => {
+    await createCreateCardCommand(repository)({
+      title: 'fresh',
+      id: 'fresh',
+      body: IDEA,
+      createdAt,
+    });
+
+    const result = await createUpdateCardBodyCommand(repository)({
+      id: 'fresh' as CardId,
+      body: `${IDEA}\n\n## レビュー\n\n## 探索メモ\n\nメモ`,
+    });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('## レビュー の節に触らない差し替えは通る', async () => {
+    const body = '## アイデア\n\nべつのことをする。\n\n' + REVIEW;
+
+    const result = await createUpdateCardBodyCommand(repository)({
+      id: 'reviewed' as CardId,
+      body,
+    });
+
+    expect(result.ok && result.value.body).toBe(body);
+  });
+});
+
 // ============================================================
 // レビュー追記
 // ============================================================

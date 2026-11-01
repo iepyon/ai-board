@@ -1,10 +1,14 @@
-import { isDeepStrictEqual } from 'node:util';
 import { err, isErr, type Result } from '../../shared/result.js';
 import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
 import type { CommitMessage, DataStore, DataStoreError } from '../../infrastructure/data-store.js';
 import type { CardDependencies } from '../composition.js';
 import type { Card } from '../models/card.js';
-import type { AppendReviewError, CreateCardError, UpdateCardError } from '../errors/card-errors.js';
+import type {
+  AppendReviewError,
+  CreateCardError,
+  UpdateCardBodyError,
+  UpdateCardError,
+} from '../errors/card-errors.js';
 import { serializeCard } from '../repositories/card-markdown.js';
 import { CardWriteRefusedError } from '../repositories/file-card.repository.js';
 import { isReviewGate, type ReviewGate } from '../models/review.js';
@@ -20,7 +24,8 @@ import { describeDataStoreError, describeOfflineRead } from './data-store-messag
  *
  * `startedAt`・`rank`・`skipGates` の書き換えと、承認 / 否決 / 中止の追記は
  * 人の判断であり、ここには入口を置かない（UI と HTTP API からだけ行える）。
- * 本文の差し替えも、`## レビュー` のエントリを変えるものは拒否する。
+ * 本文の差し替えも、`## レビュー` のエントリを変えるものは拒否する
+ * （検査は本文の差し替えの usecase が持ち、CLI はその `ReviewEntriesChanged` を出すだけにする）。
  * 提出 / 保留の理由に、判断の見出しとして読める行を紛れ込ませるものも拒否する
  * （検査は判断の追記の usecase が持ち、CLI はその `ReasonHasEntryHeading` を出すだけにする）。
  *
@@ -80,7 +85,8 @@ interface Refused {
 }
 
 /** usecase のエラーには、リポジトリの拒否（`CardWriteRefused`）と `transact` の失敗が含まれる */
-type WriteFailure = CreateCardError | UpdateCardError | AppendReviewError | Refused;
+type WriteFailure =
+  CreateCardError | UpdateCardError | UpdateCardBodyError | AppendReviewError | Refused;
 
 const VALUE_FLAGS = new Set(['--title', '--id', '--reason', '--from', '--gate']);
 
@@ -226,19 +232,10 @@ async function runBody(
     return 1;
   }
 
-  return write(deps, io, `data: ${id} の本文を差し替える`, async () => {
-    const existing = await deps.cards.cardRepository.findById(id);
-    if (existing === null) return err({ type: 'CardNotFound', id });
-
-    // 人の判断はレビューログにだけ残る。本文の差し替えでそれを書き換えさせない
-    if (!isDeepStrictEqual(parseReviewLog(existing.body), parseReviewLog(body))) {
-      return refused(
-        '## レビュー のエントリが変わる差し替えはできません。提出 / 再提出は submit で追記してください'
-      );
-    }
-
-    return deps.cards.updateCardBodyCommand({ id, body: trimNewlines(body) });
-  });
+  // 人の判断はレビューログにだけ残る。エントリが変わる差し替えは usecase が ReviewEntriesChanged で拒む
+  return write(deps, io, `data: ${id} の本文を差し替える`, () =>
+    deps.cards.updateCardBodyCommand({ id, body: trimNewlines(body) })
+  );
 }
 
 async function runBranch(
@@ -504,6 +501,8 @@ function describeError(error: WriteFailure | DataStoreError, legacyDb: string | 
       return error.message;
     case 'CardWriteRefused':
       return `カードのファイルへの書き込みを拒みました（${error.reason}）`;
+    case 'ReviewEntriesChanged':
+      return '## レビュー のエントリが変わる差し替えはできません。提出 / 再提出は submit で追記してください';
     case 'ReasonHasEntryHeading':
       return `--reason に判断の見出し（### <時刻> <gate> <種別>）として読める行は書けません: ${error.line}`;
     default:

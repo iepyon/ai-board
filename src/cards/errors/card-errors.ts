@@ -37,6 +37,14 @@ export type ReasonHasEntryHeading = {
 };
 
 /**
+ * 本文の差し替えで、`## レビュー` のエントリ（`parseReviewLog` で読んだもの）が今と変わる。
+ *
+ * 判断は追記の usecase からだけ足す。末尾に判断の見出しを足しただけの本文はリポジトリが判断の追記として受け付けるので、
+ * 差し替えの usecase がその手前で拒む（`createUpdateCardBodyCommand`）。
+ */
+export type ReviewEntriesChanged = { readonly type: 'ReviewEntriesChanged'; readonly id: string };
+
+/**
  * データ用ブランチへの書き込みの 1 操作（`DataStore.transact`）が失敗した。
  *
  * push の失敗（`DataStorePushFailed`）、取り直しの失敗、ロック待ちの上限などを含む。
@@ -50,6 +58,7 @@ export type CardWriteFailure = CardWriteRefused | CardStoreError;
 export type CreateCardError = DuplicateCardId | InvalidCardId | CardWriteFailure;
 export type GetCardError = CardNotFound;
 export type UpdateCardError = CardNotFound | CardWriteFailure;
+export type UpdateCardBodyError = UpdateCardError | ReviewEntriesChanged;
 export type AppendReviewError = UpdateCardError | ReasonHasEntryHeading;
 export type ListCardsError = CardFileMalformed;
 export type MoveCardError = CardNotFound | StaleOrder | CardWriteFailure;
