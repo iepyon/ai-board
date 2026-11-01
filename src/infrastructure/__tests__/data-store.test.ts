@@ -292,6 +292,56 @@ describe('transact', () => {
   });
 });
 
+describe('人の git の無視の設定', () => {
+  const LOG_FILE = 'cards/x/log/2026-01-01T00-00-00.000Z.plan.submit.md';
+
+  /** 人のグローバルの gitignore（`core.excludesFile`）に `log/` を置く */
+  function ignoreLogDirs(): void {
+    const excludes = path.join(tmp, 'global-ignore');
+    fs.writeFileSync(excludes, 'log/\n');
+    fs.writeFileSync(path.join(tmp, 'gitconfig'), `[core]\n\texcludesFile = ${excludes}\n`);
+  }
+
+  function originFiles(): string[] {
+    return git(origin, 'ls-tree', '-r', '--name-only', DATA_BRANCH).split('\n');
+  }
+
+  it('core.excludesFile に log/ があっても、判断のファイルだけの変更をコミットして push する', async () => {
+    ignoreLogDirs();
+    const dataDir = cloneData(path.join(tmp, 'a'));
+
+    const result = await store(dataDir).transact('data: x を提出する', async (dir) => {
+      write(dir, LOG_FILE, 'x\n');
+      return ok(undefined);
+    });
+
+    expect(result).toEqual(ok(undefined));
+    expect(originLog()).toEqual(['data: x を提出する', 'data: 始める']);
+    expect(originFiles()).toContain(LOG_FILE);
+  });
+
+  it('拒んだ op が書いた無視されるファイルは捨て、次の書き込みのコミットに混ぜない', async () => {
+    ignoreLogDirs();
+    const dataDir = cloneData(path.join(tmp, 'a'));
+    const a = store(dataDir);
+
+    const refused = await a.transact('data: 拒む', async (dir) => {
+      write(dir, LOG_FILE, '拒んだ判断\n');
+      return err({ type: 'Refused' as const });
+    });
+    expect(refused).toEqual(err({ type: 'Refused' }));
+    expect(fs.existsSync(path.join(dataDir, LOG_FILE))).toBe(false);
+
+    await a.transact('data: y を足す', async (dir) => {
+      write(dir, 'cards/y/card.md', 'y\n');
+      return ok(undefined);
+    });
+
+    expect(originFiles()).toContain('cards/y/card.md');
+    expect(originFiles()).not.toContain(LOG_FILE);
+  });
+});
+
 describe('ロック', () => {
   it('生きていない pid のロックは取り直す', async () => {
     const dataDir = cloneData(path.join(tmp, 'a'));
@@ -632,7 +682,7 @@ describe('git の呼び出し', () => {
     };
 
     await createDataStore({ dataDir, runner: spying }).transact('data: x', async (dir) => {
-      write(dir, 'x.txt', 'x\n');
+      write(dir, 'cards/x/card.md', 'x\n');
       return ok(undefined);
     });
 

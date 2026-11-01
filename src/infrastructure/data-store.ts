@@ -1,11 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { SNAPSHOTS_DIR } from '../board/repositories/file-mr-snapshot.repository.js';
 import {
+  CARDS_DIR,
   DATA_VERSION_FILE,
+  ORDER_FILE,
   parseDataVersion,
   type DataVersionError,
 } from '../cards/repositories/card-files.js';
+import { CONFIG_FILE } from '../shared/config.js';
 import { err, isErr, ok, type Result } from '../shared/result.js';
 import { describeCliError, type CliError, type CliRunner } from './cli-runner.js';
 
@@ -25,6 +29,14 @@ export const DATA_BRANCH = 'ai-board/data';
 export const DATA_REMOTE_REF = `refs/remotes/origin/${DATA_BRANCH}`;
 const DATA_FETCH_REFSPEC = `+refs/heads/${DATA_BRANCH}:${DATA_REMOTE_REF}`;
 const DATA_PUSH_REFSPEC = `HEAD:refs/heads/${DATA_BRANCH}`;
+
+/**
+ * データ用ブランチに載せるパス（データのワークツリーからの相対）。
+ *
+ * 人のグローバルの gitignore（`core.excludesFile`）やメインのリポジトリの `.git/info/exclude` に
+ * `log/` などがあっても、ここに置いたファイルは無視させずにコミットし、捨てるときも消す。
+ */
+const DATA_PATHS = [CARDS_DIR, ORDER_FILE, SNAPSHOTS_DIR, DATA_VERSION_FILE, CONFIG_FILE] as const;
 
 /** 手元の複数のプロセスの書き込みを直列にするロックファイル。データのワークツリーの親に置く */
 export const LOCK_FILE = 'data.lock';
@@ -394,14 +406,18 @@ class GitDataStore implements DataStore {
   /**
    * 手元の変更を捨てて、`target` に合わせる。
    *
-   * `reset --hard` は追跡していないファイルを残し、次の `git add -A` が拾ってしまうので `clean` も走らせる。
+   * `reset --hard` は追跡していないファイルを残し、次の `commit` が拾ってしまうので `clean` も走らせる。
+   * `commit` は `DATA_PATHS` の下の無視されるファイルも足すので、そこは `-x` で無視されるファイルまで消す
+   * （残すと、拒んだ書き込みの判断のファイルが次の書き込みのコミットに混ざる）。
    * 手元にしか無い変更は持たない前提なので、捨ててよい。
    */
   private async discardTo(target: string): Promise<Result<void, DataStoreError>> {
     const reset = await this.gitStep('reset', ['reset', '--hard', '--quiet', target]);
     if (isErr(reset)) return reset;
     const cleaned = await this.gitStep('clean', ['clean', '-fdq']);
-    return isErr(cleaned) ? cleaned : ok(undefined);
+    if (isErr(cleaned)) return cleaned;
+    const ignored = await this.gitStep('clean', ['clean', '-fdqx', '--', ...DATA_PATHS]);
+    return isErr(ignored) ? ignored : ok(undefined);
   }
 
   private async remoteTip(): Promise<Result<string, DataStoreError>> {
@@ -428,14 +444,26 @@ class GitDataStore implements DataStore {
     return result;
   }
 
-  /** 変化があればコミットする。コミットしたかを返す */
+  /**
+   * 変化があればコミットする。コミットしたかを返す。
+   *
+   * `git add -A` は人の無視の設定に従い、`log/` などが無視されると判断のファイルをコミットしない。
+   * `DATA_PATHS` のうち手元にあるものを `--force` で足し、消えた追跡済みのファイルは `--update` で足す。
+   * コミットするかは、無視されたファイルも数えるよう、足した後のインデックスで決める。
+   */
   private async commit(message: string): Promise<Result<boolean, DataStoreError>> {
-    const status = await this.gitStep('status', ['status', '--porcelain']);
-    if (isErr(status)) return status;
-    if (status.value.trim() === '') return ok(false);
+    // 手元にも追跡にも無いパスを渡すと git add が失敗するので、手元にあるものだけを渡す
+    const present = DATA_PATHS.filter((p) => fs.existsSync(path.join(this.dataDir, p)));
+    if (present.length > 0) {
+      const added = await this.gitStep('add', ['add', '--all', '--force', '--', ...present]);
+      if (isErr(added)) return added;
+    }
+    const updated = await this.gitStep('add', ['add', '--update']);
+    if (isErr(updated)) return updated;
 
-    const added = await this.gitStep('add', ['add', '-A']);
-    if (isErr(added)) return added;
+    const staged = await this.gitStep('diff', ['diff', '--cached', '--name-only']);
+    if (isErr(staged)) return staged;
+    if (staged.value.trim() === '') return ok(false);
 
     // データ用ブランチはコードではないので、メインのリポジトリのフックを走らせない
     const committed = await this.gitStep('commit', [
