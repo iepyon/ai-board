@@ -23,6 +23,8 @@
 ## カードの読み書き
 
 カードは `node "$MAIN/dist/cli.js" card ... --root "$MAIN"` で読み書きする（各定義では `ai-board card ...` と書く）。DB を直接触らない。
+PR は `node "$MAIN/dist/cli.js" pr ... --root "$MAIN"` で読み書きする（各定義では `ai-board pr ...` と書く）。
+クラウドのセッションでは GraphQL が 403 になり `gh pr` が動かないので、`gh pr` は使わない。
 何を書いてよいかはサブエージェントごとに違い、各定義のハードルールに書く。
 
 ## ワークツリーに入る

@@ -302,7 +302,7 @@ CLI に人の判断の入口を足すと、`CLAUDE.md` の「CLI に入口を足
 
 - [x] `src/board/cli/pr-cli.ts` に `create` / `view` / `edit` / `comment` / `diff` / `ready` を書く。本文は `--input` のファイルで渡す。`ready` は `gh pr ready` を試し、失敗したら `ccr/ready_for_review` を試す
   - テスト: 偽の `CliRunner` で、各コマンドが組み立てる `gh api` の引数 / `ready` の 2 つの経路と、両方の失敗の理由
-- [ ] `.claude/agents/board-planner.md`、`board-worker.md`、`board-reviewer.md`、`.claude/skills/board-loop/SKILL.md`、`README.md` の `gh pr ...` を `ai-board pr ...` に置き換える
+- [x] `.claude/agents/board-planner.md`、`board-worker.md`、`board-reviewer.md`、`.claude/skills/board-loop/SKILL.md`、`README.md` の `gh pr ...` を `ai-board pr ...` に置き換える
 
 ### 4. ボードの Artifact と、クラウドでの判断
 
