@@ -1,102 +1,124 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { promises as fs } from 'node:fs';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
-import { openDatabase, watchDatabase, type DatabaseWatcher } from '../database.js';
+import { isErr } from '../../shared/result.js';
+import type { CardId, MergeRequestIid } from '../../shared/schemas/common.js';
+import type { Card } from '../../cards/models/card.js';
+import type { MrSnapshot } from '../../board/models/mr-state.js';
+import { readLegacyBoard } from '../database.js';
+import { createLegacyDatabase, insertRawCard } from './legacy-database-fixture.js';
 
 let dir: string;
-let watcher: DatabaseWatcher | null = null;
+let dbPath: string;
 
-beforeEach(async () => {
-  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-board-db-'));
+beforeEach(() => {
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-board-db-'));
+  dbPath = path.join(dir, 'board.db');
 });
 
-afterEach(async () => {
-  watcher?.close();
-  watcher = null;
-  await fs.rm(dir, { recursive: true, force: true });
+afterEach(() => {
+  fs.rmSync(dir, { recursive: true, force: true });
 });
 
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+function card(overrides: Partial<Card> = {}): Card {
+  return {
+    id: 'alpha' as CardId,
+    title: 'アルファ',
+    created: '2026-09-01T00:00:00.000Z',
+    startedAt: '2026-09-02T00:00:00.000Z',
+    skipGates: ['plan'],
+    branch: 'alpha',
+    mr: 12 as MergeRequestIid,
+    rank: 1500,
+    body: '## アイデア\n\n本文\n\n## レビュー\n\n### 2026-09-03T00:00:00.000Z plan 提出\n',
+    ...overrides,
+  };
+}
 
-describe('openDatabase', () => {
-  it('置き場所のディレクトリが無ければ作り、スキーマを用意する', () => {
-    const db = openDatabase(path.join(dir, 'nested', 'board.db'));
+function snapshot(state: 'opened' | 'merged'): MrSnapshot {
+  return {
+    fingerprint: `fp-${state}`,
+    mr: {
+      forge: 'github',
+      iid: 12 as MergeRequestIid,
+      state,
+      draft: false,
+      sourceBranch: 'alpha',
+      title: 'PR',
+      webUrl: 'https://example.com/pr/12',
+      latestNoteAt: null,
+      noteCount: 0,
+      latestCommitAt: null,
+      mergedAt: state === 'merged' ? '2026-09-05T00:00:00.000Z' : null,
+      readyAt: null,
+      convertedToDraftAt: null,
+    },
+  };
+}
 
-    expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 5 });
-    expect(db.prepare('SELECT count(*) AS n FROM cards').get()).toEqual({ n: 0 });
-    expect(db.prepare('SELECT count(*) AS n FROM idea_divider').get()).toEqual({ n: 0 });
-    expect(db.prepare('SELECT count(*) AS n FROM mr_snapshots').get()).toEqual({ n: 0 });
-    db.close();
+describe('readLegacyBoard', () => {
+  it('カード・区切り線・PR の状態の控えを読む', () => {
+    const stored = card();
+    createLegacyDatabase(dbPath, {
+      cards: [stored, card({ id: 'beta' as CardId, startedAt: null, rank: null, mr: null })],
+      divider: 250,
+      mrSnapshots: [['alpha', snapshot('merged')]],
+    });
+
+    const result = readLegacyBoard(dbPath);
+    if (isErr(result)) throw new Error(JSON.stringify(result.error));
+
+    expect(result.value.cards.map((c) => c.id)).toEqual(['alpha', 'beta']);
+    expect(result.value.cards[0]).toEqual(stored);
+    expect(result.value.divider).toBe(250);
+    expect(result.value.mrSnapshots.get('alpha' as CardId)).toEqual(snapshot('merged'));
   });
 
-  it('開き直してもマイグレーションを繰り返さない', () => {
-    const dbPath = path.join(dir, 'board.db');
-    const first = openDatabase(dbPath);
-    first.prepare(`INSERT INTO cards (id, title, created) VALUES ('a', 'A', 'x')`).run();
-    first.close();
+  it('区切り線が無ければ null、形の合わない控えは外す', () => {
+    const malformed = { fingerprint: 'fp', mr: { iid: 'x' } } as unknown as MrSnapshot;
+    createLegacyDatabase(dbPath, { cards: [card()], mrSnapshots: [['alpha', malformed]] });
 
-    const second = openDatabase(dbPath);
-    expect(second.prepare('SELECT id FROM cards').all()).toEqual([{ id: 'a' }]);
-    second.close();
+    const result = readLegacyBoard(dbPath);
+    if (isErr(result)) throw new Error(JSON.stringify(result.error));
+
+    expect(result.value.divider).toBeNull();
+    expect(result.value.mrSnapshots.size).toBe(0);
   });
 
-  it('v1 の DB を開くと forge 列を落とし、GitHub と確かめられない番号を消す', () => {
-    const dbPath = path.join(dir, 'board.db');
-    const v1 = new DatabaseSync(dbPath);
-    v1.exec(`CREATE TABLE cards (
-      id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, created TEXT NOT NULL,
-      started_at TEXT, skip_gates TEXT NOT NULL DEFAULT '[]', branch TEXT,
-      mr INTEGER, forge TEXT, rank REAL, body TEXT NOT NULL DEFAULT ''
-    ) STRICT`);
-    v1.exec(`INSERT INTO cards (id, title, created, branch, mr, forge) VALUES
-      ('gitlab', 'A', 'x', 'feat/a', 1, 'gitlab'),
-      ('github', 'B', 'x', 'feat/b', 2, 'github'),
-      ('legacy-with-branch', 'C', 'x', 'feat/c', 3, NULL),
-      ('legacy-without-branch', 'D', 'x', NULL, 4, NULL)`);
-    v1.exec('PRAGMA user_version = 1');
-    v1.close();
-
-    const db = openDatabase(dbPath);
-    expect(db.prepare('SELECT id, mr FROM cards ORDER BY id').all()).toEqual([
-      { id: 'github', mr: 2 },
-      { id: 'gitlab', mr: null },
-      { id: 'legacy-with-branch', mr: null },
-      { id: 'legacy-without-branch', mr: 4 },
-    ]);
-    const columns = db.prepare('PRAGMA table_info(cards)').all() as Array<{ name: string }>;
-    expect(columns.map((column) => column.name)).not.toContain('forge');
-    db.close();
+  it('DB が無ければ、作らずに LegacyDatabaseMissing を返す', () => {
+    expect(readLegacyBoard(dbPath)).toEqual({
+      ok: false,
+      error: { type: 'LegacyDatabaseMissing', dbPath },
+    });
+    expect(fs.existsSync(dbPath)).toBe(false);
   });
 
-  it('この版より新しいスキーマの DB は開かない', () => {
-    const dbPath = path.join(dir, 'board.db');
-    const db = openDatabase(dbPath);
-    db.exec('PRAGMA user_version = 99');
-    db.close();
+  it('最後の版でない DB は読まない', () => {
+    createLegacyDatabase(dbPath, { version: 4 });
 
-    expect(() => openDatabase(dbPath)).toThrow(/v99/);
+    const result = readLegacyBoard(dbPath);
+
+    expect(isErr(result) && result.error.type).toBe('LegacyDatabaseUnreadable');
+    expect(isErr(result) && 'reason' in result.error && result.error.reason).toContain('v4');
   });
-});
 
-describe('watchDatabase', () => {
-  it('別の接続のコミットだけを通知する', async () => {
-    const dbPath = path.join(dir, 'board.db');
-    const server = openDatabase(dbPath);
-    const cli = openDatabase(dbPath);
-    const onChange = vi.fn();
-    watcher = watchDatabase(server, onChange, 20);
+  it('読めない行があれば、読み飛ばさずに失敗する', () => {
+    createLegacyDatabase(dbPath, { cards: [card()] });
+    insertRawCard(dbPath, { id: 'Bad_ID', title: '不正', created: '2026-09-01T00:00:00.000Z' });
 
-    server.prepare(`INSERT INTO cards (id, title, created) VALUES ('own', 'A', 'x')`).run();
-    await sleep(80);
-    expect(onChange).not.toHaveBeenCalled();
+    const result = readLegacyBoard(dbPath);
 
-    cli.prepare(`INSERT INTO cards (id, title, created) VALUES ('other', 'B', 'x')`).run();
-    await sleep(80);
-    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(isErr(result) && result.error.type).toBe('LegacyDatabaseUnreadable');
+    expect(isErr(result) && 'reason' in result.error && result.error.reason).toContain('Bad_ID');
+  });
 
-    cli.close();
-    server.close();
+  it('DB のファイルを書き換えない', () => {
+    createLegacyDatabase(dbPath, { cards: [card()] });
+    const before = fs.readFileSync(dbPath);
+
+    readLegacyBoard(dbPath);
+
+    expect(fs.readFileSync(dbPath).equals(before)).toBe(true);
   });
 });

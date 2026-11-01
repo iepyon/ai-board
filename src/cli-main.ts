@@ -4,21 +4,23 @@ import * as path from 'node:path';
 import { startServer, DEFAULT_PORT } from './server.js';
 import {
   BOARD_DIR,
+  CONFIG_FILE,
   DATA_ENV,
+  legacyDbPath,
   loadConfig,
   resolvePaths,
   type AppConfig,
   type BoardPaths,
 } from './shared/config.js';
-import { openDatabase } from './infrastructure/database.js';
+import { readLegacyBoard } from './infrastructure/database.js';
 import { createCliRunner } from './infrastructure/cli-runner.js';
 import {
   createBoardDataStore,
-  createCardDependencies,
   createFileCardDependencies,
   createTransactionalMrWriter,
 } from './cards/composition.js';
-import { runCardCli, runImport, type CardCliIo } from './cards/cli/card-cli.js';
+import { runCardCli, type CardCliIo } from './cards/cli/card-cli.js';
+import { runMigrateCli } from './cards/cli/migrate-cli.js';
 import { describeDataStoreError, describeOfflineRead } from './cards/cli/data-store-messages.js';
 import {
   createBoardDependencies,
@@ -43,8 +45,8 @@ interface CliOptions {
 const USAGE = `使い方: ai-board [options]
        ai-board card <command> [--root <path>]    カードの読み書き（ai-board card --help）
        ai-board status [--json] [--root <path>]   ボードの状態と次の一手（サーバ不要）
-       ai-board import [--from <dir>] [--root <path>]
-                                                  .ai-board/cards/*.md を DB に取り込む
+       ai-board migrate [--from <db>] [--empty] [--root <path>]
+                                                  board.db をデータ用ブランチへ書き出す（ai-board migrate --help）
 
 計画ファイル駆動のローカル Web ダッシュボードを起動します。
 
@@ -134,25 +136,36 @@ async function runCard(argv: readonly string[]): Promise<number> {
   );
 }
 
-/** `import` サブコマンド。移行前の Markdown カードを DB に取り込む */
-async function runImportCommand(argv: readonly string[]): Promise<number> {
+/**
+ * `migrate` サブコマンド。移行前の `board.db` を読み、データ用ブランチを作って push する。
+ *
+ * 既定の置き場所（`.ai-board/data/`）なら `root` のリポジトリからワークツリーを足して作る。
+ * `AI_BOARD_DATA` なら、そのディレクトリ（`origin` を持つ空の clone）に作る。
+ */
+async function runMigrate(argv: readonly string[]): Promise<number> {
   const { root, rest } = extractRoot(argv);
   const paths = resolvePaths(root);
-  const db = openDatabase(paths.dbPath);
 
-  try {
-    const fromIndex = rest.indexOf('--from');
-    const from =
-      fromIndex === -1 ? paths.cardsDir : path.resolve(takeValue(rest, fromIndex + 1, '--from'));
-    return await runImport(from, createCardDependencies(db), createProcessIo());
-  } finally {
-    db.close();
-  }
+  return runMigrateCli(
+    rest,
+    {
+      target: {
+        dataDir: paths.dataDir,
+        ...(paths.dataSource === 'env' ? {} : { repoRoot: paths.root }),
+        runner: createCliRunner(),
+      },
+      defaultFrom: legacyDbPath(paths),
+      configFile: path.join(paths.sharedBoardDir, CONFIG_FILE),
+      readLegacy: readLegacyBoard,
+    },
+    createProcessIo()
+  );
 }
 
 /** 移行前の DB があればその場所。データ用ブランチが無いときに `ai-board migrate` を案内するのに使う */
 function legacyDbOf(paths: BoardPaths): string | null {
-  return fs.existsSync(paths.dbPath) ? paths.dbPath : null;
+  const dbPath = legacyDbPath(paths);
+  return fs.existsSync(dbPath) ? dbPath : null;
 }
 
 /**
@@ -249,8 +262,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (command === 'import') {
-    process.exitCode = await runImportCommand(rest);
+  if (command === 'migrate') {
+    process.exitCode = await runMigrate(rest);
     return;
   }
 

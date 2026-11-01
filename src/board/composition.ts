@@ -1,4 +1,3 @@
-import type { DatabaseSync } from 'node:sqlite';
 import type { CardRepository } from '../cards/repositories/card.repository.js';
 import type { IdeaDividerRepository } from '../cards/repositories/idea-divider.repository.js';
 import type { ForgeConfig } from '../shared/config.js';
@@ -8,7 +7,6 @@ import type { ForgeClient } from './services/forge-client.js';
 import { GhForgeClient } from './services/github-client.js';
 import { FsPlanRepository, type PlanRepository } from './repositories/plan.repository.js';
 import type { MrSnapshotRepository } from './repositories/mr-snapshot.repository.js';
-import { SqliteMrSnapshotRepository } from './repositories/sqlite-mr-snapshot.repository.js';
 import { FileMrSnapshotRepository } from './repositories/file-mr-snapshot.repository.js';
 import type { DataStore } from '../infrastructure/data-store.js';
 import {
@@ -56,21 +54,17 @@ export interface MrStateSource {
   readonly poller: ForgePoller | null;
 }
 
+/** マージ済みの控えはデータ用ブランチに、それ以外は `<dataDir の親>/cache/` に置く */
+export function createFileMrSnapshotRepository(store: DataStore): MrSnapshotRepository {
+  return new FileMrSnapshotRepository(store);
+}
+
 /**
  * レビュー要求の状態の供給元を組み立てる。サーバと `ai-board status` で共有する。
  *
  * CLI の有無とログイン状態はここで 1 度だけ確かめる。
  * 1 分ごとに確認するほど頻繁に変わるものではない。
  */
-export function createMrSnapshotRepository(db: DatabaseSync): MrSnapshotRepository {
-  return new SqliteMrSnapshotRepository(db);
-}
-
-/** マージ済みの控えはデータ用ブランチに、それ以外は `<dataDir の親>/cache/` に置く */
-export function createFileMrSnapshotRepository(store: DataStore): MrSnapshotRepository {
-  return new FileMrSnapshotRepository(store);
-}
-
 export async function createMrStateSource(
   forge: ForgeConfig | null,
   cardRepository: CardRepository,

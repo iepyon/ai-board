@@ -408,6 +408,202 @@ function includesOrigin(remotes: string): boolean {
 }
 
 // ============================================================
+// データ用ブランチを作る — `ai-board migrate`
+// ============================================================
+
+/** データ用ブランチを作れなかった理由 */
+export type DataBranchCreateError =
+  /** データ用ブランチが `origin` か手元に既にある */
+  | { readonly type: 'DataBranchExists'; readonly where: 'origin' | 'local' }
+  /** データのワークツリーの場所に、既にファイルがある */
+  | { readonly type: 'DataDirNotEmpty'; readonly dataDir: string }
+  | DataStoreError;
+
+export interface CreateDataBranchOptions {
+  /** データのワークツリー */
+  readonly dataDir: string;
+  /**
+   * データのワークツリーを `git worktree add` で作るリポジトリ（既定の置き場所のとき）。
+   * 無ければ（`AI_BOARD_DATA`）、`dataDir` を用意済みの空の clone として使う
+   */
+  readonly repoRoot?: string;
+  readonly runner: CliRunner;
+}
+
+/** データ用ブランチをどこに作るか */
+interface DataBranchTarget {
+  /** `worktree` は `repoRoot` から新しく作る。`clone` は `dataDir` の空の clone をそのまま使う */
+  readonly kind: 'worktree' | 'clone';
+  /** git を走らせるリポジトリ */
+  readonly repo: string;
+  readonly withOrigin: boolean;
+}
+
+/**
+ * データ用ブランチを作る前に確かめる。作ってよければ、どこに作るかを返す。
+ *
+ * - 既定の置き場所（`repoRoot` あり）: `dataDir` が無いか空であること
+ * - `AI_BOARD_DATA`（`repoRoot` なし）: `dataDir` が `.git` の他に何も無い clone であること。
+ *   ほかのファイルがあると、それがデータ用ブランチに入ってしまう
+ * - `origin` にも手元にも、データ用ブランチが無いこと。`origin` に問い合わせられなければ（オフライン）止まる
+ */
+export async function checkDataBranchAbsent(
+  options: CreateDataBranchOptions
+): Promise<Result<DataBranchTarget, DataBranchCreateError>> {
+  const location = dataBranchLocation(options);
+  if (isErr(location)) return location;
+
+  const { kind, repo } = location.value;
+  const inRepo = (args: readonly string[]): Promise<Result<string, CliError>> =>
+    options.runner.run('git', ['-C', repo, ...args]);
+
+  const remotes = await inRepo(['remote']);
+  if (isErr(remotes)) return err(gitFailed('remote', remotes.error));
+  const withOrigin = includesOrigin(remotes.value);
+
+  if (withOrigin) {
+    const heads = await inRepo(['ls-remote', '--heads', 'origin', DATA_BRANCH]);
+    if (isErr(heads)) return err(fetchFailed(heads.error));
+    if (heads.value.trim() !== '') return err({ type: 'DataBranchExists', where: 'origin' });
+  }
+
+  const local = await inRepo(['rev-parse', '--verify', '--quiet', `refs/heads/${DATA_BRANCH}`]);
+  if (!isErr(local)) return err({ type: 'DataBranchExists', where: 'local' });
+
+  return ok({ kind, repo, withOrigin });
+}
+
+/** データ用ブランチをどのリポジトリに作るか。`dataDir` の中身で決め、使えなければ失敗する */
+function dataBranchLocation(
+  options: CreateDataBranchOptions
+): Result<Pick<DataBranchTarget, 'kind' | 'repo'>, DataBranchCreateError> {
+  const dataDir = path.resolve(options.dataDir);
+  const entries = fs.existsSync(dataDir) ? fs.readdirSync(dataDir) : null;
+
+  if (options.repoRoot !== undefined) {
+    if (entries !== null && entries.length > 0) return err({ type: 'DataDirNotEmpty', dataDir });
+    return ok({ kind: 'worktree', repo: path.resolve(options.repoRoot) });
+  }
+
+  if (entries === null || !entries.includes('.git')) {
+    return err({ type: 'DataDirNotRepository', dataDir });
+  }
+  if (entries.length > 1) return err({ type: 'DataDirNotEmpty', dataDir });
+  return ok({ kind: 'clone', repo: dataDir });
+}
+
+/**
+ * データ用ブランチを、親を持たないブランチとして作り、`write` が書いたファイルを 1 コミットにして push する。
+ *
+ * 既定の置き場所では、`repoRoot` から中身を展開しないワークツリーを足し、HEAD をまだ無いデータ用ブランチへ向け、
+ * インデックスを空にしてから書く（`git worktree add --orphan` を持たない古い git でも動くように）。
+ * `origin` が無ければ（テスト用）、push せずにコミットだけする。
+ *
+ * どこかで失敗したら、作ったワークツリー・ブランチ・書いたファイルを片付けてから失敗を返す。
+ * 片付けないと、次の `ai-board card` が案内（`ai-board migrate` を走らせる）ではなく git の失敗で止まり、
+ * `migrate` のやり直しも「既にある」で拒まれる。
+ */
+export async function createDataBranch(
+  options: CreateDataBranchOptions,
+  message: string,
+  write: (dataDir: string) => void
+): Promise<Result<{ readonly pushed: boolean }, DataBranchCreateError>> {
+  const checked = await checkDataBranchAbsent(options);
+  if (isErr(checked)) return checked;
+
+  const target = checked.value;
+  const dataDir = path.resolve(options.dataDir);
+  const inData = (args: readonly string[]): Promise<Result<string, CliError>> =>
+    options.runner.run('git', ['-C', dataDir, ...args]);
+
+  const steps: readonly (readonly [string, () => Promise<Result<string, CliError>>])[] = [
+    ...(target.kind === 'worktree'
+      ? [
+          [
+            'worktree add',
+            () =>
+              options.runner.run('git', [
+                '-C',
+                target.repo,
+                'worktree',
+                'add',
+                '--quiet',
+                '--detach',
+                '--no-checkout',
+                dataDir,
+              ]),
+          ] as const,
+        ]
+      : []),
+    ['symbolic-ref', () => inData(['symbolic-ref', 'HEAD', `refs/heads/${DATA_BRANCH}`])],
+    ['read-tree', () => inData(['read-tree', '--empty'])],
+  ];
+
+  for (const [step, run] of steps) {
+    const result = await run();
+    if (isErr(result)) {
+      await rollbackDataBranch(options.runner, target, dataDir);
+      return err(gitFailed(step, result.error));
+    }
+  }
+
+  try {
+    write(dataDir);
+  } catch (error) {
+    await rollbackDataBranch(options.runner, target, dataDir);
+    throw error;
+  }
+
+  const committing: readonly (readonly [string, readonly string[]])[] = [
+    ['add', ['add', '-A']],
+    // データ用ブランチはコードではないので、メインのリポジトリのフックを走らせない
+    ['commit', ['commit', '--quiet', '--no-verify', '-m', message]],
+  ];
+  for (const [step, args] of committing) {
+    const result = await inData(args);
+    if (isErr(result)) {
+      await rollbackDataBranch(options.runner, target, dataDir);
+      return err(gitFailed(step, result.error));
+    }
+  }
+
+  if (!target.withOrigin) return ok({ pushed: false });
+
+  const pushed = await inData(['push', '--quiet', '--no-verify', 'origin', DATA_PUSH_REFSPEC]);
+  if (isErr(pushed)) {
+    await rollbackDataBranch(options.runner, target, dataDir);
+    return err(pushFailed(1, pushed.error));
+  }
+
+  return ok({ pushed: true });
+}
+
+/** `createDataBranch` が作ったものを片付ける。片付けの失敗は、元の失敗を隠さないよう黙って見送る */
+async function rollbackDataBranch(
+  runner: CliRunner,
+  target: DataBranchTarget,
+  dataDir: string
+): Promise<void> {
+  const inRepo = (args: readonly string[]): Promise<Result<string, CliError>> =>
+    runner.run('git', ['-C', target.repo, ...args]);
+
+  if (target.kind === 'worktree') {
+    const removed = await inRepo(['worktree', 'remove', '--force', dataDir]);
+    if (isErr(removed)) {
+      fs.rmSync(dataDir, { recursive: true, force: true });
+      await inRepo(['worktree', 'prune']);
+    }
+    await inRepo(['branch', '--quiet', '-D', DATA_BRANCH]);
+    return;
+  }
+
+  // 用意済みの clone は残し、作ったブランチと書いたファイルだけを消す（確かめたとおり、元は .git だけだった）
+  await inRepo(['update-ref', '-d', `refs/heads/${DATA_BRANCH}`]);
+  await inRepo(['read-tree', '--empty']);
+  await inRepo(['clean', '-fdxq']);
+}
+
+// ============================================================
 // ロックファイル
 // ============================================================
 

@@ -479,6 +479,42 @@ export function demoteHeadings(text: string): string {
 }
 
 // ============================================================
+// 移行 — 本文に `## レビュー` を持つ Card を、そのままファイルにする
+// ============================================================
+
+/**
+ * 移行前のカード（本文の末尾付近に `## レビュー` の節を持つ）を、1 枚のカードのファイルにする。
+ *
+ * - `## レビュー` の各エントリを、元の時刻のまま判断のファイルに 1 件ずつ分ける。
+ *   エントリは `parseReviewLog` が読むとおりに読み、節は次の `## ` の行で切れる。
+ *   理由の中の `## ` で切れた後ろの文は、本文の節として `card.md` に残る（`stripReviewSection` と同じ切り方）
+ * - 判断のファイルには理由を元の文のまま書く。見出しを下げるのは組み立てるとき（`assembleCard`）である
+ * - `startedAt` があれば、その時刻の着手を 1 件書く（着手を戻した履歴は持っていないので作らない）
+ * - `rank` は `order.yaml` に置くので、ここでは扱わない
+ *
+ * `planCardWrite` は新しいカードの本文に判断があると拒むので、移行ではこちらを使う。
+ * 時刻がファイル名にできなければ失敗する。
+ */
+export function legacyCardFiles(card: Card): Result<CardFiles, CardWriteError> {
+  const additions = new LogAdditions(card.id, []);
+
+  for (const entry of parseReviewLog(card.body)) {
+    const failure = additions.add(entry.at, entry.gate, entry.kind, entry.reason);
+    if (failure !== null) return err(failure);
+  }
+
+  if (card.startedAt !== null) {
+    const failure = additions.add(card.startedAt, 'start', 'start', '');
+    if (failure !== null) return err(failure);
+  }
+
+  return ok({
+    cardMd: serializeCardFile(card, stripReviewSection(card.body)),
+    log: additions.files,
+  });
+}
+
+// ============================================================
 // Card の差分から、書くファイルを求める
 // ============================================================
 
@@ -696,7 +732,7 @@ function closeLast(entries: ReviewEntry[], reasonLines: readonly string[]): void
  * 本文から `## レビュー` の節（見出しから次の h2 の手前まで）を除く。
  * `parseReviewLog` と同じ切り方なので、節の後ろに置かれた節は本文に残る。
  */
-function stripReviewSection(body: string): string {
+export function stripReviewSection(body: string): string {
   const lines = body.split('\n');
   const start = lines.findIndex((line) => line.trim() === REVIEW_HEADING);
   if (start === -1) return trimNewlines(body);

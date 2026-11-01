@@ -5,7 +5,7 @@ import type { CommitMessage, DataStore, DataStoreError } from '../../infrastruct
 import type { CardDependencies } from '../composition.js';
 import type { Card } from '../models/card.js';
 import type { CreateCardError, UpdateCardError } from '../errors/card-errors.js';
-import { readCardFiles, serializeCard } from '../repositories/card-markdown.js';
+import { serializeCard } from '../repositories/card-markdown.js';
 import { CardWriteRefusedError } from '../repositories/file-card.repository.js';
 import { isReviewGate, type ReviewGate } from '../models/review.js';
 import { gateStates, parseReviewLog } from '../services/review-log.js';
@@ -113,27 +113,6 @@ export async function runCardCli(
   }
 
   return handler(parsed, deps, io);
-}
-
-/** `ai-board import`。移行前の Markdown カードを DB に取り込む。既存の ID は上書きしない */
-export async function runImport(
-  cardsDir: string,
-  deps: CardDependencies,
-  io: CardCliIo
-): Promise<number> {
-  const cards = await readCardFiles(cardsDir);
-  let imported = 0;
-
-  for (const card of cards) {
-    if (await deps.cardRepository.create(card)) {
-      imported += 1;
-    } else {
-      io.stderr(`既に DB にあるため読み飛ばしました: ${card.id}\n`);
-    }
-  }
-
-  io.stdout(`${imported} 件のカードを取り込みました（${cardsDir}）\n`);
-  return 0;
 }
 
 /** 引数を位置引数とフラグに分ける。`--root` は呼び出し側で取り除いてある */

@@ -1,26 +1,35 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import type { DatabaseSync } from 'node:sqlite';
-import { openDatabase } from '../../infrastructure/database.js';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import type { CliRunner } from '../../infrastructure/cli-runner.js';
-import { createCardDependencies } from '../../cards/composition.js';
+import { createFileCardDependencies } from '../../cards/composition.js';
 import { ok, err } from '../../shared/result.js';
 import type { ForgeConfig } from '../../shared/config.js';
 import { ForgePoller } from '../../infrastructure/forge-poller.js';
-import { createMrSnapshotRepository, createMrStateSource } from '../composition.js';
+import { createMrStateSource } from '../composition.js';
+import type { MrSnapshotRepository } from '../repositories/mr-snapshot.repository.js';
 
 // ============================================================
 // レビュー要求の状態の供給元
 // ============================================================
 
-let db: DatabaseSync;
+let dataDir: string;
 
 beforeEach(() => {
-  db = openDatabase(':memory:');
+  dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-board-composition-'));
 });
 
 afterEach(() => {
-  db.close();
+  fs.rmSync(dataDir, { recursive: true, force: true });
 });
+
+/** 控えを持たないリポジトリ。ここでは供給元の組み立てだけを確かめる */
+const noSnapshots: MrSnapshotRepository = {
+  findAll: () => Promise.resolve(new Map()),
+  save: () => Promise.resolve(),
+  delete: () => Promise.resolve(),
+};
 
 const forge: ForgeConfig = { kind: 'github', owner: 'acme', repo: 'board' };
 
@@ -38,26 +47,16 @@ function authRunner(loggedIn: boolean): CliRunner {
 
 describe('createMrStateSource', () => {
   it('取得先が未設定なら、問い合わせずに disabled を返す', async () => {
-    const { cardRepository } = createCardDependencies(db);
-    const source = await createMrStateSource(
-      null,
-      cardRepository,
-      createMrSnapshotRepository(db),
-      authRunner(true)
-    );
+    const { cardRepository } = createFileCardDependencies(dataDir);
+    const source = await createMrStateSource(null, cardRepository, noSnapshots, authRunner(true));
 
     expect(source.poller).toBeNull();
     expect(source.provider.connection()).toEqual({ status: 'disabled', kind: null, reason: null });
   });
 
   it('gh が使えなければ、理由付きの disabled を返す', async () => {
-    const { cardRepository } = createCardDependencies(db);
-    const source = await createMrStateSource(
-      forge,
-      cardRepository,
-      createMrSnapshotRepository(db),
-      authRunner(false)
-    );
+    const { cardRepository } = createFileCardDependencies(dataDir);
+    const source = await createMrStateSource(forge, cardRepository, noSnapshots, authRunner(false));
 
     expect(source.poller).toBeNull();
     expect(source.provider.connection()).toMatchObject({ status: 'disabled', kind: 'github' });
@@ -65,13 +64,8 @@ describe('createMrStateSource', () => {
   });
 
   it('gh が使えれば、ポーラーを供給元にする', async () => {
-    const { cardRepository } = createCardDependencies(db);
-    const source = await createMrStateSource(
-      forge,
-      cardRepository,
-      createMrSnapshotRepository(db),
-      authRunner(true)
-    );
+    const { cardRepository } = createFileCardDependencies(dataDir);
+    const source = await createMrStateSource(forge, cardRepository, noSnapshots, authRunner(true));
 
     expect(source.poller).toBeInstanceOf(ForgePoller);
     expect(source.provider).toBe(source.poller);

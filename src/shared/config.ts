@@ -9,14 +9,10 @@ import { locateWorktree } from './git-worktree.js';
 // ============================================================
 
 export const BOARD_DIR = '.ai-board';
-/** 移行前のカードファイルの置き場所。`ai-board import` の既定の取り込み元 */
-export const CARDS_DIR = 'cards';
-/** カードの正本。git には載せない */
+/** 移行前のカードの正本（SQLite）。`ai-board migrate` が既定で読む（`sharedBoardDir` の下） */
 export const DB_FILE = 'board.db';
 export const CONFIG_FILE = 'config.yaml';
 export const PLANS_DIR = 'plans';
-/** DB の場所を明示する環境変数。ワークツリーで共有の DB を使わせたくないとき（ai-board 自身の開発など）に使う */
-export const DB_ENV = 'AI_BOARD_DB';
 /** データ用ブランチのワークツリーの置き場所（`sharedBoardDir` の下） */
 export const DATA_DIR = 'data';
 /**
@@ -50,17 +46,11 @@ export interface BoardPaths {
   readonly root: string;
   /** .ai-board/ */
   readonly boardDir: string;
-  /** .ai-board/cards/（移行前のカードファイル。取り込み元としてだけ使う） */
-  readonly cardsDir: string;
   /**
-   * git に載らない各自のファイル（DB・config.yaml・データのワークツリー）を置く .ai-board/。
+   * git に載らない各自のファイル（データのワークツリー・移行前の board.db と config.yaml）を置く .ai-board/。
    * リンクされたワークツリーではメインのチェックアウトのもの、それ以外は `boardDir` と同じ
    */
   readonly sharedBoardDir: string;
-  /** board.db。既定は `sharedBoardDir` の下 */
-  readonly dbPath: string;
-  /** DB の場所をどう決めたか（起動ログに出す） */
-  readonly dbSource: 'local' | 'main-checkout' | 'env';
   /** データ用ブランチのワークツリー。既定は `sharedBoardDir` の下の data/ */
   readonly dataDir: string;
   /** データのワークツリーの場所をどう決めたか（起動ログに出す） */
@@ -79,25 +69,20 @@ export interface AppConfig {
  * 置き場所を決める。
  *
  * 計画ファイルは git でブランチに乗るので `root` の下を読む。
- * DB・config.yaml・データのワークツリーは git に載らない各自のファイルなので、リンクされたワークツリーでは
+ * データのワークツリーは git の作業ツリーとしては各自のものなので、リンクされたワークツリーでは
  * メインのチェックアウトのものを使う。全ワークツリーで 1 つのバックログを共有するため。
  */
 export function resolvePaths(root: string, env: NodeJS.ProcessEnv = process.env): BoardPaths {
   const absoluteRoot = path.resolve(root);
   const boardDir = path.join(absoluteRoot, BOARD_DIR);
   const sharedBoardDir = resolveSharedBoardDir(absoluteRoot, boardDir);
-  const dbFromEnv = env[DB_ENV] ?? '';
   const dataFromEnv = env[DATA_ENV] ?? '';
-  const shared = sharedBoardDir !== boardDir;
-  const sharedSource = shared ? 'main-checkout' : 'local';
+  const sharedSource = sharedBoardDir !== boardDir ? 'main-checkout' : 'local';
 
   return {
     root: absoluteRoot,
     boardDir,
-    cardsDir: path.join(boardDir, CARDS_DIR),
     sharedBoardDir,
-    dbPath: dbFromEnv !== '' ? path.resolve(dbFromEnv) : path.join(sharedBoardDir, DB_FILE),
-    dbSource: dbFromEnv !== '' ? 'env' : sharedSource,
     dataDir: dataFromEnv !== '' ? path.resolve(dataFromEnv) : path.join(sharedBoardDir, DATA_DIR),
     dataSource: dataFromEnv !== '' ? 'env' : sharedSource,
     plansDir: path.join(boardDir, PLANS_DIR),
@@ -113,9 +98,9 @@ function resolveSharedBoardDir(root: string, boardDir: string): string {
     case 'standalone':
       return boardDir;
     case 'unresolved':
-      // ボードが開かないより、ワークツリーの下の DB で開く方が良い
+      // ボードが開かないより、ワークツリーの下のデータで開く方が良い
       console.warn(
-        `[ai-board] メインのチェックアウトを求められないため、${boardDir} の DB を使います: ${location.reason}`
+        `[ai-board] メインのチェックアウトを求められないため、${boardDir} の下のデータを使います: ${location.reason}`
       );
       return boardDir;
   }
@@ -148,6 +133,11 @@ export function loadConfig(root: string, env: NodeJS.ProcessEnv = process.env): 
   }
 
   return { paths, forge: toForgeConfig(parsed.data) };
+}
+
+/** 移行前の DB（`board.db`）の場所。`ai-board migrate` の既定の読み出し元で、データ用ブランチが無いときの案内にも使う */
+export function legacyDbPath(paths: BoardPaths): string {
+  return path.join(paths.sharedBoardDir, DB_FILE);
 }
 
 /** データ用ブランチの根の config.yaml を優先し、無ければ `sharedBoardDir` のものを使う */

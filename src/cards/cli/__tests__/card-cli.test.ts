@@ -3,19 +3,12 @@ import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import type { DatabaseSync } from 'node:sqlite';
-import { openDatabase } from '../../../infrastructure/database.js';
 import { createCliRunner } from '../../../infrastructure/cli-runner.js';
 import { createDataStore, DATA_BRANCH } from '../../../infrastructure/data-store.js';
-import {
-  createCardDependencies,
-  createFileCardDependencies,
-  type CardDependencies,
-} from '../../composition.js';
+import { createFileCardDependencies, type CardDependencies } from '../../composition.js';
 import {
   parseCommandArgs,
   runCardCli,
-  runImport,
   type CardCliDependencies,
   type CardCliIo,
 } from '../card-cli.js';
@@ -622,45 +615,5 @@ describe('parseCommandArgs', () => {
         ['--reason', 'r'],
       ]),
     });
-  });
-});
-
-describe('runImport', () => {
-  let dir: string;
-  let db: DatabaseSync;
-  let dbDeps: CardDependencies;
-
-  beforeEach(() => {
-    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-board-import-'));
-    db = openDatabase(':memory:');
-    dbDeps = createCardDependencies(db);
-    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-  });
-
-  afterEach(() => {
-    db.close();
-    fs.rmSync(dir, { recursive: true, force: true });
-  });
-
-  async function dbBodyOf(id: string): Promise<string | undefined> {
-    return (await dbDeps.cardRepository.findById(id as CardId))?.body;
-  }
-
-  it('カードファイルを取り込み、既にある ID は上書きしない', async () => {
-    await dbDeps.createCardCommand({
-      title: 'kept',
-      id: 'kept',
-      body: 'DB の本文',
-      createdAt: NOW,
-    });
-    fs.writeFileSync(path.join(dir, 'fresh.md'), '---\nid: fresh\ntitle: 新規\n---\n\n本文\n');
-    fs.writeFileSync(path.join(dir, 'kept.md'), '---\nid: kept\ntitle: 既存\n---\n\n上書き\n');
-
-    expect(await runImport(dir, dbDeps, io())).toBe(0);
-
-    expect(stdout).toContain('1 件');
-    expect(stderr).toContain('kept');
-    expect(await dbBodyOf('fresh')).toBe('本文');
-    expect(await dbBodyOf('kept')).toBe('DB の本文');
   });
 });

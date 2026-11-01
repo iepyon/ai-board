@@ -1,4 +1,3 @@
-import type { DatabaseSync } from 'node:sqlite';
 import type { BoardPaths } from '../shared/config.js';
 import type { CliRunner } from '../infrastructure/cli-runner.js';
 import { err, isErr, ok, type Result } from '../shared/result.js';
@@ -10,9 +9,7 @@ import {
 import type { MrNumberWriter } from '../infrastructure/forge-poller.js';
 import type { CardWriteFailure } from './errors/card-errors.js';
 import type { CardRepository } from './repositories/card.repository.js';
-import { SqliteCardRepository } from './repositories/sqlite-card.repository.js';
 import type { IdeaDividerRepository } from './repositories/idea-divider.repository.js';
-import { SqliteIdeaDividerRepository } from './repositories/sqlite-idea-divider.repository.js';
 import { CardWriteRefusedError, FileCardRepository } from './repositories/file-card.repository.js';
 import { FileIdeaDividerRepository } from './repositories/file-idea-divider.repository.js';
 import {
@@ -54,14 +51,6 @@ export interface CardDependencies {
   readonly appendReviewCommand: AppendReviewCommand;
   readonly moveCardCommand: MoveCardCommand;
   readonly moveIdeaDividerCommand: MoveIdeaDividerCommand;
-}
-
-/** `onWrite` はサーバ自身の書き込みの後に呼ばれる（SSE で画面へ知らせるため） */
-export function createCardDependencies(db: DatabaseSync, onWrite?: () => void): CardDependencies {
-  return assemble(
-    new SqliteCardRepository(db, onWrite),
-    new SqliteIdeaDividerRepository(db, onWrite)
-  );
 }
 
 /**
