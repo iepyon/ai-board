@@ -3,7 +3,7 @@ id: loop-flat-subagents
 title: AIエージェントは、サブエージェントから別のサブエージェントを呼べないクラウドのセッションでも、実装中のカードをループで進めたい
 created: '2026-11-01T08:34:38.787Z'
 skipGates: []
-branch: null
+branch: loop-flat-subagents
 mr: null
 ---
 
