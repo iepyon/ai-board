@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-11-01T09:07:22Z\",false,\"cb87e23b3b3dd916cedbf8c67d3388b925d654d5\",0,0,\"2026-11-01T09:07:23Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 54,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "issue-store",
+    "title": "docs: カードを git のデータ用ブランチに移し、クラウドだけでボードを回す計画",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/54",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-11-01T07:57:38Z",
+    "mergedAt": "2026-11-01T09:07:22Z",
+    "readyAt": "2026-11-01T07:57:42Z",
+    "convertedToDraftAt": null
+  }
+}
