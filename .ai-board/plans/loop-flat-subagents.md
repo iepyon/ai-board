@@ -248,7 +248,7 @@
 
 ### 3. ループ
 
-- [ ] `.claude/agents/board-task.md` を、監視役から `cardId` / `action` / `MAIN` を受けて自分でワークツリーに入り、最初の未チェックのタスクを選ぶ形に直す。
+- [x] `.claude/agents/board-task.md` を、監視役から `cardId` / `action` / `MAIN` を受けて自分でワークツリーに入り、最初の未チェックのタスクを選ぶ形に直す。
       同じ文の行の確かめ、コミット前のチェックボックスの確かめ、push 後の `HEAD` の確かめ、未チェックのタスクが無いときの止まり、報告の先頭の `結果:` を書く。frontmatter の description も直す
 - [ ] `.claude/agents/board-reviewer.md` を、監視役から `cardId` / `action` / `MAIN` を受けて自分でワークツリーに入り、`mr` をカードから読む形に直す。報告の先頭の `結果:` をそろえ、frontmatter の description も直す
 - [ ] `.claude/agents/board-worker.md` から、サブエージェントを立てて待つ節とタスクを倒す段・レビューの段の節を消す。段の表のその 2 行を「ここに来たら止まる」に変え、報告の AI レビューの項目を直す。frontmatter の description も直す
