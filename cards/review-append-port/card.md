@@ -3,7 +3,7 @@ id: review-append-port
 title: AIエージェントは、判断を本文の文字列で往復させず、リポジトリの専用の口で書きたい
 created: '2026-11-01T21:35:41.787Z'
 skipGates: []
-branch: null
+branch: review-append-port
 mr: null
 ---
 
