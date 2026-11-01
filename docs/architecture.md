@@ -146,7 +146,8 @@ verify を飛ばすカードの `verify 提出` / `verify 再提出` も承認�
   `branch` は誰でも書けるので完全な ref 名にして渡し、`git check-ref-format --branch` を通らない名前では `git` を呼ばない。`git fetch` はしない
 - 段: `src/board/services/impl-step.ts` の `resolveImplStep` が決める。archive 済み → `close`、未チェックのタスクがある → `task`、
   全部倒れていて `## AI レビュー` 節（コードブロックの外の見出し）が無い → `review`、ある → `close`。
-  タスクの行の正規表現は進捗バー（`plan.repository.ts`）と共有する
+  タスクの行の正規表現と、フェンス（` ``` ` / `~~~`）で囲んだコードブロックの中の行を外す純関数（`src/board/models/plan-task.ts` の `linesOutsideCodeBlocks`）を
+  進捗バー（`plan.repository.ts`）と共有する。コードブロックの中のチェックボックスと見出しは数えない。閉じていないフェンスは無いものとして後ろの行を数える
 - 読めない（`branch` が null、ブランチや計画が無い、`git` が失敗した）ときは例外を投げず `step` を `null` にし、`status` 自体は成功させる。
   人向けの数行（`--json` を付けない形）では `段=task` のように添え、`null` は `段=不明` と出す（`status-describe.ts`）
 - 監視役は `task` なら `board-task`、`review` なら `board-reviewer`、`close` / `null` なら `board-worker` に渡す。
