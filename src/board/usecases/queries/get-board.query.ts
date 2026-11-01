@@ -12,7 +12,7 @@ import {
 import { latestGateEntry, parseReviewLog } from '../../../cards/services/review-log.js';
 import { resolveHold } from '../../services/next-action.js';
 import { resolveTimeline } from '../../services/stage-timeline.js';
-import type { ReviewEntry } from '../../../cards/models/review.js';
+import type { ReviewEntry, ReviewGate } from '../../../cards/models/review.js';
 import type { Stage } from '../../../shared/schemas/common.js';
 import { GATE_OF_STAGE } from '../../../shared/stage-gates.js';
 import {
@@ -79,10 +79,10 @@ export function createGetBoardQuery(
         card,
         resolution,
         { floorStage, droppableStages: droppableStages(floorStage) },
-        latestReview(entries, resolution.stage),
+        latestReview(entries, resolution.stage, card.skipGates),
         toBoardCardPlan(plan),
         toBoardCardMr(mr),
-        resolveHold({ ...resolution, entries, mr, mrKnown }),
+        resolveHold({ ...resolution, skipGates: card.skipGates, entries, mr, mrKnown }),
         resolveTimeline({
           created: card.created,
           startedAt: card.startedAt,
@@ -116,8 +116,12 @@ function toBoardCardPlan(plan: PlanDoc | null): BoardCardPlan | null {
 }
 
 /** その列が待っているゲートの最新エントリ。待ちの列でなければゲートを問わず最新 */
-function latestReview(entries: readonly ReviewEntry[], stage: Stage): BoardCardReview | null {
-  const entry = latestGateEntry(entries, GATE_OF_STAGE[stage]);
+function latestReview(
+  entries: readonly ReviewEntry[],
+  stage: Stage,
+  skipGates: readonly ReviewGate[]
+): BoardCardReview | null {
+  const entry = latestGateEntry(entries, GATE_OF_STAGE[stage], skipGates);
   if (entry === null) return null;
 
   return { at: entry.at, gate: entry.gate, kind: entry.kind, reason: entry.reason };

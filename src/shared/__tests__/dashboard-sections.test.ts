@@ -261,7 +261,6 @@ function decisionCard(overrides: Partial<DecisionCard> = {}): DecisionCard {
     aborted: false,
     hold: null,
     gates: { plan: 'none' },
-    skipGates: [],
     ...overrides,
   };
 }
@@ -336,26 +335,31 @@ describe('decisionsFor', () => {
     }
   });
 
-  it('plan を飛ばす宣言のカードには、計画から立て直させるを出さない', () => {
-    const card = decisionCard({
-      stage: 'impling',
-      hold: HOLD,
-      gates: { plan: 'approved' },
+  it('plan を飛ばすカードが実装中で止まっても、計画から立て直させるを出す', () => {
+    // plan を飛ばすカードの plan ゲートは、AI の plan 提出 を承認と読んだ approved
+    const card = {
+      ...decisionCard({ stage: 'impling', hold: HOLD, gates: { plan: 'approved' } }),
       skipGates: ['plan'],
-    });
+    };
 
-    expect(buttons(card)).toEqual(['verify 否決 実装を直させる', 'verify 中止 中止する']);
+    expect(buttons(card)).toEqual([
+      'verify 否決 実装を直させる',
+      'plan 否決 計画から立て直させる',
+      'verify 中止 中止する',
+    ]);
   });
 
-  it('verify を飛ばす宣言のカードで Draft に戻されたら、実装を直させるを出さず中止は残す', () => {
-    const card = decisionCard({
-      stage: 'impling',
-      hold: HOLD,
-      gates: { plan: 'approved' },
+  it('verify を飛ばすカードが Draft に戻されても、実装を直させるを出す', () => {
+    const card = {
+      ...decisionCard({ stage: 'impling', hold: HOLD, gates: { plan: 'approved' } }),
       skipGates: ['verify'],
-    });
+    };
 
-    expect(buttons(card)).toEqual(['plan 否決 計画から立て直させる', 'verify 中止 中止する']);
+    expect(buttons(card)).toEqual([
+      'verify 否決 実装を直させる',
+      'plan 否決 計画から立て直させる',
+      'verify 中止 中止する',
+    ]);
   });
 });
 

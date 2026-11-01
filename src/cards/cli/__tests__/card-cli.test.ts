@@ -50,6 +50,15 @@ async function seed(id: string, body = ''): Promise<void> {
   if (!result.ok) throw new Error('seed に失敗しました');
 }
 
+/** 人の着手を打つ。plan の提出は着手したカードにしか書けない */
+async function start(id: string): Promise<void> {
+  const result = await deps.updateCardMetaCommand({
+    id: id as CardId,
+    patch: { startedAt: '2026-09-25T00:00:00.000Z' },
+  });
+  if (!result.ok) throw new Error('start に失敗しました');
+}
+
 async function bodyOf(id: string): Promise<string | undefined> {
   return (await deps.cardRepository.findById(id as CardId))?.body;
 }
@@ -143,26 +152,73 @@ describe('runCardCli', () => {
     expect(await run(['branch', 'missing', 'feat/a'])).toBe(1);
   });
 
-  it('submit は plan 提出を、--resubmit で再提出を追記する', async () => {
+  it('submit は plan 提出を、否決の後の --resubmit で再提出を追記する', async () => {
     await seed('a');
+    await start('a');
 
     expect(await run(['submit', 'a'])).toBe(0);
-    expect(await run(['submit', 'a', '--resubmit', '--reason', '指摘を反映'])).toBe(0);
+    expect(await bodyOf('a')).toContain('### 2026-09-26T00:00:00.000Z plan 提出');
 
-    const body = await bodyOf('a');
-    expect(body).toContain('### 2026-09-26T00:00:00.000Z plan 提出');
-    expect(body).toContain('### 2026-09-26T00:00:00.000Z plan 再提出\n\n指摘を反映');
+    await seed(
+      'b',
+      '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 提出\n\n### 2026-09-25T01:00:00.000Z plan 否決\n\n直して'
+    );
+    await start('b');
+
+    expect(await run(['submit', 'b', '--resubmit', '--reason', '指摘を反映'])).toBe(0);
+    expect(await bodyOf('b')).toContain('### 2026-09-26T00:00:00.000Z plan 再提出\n\n指摘を反映');
   });
 
   it('submit は --gate verify で動作確認への提出を追記する', async () => {
     await seed('a', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 承認');
+    await start('a');
 
     expect(await run(['submit', 'a', '--gate', 'verify', '--reason', '手順'])).toBe(0);
-    expect(await run(['submit', 'a', '--gate', 'plan', '--resubmit'])).toBe(0);
+    expect(await bodyOf('a')).toContain('### 2026-09-26T00:00:00.000Z verify 提出\n\n手順');
+  });
 
-    const body = await bodyOf('a');
-    expect(body).toContain('### 2026-09-26T00:00:00.000Z verify 提出\n\n手順');
-    expect(body).toContain('### 2026-09-26T00:00:00.000Z plan 再提出');
+  it.each([
+    ['提出済み', '### 2026-09-25T00:00:00.000Z plan 提出'],
+    ['承認済み', '### 2026-09-25T00:00:00.000Z plan 承認'],
+    [
+      '保留',
+      '### 2026-09-25T00:00:00.000Z plan 否決\n\n### 2026-09-25T01:00:00.000Z plan 保留\n\n止まる',
+    ],
+  ])(
+    'submit は plan ゲートが%sのカードへの plan の提出と再提出を 1 にし、何も追記しない',
+    async (_, log) => {
+      const original = `## レビュー\n\n${log}`;
+      await seed('a', original);
+      await start('a');
+
+      expect(await run(['submit', 'a'])).toBe(1);
+      expect(stderr).toContain('未提出か否決のとき');
+      expect(await run(['submit', 'a', '--resubmit', '--reason', 'x'])).toBe(1);
+      expect(await bodyOf('a')).toBe(original);
+    }
+  );
+
+  it('submit は plan を飛ばすカードで、人の verify 否決 の後の plan 再提出を 1 にする', async () => {
+    const original = [
+      '## レビュー',
+      '',
+      '### 2026-09-25T00:00:00.000Z plan 提出',
+      '',
+      '### 2026-09-25T01:00:00.000Z verify 提出',
+      '',
+      '### 2026-09-25T02:00:00.000Z verify 否決',
+      '',
+      '直して',
+    ].join('\n');
+    await seed('a', original);
+    await start('a');
+    await deps.updateCardMetaCommand({ id: 'a' as CardId, patch: { skipGates: ['plan'] } });
+
+    expect(await run(['submit', 'a', '--resubmit'])).toBe(1);
+    expect(await bodyOf('a')).toBe(original);
+
+    const card = await deps.cardRepository.findById('a' as CardId);
+    expect(gateStates(parseReviewLog(card?.body ?? ''), ['plan']).verify).toBe('rejected');
   });
 
   it('submit は plan の承認前の --gate verify を 1 にし、何も追記しない', async () => {
@@ -173,12 +229,40 @@ describe('runCardCli', () => {
     expect(await bodyOf('a')).not.toContain('verify 提出');
   });
 
-  it('submit は skipGates に plan があれば承認が無くても --gate verify を受け付ける', async () => {
+  it('submit は skipGates に plan があれば、承認が無くても plan 提出 の後の --gate verify を受け付ける', async () => {
+    await seed('a');
+    await start('a');
+    await deps.updateCardMetaCommand({ id: 'a' as CardId, patch: { skipGates: ['plan'] } });
+
+    expect(await run(['submit', 'a', '--gate', 'verify'])).toBe(1);
+    expect(await bodyOf('a')).not.toContain('verify 提出');
+
+    expect(await run(['submit', 'a', '--gate', 'plan'])).toBe(0);
+    expect(await run(['submit', 'a', '--gate', 'verify'])).toBe(0);
+    expect(await bodyOf('a')).toContain('verify 提出');
+  });
+
+  it('submit は着手していないカードへの plan の提出と再提出を 1 にし、何も追記しない', async () => {
+    const original = '## アイデア\nメモ';
+    await seed('a', original);
+
+    expect(await run(['submit', 'a'])).toBe(1);
+    expect(stderr).toContain('着手したカード');
+    expect(await run(['submit', 'a', '--gate', 'plan', '--resubmit', '--reason', 'x'])).toBe(1);
+    expect(await bodyOf('a')).toBe(original);
+
+    await start('a');
+    expect(await run(['submit', 'a'])).toBe(0);
+    expect(await bodyOf('a')).toContain('plan 提出');
+  });
+
+  it('submit は plan を飛ばす宣言があっても、着手していないカードへの plan の提出を 1 にする', async () => {
     await seed('a');
     await deps.updateCardMetaCommand({ id: 'a' as CardId, patch: { skipGates: ['plan'] } });
 
-    expect(await run(['submit', 'a', '--gate', 'verify'])).toBe(0);
-    expect(await bodyOf('a')).toContain('verify 提出');
+    expect(await run(['submit', 'a'])).toBe(1);
+    expect(await run(['submit', 'a', '--resubmit'])).toBe(1);
+    expect(await bodyOf('a')).toBe('');
   });
 
   it('submit は規定外の --gate を使い方とともに 1 にし、何も追記しない', async () => {

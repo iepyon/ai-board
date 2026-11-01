@@ -28,13 +28,18 @@ src/
 （中止は工程の進捗と直交する終端の軸で、通過済みのゲートを巻き戻さない）。
 状態は `none` / `submitted` / `held` / `approved` / `rejected` の 5 つで、`held` は最新が 保留 のとき。
 どの規則も `held` でゲートを先へ進めないので、保留のカードは AI の列（計画提案中 / 実装中）に留まり、`hold` が立つ。
-`gateState` は飛ばす宣言（`skipGates`）も approved で返すので、人の承認とは `skipGates` で見分ける。
+飛ばす宣言（`skipGates`）のあるゲートでは、最新が 提出 / 再提出 なら `approved` と読む（AI の提出を人の承認と同じに読む）。
+宣言があってもログを見ずに通過扱いにはしないので、エントリが無ければ `none` で、否決 / 保留 / 承認 はふつうに効く。
+このため plan を飛ばすカードも、着手するまではアイデアに留まり、着手すると計画提案中に入って計画を書く手（`plan`）が渡される。
+読み替えはエントリの種別を書き換えないので、`approved` が人の承認か AI の提出かは、`latestGateEntry` が返すエントリの種別で見分ける。
 
 後ろのゲート（`REVIEW_GATES` の並びで後ろ）は、前のゲートの最新の承認より古いエントリを数えない（`currentEntries`）。
+ここでの承認には、宣言のあるゲートの 提出 / 再提出 を含める（`gateState` と同じ読み替え）。
 計画を承認し直したなら、前の計画に対する動作確認の判断（否決・保留）はもう効かない、という意味である。
 これが無いと、計画から立て直したカードで古い `verify 否決` が最新のまま残り、ループが `revise-impl` を選び続ける。
-通常の流れでは verify のエントリはすべて plan の承認より後にあり、plan を飛ばすカードは承認のエントリを持たないので、どちらも何も外れない。
-`latestGateEntry` も同じ規則でエントリを選び、全ゲートの状態は `gateStates()` でまとめて引く（`toFacts` と CLI の `planApproved` が使う）。
+plan を飛ばすカードでは、立て直した計画の `plan 再提出` が同じ区切りになる。
+通常の流れでは verify のエントリはすべて plan の承認（plan を飛ばすカードは plan の提出）より後にあるので、何も外れない。
+`latestGateEntry` も同じ規則でエントリを選び（そのために `skipGates` を受け取る）、全ゲートの状態は `gateStates()` でまとめて引く（`toFacts` と CLI の `planApproved` が使う）。
 
 判断待ちの区画が出す提出の本文と待ち始めた時刻は、`latestReview` から取る。
 `latestReview` は「その列が待っているゲート（`GATE_OF_STAGE`）の最新エントリ、無ければゲートを通じた最新」で、
@@ -45,12 +50,13 @@ src/
 否決の差し戻しに専用ルールは無い。ゲートが差し戻し中のときレビュー行と承認行が両方外れ、
 1 つ手前の AI 列へ自然に落ちる。
 verify も同じで、`verifying` のルールは「plan 承認済み かつ verify が submitted」の 1 本だけである。
-否決・承認・飛ばす宣言のどれでも `verifying` が外れて 実装中 に落ちる。承認後に Ready にするのは AI の作業なので、
+否決・承認・飛ばす宣言のある verify の提出（承認と読まれる）のどれでも `verifying` が外れて 実装中 に落ちる。承認後に Ready にするのは AI の作業なので、
 AI の列（実装中）で待つ。
 
 「計画から立て直させる」は承認済みの計画への plan 否決で、専用の規則もエントリも無い。
 plan が `rejected` になって 計画提案中 に落ち、ループは `revise-plan` を選ぶ。
-計画を承認し直すと前の verify のエントリは数えられず（`currentEntries`）、ループは `implement` から始め直す。
+計画を承認し直すと（plan を飛ばすカードでは計画を再提出すると）前の verify のエントリは数えられず（`currentEntries`）、
+ループは `implement` から始め直す。
 
 計画ファイルはブランチにあり、ボードを動かすチェックアウトからは見えないことが多いので、
 Draft の PR も計画レビューの列を立てる。Ready にした時点で PR中 へ進む。
@@ -71,7 +77,7 @@ AI の列（計画提案中 / 実装中）にいても、人の判断を待っ�
 止まりは次の 4 つで、`reason` には人が何をすればよいかを書く（`HOLD_REASONS`）。
 
 - 実装中で、人の最新の判断より後に PR が Draft に戻された（`mrState.convertedToDraftAt`）。
-  verify の状態より先に見るので、`ready` と、動作確認を飛ばすカードの `implement` の両方が Ready にし直さない
+  verify の状態より先に見るので、`ready` も、動作確認を飛ばすカードの `implement` も Ready にし直さない
 - 実装中で、verify の最新が 保留（`board-worker` が `card hold --gate verify` を書いた）
 - 計画提案中で、plan の最新が 保留
 - 計画提案中で、plan が提出済みなのに計画ファイルも Draft の PR も見えない（作り直すと PR を二重に作りかねない）。
@@ -84,6 +90,8 @@ AI の列（計画提案中 / 実装中）にいても、人の判断を待っ�
 
 CLI（`src/cards/cli/card-cli.ts`）には `startedAt` / `rank` / `skipGates` を書く入口も、承認 / 否決 / 中止を追記する入口も無く、
 `body` は `## レビュー` のエントリが変わる差し替えを拒む。
+`submit` の plan ゲートは、着手したカードで、plan が未提出か否決のときにだけ書ける
+（plan を飛ばすカードの `plan 再提出` は承認と同じ区切りになるので、いつでも書けると人の `verify 否決` を打ち消せてしまう）。
 逆に人の API（`POST /api/cards/:id/reviews`）は `HUMAN_REVIEW_KINDS`（承認 / 否決 / 中止）だけを受け、提出 / 再提出 / 保留 は 400 で拒む。
 
 どのカードにどの判断のボタンを出すかは `src/shared/dashboard-sections.ts` の `decisionsFor` が決める。
@@ -96,12 +104,16 @@ CLI（`src/cards/cli/card-cli.ts`）には `startedAt` / `rank` / `skipGates` �
 | 計画提案中で止まっている（plan 保留）         | 計画を直させる（plan 否決）/ 中止                                      |
 | 計画提案中で止まっている（成果物が見えない）  | 中止                                                                   |
 
-飛ばす宣言（`skipGates`）のあるゲートの承認 / 否決は出さない（否決を書いても差し戻しにならない）。中止は残す。
+飛ばす宣言（`skipGates`）の有無では出し分けない。宣言のあるゲートでも、人の否決 / 承認はふつうに効くからである（`gateState`）。
+plan を飛ばすカードが実装中で止まっても「計画から立て直させる」を、verify を飛ばすカードが Draft に戻されても「実装を直させる」を出す。
 判断待ちのボタンを本文より前に出すか（`awaitsDecision`）は、`decisionsFor` が 1 つでも返すかで決まる。
 
 UI が `startedAt` を書き換えるのは「着手」「着手を戻す」のボタンだけ。列をまたぐドラッグは無く、
 ドラッグはアイデアの表の中の並べ替え（`rank`）と区切り線の移動にだけ使う。
-`skipGates` を画面から書くのは、詳細パネルの「動作確認を飛ばす」のチェックボックス（`verify` の出し入れ）だけ。
+`skipGates` を画面から書くのは、詳細パネルのゲートの欄の「計画レビューを飛ばす」（`plan` の出し入れ）と
+「動作確認を飛ばす」（`verify` の出し入れ）の 2 つのチェックボックスだけ（`SkipGateField`）。
+どちらも `withSkipGate` で 1 つのゲートだけを出し入れし、他のゲートの宣言は保つ。CLI には入口を足さない。
+提出済みのカードに「計画レビューを飛ばす」を入れると、`plan 提出` が承認と読まれてその場で実装中へ進む。
 
 画面の区画（判断待ち / AI 作業中 / アイデア / マージ済み / 中止）への振り分けと並び順も `dashboard-sections.ts` の純関数にある。
 ステージの導出とは別物で、見せ方だけを決める。
@@ -120,7 +132,9 @@ PR の状態は `refresh()` を 1 回だけ待って引き、`branch` から解�
 
 次の一手は `src/board/services/next-action.ts` の `pickNextAction`（実装中 → 計画提案中、列の中は `rank` の順）が決める。
 手は `plan` / `revise-plan`（計画提案中）と `implement` / `revise-impl` / `ready`（実装中）の 5 種類で、
-実装中の手は verify ゲートの状態で分ける（未提出 → `implement`、否決 → `revise-impl`、人の承認 → `ready`。飛ばす宣言なら `implement`）。
+実装中の手は verify ゲートの状態で分ける（未提出 → `implement`、否決 → `revise-impl`、承認 → `ready`）。
+verify を飛ばすカードの `verify 提出` / `verify 再提出` も承認と読まれて `ready` になり、締めの段を通さずに Ready にする
+（締めの段は PR の本文の見送りの節を計画から差し替えるので、`revise-impl` が足した見送りが消える）。
 `implement` は計画のタスクの進み具合では分けず、AI レビューの手（`review`）も無い。
 計画はブランチにあり、メインのチェックアウトからは読めないことが多いので、
 `implement` を受けた `board-worker` がワークツリーの計画を読んで段（タスクを倒す / AI レビュー / 締め）を決める。

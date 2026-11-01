@@ -14,7 +14,8 @@ import { latestGateEntry } from '../../cards/services/review-log.js';
  *                 （未チェックのタスクがあれば倒す / 倒し終えて `## AI レビュー` 節が無ければレビューする /
  *                 節があれば動作確認を頼む。verify を飛ばす宣言があれば Ready にする）
  * - `revise-impl` 実装中で、動作確認の最新の判断が 否決。理由を読んで直し、動作確認を頼み直す
- * - `ready`       実装中で、動作確認を人が承認した。計画を archive へ移し、PR を Ready にする
+ * - `ready`       実装中で、verify ゲートを通った（人の承認、または verify を飛ばすカードの 提出 / 再提出）。
+ *                 計画を archive へ移し、PR を Ready にする
  * - `plan`        計画提案中で、まだ何も提出していない。計画を書いて Draft の PR を出し、提出する
  * - `revise-plan` 計画提案中で、最新の判断が 否決。理由を読んで計画を直し、再提出する
  *
@@ -48,8 +49,6 @@ export interface NextActionCard {
   readonly stage: Stage;
   readonly aborted: boolean;
   readonly gates: { readonly plan: GateState; readonly verify: GateState };
-  /** gates の approved が人の承認か飛ばす宣言かを見分けるのに使う */
-  readonly skipGates: readonly ReviewGate[];
   /** 人の判断を待っていれば、その止まり。`resolveHold` で導く */
   readonly hold: CardHold | null;
 }
@@ -59,6 +58,8 @@ export interface HoldInput {
   readonly stage: Stage;
   readonly aborted: boolean;
   readonly gates: { readonly plan: GateState; readonly verify: GateState };
+  /** 飛ばす宣言。エントリを選ぶときに、宣言のあるゲートの 提出 / 再提出 を承認と読むのに使う */
+  readonly skipGates: readonly ReviewGate[];
   /** カード本文の `## レビュー` のエントリ */
   readonly entries: readonly ReviewEntry[];
   /** PR の状態のうち、Draft に戻されたことの判定に要るもの。PR が無ければ null */
@@ -136,14 +137,15 @@ export function resolveHold(card: HoldInput): CardHold | null {
  * 人の最新の判断より後に PR が Draft に戻されたか。
  *
  * 作成時から Draft の PR は `convert_to_draft` を残さないので、動作確認を頼むあいだの Draft では止まらない。
- * レビューのエントリが 1 件も無いカード（plan を飛ばす宣言など）は、戻された時点で止まる。
+ * エントリは `latestGateEntry` で選ぶので、宣言のあるゲートの 提出 / 再提出 も承認と同じ区切りになる。
+ * plan を飛ばす宣言のカードなら、`plan 提出` より後に戻された時点で止まる。
  */
 function draftReverted(card: HoldInput): CardHold | null {
   const { mr } = card;
   if (mr === null || mr.convertedToDraftAt === null) return null;
 
   const convertedAt = mr.convertedToDraftAt;
-  const latest = latestGateEntry(card.entries, undefined);
+  const latest = latestGateEntry(card.entries, undefined, card.skipGates);
   if (latest !== null && Date.parse(convertedAt) <= Date.parse(latest.at)) return null;
 
   return { reason: HOLD_REASONS.draftReverted(mr.iid), since: convertedAt };
@@ -155,7 +157,7 @@ function heldBy(card: HoldInput, gate: ReviewGate, reason: string): CardHold | n
 
 /** 止まりの起点はそのゲートの最新エントリ（保留や提出）の時刻 */
 function since(card: HoldInput, gate: ReviewGate, reason: string): CardHold | null {
-  const entry = latestGateEntry(card.entries, gate);
+  const entry = latestGateEntry(card.entries, gate, card.skipGates);
   return entry === null ? null : { reason, since: entry.at };
 }
 
@@ -182,8 +184,12 @@ function judge(card: NextActionCard): NextAction | null {
  * ここでブランチの計画を `git show` で読む案は、サーバと `status` に git の読み取りを持ち込み、
  * 「計画ファイルがあれば列が立つ」という読み方とも二重になるので採らない。
  *
- * `gateState` は飛ばす宣言も approved で返すので、人の承認とは `skipGates` で見分ける。
- * 飛ばす宣言ならタスクが残っているかもしれないので `implement` のままにする。
+ * verify の approved は、人の承認でも、verify を飛ばす宣言のカードの AI の `verify 提出 / 再提出` の
+ * 読み替え（`gateState`）でも、同じく `ready` を返す。宣言のあるカードの approved は、動作確認で否決された実装を
+ * `revise-impl` が直して再提出した後か、提出の後に人が宣言を入れた後に来る。どちらも AI レビューと
+ * PR の本文の見送りの節を済ませているので、締めの段（見送りの節を計画から差し替え、判断してほしい点を
+ * PR にコメントする）を通さずに、archive して Ready にするだけにする。
+ * 締めの段を通すと、`revise-impl` が PR の本文に足した見送りが消え、計画の判断してほしい点のコメントが重なる。
  */
 function judgeImpling(card: NextActionCard): NextAction | null {
   switch (card.gates.verify) {
@@ -192,9 +198,7 @@ function judgeImpling(card: NextActionCard): NextAction | null {
     case 'rejected':
       return { cardId: card.id, action: 'revise-impl', reason: '動作確認で否決された' };
     case 'approved':
-      return card.skipGates.includes('verify')
-        ? { cardId: card.id, action: 'implement', reason: '計画が承認され、動作確認は飛ばす' }
-        : { cardId: card.id, action: 'ready', reason: '動作確認が承認された' };
+      return { cardId: card.id, action: 'ready', reason: '動作確認が承認された' };
     case 'held':
       // 止まり（`resolveHold`）として扱い、pickNextAction がここへ来る前に飛ばす
       return null;

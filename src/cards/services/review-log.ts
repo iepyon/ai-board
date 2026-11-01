@@ -94,8 +94,10 @@ function extractSection(body: string, heading: string): string[] | null {
 /**
  * ゲートの通過状況。
  *
- * `skipGates` に宣言されたゲートはログを見ずに通過扱いにする。
+ * `skipGates` に宣言されたゲートでは、AI の 提出 / 再提出 を人の承認と同じに読む（`approved`）。
  * 人が事前に「このカードのこのゲートは見ない」と決めた意思表示だからである。
+ * ログを見ずに通過扱いにはしないので、エントリが無ければ `none` で、否決 / 保留 / 承認 はふつうに効く。
+ * 計画を書く手や着手の合図を飛ばさずに、人が読む関所だけを飛ばすためである。
  *
  * 中止のエントリは判定から除く。中止は工程の進捗とは直交する終端の軸であり、
  * 承認済みのゲートを未通過へ巻き戻してはならない（それをするとカードを
@@ -108,9 +110,7 @@ export function gateState(
   gate: ReviewGate,
   skipGates: readonly ReviewGate[]
 ): GateState {
-  if (skipGates.includes(gate)) return 'approved';
-
-  const latest = latestGateEntry(entries, gate);
+  const latest = latestGateEntry(entries, gate, skipGates);
   if (latest === null) return 'none';
 
   switch (latest.kind) {
@@ -120,7 +120,7 @@ export function gateState(
       return 'rejected';
     case '提出':
     case '再提出':
-      return 'submitted';
+      return skipGates.includes(gate) ? 'approved' : 'submitted';
     case '保留':
       return 'held';
     case '中止':
@@ -143,15 +143,18 @@ export function gateStates(
 /**
  * ゲートの最新エントリ（中止を除く）。無ければ null。`gate` が undefined ならゲートを問わず最新を選ぶ。
  *
- * `gateState()` はこの関数でエントリを選ぶので、返るエントリの種別は常にゲートの状態と一致する。
+ * `gateState()` はこの関数でエントリを選ぶので、返るエントリの種別は常にゲートの状態と一致する
+ * （宣言のあるゲートの 提出 / 再提出 は `approved` と読まれるが、種別は書き換えずに返す。
+ * AI が書いたものを人の承認と見せると、誰が何を書いたかを読み違えるため）。
  * 人が判断するときの材料（提出に書かれた判断待ちの点）と、待ち始めた時刻を画面に出すために使う。
  */
 export function latestGateEntry(
   entries: readonly ReviewEntry[],
-  gate: ReviewGate | undefined
+  gate: ReviewGate | undefined,
+  skipGates: readonly ReviewGate[]
 ): ReviewEntry | null {
   return latestOf(
-    currentEntries(entries).filter(
+    currentEntries(entries, skipGates).filter(
       (entry) => (gate === undefined || entry.gate === gate) && entry.kind !== '中止'
     )
   );
@@ -160,20 +163,24 @@ export function latestGateEntry(
 /**
  * 今も効いているエントリ。後ろのゲート（`REVIEW_GATES` の並びで後ろ）のエントリのうち、
  * それより前のゲートの最新の承認より古いものを除く。
+ * 承認には、宣言のあるゲートの 提出 / 再提出 を含める（`gateState()` と同じ読み替え）。
  *
  * 計画を承認し直したなら、前の計画に対する動作確認の判断（否決・保留）はもう効かない、という意味である。
  * これが無いと、計画から立て直したカードで古い `verify 否決` が最新のまま残り、
  * ループが `implement` ではなく `revise-impl` を選び続ける。
+ * plan を飛ばす宣言のカードでは、立て直した計画の `plan 再提出` が同じ区切りになる。
  *
  * 通常の流れでは後ろのゲートのエントリはすべて前のゲートの承認より後にあるので、何も除かれない。
- * 前のゲートを飛ばす宣言のカードは承認のエントリを持たないので、やはり何も除かれない。
  * 承認と同じ時刻のエントリは残す（後に書かれたものを最新とする `latestOf` と揃える）。
  */
-function currentEntries(entries: readonly ReviewEntry[]): ReviewEntry[] {
+function currentEntries(
+  entries: readonly ReviewEntry[],
+  skipGates: readonly ReviewGate[]
+): ReviewEntry[] {
   const approvedAt = new Map<ReviewGate, number>();
 
   for (const entry of entries) {
-    if (entry.kind !== '承認') continue;
+    if (!passes(entry, skipGates)) continue;
     const at = Date.parse(entry.at);
     approvedAt.set(entry.gate, Math.max(at, approvedAt.get(entry.gate) ?? -Infinity));
   }
@@ -184,6 +191,13 @@ function currentEntries(entries: readonly ReviewEntry[]): ReviewEntry[] {
 
     return Date.parse(entry.at) >= cutoff;
   });
+}
+
+/** ゲートを通したエントリか。承認、または宣言のあるゲートの 提出 / 再提出 */
+function passes(entry: ReviewEntry, skipGates: readonly ReviewGate[]): boolean {
+  if (entry.kind === '承認') return true;
+
+  return (entry.kind === '提出' || entry.kind === '再提出') && skipGates.includes(entry.gate);
 }
 
 /** 全エントリを通じて最新のものが 中止 か */

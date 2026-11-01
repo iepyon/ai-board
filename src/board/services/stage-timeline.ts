@@ -14,6 +14,7 @@ import { TIMELINE_OWNERS, type TimelineKind, type TimelineSegment } from '../../
 export interface TimelineTraces {
   readonly created: string;
   readonly startedAt: string | null;
+  /** 飛ばす宣言のあるゲート。そのゲートの 提出 / 再提出 を 承認 と同じに読む（`transitionOf`） */
   readonly skipGates: readonly ReviewGate[];
   readonly entries: readonly ReviewEntry[];
   /** PR を最後に Ready にした時刻 */
@@ -32,6 +33,7 @@ type Transition = TimelineKind | typeof CLOSE;
 /**
  * `## レビュー` のエントリ 1 件が始める区間。(ゲート, 種別) をキーにして引く。
  *
+ * 飛ばす宣言のあるゲートの 提出 / 再提出 は、引く前に 承認 に読み替える（`transitionOf`）。
  * `verify 承認` の `readying` は、その時点で PR が Ready なら `pr-review` に読み替える（`resolveNext`）。
  */
 const REVIEW_TRANSITIONS = {
@@ -71,6 +73,7 @@ interface Trace {
  * 痕跡を 1 つの列に並べて時刻の順に読み、各痕跡が次の区間の種類を決めて、そこまでの区間を閉じる。
  * `## レビュー` は全部のエントリを読む（`currentEntries` は通さない）。
  * 「計画から立て直させる」のように、今は効いていない古いエントリこそが区間の境目になるため。
+ * 着手は飛ばす宣言によらず `planning` を始める（plan を飛ばすカードでも、着手してから AI が計画を書く）。
  *
  * 並びは次を満たす。
  *
@@ -93,11 +96,11 @@ function toTraces(traces: TimelineTraces): Trace[] {
 
   const startedAt = effectiveStartedAt(traces);
   if (startedAt !== null) {
-    list.push(trace(startedAt, 1, traces.skipGates.includes('plan') ? 'implementing' : 'planning'));
+    list.push(trace(startedAt, 1, 'planning'));
   }
 
   for (const entry of traces.entries) {
-    list.push(trace(entry.at, 2, REVIEW_TRANSITIONS[`${entry.gate}:${entry.kind}`]));
+    list.push(trace(entry.at, 2, transitionOf(entry, traces.skipGates)));
   }
 
   if (traces.readyAt !== null) {
@@ -117,6 +120,18 @@ function toTraces(traces: TimelineTraces): Trace[] {
 
 function trace(at: string, rank: number, next: Transition): Trace {
   return { at, time: Date.parse(at), rank, next };
+}
+
+/**
+ * エントリ 1 件が始める区間。
+ *
+ * 飛ばす宣言のあるゲートの 提出 / 再提出 は、`gateState` と同じく人の 承認 と読む。
+ * plan の 提出 は `implementing` を、verify の 提出 / 再提出 は `readying` を始める。
+ */
+function transitionOf({ gate, kind }: ReviewEntry, skipGates: readonly ReviewGate[]): Transition {
+  const passes = (kind === '提出' || kind === '再提出') && skipGates.includes(gate);
+
+  return REVIEW_TRANSITIONS[`${gate}:${passes ? '承認' : kind}`];
 }
 
 /**

@@ -30,7 +30,9 @@ Commands:
   branch <id> <name>       ブランチを紐付ける。--clear で外す
   submit <id> [--gate <plan|verify>] [--resubmit] [--reason <text>]
                            ## レビュー に提出（--resubmit で再提出）を追記する
-                           （--gate はどのゲートへの提出か。既定は plan）
+                           （--gate はどのゲートへの提出か。既定は plan。
+                           plan は着手したカードで、plan が未提出か否決のときにだけ、
+                           verify は plan の承認後にだけ書ける）
   hold <id> --gate <plan|verify> --reason <text>
                            ## レビュー に保留を追記する。その手を自分では進められず
                            止まるときに、なぜ止まったか、人に何を決めてほしいかを書く
@@ -230,6 +232,21 @@ async function runBranch(args: ParsedArgs, deps: CardDependencies, io: CardCliIo
   return report(result, io);
 }
 
+/**
+ * AI の手の区切りを `提出` / `再提出` として残す。
+ *
+ * plan の提出（再提出を含む）は、人が着手したカードにだけ書ける。plan を飛ばす宣言のあるカードでは
+ * 提出がそのまま承認と読まれるので、着手していないカードに書けると、人の着手を経ずにアイデアから
+ * 実装中へ進めてしまう。宣言の有無で分けないのは、宣言の無いカードでも着手していないカードに
+ * AI が計画を出す道は無く、振る舞いの上で失うものが無いためである。
+ *
+ * plan の提出は、さらに plan ゲートが未提出（`none`）か否決（`rejected`）のときにだけ書ける。
+ * 提出済み・承認済み・保留のカードに書けると、plan を飛ばす宣言のあるカードでは `plan 再提出` が承認と
+ * 同じ区切りになり（`currentEntries`）、それより前の人の `verify 否決` を AI の 1 回の呼び出しで消せてしまう。
+ * 宣言の無いカードでも、否決を受けずに計画を出し直す手は無いので、宣言の有無で分けない。
+ *
+ * verify の提出は plan の通過を前提にするので、着手の条件は重ねない。
+ */
 async function runSubmit(args: ParsedArgs, deps: CardDependencies, io: CardCliIo): Promise<number> {
   const id = requireCardId(args, io);
   if (id === null) return 1;
@@ -240,8 +257,9 @@ async function runSubmit(args: ParsedArgs, deps: CardDependencies, io: CardCliIo
     return 1;
   }
 
-  if (gate === 'verify' && !(await planApproved(id, deps))) {
-    io.stderr('verify の提出は plan の承認後にしかできません\n');
+  const refusal = await submitRefusal(id, gate, deps);
+  if (refusal !== null) {
+    io.stderr(`${refusal}\n`);
     return 1;
   }
 
@@ -312,16 +330,33 @@ function trimNewlines(text: string): string {
 }
 
 /**
- * plan ゲートを通過しているか。カードが無ければ true を返し、見つからない旨は追記の usecase に任せる。
+ * 提出を拒む理由。書いてよければ null。カードが無ければ null を返し、見つからない旨は追記の usecase に任せる。
  *
- * plan の承認前に書かれた verify 提出は、承認の後には数えられない（`gateStates` が前のゲートの承認より
- * 古いエントリを外す）。それでもログには残り、読む人を惑わせるので、書く時点で拒む。
+ * - plan: 人が着手していて、plan ゲートが未提出か否決のときだけ書ける（`runSubmit` を参照）
+ * - verify: plan ゲートを通過しているときだけ書ける。plan の承認前に書かれた verify 提出は、承認の後には
+ *   数えられない（`gateStates` が前のゲートの承認より古いエントリを外す）。それでもログには残り、
+ *   読む人を惑わせるので、書く時点で拒む
  */
-async function planApproved(id: CardId, deps: CardDependencies): Promise<boolean> {
+async function submitRefusal(
+  id: CardId,
+  gate: ReviewGate,
+  deps: CardDependencies
+): Promise<string | null> {
   const card = await deps.cardRepository.findById(id);
-  if (card === null) return true;
+  if (card === null) return null;
 
-  return gateStates(parseReviewLog(card.body), card.skipGates).plan === 'approved';
+  const plan = gateStates(parseReviewLog(card.body), card.skipGates).plan;
+
+  if (gate === 'verify') {
+    return plan === 'approved' ? null : 'verify の提出は plan の承認後にしかできません';
+  }
+  if (card.startedAt === null) {
+    return 'plan の提出は着手したカードにしかできません（着手は人が指示します）';
+  }
+  if (plan !== 'none' && plan !== 'rejected') {
+    return `plan の提出は、plan が未提出か否決のときにしかできません（今の plan ゲート: ${plan}）`;
+  }
+  return null;
 }
 
 /** そのゲートの最新の判断が否決か。カードが無ければ true を返し、見つからない旨は追記の usecase に任せる */
