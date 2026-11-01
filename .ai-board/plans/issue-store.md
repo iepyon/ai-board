@@ -308,7 +308,7 @@ CLI に人の判断の入口を足すと、`CLAUDE.md` の「CLI に入口を足
 
 - [x] `ai-board status --html` を足す。`dashboard-sections.ts` の振り分けで、判断待ち（提出の本文・PR の URL・止まりの理由）/ AI 作業中 / アイデア / マージ済み / 中止 を出す自己完結の HTML にする。HTML を組む関数は純関数にしてテストする
 - [x] `board-loop` のスキルに「ボードを見せて」の節を足す（`status --html` をスクラッチパッドに書き、Artifact として同じパスで公開し直す）
-- [ ] `board-decide` のスキルを、`server` が `null` ならそのセッションで `ai-board --no-open` を起動し、`server.json` の URL で書いてから止める形に直す
+- [x] `board-decide` のスキルを、`server` が `null` ならそのセッションで `ai-board --no-open` を起動し、`server.json` の URL で書いてから止める形に直す
 
 ### 5. 書き込み境界とドキュメント
 
