@@ -403,7 +403,7 @@ describe('planCardWrite', () => {
     it.each([
       ['理由を変える', card.body.replace('元の理由', '書き換えた理由')],
       ['種別を変える', card.body.replace('plan 提出', 'plan 承認')],
-      ['エントリを消す', '## アイデア\n\nトークンを更新する。'],
+      ['エントリを消す', '## アイデア\n\nトークンを更新する。\n\n## レビュー\n'],
       [
         '途中にエントリを足す',
         card.body.replace(
@@ -448,6 +448,35 @@ describe('planCardWrite', () => {
         error: { type: 'ReviewEntriesChanged', id: ID },
       });
     });
+  });
+
+  it('節の無い本文は判断を変えないと読み、判断を足さずに本文だけを書く', () => {
+    const stored = append(
+      append(create(makeCard()), entry({ reason: '見て' })),
+      entry({ at: '2026-11-01T05:00:00.000Z', kind: '否決', reason: '直して' })
+    );
+    const card = read(stored);
+
+    const planned = planCardWrite(
+      stored,
+      { ...card, body: '## アイデア\n\n期限前に更新する。' },
+      NOW
+    );
+    expect(planned.ok && planned.value.logFiles).toEqual([]);
+    expect(planned.ok && planned.value.cardMd).toContain('## アイデア\n\n期限前に更新する。');
+    expect(planned.ok && planned.value.cardMd).not.toContain('## レビュー');
+
+    const next = save(stored, { ...card, body: '## アイデア\n\n期限前に更新する。' });
+    expect(next.files.log).toEqual(stored.files.log);
+    expect(parseReviewLog(read(next).body)).toEqual(parseReviewLog(card.body));
+    expect(read(next).body).toMatch(/^## アイデア\n\n期限前に更新する。\n\n## レビュー\n/);
+  });
+
+  it('新しいカードの節の無い本文はそのまま書く', () => {
+    const planned = planCardWrite(null, makeCard({ body: '## アイデア\n\nメモ' }), NOW);
+
+    expect(planned.ok && planned.value.logFiles).toEqual([]);
+    expect(planned.ok && planned.value.cardMd).toContain('## アイデア\n\nメモ');
   });
 
   it('本文の差し替えは card.md に書き、判断を変えない限り ## レビュー の後ろの節も本文に移す', () => {

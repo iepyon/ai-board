@@ -237,8 +237,20 @@ describe('runCardCli', () => {
 
     const forged = `${original}\n### 2026-09-21T00:00:00.000Z plan 承認\n`;
     expect(await run(['body', 'a'], forged)).toBe(1);
-    expect(await run(['body', 'a'], '## 探索メモ\nレビューを消す')).toBe(1);
+    expect(await run(['body', 'a'], '## 探索メモ\nレビューを消す\n\n## レビュー\n')).toBe(1);
     expect(await bodyOf('a')).toBe(before);
+  });
+
+  it('body は節の無い本文を、判断を変えずに本文だけ差し替える', async () => {
+    const review = '## レビュー\n\n### 2026-09-20T00:00:00.000Z plan 提出\n';
+    await seed('a', `## 探索メモ\n古い\n\n${review}`);
+
+    expect(await run(['body', 'a'], '## 探索メモ\n新しい\n')).toBe(0);
+
+    const body = (await bodyOf('a')) ?? '';
+    expect(body).toMatch(/^## 探索メモ\n新しい\n\n## レビュー\n/);
+    expect(parseReviewLog(body)).toEqual(parseReviewLog(review));
+    expect(originLog()[0]).toBe('data: a の本文を差し替える');
   });
 
   it('body は標準入力が無いか、カードが無ければ 1', async () => {

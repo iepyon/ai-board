@@ -7,7 +7,7 @@ import type { CardRepository } from '../../repositories/card.repository.js';
 import type { Card } from '../../models/card.js';
 import type { CardId } from '../../../shared/schemas/common.js';
 import type { ReviewEntry } from '../../models/review.js';
-import { appendReviewEntry, parseReviewLog } from '../../services/review-log.js';
+import { appendReviewEntry, hasReviewSection, parseReviewLog } from '../../services/review-log.js';
 import { demoteHeadings } from '../../repositories/card-files.js';
 
 // ============================================================
@@ -31,9 +31,19 @@ class InMemoryCardRepository implements CardRepository {
     return true;
   }
 
+  /** ファイルのリポジトリと同じく、節の無い本文は判断を変えない（今の判断を本文の後ろに付け直す） */
   async save(card: Card): Promise<boolean> {
-    if (!this.cards.has(card.id)) return false;
-    this.cards.set(card.id, card);
+    const existing = this.cards.get(card.id);
+    if (existing === undefined) return false;
+    if (hasReviewSection(card.body)) {
+      this.cards.set(card.id, card);
+      return true;
+    }
+    const body = parseReviewLog(existing.body).reduce(
+      (assembled, review) => appendReviewEntry(assembled, review),
+      card.body
+    );
+    this.cards.set(card.id, { ...card, body });
     return true;
   }
 
@@ -276,6 +286,23 @@ describe('updateCardBodyCommand の ## レビュー の検査', () => {
     });
 
     expect(result.ok).toBe(true);
+  });
+
+  it('節の無い本文は判断を変えずに本文だけを差し替え、読み直した判断付きのカードを返す', async () => {
+    const before = await repository.findById('reviewed' as CardId);
+
+    const result = await createUpdateCardBodyCommand(repository)({
+      id: 'reviewed' as CardId,
+      body: '## アイデア\n\nべつのことをする。',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.body).toMatch(/^## アイデア\n\nべつのことをする。\n\n## レビュー\n/);
+    expect(parseReviewLog(result.value.body)).toEqual(parseReviewLog(before?.body ?? ''));
+
+    const saved = await repository.findById('reviewed' as CardId);
+    expect(saved?.body).toBe(result.value.body);
   });
 
   it('## レビュー の節に触らない差し替えは通る', async () => {

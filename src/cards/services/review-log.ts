@@ -63,6 +63,14 @@ export function parseReviewLog(body: string): ReviewEntry[] {
   return entries;
 }
 
+/**
+ * 本文が `## レビュー` の節を持つか。`trim()` が `## レビュー` に等しい行があるかで決める
+ * （`parseReviewLog` と `stripReviewSection` が節を探すのと同じ読み方）。
+ */
+export function hasReviewSection(body: string): boolean {
+  return body.split('\n').some((line) => line.trim() === REVIEW_HEADING);
+}
+
 /** 正規表現のキャプチャを検証済みのエントリ見出しへ変換する。不正なら null */
 function toPendingEntry(match: RegExpExecArray): PendingEntry | null {
   const [, at, gate, kind] = match;

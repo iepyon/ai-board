@@ -925,6 +925,38 @@ describe('画面の書き込みはデータ用ブランチへ push してから�
     expect(originLog()).toEqual(before);
     expect((await readCard('reviewed'))?.body).toContain('plan 否決');
   });
+
+  it('節の無い本文の差し替えは 200 で、判断は変わらずに残る', async () => {
+    await writeCard(
+      'reviewed',
+      [
+        '---',
+        'id: reviewed',
+        'title: 判断済み',
+        '---',
+        '## アイデア',
+        '',
+        '古い',
+        '',
+        '## レビュー',
+        '',
+        '### 2026-09-05T00:00:00.000Z plan 否決',
+        '',
+        '直してほしい',
+      ].join('\n')
+    );
+    const before = await readCard('reviewed');
+
+    await request(buildApp())
+      .put('/api/cards/reviewed/body')
+      .send({ body: '## アイデア\n\n新しい' })
+      .expect(200);
+
+    const after = await readCard('reviewed');
+    expect(after?.body).toMatch(/^## アイデア\n\n新しい\n\n## レビュー\n/);
+    expect(parseReviewLog(after?.body ?? '')).toEqual(parseReviewLog(before?.body ?? ''));
+    expect(originLog()[0]).toBe('data: reviewed の本文を差し替える');
+  });
 });
 
 // ============================================================

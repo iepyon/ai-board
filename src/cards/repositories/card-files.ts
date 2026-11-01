@@ -7,7 +7,12 @@ import { CardIdSchema, type CardId, type MergeRequestIid } from '../../shared/sc
 import { CardFrontmatterSchema } from '../models/schemas/card.schema.js';
 import type { Card } from '../models/card.js';
 import type { ReviewEntry, ReviewGate, ReviewKind } from '../models/review.js';
-import { REVIEW_HEADING, appendReviewEntry, parseReviewLog } from '../services/review-log.js';
+import {
+  REVIEW_HEADING,
+  appendReviewEntry,
+  hasReviewSection,
+  parseReviewLog,
+} from '../services/review-log.js';
 
 // ============================================================
 // データ用ブランチのファイルの形 — 純関数のみ。I/O は持たない
@@ -532,10 +537,12 @@ export interface CardWrite {
  * 保存しようとする `Card` と今のファイルを比べて、書くファイルを求める。
  *
  * - 本文とメタ（と着手）だけを書き、判断のファイルは決して作らない。判断を足すのは `planReviewAppend` である
- * - `parseReviewLog` で読んだ判断が今と同じでなければ、書かずに `ReviewEntriesChanged` で失敗する
- *   （判断を足した本文・変えた本文・消した本文のどれも拒む）。
- *   `card.md` の本文には、`## レビュー` の節を除いた本文を書く
- * - 新しいカード（`stored` が null）は、本文に判断があれば失敗する
+ * - 本文が `## レビュー` の節を持たなければ（`hasReviewSection`）、判断は変えないと読み、本文をそのまま書く。
+ *   判断は `log/` にあり、本文の保存は `log/` のファイルを消さないので、節の無い本文で判断が消えることはない
+ * - 節を持つ本文は、`parseReviewLog` で読んだ判断が今と同じでなければ、書かずに `ReviewEntriesChanged` で失敗する
+ *   （判断を足した本文・変えた本文・エントリを消した本文のどれも拒む）。
+ *   同じなら、`card.md` の本文には `## レビュー` の節を除いた本文を書く
+ * - 新しいカード（`stored` が null）は、本文の節に判断があれば失敗する
  * - `startedAt` が変われば、着手（その時刻）か着手を戻す（`now`）のファイルを足す
  *
  * 本文の形から判断の追記を推し量らないので、理由に判断の見出しの形の行が混ざっていても、
@@ -641,11 +648,19 @@ class LogAdditions {
 }
 
 /**
- * `card.md` に書く本文を返す。`## レビュー` の判断が今と違えば `ReviewEntriesChanged`。
+ * `card.md` に書く本文を返す。
+ *
+ * - 節の無い本文: 判断は変えないと読み、そのまま書く
+ * - 節のある本文: `## レビュー` の判断が今と違えば `ReviewEntriesChanged`。同じなら節を除いて書く
+ *   （エントリの無い見出しだけの節も、今のエントリがあれば違うので拒む）
+ *
  * 判断の追記は `planReviewAppend` の口だけで行い、ここでは判断のファイルを足さない。
  */
 function planBody(current: CurrentCard | null, next: Card): Result<string, CardWriteError> {
-  if (!isDeepStrictEqual(parseReviewLog(current?.card.body ?? ''), parseReviewLog(next.body))) {
+  if (
+    hasReviewSection(next.body) &&
+    !isDeepStrictEqual(parseReviewLog(current?.card.body ?? ''), parseReviewLog(next.body))
+  ) {
     return err({ type: 'ReviewEntriesChanged', id: next.id });
   }
 
