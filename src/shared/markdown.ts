@@ -105,6 +105,30 @@ export function parseBlocks(body: string): Block[] {
   return blocks;
 }
 
+/**
+ * 判断の理由をブロックの並びに変える。`parseBlocks` と同じに読んでから、見出しのブロックを
+ * 記号（`#`）を残した 1 行の段落に置き換える。箇条書きの項目の子も同じに辿る。
+ *
+ * 理由は画面が値から描く判断の見出しの下に出すので、理由の中の行が見出しに見えないようにする。
+ * `parseBlocks` 自体の読み方は変えない（見出しの行は段落の切れ目にもなるので、読み方を変えると本文の描き方に触れる）。
+ */
+export function parseReasonBlocks(reason: string): Block[] {
+  return parseBlocks(reason).map(flattenHeading);
+}
+
+function flattenHeading(block: Block): Block {
+  if (block.type === 'heading') {
+    return { type: 'paragraph', lines: [`${'#'.repeat(block.level)} ${block.text}`] };
+  }
+  if (block.type === 'list') {
+    return {
+      ...block,
+      items: block.items.map((item) => ({ ...item, children: item.children.map(flattenHeading) })),
+    };
+  }
+  return block;
+}
+
 /** 今の行から 1 ブロックを読む。空行は読み飛ばして `null` を返す。どの場合も 1 行以上進める */
 function readBlock(cursor: Cursor): Block | null {
   const line = current(cursor);

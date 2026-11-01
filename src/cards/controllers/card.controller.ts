@@ -18,6 +18,7 @@ import {
   mapUpdateCardErrorToResponse,
 } from './card-error-mappings.js';
 import type { Card } from '../models/card.js';
+import { parseReviewLog, stripReviewSection } from '../services/review-log.js';
 import type { CardDependencies } from '../composition.js';
 import type { MoveCardCommand } from '../usecases/commands/move-card.command.js';
 import type { OrderRef } from '../usecases/commands/move-in-order.js';
@@ -26,6 +27,10 @@ import type { OrderRef } from '../usecases/commands/move-in-order.js';
 // カードレスポンス変換
 // ============================================================
 
+/**
+ * カードの応答。本文と判断は分けて返す: `body` は `## レビュー` の節を除いた本文、
+ * `reviews` は判断を書かれた順に並べた値の配列（`GET /api/board` の `BoardCard` と同じ形）。
+ */
 function toCardResponse(card: Card): Record<string, unknown> {
   return {
     id: card.id,
@@ -36,7 +41,13 @@ function toCardResponse(card: Card): Record<string, unknown> {
     branch: card.branch,
     mr: card.mr,
     rank: card.rank,
-    body: card.body,
+    body: stripReviewSection(card.body),
+    reviews: parseReviewLog(card.body).map(({ at, gate, kind, reason }) => ({
+      at,
+      gate,
+      kind,
+      reason,
+    })),
   };
 }
 

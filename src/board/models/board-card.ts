@@ -1,6 +1,7 @@
 import type { Stage } from '../../shared/schemas/common.js';
 import type { Card } from '../../cards/models/card.js';
-import type { GateState, ReviewGate, ReviewKind } from '../../cards/models/review.js';
+import type { GateState, ReviewEntry, ReviewGate, ReviewKind } from '../../cards/models/review.js';
+import { stripReviewSection } from '../../cards/services/review-log.js';
 import type { StageResolution } from '../services/stage-resolver.js';
 import type { CardHold } from '../services/next-action.js';
 import type { TimelineSegment } from '../../shared/timeline.js';
@@ -79,7 +80,13 @@ export interface BoardCard {
   readonly mr: number | null;
   /** 並び順。`cards` はこの実効値の順に並んで届く */
   readonly rank: number | null;
+  /** `## レビュー` の節を除いた本文。判断は `reviews` で別に返す */
   readonly body: string;
+  /**
+   * 判断の一覧（`## レビュー` のエントリ）。書かれた順に並ぶ。
+   * 理由は組み立てた本文から読むので、理由の中の見出しの行は `####` に下がっている
+   */
+  readonly reviews: readonly BoardCardReview[];
   /** 計画ファイルがまだ無ければ null */
   readonly plan: BoardCardPlan | null;
   /** PR が未紐付け、または GitHub 未接続なら null */
@@ -109,9 +116,15 @@ export interface Board {
   readonly generatedAt: string;
 }
 
-/** Card と導出結果から BoardCard を組み立てる */
+/**
+ * Card と導出結果から BoardCard を組み立てる。
+ *
+ * `entries` は `parseReviewLog(card.body)` の結果。呼び出し側が既に読んでいるので、読み直さずに受け取る。
+ * 本文と判断は分けて返し、`body` には `## レビュー` の節を含めない（画面が判断を本文の Markdown として描かないため）。
+ */
 export function toBoardCard(
   card: Card,
+  entries: readonly ReviewEntry[],
   resolution: StageResolution,
   movement: {
     floorStage: Stage;
@@ -139,10 +152,16 @@ export function toBoardCard(
     branch: card.branch,
     mr: card.mr,
     rank: card.rank,
-    body: card.body,
+    body: stripReviewSection(card.body),
+    reviews: entries.map(toBoardCardReview),
     plan,
     mrState,
     hold,
     timeline,
   };
+}
+
+/** 判断のエントリを応答の形にする */
+export function toBoardCardReview(entry: ReviewEntry): BoardCardReview {
+  return { at: entry.at, gate: entry.gate, kind: entry.kind, reason: entry.reason };
 }

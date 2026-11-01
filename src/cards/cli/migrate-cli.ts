@@ -30,9 +30,9 @@ import {
   legacyCardFiles,
   serializeDataVersion,
   serializeOrder,
-  stripReviewSection,
   type CardWriteError,
 } from '../repositories/card-files.js';
+import { stripReviewSection } from '../services/review-log.js';
 import { FileCardRepository } from '../repositories/file-card.repository.js';
 import { FileIdeaDividerRepository } from '../repositories/file-idea-divider.repository.js';
 import { describeDataStoreError } from './data-store-messages.js';

@@ -8,10 +8,10 @@ import { CardFrontmatterSchema } from '../models/schemas/card.schema.js';
 import type { Card } from '../models/card.js';
 import type { ReviewEntry, ReviewGate, ReviewKind } from '../models/review.js';
 import {
-  REVIEW_HEADING,
   appendReviewEntry,
-  parseEntryHeading,
+  hasReviewSection,
   parseReviewLog,
+  stripReviewSection,
 } from '../services/review-log.js';
 
 // ============================================================
@@ -536,17 +536,17 @@ export interface CardWrite {
 /**
  * 保存しようとする `Card` と今のファイルを比べて、書くファイルを求める。
  *
- * - 本文が「今の本文の末尾に判断を足したもの」（`appendReviewEntry` の結果）なら、足した判断を
- *   1 件 1 ファイルにする。理由は次の判断の見出しか本文の終わりまでで、`## ` の行では切らない
- * - そうでなければ本文の差し替えとして扱う。`parseReviewLog` で読んだ判断が今と同じでなければ
- *   書かずに失敗する（判断のファイルは追記だけで、書き換えも削除もしない）。
- *   `card.md` の本文には、`## レビュー` の節を除いた本文を書く
- * - 新しいカード（`stored` が null）は本文の差し替えとして扱うので、本文に判断があれば失敗する
+ * - 本文とメタ（と着手）だけを書き、判断のファイルは決して作らない。判断を足すのは `planReviewAppend` である
+ * - 本文が `## レビュー` の節を持たなければ（`hasReviewSection`）、判断は変えないと読み、本文をそのまま書く。
+ *   判断は `log/` にあり、本文の保存は `log/` のファイルを消さないので、節の無い本文で判断が消えることはない
+ * - 節を持つ本文は、`parseReviewLog` で読んだ判断が今と同じでなければ、書かずに `ReviewEntriesChanged` で失敗する
+ *   （判断を足した本文・変えた本文・エントリを消した本文のどれも拒む）。
+ *   同じなら、`card.md` の本文には `## レビュー` の節を除いた本文を書く
+ * - 新しいカード（`stored` が null）は、本文の節に判断があれば失敗する
  * - `startedAt` が変われば、着手（その時刻）か着手を戻す（`now`）のファイルを足す
  *
- * 足した判断が本文の差し替えなのか判断の追記なのかは、ここでは区別できない。
- * 本文の差し替えで判断を足させない検査は、本文の差し替えの usecase（`createUpdateCardBodyCommand`）が持つ。
- * CLI の `card body` も API の `PUT /api/cards/:id/body` もその usecase を通るので、入口ごとに検査を持たない。
+ * 本文の形から判断の追記を推し量らないので、理由に判断の見出しの形の行が混ざっていても、
+ * 本文の保存から判断が増えることはない。
  */
 export function planCardWrite(
   stored: StoredCard | null,
@@ -558,7 +558,7 @@ export function planCardWrite(
 
   const additions = new LogAdditions(next.id, stored?.files.log ?? []);
 
-  const body = planBody(current, next, additions);
+  const body = planBody(current, next);
   if (!body.ok) return body;
 
   const started = planStartedAt(current, next, now, additions);
@@ -578,6 +578,31 @@ export function planCardWrite(
 interface CurrentCard {
   readonly card: Card;
   readonly file: ParsedCardFile;
+}
+
+/**
+ * 判断を 1 件足すときに書く `log/` のファイルを求める。
+ *
+ * 判断は値のまま受け取り、理由はファイルの中身になるだけで、見出しとして読み直さない。
+ * ファイル名は `logFileName`（同じミリ秒に重なれば `-2`）、中身は理由の前後の空白を落としたもの。
+ * `card.md` には触らない。
+ *
+ * 今の `card.md` が読めなければ `MalformedCardFile`、時刻がファイル名にできなければ `InvalidLogTime`。
+ */
+export function planReviewAppend(
+  id: CardId,
+  stored: StoredCard,
+  entry: ReviewEntry
+): Result<LogFile, CardWriteError> {
+  if (parseCardFile(id, stored.files.cardMd) === null) {
+    return err({ type: 'MalformedCardFile', id });
+  }
+
+  const taken = new Set(stored.files.log.map((file) => file.name));
+  const name = logFileName(entry.at, entry.gate, entry.kind, taken);
+  if (name === null) return err({ type: 'InvalidLogTime', id, at: entry.at });
+
+  return ok({ name, content: logContent(entry.reason) });
 }
 
 /** 今のカードを読む。新しいカードなら null、`card.md` が読めなければ undefined */
@@ -622,23 +647,20 @@ class LogAdditions {
   }
 }
 
-/** 本文の差分から、足す判断のファイルを求め、`card.md` に書く本文を返す */
-function planBody(
-  current: CurrentCard | null,
-  next: Card,
-  additions: LogAdditions
-): Result<string, CardWriteError> {
-  const appended = current === null ? null : appendedEntries(current.card.body, next.body);
-
-  if (current !== null && appended !== null) {
-    for (const entry of appended) {
-      const failure = additions.add(entry.at, entry.gate, entry.kind, entry.reason);
-      if (failure !== null) return err(failure);
-    }
-    return ok(current.file.body);
-  }
-
-  if (!isDeepStrictEqual(parseReviewLog(current?.card.body ?? ''), parseReviewLog(next.body))) {
+/**
+ * `card.md` に書く本文を返す。
+ *
+ * - 節の無い本文: 判断は変えないと読み、そのまま書く
+ * - 節のある本文: `## レビュー` の判断が今と違えば `ReviewEntriesChanged`。同じなら節を除いて書く
+ *   （エントリの無い見出しだけの節も、今のエントリがあれば違うので拒む）
+ *
+ * 判断の追記は `planReviewAppend` の口だけで行い、ここでは判断のファイルを足さない。
+ */
+function planBody(current: CurrentCard | null, next: Card): Result<string, CardWriteError> {
+  if (
+    hasReviewSection(next.body) &&
+    !isDeepStrictEqual(parseReviewLog(current?.card.body ?? ''), parseReviewLog(next.body))
+  ) {
     return err({ type: 'ReviewEntriesChanged', id: next.id });
   }
 
@@ -669,80 +691,9 @@ function planStartedAt(
   return ok(null);
 }
 
-/**
- * `next` が `current` の末尾に判断を足しただけの本文なら、足した判断を返す。そうでなければ null。
- *
- * `appendReviewEntry` は、`## レビュー` が無ければ本文の末尾に節ごと作り、あれば節の末尾に足す。
- * 組み立てた本文では `## レビュー` が常に最後の節なので、どちらも本文の末尾に付く。
- * 足した部分は判断の見出しだけで区切り、`## ` の行では切らない（理由の中の `## 動かす手順` を残すため）。
- */
-function appendedEntries(current: string, next: string): ReviewEntry[] | null {
-  const prefix = current === '' ? '' : `${current.trimEnd()}\n\n`;
-  if (!next.startsWith(prefix)) return null;
-
-  let rest = next.slice(prefix.length);
-  const hasSection = current.split('\n').some((line) => line.trim() === REVIEW_HEADING);
-  if (!hasSection) {
-    const opening = `${REVIEW_HEADING}\n\n`;
-    if (!rest.startsWith(opening)) return null;
-    rest = rest.slice(opening.length);
-  }
-
-  const entries: ReviewEntry[] = [];
-  let reasonLines: string[] = [];
-
-  for (const line of rest.split('\n')) {
-    const heading = readableHeading(line);
-
-    if (heading === null) {
-      // 最初の行が判断の見出しでなければ、判断の追記ではない
-      if (entries.length === 0) return null;
-      reasonLines.push(line);
-      continue;
-    }
-
-    closeLast(entries, reasonLines);
-    reasonLines = [];
-    entries.push({ ...heading, reason: '' });
-  }
-
-  closeLast(entries, reasonLines);
-
-  return entries.length === 0 ? null : entries;
-}
-
-/** 判断の見出しとして読める行か。時刻がファイル名にできないものは見出しとみなさない */
-function readableHeading(line: string): Omit<ReviewEntry, 'reason'> | null {
-  const heading = parseEntryHeading(line);
-
-  return heading === null || toLogStamp(heading.at) === null ? null : heading;
-}
-
-function closeLast(entries: ReviewEntry[], reasonLines: readonly string[]): void {
-  const last = entries.at(-1);
-  if (last === undefined) return;
-
-  entries[entries.length - 1] = { ...last, reason: reasonLines.join('\n').trim() };
-}
-
 // ============================================================
 // ヘルパー
 // ============================================================
-
-/**
- * 本文から `## レビュー` の節（見出しから次の h2 の手前まで）を除く。
- * `parseReviewLog` と同じ切り方なので、節の後ろに置かれた節は本文に残る。
- */
-export function stripReviewSection(body: string): string {
-  const lines = body.split('\n');
-  const start = lines.findIndex((line) => line.trim() === REVIEW_HEADING);
-  if (start === -1) return trimNewlines(body);
-
-  const offset = lines.slice(start + 1).findIndex((line) => line.startsWith('## '));
-  const end = offset === -1 ? lines.length : start + 1 + offset;
-
-  return trimNewlines([...lines.slice(0, start), ...lines.slice(end)].join('\n'));
-}
 
 function trimNewlines(text: string): string {
   return text.replace(/^\n+/, '').replace(/\n+$/, '');

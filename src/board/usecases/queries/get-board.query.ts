@@ -17,6 +17,7 @@ import type { Stage } from '../../../shared/schemas/common.js';
 import { GATE_OF_STAGE } from '../../../shared/stage-gates.js';
 import {
   toBoardCard,
+  toBoardCardReview,
   type Board,
   type BoardCard,
   type BoardCardMr,
@@ -77,6 +78,7 @@ export function createGetBoardQuery(
 
       return toBoardCard(
         card,
+        entries,
         resolution,
         { floorStage, droppableStages: droppableStages(floorStage) },
         latestReview(entries, resolution.stage, card.skipGates),
@@ -124,7 +126,7 @@ function latestReview(
   const entry = latestGateEntry(entries, GATE_OF_STAGE[stage], skipGates);
   if (entry === null) return null;
 
-  return { at: entry.at, gate: entry.gate, kind: entry.kind, reason: entry.reason };
+  return toBoardCardReview(entry);
 }
 
 function toBoardCardMr(mr: MrState | null): BoardCardMr | null {

@@ -64,30 +64,31 @@ export function parseReviewLog(body: string): ReviewEntry[] {
 }
 
 /**
- * 1 行をエントリの見出し（`### <ISO8601> <gate> <種別>`）として読む。見出しでない・値が不正なら null。
- * `parseReviewLog` と同じ規則で、データ用ブランチのファイルの形（`card-files.ts`）も見出しを読む。
+ * 本文が `## レビュー` の節を持つか。`trim()` が `## レビュー` に等しい行があるかで決める
+ * （`parseReviewLog` と `stripReviewSection` が節を探すのと同じ読み方）。
  */
-export function parseEntryHeading(line: string): PendingEntry | null {
-  const match = ENTRY_HEADING.exec(line);
-
-  return match === null ? null : toPendingEntry(match);
+export function hasReviewSection(body: string): boolean {
+  return body.split('\n').some((line) => line.trim() === REVIEW_HEADING);
 }
 
 /**
- * 理由の中で、判断の見出し（`### <ISO8601> <gate> <種別>`）として読める最初の行を返す。無ければ null。
- *
- * 理由は見出しの下にそのまま書かれ、読む側（`parseReviewLog` と `card-files.ts` の `appendedEntries`）は
- * 行頭の見出しで新しいエントリと見なす。理由にこの形の行があると、別の判断（承認など）が増えてしまう。
- *
- * 拒む行は判断の見出しとして読める行だけに限る。`## 手順` のような見出しは、動作確認を頼む理由に
- * 手順書が求める書き方であり、組み立てるときに `demoteHeadings` で `####` へ下がるので節からはみ出さない。
- * 判定は読む側と同じ `parseEntryHeading` で行い、読む側の規則が変われば拒む側も一緒に変わるようにする。
- *
- * 行は `\r\n` / `\r` / `\n` のどれでも分ける（読む側は `\n` でしか分けないが、広く拒むほうが安全）。
- * 読む側はコードブロックを区別しないので、コードブロックの中の行も見つける。
+ * 本文から `## レビュー` の節（見出しから次の h2 の手前まで）を除く。
+ * `parseReviewLog` と同じ切り方なので、節の後ろに置かれた節は本文に残る。
+ * 前後の空行は落とす。
  */
-export function findEntryHeadingLine(text: string): string | null {
-  return text.split(/\r\n|\r|\n/).find((line) => parseEntryHeading(line) !== null) ?? null;
+export function stripReviewSection(body: string): string {
+  const lines = body.split('\n');
+  const start = lines.findIndex((line) => line.trim() === REVIEW_HEADING);
+  if (start === -1) return trimNewlines(body);
+
+  const offset = lines.slice(start + 1).findIndex((line) => line.startsWith('## '));
+  const end = offset === -1 ? lines.length : start + 1 + offset;
+
+  return trimNewlines([...lines.slice(0, start), ...lines.slice(end)].join('\n'));
+}
+
+function trimNewlines(text: string): string {
+  return text.replace(/^\n+/, '').replace(/\n+$/, '');
 }
 
 /** 正規表現のキャプチャを検証済みのエントリ見出しへ変換する。不正なら null */

@@ -13,6 +13,9 @@ import type { Card } from '../../cards/models/card.js';
 import type { MrSnapshot, MrState } from '../../board/models/mr-state.js';
 import type { MrSnapshotRepository } from '../../board/repositories/mr-snapshot.repository.js';
 import type { CardId, MergeRequestIid } from '../../shared/schemas/common.js';
+import type { ReviewEntry } from '../../cards/models/review.js';
+import { appendReviewEntry } from '../../cards/services/review-log.js';
+import { demoteHeadings } from '../../cards/repositories/card-files.js';
 
 // ============================================================
 // テストダブル
@@ -39,6 +42,14 @@ class InMemoryCardRepository implements CardRepository {
   async save(card: Card): Promise<boolean> {
     if (!this.cards.has(card.id)) return false;
     this.cards.set(card.id, card);
+    return true;
+  }
+  /** ファイルのリポジトリと同じく、理由の中の見出しを下げた判断を本文の `## レビュー` に足す */
+  async appendReview(id: CardId, entry: ReviewEntry): Promise<boolean> {
+    const card = this.cards.get(id);
+    if (card === undefined) return false;
+    const reason = demoteHeadings(entry.reason.trim());
+    this.cards.set(id, { ...card, body: appendReviewEntry(card.body, { ...entry, reason }) });
     return true;
   }
 }

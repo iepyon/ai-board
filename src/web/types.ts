@@ -77,7 +77,10 @@ export interface BoardCard {
   mr: number | null;
   /** 並び順。`cards` はこの順に並んで届くので、画面は受け取った順に出せばよい */
   rank: number | null;
+  /** `## レビュー` の節を除いた本文 */
   body: string;
+  /** 判断の一覧。書かれた順に並ぶ */
+  reviews: BoardCardReview[];
   plan: BoardCardPlan | null;
   mrState: BoardCardMr | null;
   /** AI の列にいるが人の判断を待っているときの止まり。止まっていなければ null */
