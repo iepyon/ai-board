@@ -275,7 +275,7 @@ CLI に人の判断の入口を足すと、`CLAUDE.md` の「CLI に入口を足
 
 ### 1. データの層
 
-- [ ] `src/cards/repositories/card-files.ts` に、データ用ブランチのファイルの形を読み書きする純関数を書く
+- [x] `src/cards/repositories/card-files.ts` に、データ用ブランチのファイルの形を読み書きする純関数を書く
   - `card.md`（frontmatter と本文）・`log/` のファイル名（時刻・gate・種別、`-2` の連番）・`order.yaml`・`ai-board-data.yaml` の版
   - `log/` から `## レビュー` の節と `startedAt` を組み立てる関数と、`Card` の差分から足すファイルを求める関数（既存のエントリが変わる差分は拒む）
   - テスト: 往復で `Card` が変わらない / 同じミリ秒の連番 / 着手と着手を戻すの最新で `startedAt` が決まる / `## レビュー` の書き換えを拒む / 理由の中の `## ` の見出しで節が切れない / 新しい版を読まずに止まる
