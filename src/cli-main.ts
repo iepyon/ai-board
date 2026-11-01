@@ -28,6 +28,7 @@ import {
   createMrStateSource,
 } from './board/composition.js';
 import { parseStatusArgs, runStatusCli, STATUS_USAGE } from './board/cli/status-cli.js';
+import { isPrCommand, runPrCli } from './board/cli/pr-cli.js';
 import { findLiveServer } from './infrastructure/server-info.js';
 import { isErr } from './shared/result.js';
 
@@ -47,6 +48,7 @@ const USAGE = `使い方: ai-board [options]
        ai-board status [--json] [--root <path>]   ボードの状態と次の一手（サーバ不要）
        ai-board migrate [--from <db>] [--empty] [--root <path>]
                                                   board.db をデータ用ブランチへ書き出す（ai-board migrate --help）
+       ai-board pr <command> [--root <path>]      PR の読み書き（gh api の REST。ai-board pr --help）
 
 計画ファイル駆動のローカル Web ダッシュボードを起動します。
 
@@ -226,6 +228,36 @@ async function runStatus(argv: readonly string[]): Promise<number> {
   );
 }
 
+/** `ai-board pr` の `gh` の上限。差分やコメントの全ページは、ポーリングの既定（10 秒）では足りないことがある */
+const PR_TIMEOUT_MS = 60_000;
+
+/**
+ * `pr` サブコマンド。手順書の `gh pr` を、REST（`gh api`）で置き換える。カードには書かない。
+ *
+ * `config.yaml` はデータ用ブランチの根にあるので、頭で 1 回取り直してから読む。
+ * 取り直せなくても止めない（移行前はデータ用ブランチが無く、`.ai-board/config.yaml` を読む）。
+ */
+async function runPr(argv: readonly string[]): Promise<number> {
+  const { root, rest } = extractRoot(argv);
+  const io = createProcessIo();
+  const runner = createCliRunner({ timeoutMs: PR_TIMEOUT_MS });
+
+  // 使い方の誤りや --help で、データ用ブランチの取り直しを起こさない
+  if (!isPrCommand(rest[0]) || rest.includes('--help') || rest.includes('-h')) {
+    return runPrCli(rest, { forge: null, runner }, io);
+  }
+
+  const paths = resolvePaths(root);
+  const refreshed = await createBoardDataStore(paths, runner).refresh();
+  if (isErr(refreshed)) {
+    io.stderr(`${describeDataStoreError(refreshed.error, legacyDbOf(paths))}\n`);
+  } else if (refreshed.value.kind === 'offline') {
+    io.stderr(`${describeOfflineRead(refreshed.value.reason)}\n`);
+  }
+
+  return runPrCli(rest, { forge: loadConfig(root).forge, runner }, io);
+}
+
 /** `--root <path>` を取り除いた残りの引数を返す */
 function extractRoot(argv: readonly string[]): { root: string; rest: string[] } {
   const index = argv.indexOf('--root');
@@ -269,6 +301,11 @@ async function main(): Promise<void> {
 
   if (command === 'status') {
     process.exitCode = await runStatus(rest);
+    return;
+  }
+
+  if (command === 'pr') {
+    process.exitCode = await runPr(rest);
     return;
   }
 
