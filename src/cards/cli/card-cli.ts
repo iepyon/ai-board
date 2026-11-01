@@ -4,7 +4,7 @@ import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
 import type { CommitMessage, DataStore, DataStoreError } from '../../infrastructure/data-store.js';
 import type { CardDependencies } from '../composition.js';
 import type { Card } from '../models/card.js';
-import type { CreateCardError, UpdateCardError } from '../errors/card-errors.js';
+import type { AppendReviewError, CreateCardError, UpdateCardError } from '../errors/card-errors.js';
 import { serializeCard } from '../repositories/card-markdown.js';
 import { CardWriteRefusedError } from '../repositories/file-card.repository.js';
 import { isReviewGate, type ReviewGate } from '../models/review.js';
@@ -79,7 +79,7 @@ interface Refused {
 }
 
 /** usecase のエラーには、リポジトリの拒否（`CardWriteRefused`）と `transact` の失敗が含まれる */
-type WriteFailure = CreateCardError | UpdateCardError | Refused;
+type WriteFailure = CreateCardError | UpdateCardError | AppendReviewError | Refused;
 
 const VALUE_FLAGS = new Set(['--title', '--id', '--reason', '--from', '--gate']);
 
@@ -525,6 +525,8 @@ function describeError(error: WriteFailure | DataStoreError, legacyDb: string | 
       return error.message;
     case 'CardWriteRefused':
       return `カードのファイルへの書き込みを拒みました（${error.reason}）`;
+    case 'ReasonHasEntryHeading':
+      return `--reason に判断の見出し（### <時刻> <gate> <種別>）として読める行は書けません: ${error.line}`;
     default:
       // 残りは DataStoreError。describeDataStoreError の switch が種別を網羅する
       return describeDataStoreError(error, legacyDb);

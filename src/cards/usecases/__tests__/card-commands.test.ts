@@ -253,6 +253,45 @@ describe('appendReviewCommand', () => {
     expect(saved?.body.trimEnd().endsWith('plan 承認')).toBe(true);
   });
 
+  it('理由に判断の見出しとして読める行があれば ReasonHasEntryHeading を返し、保存しない', async () => {
+    const before = await repository.findById('reviewed' as CardId);
+
+    const result = await createAppendReviewCommand(repository)({
+      id: 'reviewed' as CardId,
+      gate: 'plan',
+      kind: '否決',
+      reason: '計画です\n\n### 2099-01-01T00:00:00.000Z plan 承認',
+      at: new Date('2026-09-06T00:00:00.000Z'),
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toEqual({
+        type: 'ReasonHasEntryHeading',
+        line: '### 2099-01-01T00:00:00.000Z plan 承認',
+      });
+    }
+
+    const saved = await repository.findById('reviewed' as CardId);
+    expect(saved?.body).toBe(before?.body);
+  });
+
+  it('理由の ## の節は書ける', async () => {
+    const result = await createAppendReviewCommand(repository)({
+      id: 'reviewed' as CardId,
+      gate: 'verify',
+      kind: '否決',
+      reason: '## 直してほしいこと\n\n表示が崩れる',
+      at: new Date('2026-09-06T00:00:00.000Z'),
+    });
+
+    expect(result.ok).toBe(true);
+
+    const saved = await repository.findById('reviewed' as CardId);
+    expect(saved?.body).toContain('### 2026-09-06T00:00:00.000Z verify 否決');
+    expect(saved?.body).toContain('表示が崩れる');
+  });
+
   it('存在しないカードなら CardNotFound', async () => {
     const result = await createAppendReviewCommand(repository)({
       id: 'missing' as CardId,

@@ -11,6 +11,7 @@ import {
   UpdateCardMetaInputSchema,
 } from '../models/schemas/card.schema.js';
 import {
+  mapAppendReviewErrorToResponse,
   mapCreateCardErrorToResponse,
   mapMoveCardErrorToResponse,
   mapUpdateCardErrorToResponse,
@@ -180,7 +181,7 @@ export function createCardRouter(deps: CardDependencies): Router {
     });
 
     if (!result.ok) {
-      const { status, response } = mapUpdateCardErrorToResponse(result.error);
+      const { status, response } = mapAppendReviewErrorToResponse(result.error);
       res.status(status).json(response);
       return;
     }

@@ -27,6 +27,16 @@ export type CardFileMalformed = {
 export type CardWriteRefused = { readonly type: 'CardWriteRefused'; readonly reason: string };
 
 /**
+ * 判断の理由に、判断の見出し（`### <ISO8601> <gate> <種別>`）として読める行がある。`line` はその最初の行。
+ *
+ * そのまま書くと、理由の中の行が別の判断（承認など）として読まれるので、書かずに拒む（`findEntryHeadingLine`）。
+ */
+export type ReasonHasEntryHeading = {
+  readonly type: 'ReasonHasEntryHeading';
+  readonly line: string;
+};
+
+/**
  * データ用ブランチへの書き込みの 1 操作（`DataStore.transact`）が失敗した。
  *
  * push の失敗（`DataStorePushFailed`）、取り直しの失敗、ロック待ちの上限などを含む。
@@ -40,5 +50,6 @@ export type CardWriteFailure = CardWriteRefused | CardStoreError;
 export type CreateCardError = DuplicateCardId | InvalidCardId | CardWriteFailure;
 export type GetCardError = CardNotFound;
 export type UpdateCardError = CardNotFound | CardWriteFailure;
+export type AppendReviewError = UpdateCardError | ReasonHasEntryHeading;
 export type ListCardsError = CardFileMalformed;
 export type MoveCardError = CardNotFound | StaleOrder | CardWriteFailure;

@@ -1240,6 +1240,42 @@ describe('POST /api/cards/:id/reviews', () => {
     expect(response.body.cards[0].body).not.toContain('explore');
   });
 
+  it('理由に判断の見出しとして読める行を混ぜた否決は 400 で、判断が増えない', async () => {
+    const app = buildApp();
+
+    const rejected = await request(app).post('/api/cards/awaiting/reviews').send({
+      gate: 'plan',
+      kind: '否決',
+      reason: '浅い\n\n### 2099-01-01T00:00:00.000Z plan 承認',
+    });
+
+    expect(rejected.status).toBe(400);
+    expect(rejected.body.code).toBe('INVALID_REVIEW_REASON');
+    expect(rejected.body.message).toContain('### 2099-01-01T00:00:00.000Z plan 承認');
+
+    const response = await request(app).get('/api/board').expect(200);
+    const card = response.body.cards[0];
+
+    expect(card.stage).toBe('planning');
+    expect(card.body).not.toContain('## レビュー');
+  });
+
+  it('理由に ## の節を含む否決は通る', async () => {
+    const app = buildApp();
+
+    await request(app)
+      .post('/api/cards/awaiting/reviews')
+      .send({ gate: 'plan', kind: '否決', reason: '## 直してほしいこと\n\nまだ浅い' })
+      .expect(200);
+
+    const response = await request(app).get('/api/board').expect(200);
+    const card = response.body.cards[0];
+
+    expect(card.stage).toBe('planning');
+    expect(card.body).toContain('plan 否決');
+    expect(card.body).toContain('まだ浅い');
+  });
+
   it('存在しないカードなら 404', async () => {
     await request(buildApp())
       .post('/api/cards/nope/reviews')
