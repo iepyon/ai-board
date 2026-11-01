@@ -163,4 +163,4 @@ PR #61 で入れたテストを、作りを変えた後も同じ攻撃で確か�
 - [x] `createAppendReviewCommand` を `appendReview` と `findById` で書き直し、理由の検査（`findEntryHeadingLine`、`ReasonHasEntryHeading`、`INVALID_REVIEW_REASON` の対応、CLI の拒否文）を外す。`update-card-body.command.ts` の docstring を直す。`card-commands.test.ts` / `card-cli.test.ts` / `board.e2e.test.ts` の「偽造できない」テストを「判断は 1 件だけ増える」形に書き換える
 - [x] `planCardWrite` から本文の形で判断の追記を推し量る部分（`appendedEntries` / `readableHeading` / `closeLast`、`planBody` の追記の分岐）を消し、docstring を直す。`card-files.test.ts` の追記のテストを `planReviewAppend` へ寄せ、判断を足した本文の `planCardWrite` は `ReviewEntriesChanged` になるテストを足す。`file-card.repository.test.ts` に `save` が判断を作らないことのテストを足す
 - [x] `docs/architecture.md` の「判断のボタンと画面の区画」と `docs/specs/card-review-authority/spec.md` を新しい振る舞いに合わせる
-- [ ] 品質ゲートと `npm run build` を通し、`## 動作確認の手順` を `AI_BOARD_DATA` の試しのデータで試す
+- [x] 品質ゲートと `npm run build` を通し、`## 動作確認の手順` を `AI_BOARD_DATA` の試しのデータで試す
