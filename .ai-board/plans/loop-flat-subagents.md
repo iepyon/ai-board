@@ -235,7 +235,7 @@
 ### 1. 段を決める
 
 - [x] タスクの行の正規表現（`TASK_PATTERN` / `COMPLETED_TASK_PATTERN`）を、`plan.repository.ts` と段の判定の両方から使える場所へ移す。振る舞いは変えない
-- [ ] `src/board/services/impl-step.ts` に `resolveImplStep` と `ImplStep` 型を足し、`src/board/services/__tests__/` に単体テストを書く（表の 4 行、コードブロックの中の `## AI レビュー`、`[X]` と詰めた書き方、タスクが 0 件の計画）
+- [x] `src/board/services/impl-step.ts` に `resolveImplStep` と `ImplStep` 型を足し、`src/board/services/__tests__/` に単体テストを書く（表の 4 行、コードブロックの中の `## AI レビュー`、`[X]` と詰めた書き方、タスクが 0 件の計画）
 - [ ] `src/board/repositories/` にカードのブランチの計画を `git show` で読むリポジトリを足す。ローカルのブランチ → `origin` の追跡ブランチの順、`plans/` → `plans/archive/` の順に読み、読めなければ null を返す。
       `check-ref-format` を通らないブランチ名では `git` を呼ばない。`CliRunner` の偽物でテストを書く
 
