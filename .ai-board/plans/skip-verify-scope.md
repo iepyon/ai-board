@@ -113,6 +113,6 @@ PR中・マージ済み・中止のカードで入れても、そのカードは
 
 ### 3. ドキュメントとスキル
 
-- [ ] `README.md` のゲートの欄とスキップの節、`docs/architecture.md` の `SkipGateField` の記述に、出すカードの範囲を書く
+- [x] `README.md` のゲートの欄とスキップの節、`docs/architecture.md` の `SkipGateField` の記述に、出すカードの範囲を書く
 - [ ] `docs/specs/card-gate-skip/spec.md` に、PR中・マージ済み・中止のカードには動作確認を飛ばす手段を出さない Scenario を足す
 - [ ] `.claude/skills/board-decide/SKILL.md` の「動作確認を飛ばす」の条件に、ステージが PR中・マージ済みでないことを足す
