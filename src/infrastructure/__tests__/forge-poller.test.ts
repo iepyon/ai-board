@@ -1,5 +1,12 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { ForgePoller } from '../forge-poller.js';
+import { createCliRunner } from '../cli-runner.js';
+import { createDataStore, DATA_BRANCH } from '../data-store.js';
+import { FileMrSnapshotRepository } from '../../board/repositories/file-mr-snapshot.repository.js';
 import type { CardRepository } from '../../cards/repositories/card.repository.js';
 import type { ForgeClient } from '../../board/services/forge-client.js';
 import type { Card } from '../../cards/models/card.js';
@@ -57,12 +64,11 @@ function makeCard(overrides: Partial<Card> = {}): Card {
     id: 'refresh-token' as CardId,
     title: 'リフレッシュトークン対応',
     created: '2026-09-01T00:00:00.000Z',
-    explored: false,
-    implStartedAt: null,
-    change: null,
+    startedAt: null,
+    skipGates: [],
     branch: null,
     mr: null,
-    stageOverride: null,
+    rank: null,
     body: '',
     ...overrides,
   };
@@ -439,5 +445,96 @@ describe('ForgePoller の問い合わせの省略', () => {
     await poller.refresh();
 
     expect(snapshots.rows.size).toBe(0);
+  });
+});
+
+// ============================================================
+// 控えの置き場所 — データ用ブランチと使い捨ての JSON
+// ============================================================
+
+// 本物の git を何度も走らせるので、既定の 5 秒では遅い CI で足りないことがある
+describe('ForgePoller と FileMrSnapshotRepository', { timeout: 30_000 }, () => {
+  const card = () => makeCard({ mr: 42 as MergeRequestIid });
+  let tmp: string;
+  let origin: string;
+
+  function sh(args: readonly string[]): void {
+    execFileSync('git', [...args], { stdio: ['ignore', 'pipe', 'pipe'] });
+  }
+
+  /** clone ごとに親を分ける。使い捨ての控えはデータのワークツリーの親に置かれる */
+  function cloneSnapshots(name: string): FileMrSnapshotRepository {
+    const dataDir = path.join(tmp, name, 'data');
+    fs.mkdirSync(path.dirname(dataDir), { recursive: true });
+    sh(['clone', '--quiet', '--branch', DATA_BRANCH, origin, dataDir]);
+    const runner = createCliRunner({ timeoutMs: 30_000 });
+    return new FileMrSnapshotRepository(createDataStore({ dataDir, runner, lockPollMs: 10 }));
+  }
+
+  async function poll(
+    repository: FileMrSnapshotRepository,
+    client: ForgeClient
+  ): Promise<ForgePoller> {
+    const poller = new ForgePoller(new InMemoryCardRepository([card()]), client, repository, {
+      onUpdate,
+    });
+    await poller.refresh();
+    return poller;
+  }
+
+  beforeEach(() => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-board-forge-poller-'));
+
+    const globalConfig = path.join(tmp, 'gitconfig');
+    fs.writeFileSync(globalConfig, '');
+    vi.stubEnv('GIT_CONFIG_GLOBAL', globalConfig);
+    vi.stubEnv('GIT_CONFIG_NOSYSTEM', '1');
+    vi.stubEnv('GIT_AUTHOR_NAME', 'ai-board');
+    vi.stubEnv('GIT_AUTHOR_EMAIL', 'ai-board@example.com');
+    vi.stubEnv('GIT_COMMITTER_NAME', 'ai-board');
+    vi.stubEnv('GIT_COMMITTER_EMAIL', 'ai-board@example.com');
+
+    origin = path.join(tmp, 'origin.git');
+    sh(['init', '--quiet', '--bare', origin]);
+    const seed = path.join(tmp, 'seed');
+    sh(['clone', '--quiet', origin, seed]);
+    sh(['-C', seed, 'checkout', '--quiet', '--orphan', DATA_BRANCH]);
+    fs.writeFileSync(path.join(seed, 'ai-board-data.yaml'), 'version: 1\n');
+    sh(['-C', seed, 'add', '-A']);
+    sh(['-C', seed, 'commit', '--quiet', '-m', 'data: 始める']);
+    sh(['-C', seed, 'push', '--quiet', 'origin', `HEAD:refs/heads/${DATA_BRANCH}`]);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it('マージ済みの PR は、別の clone の新しいポーラーも問い合わせない', async () => {
+    // クラウドのセッションは毎回新しい clone から始まる。マージ済みの PR を毎回引き直さない
+    await poll(
+      cloneSnapshots('a'),
+      stubClient({ fetchByIid: vi.fn(async () => snap({ state: 'merged' })) })
+    );
+
+    const second = stubClient();
+    const poller = await poll(cloneSnapshots('b'), second);
+
+    expect(second.fetchByIid).not.toHaveBeenCalled();
+    expect(poller.get('refresh-token')?.state).toBe('merged');
+  });
+
+  it('開いている PR は、同じ clone の新しいポーラーは控えから始め、別の clone は引き直す', async () => {
+    const opened = snap();
+    const local = cloneSnapshots('a');
+    await poll(local, stubClient({ fetchByIid: vi.fn(async () => opened) }));
+
+    const same = stubClient({ fetchByIid: vi.fn(async () => opened) });
+    await poll(local, same);
+    expect(same.fetchByIid).toHaveBeenCalledWith(42, opened);
+
+    const other = stubClient({ fetchByIid: vi.fn(async () => opened) });
+    await poll(cloneSnapshots('b'), other);
+    expect(other.fetchByIid).toHaveBeenCalledWith(42, null);
   });
 });

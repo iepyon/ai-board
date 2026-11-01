@@ -24,7 +24,7 @@ export interface ForgePollerOptions {
  * PR 一覧の全件取得はページングで取りこぼすため使わない。
  * 取得先がダウンしていてもボードは落とさず、接続状態だけを error にする。
  *
- * キャッシュは DB の控え（`MrSnapshotRepository`）にも書き、最初の `refresh` で読み戻す。
+ * キャッシュは控え（`MrSnapshotRepository`）にも書き、最初の `refresh` で読み戻す。
  * `ai-board status` は呼ばれるたびに新しいプロセスで 1 度だけ `refresh` するので、
  * 控えが無いと毎回すべての PR を詳細まで引き直すことになる。
  */
@@ -123,7 +123,7 @@ export class ForgePoller implements MrStateProvider {
     }
   }
 
-  /** DB の控えをキャッシュへ読み戻す。プロセスごとに 1 度だけ */
+  /** 控えをキャッシュへ読み戻す。プロセスごとに 1 度だけ */
   private async load(): Promise<void> {
     if (this.loaded) return;
 
