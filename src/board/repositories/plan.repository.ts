@@ -2,7 +2,11 @@ import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
 import type { PlanDoc, PlanState, TaskProgress } from '../models/plan-state.js';
-import { COMPLETED_TASK_PATTERN, TASK_PATTERN } from '../models/plan-task.js';
+import {
+  COMPLETED_TASK_PATTERN,
+  TASK_PATTERN,
+  linesOutsideCodeBlocks,
+} from '../models/plan-task.js';
 
 // ============================================================
 // .ai-board/plans/ の読み取り（read-only）
@@ -61,12 +65,17 @@ export class FsPlanRepository implements PlanRepository {
 // パース
 // ============================================================
 
-/** 計画ファイルのチェックボックスを数える */
+/**
+ * 計画ファイルのチェックボックスを数える。
+ *
+ * フェンスで囲んだコードブロックの中の行は数えない（計画に書いたチェックボックスの例を
+ * タスクとして数えないため。見分け方は `plan-task.ts` の `linesOutsideCodeBlocks`）。
+ */
 export function countTasks(content: string): TaskProgress {
   let total = 0;
   let completed = 0;
 
-  for (const line of content.split('\n')) {
+  for (const line of linesOutsideCodeBlocks(content)) {
     if (TASK_PATTERN.test(line)) {
       total += 1;
       if (COMPLETED_TASK_PATTERN.test(line)) {

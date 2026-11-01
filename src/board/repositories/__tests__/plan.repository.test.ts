@@ -62,6 +62,35 @@ describe('countTasks', () => {
   it('チェックボックスが 1 つも無ければ 0 件', () => {
     expect(countTasks('# 計画\n\n方針だけ書いた')).toEqual({ completed: 0, total: 0 });
   });
+  it('フェンスで囲んだコードブロックの中のチェックボックスは数えない', () => {
+    const content = [
+      '## タスク',
+      '- [x] 済んだ',
+      '- [ ] 残り',
+      '',
+      '```markdown',
+      '- [ ] 例 1',
+      '- [ ] 例 2',
+      '```',
+      '',
+      '- 箇条書きの中の例',
+      '  ~~~',
+      '  - [ ] 例 3',
+      '  ~~~',
+    ].join('\n');
+    expect(countTasks(content)).toEqual({ completed: 1, total: 2 });
+  });
+
+  it('閉じていないフェンスの後ろのチェックボックスは数える', () => {
+    expect(countTasks('- [x] 1\n```\n- [ ] 2')).toEqual({ completed: 1, total: 2 });
+  });
+
+  it('CRLF の改行でも数える', () => {
+    expect(countTasks('- [x] 1\r\n```\r\n- [ ] 例\r\n```\r\n- [ ] 2')).toEqual({
+      completed: 1,
+      total: 2,
+    });
+  });
 });
 
 // ============================================================
