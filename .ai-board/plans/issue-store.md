@@ -296,7 +296,7 @@ CLI に人の判断の入口を足すと、`CLAUDE.md` の「CLI に入口を足
 - [x] `checkAuth` を `gh api repos/<owner>/<repo>` に変える。テストを合わせる
 - [x] `ai-board migrate [--from <db>] [--empty]` を足し、`ai-board import` を消す。`database.ts` を読み出しだけに縮め、SQLite のリポジトリと `config.ts` の `dbPath` / `dbSource` / `AI_BOARD_DB` を消す（`migrate` は `--from` の既定に `.ai-board/board.db` を使う）
   - テスト: `## レビュー` の時刻を保って分ける / `startedAt` から着手を 1 件書く / `## レビュー` の後ろに節があるカードも一致と判定する / 組み立て直したカードが DB と一致しなければ push しない / 既にデータ用ブランチがあれば止まる
-- [ ] `.gitignore` に `.ai-board/data/`、`.ai-board/cache/`、`.ai-board/data.lock` を足す
+- [x] `.gitignore` に `.ai-board/data/`、`.ai-board/cache/`、`.ai-board/data.lock` を足す
 
 ### 3. `ai-board pr`
 
