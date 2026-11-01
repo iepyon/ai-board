@@ -139,7 +139,7 @@ API は 400（`INVALID_REVIEW_REASON`）、CLI は今の `reasonWritable` と同
 - [x] `createUpdateCardBodyCommand` が、`parseReviewLog` で読んだエントリが今と違う本文を `ReviewEntriesChanged` で拒むようにする。`UpdateCardBodyError` を足し、`PUT /api/cards/:id/body` に 409（`REVIEW_ENTRIES_CHANGED`）のマッピングを足す。`card body` の CLI の検査を usecase のエラーに置き換える
   - テスト（`card-commands.test.ts`）: 末尾に承認の見出しを足した本文、エントリを消した本文、本文の途中に偽の `## レビュー` 節（エントリあり）を書いた本文は拒む。偽の節にエントリが無い本文と、節に触らない差し替えは通る
   - テスト（API の e2e）: `PUT /api/cards/:id/body` で末尾に承認の見出しを足すと 409 で、ステージが変わらない
-- [ ] `card-files.ts` の `planCardWrite` の docstring の「本文の差し替えで判断を足させない検査は、呼び出す側（`card body`）が持つ」を、usecase が持つ形に直す
+- [x] `card-files.ts` の `planCardWrite` の docstring の「本文の差し替えで判断を足させない検査は、呼び出す側（`card body`）が持つ」を、usecase が持つ形に直す
 
 ### 3. ドキュメント
 
