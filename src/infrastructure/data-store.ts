@@ -244,7 +244,11 @@ class GitDataStore implements DataStore {
     const committed = await this.commit(
       typeof message === 'string' ? message : message(written.value)
     );
-    if (isErr(committed)) return done(committed);
+    if (isErr(committed)) {
+      // 書きかけのファイルを残すと、次の取り直しまで記録されていない書き込みを読ませてしまう
+      await this.discardTo('HEAD');
+      return done(committed);
+    }
     if (!committed.value || base.value === null) return done(written);
 
     const pushed = await this.git(['push', '--quiet', '--no-verify', 'origin', DATA_PUSH_REFSPEC]);

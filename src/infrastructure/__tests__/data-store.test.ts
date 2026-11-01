@@ -645,6 +645,38 @@ describe('git の呼び出し', () => {
     ]);
   });
 
+  it('git commit が失敗したら、書きかけのファイルを捨ててから DataStoreGitFailed を返す', async () => {
+    const dataDir = cloneData(path.join(tmp, 'a'));
+    const failingCommit: CliRunner = {
+      run: (command, args, options) =>
+        args[2] === 'commit'
+          ? Promise.resolve(
+              err({
+                type: 'Failed',
+                command: 'git',
+                message: '終了コード 128 で失敗した',
+                httpStatus: null,
+              })
+            )
+          : runner.run(command, args, options),
+    };
+
+    const result = await createDataStore({ dataDir, runner: failingCommit }).transact(
+      'data: x',
+      async (dir) => {
+        write(dir, 'cards/x/card.md', 'x\n');
+        write(dir, 'ai-board-data.yaml', 'version: 1\nchanged: true\n');
+        return ok(undefined);
+      }
+    );
+
+    expect(result).toMatchObject(err({ type: 'DataStoreGitFailed', step: 'commit' }));
+    expect(git(dataDir, 'status', '--porcelain')).toBe('');
+    expect(fs.existsSync(path.join(dataDir, 'cards', 'x', 'card.md'))).toBe(false);
+    expect(fs.readFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'utf-8')).toBe('version: 1\n');
+    expect(originLog()).toEqual(['data: 始める']);
+  });
+
   it('git の失敗は DataStoreGitFailed にする', async () => {
     const dataDir = cloneData(path.join(tmp, 'a'));
     const failing: CliRunner = {
