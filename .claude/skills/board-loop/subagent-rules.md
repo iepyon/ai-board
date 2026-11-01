@@ -22,7 +22,8 @@
 
 ## カードの読み書き
 
-カードは `node "$MAIN/dist/cli.js" card ... --root "$MAIN"` で読み書きする（各定義では `ai-board card ...` と書く）。DB を直接触らない。
+カードは `node "$MAIN/dist/cli.js" card ... --root "$MAIN"` で読み書きする（各定義では `ai-board card ...` と書く）。
+データのワークツリー（`$MAIN/.ai-board/data/`）のファイルを直接書き換えない。データ用ブランチ `ai-board/data` へ直接コミット・push もしない。
 PR は `node "$MAIN/dist/cli.js" pr ... --root "$MAIN"` で読み書きする（各定義では `ai-board pr ...` と書く）。
 クラウドのセッションでは GraphQL が 403 になり `gh pr` が動かないので、`gh pr` は使わない。
 何を書いてよいかはサブエージェントごとに違い、各定義のハードルールに書く。
@@ -100,8 +101,20 @@ ai-board card hold <id> --gate verify --reason "<なぜ止まったか、人に�
 
 ## 動かして確かめるとき
 
-計画の `## 動作確認の手順` や CLI・API を動かすときは、共有の DB を汚さないよう `AI_BOARD_DB` で別の DB を指す。
-その DB や一時ファイルは `$WT` の外（スクラッチパッドなど）に置く。`$WT` の中に置くと未コミットの変更として残る。
+計画の `## 動作確認の手順` や CLI・API を動かすときは、共有のカードを汚さないよう `AI_BOARD_DATA` で別のデータのワークツリーを指す。
+指さなければ、カードへの書き込みは本物の `origin` の `ai-board/data` にコミットされ push される。
+`AI_BOARD_DATA` の指すディレクトリの `origin` へ push するので、スクラッチパッドに bare リポジトリを作り、それを `origin` にした clone を指す。
+
+```bash
+S=<スクラッチパッドの下の作業用ディレクトリ>
+git init --bare "$S/origin.git"
+git clone "$S/origin.git" "$S/data"
+AI_BOARD_DATA="$S/data" node "$WT/dist/cli.js" migrate --empty   # 空のデータ用ブランチを作る（カードを持ち込むなら --from <board.db の複製>）
+```
+
+`server.json`・ロック（`data.lock`）・PR の状態の控え（`cache/`）は、`AI_BOARD_DATA` の指すディレクトリの親に置かれる。
+clone は `$S/data` のように専用のディレクトリにし、スクラッチパッドの根そのものを指さない。
+clone・bare リポジトリ・一時ファイルは `$WT` の外（スクラッチパッドなど）に置く。`$WT` の中に置くと未コミットの変更として残る。
 自分で起動したサーバは止めてから終える。
 
 ## ハードルール
@@ -112,7 +125,7 @@ ai-board card hold <id> --gate verify --reason "<なぜ止まったか、人に�
 - `startedAt` / `rank` / `skipGates` を書かない。アイデアの表の区切り線も動かさない
 - `## レビュー` に 承認 / 否決 / 中止 を書かない（plan と verify のどちらでも人が書く）
 - `board-decide` のスキルを使わない。共有のボードのサーバの人の API（`/api/...`）と `server.json` も使わない
-  （人の判断を書く入口であり、人がチャットで頼んだときに人のセッションだけが使う）。`AI_BOARD_DB` で別の DB を指して自分で起動したサーバを試すのは構わない
+  （人の判断を書く入口であり、人がチャットで頼んだときに人のセッションだけが使う）。`AI_BOARD_DATA` で試しの clone を指して自分で起動したサーバを試すのは構わない
 - 計画レビュー / 動作確認 / PR中 のカードに触らない。PR をマージしない
 - 品質ゲート `cd "$WT" && npm run typecheck && npm run lint && npm run format:check && npm test` を通らないままコミットしない。
   計画ファイルだけの変更でも走らせる（ブランチが既に壊れていれば、そこへ積まずに気づける）
