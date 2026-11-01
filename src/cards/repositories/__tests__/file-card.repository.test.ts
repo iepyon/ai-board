@@ -7,6 +7,27 @@ import type { Card } from '../../models/card.js';
 import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
 import { appendReviewEntry } from '../../services/review-log.js';
 
+/**
+ * 読む間にファイルが消える競合を再現するためのフック。`node:fs` の名前空間は書き換えられないので、
+ * モジュールごと差し替えて、`readFileSync` / `readdirSync` の直前にフックを呼ぶ（フックが無ければ素通し）
+ */
+const fsHooks = vi.hoisted(() => ({
+  beforeRead: null as ((target: string) => void) | null,
+}));
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof fs>();
+  const readFileSync = ((...args: Parameters<typeof actual.readFileSync>) => {
+    fsHooks.beforeRead?.(String(args[0]));
+    return actual.readFileSync(...args);
+  }) as typeof actual.readFileSync;
+  const readdirSync = ((...args: Parameters<typeof actual.readdirSync>) => {
+    fsHooks.beforeRead?.(String(args[0]));
+    return actual.readdirSync(...args);
+  }) as typeof actual.readdirSync;
+  return { ...actual, readFileSync, readdirSync };
+});
+
 let dataDir: string;
 
 beforeEach(() => {
@@ -16,6 +37,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  fsHooks.beforeRead = null;
   vi.restoreAllMocks();
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
@@ -260,6 +282,33 @@ describe('FileCardRepository', () => {
     expect((await repository.findAll()).map((card) => card.id)).toEqual(['good']);
     expect(await repository.findById('bad' as CardId)).toBeNull();
     expect(await repository.findById('no-card-md' as CardId)).toBeNull();
+  });
+
+  it('読む間に消えた log/ のファイルは読み飛ばし、例外を投げない', async () => {
+    const repository = repo();
+    await repository.create(makeCard({ startedAt: '2026-09-05T00:00:00.000Z' }));
+    const logDir = path.join(dataDir, 'cards', ID, 'log');
+
+    // 一覧の後、中身を読む直前に、取り直しの reset --hard / clean がファイルを消したとみなす
+    fsHooks.beforeRead = (target) => {
+      if (path.dirname(target) === logDir) fs.rmSync(target, { force: true });
+    };
+
+    const cards = await repository.findAll();
+    expect(cards.map((card) => card.id)).toEqual([ID]);
+    expect(cards[0]?.startedAt).toBeNull();
+  });
+
+  it('読む間に消えた log/ のディレクトリは空とみなし、例外を投げない', async () => {
+    const repository = repo();
+    await repository.create(makeCard({ startedAt: '2026-09-05T00:00:00.000Z' }));
+    const logDir = path.join(dataDir, 'cards', ID, 'log');
+
+    fsHooks.beforeRead = (target) => {
+      if (target === logDir) fs.rmSync(target, { recursive: true, force: true });
+    };
+
+    expect((await repository.findById(ID))?.startedAt).toBeNull();
   });
 
   it('存在しない ID や、ID として不正な ID には null を返す', async () => {

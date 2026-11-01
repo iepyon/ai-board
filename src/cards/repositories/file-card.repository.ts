@@ -241,15 +241,25 @@ function readFileOrNull(file: string): string | null {
   }
 }
 
-/** `log/` のファイルだけを読む。ディレクトリは読まない */
+/**
+ * `log/` のファイルだけを読む。ディレクトリは読まない。
+ *
+ * サーバはロックを取らずに読むので、読む間に取り直しや CLI の書き込みが `reset --hard` / `clean` で
+ * `log/` やその中のファイルを消すことがある。消えたもの（ENOENT）は読み飛ばし、ボード全体を 500 にしない。
+ */
 function readLogFiles(logDir: string): LogFile[] {
-  if (!fs.existsSync(logDir)) return [];
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(logDir, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw error;
+  }
 
-  return fs
-    .readdirSync(logDir, { withFileTypes: true })
+  return entries
     .filter((entry) => entry.isFile())
-    .map((entry) => ({
-      name: entry.name,
-      content: fs.readFileSync(path.join(logDir, entry.name), 'utf-8'),
-    }));
+    .flatMap((entry) => {
+      const content = readFileOrNull(path.join(logDir, entry.name));
+      return content === null ? [] : [{ name: entry.name, content }];
+    });
 }
