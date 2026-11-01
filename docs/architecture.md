@@ -94,15 +94,18 @@ CLI（`src/cards/cli/card-cli.ts`）には `startedAt` / `rank` / `skipGates` �
 （plan を飛ばすカードの `plan 再提出` は承認と同じ区切りになるので、いつでも書けると人の `verify 否決` を打ち消せてしまう）。
 逆に人の API（`POST /api/cards/:id/reviews`）は `HUMAN_REVIEW_KINDS`（承認 / 否決 / 中止）だけを受け、提出 / 再提出 / 保留 は 400 で拒む。
 
-判断の追記と本文の差し替えで、判断を偽造させない検査は usecase が持ち、CLI と API のどちらから書いても同じに効く。
+判断の追記と本文の保存は、リポジトリ（`CardRepository`）の別の口に分かれており、判断は文字列を経由せずに値のまま書く。
+判断を偽造させないのは入口ごとの検査ではなく、この作りである。CLI と API のどちらから書いても同じに効く。
 
-- **理由に判断の見出しとして読める行は書けない。** `createAppendReviewCommand` は、理由に `parseEntryHeading` が見出しとして読む行
-  （`### <時刻> <gate> <種別>`。`\r\n` / `\r` / `\n` のどれで分けた行も、コードブロックの中の行も）があれば、書かずに `ReasonHasEntryHeading` を返す。
-  書けば、その行が別の判断として読まれ、判断のファイルが増えるためである。CLI の `submit` / `hold` は 1 で終わり、API は 400（`INVALID_REVIEW_REASON`）を返す。
-  `## 手順` のような見出しは書ける（組み立てるときに `####` へ下がる）
-- **本文の差し替えで `## レビュー` のエントリを変えられない。** `createUpdateCardBodyCommand` は、`parseReviewLog` で読んだエントリが今と変わる本文を、
-  書かずに `ReviewEntriesChanged` で拒む。末尾に判断の見出しを足しただけの本文（リポジトリの層の `planCardWrite` は追記として通す形）も拒む。
-  CLI の `body` は 1 で終わり、API（`PUT /api/cards/:id/body`）は 409（`REVIEW_ENTRIES_CHANGED`）を返す
+- **判断は値のまま 1 件だけ足す。** `createAppendReviewCommand` は判断（時刻・gate・種別・理由）をリポジトリの `appendReview` に渡し、
+  `log/` に判断のファイルを 1 つ書く（ファイル名と中身は `card-files.ts` の `planReviewAppend` が決める）。`card.md` には触らない。
+  理由はファイルの中身になるだけで、見出しとして読み直さない。理由に `### <時刻> <gate> <種別>` の形の行があっても拒まず、
+  判断は指定した 1 件だけが増える。その行は組み立てるときに `####` へ下がり、理由の一部として見える
+- **本文の保存は判断を作らない。** `save`（`planCardWrite`）は本文とメタ（と着手）だけを書き、判断のファイルを決して作らない。
+  `parseReviewLog` で読んだ `## レビュー` のエントリが今と変わる本文（末尾に判断の見出しを足しただけの本文も）は、書かずに `ReviewEntriesChanged` で拒む
+- **本文の差し替えで `## レビュー` のエントリを変えられない。** `createUpdateCardBodyCommand` も同じ比較を書く前に行い、`ReviewEntriesChanged` を返す。
+  CLI の `body` は 1 で終わり、API（`PUT /api/cards/:id/body`）は 409（`REVIEW_ENTRIES_CHANGED`）を返す。
+  リポジトリの拒否は保存の拒否（`CardWriteRefused`）になるので、人に「判断は判断のボタンから足す」と返すのは usecase の役目である
 
 どのカードにどの判断のボタンを出すかは `src/shared/dashboard-sections.ts` の `decisionsFor` が決める。
 
@@ -231,7 +234,7 @@ git はすべて `cli-runner.ts` を通し、引数は配列で渡す。`origin`
 読み出しは、CLI のコマンドの頭とサーバの起動時に 1 回取り直す。fetch に失敗したら（オフライン）警告して手元の内容で読むが、書き込みは失敗にする。
 画面の書き込みは push が終わるまで応答を待つ。push・fetch の失敗とロック待ちは 503、データ用ブランチが無いなどの置き場所の不備は 500、
 判断のエントリを書き換える保存の拒否は 409 になる（`card-error-mappings.ts` の `mapCardWriteFailureToResponse`）。
-usecase が書く前に拒むもの（理由の見出しの行は 400、本文の差し替えでエントリが変わるものは 409）は、「判断のボタンと画面の区画」に書く。
+usecase が書く前に拒むもの（本文の差し替えでエントリが変わるものは 409）と、判断の追記の口は、「判断のボタンと画面の区画」に書く。
 
 **通知。** サーバは計画のディレクトリとデータのワークツリーを chokidar で見て（`src/infrastructure/watch.ts`）、変化を SSE 経由でブラウザへ知らせる。
 `.git` の下、`data.lock`、`cache/`、`server.json` は見ない（カードの変化が無くても発火するため）。
