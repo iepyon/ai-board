@@ -3,7 +3,7 @@ id: skip-verify-scope
 title: ユーザは「動作確認を飛ばす」のチェックボックスを、意味のあるカードでだけ見たい
 created: '2026-10-30T03:19:06.455Z'
 skipGates: []
-branch: null
+branch: skip-verify-scope
 mr: null
 ---
 
