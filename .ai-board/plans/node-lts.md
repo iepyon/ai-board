@@ -88,7 +88,7 @@ CI は各メジャーの最新を使うため、24.0 そのものは CI で確�
 
 ## タスク
 
-- [ ] `package.json` の `engines.node` を `>=24.0.0` にする
+- [x] `package.json` の `engines.node` を `>=24.0.0` にする
 - [ ] `@types/node` を 24 系に下げ（`npm install -D @types/node@^24`）、`package-lock.json` を更新する。`npm run typecheck` が落ちたら、その箇所を 24 にある API で書き直す
 - [ ] `.github/workflows/ci.yml` を `node-version: ['24', '26']` のマトリクスにし、`engines` に合わせる旨のコメントを直す
 - [ ] README の「使い方」の先頭に、動かす前提（Node 24 以上、なるべく 24 系の最新）を書く
