@@ -11,6 +11,8 @@ import type { MrStateProvider } from '../../services/mr-state-provider.js';
 import type { ForgeConnection } from '../../models/mr-state.js';
 import { HOLD_REASONS } from '../../services/next-action.js';
 import type { ServerLocation } from '../../../infrastructure/server-info.js';
+import type { BranchPlanRepository } from '../../repositories/branch-plan.repository.js';
+import type { ImplStepPlan } from '../../services/impl-step.js';
 import { parseStatusArgs, runStatusCli, type StatusReport } from '../status-cli.js';
 
 // ============================================================
@@ -82,7 +84,8 @@ function stubProvider(
 async function run(
   argv: readonly string[],
   provider = stubProvider(),
-  findServer?: () => ServerLocation | null
+  findServer?: () => ServerLocation | null,
+  branchPlanRepository?: BranchPlanRepository
 ): Promise<number> {
   const cards = createFileCardDependencies(dataDir);
   const board = createBoardDependencies(
@@ -94,7 +97,11 @@ async function run(
 
   return runStatusCli(
     argv,
-    { ...board, ...(findServer ? { findServer } : {}) },
+    {
+      ...board,
+      ...(findServer ? { findServer } : {}),
+      ...(branchPlanRepository ? { branchPlanRepository } : {}),
+    },
     {
       stdout: (text) => {
         stdout += text;
@@ -129,6 +136,7 @@ describe('ai-board status --json', () => {
       cardId: 'started',
       action: 'plan',
       reason: '着手が指示され、計画がまだ無い',
+      step: null,
     });
     expect(report.waiting.map((card) => [card.id, card.stage])).toEqual([
       ['reviewing', 'plan-review'],
@@ -218,6 +226,7 @@ describe('ai-board status --json', () => {
       cardId: 'started',
       action: 'plan',
       reason: '着手が指示され、計画がまだ無い',
+      step: null,
     });
     expect(report.waiting).toEqual([
       {
@@ -361,6 +370,90 @@ describe('ai-board status --json', () => {
 });
 
 // ============================================================
+// --json の next.step（implement の段）
+// ============================================================
+
+/** 読み手の偽物。呼ばれた引数を控え、決めた計画を返す */
+function stubPlanReader(plan: ImplStepPlan | null): BranchPlanRepository & {
+  readonly calls: Array<[string, string]>;
+} {
+  const calls: Array<[string, string]> = [];
+  return {
+    calls,
+    find: (cardId, branch) => {
+      calls.push([cardId, branch]);
+      return Promise.resolve(plan);
+    },
+  };
+}
+
+async function runJsonWith(reader: BranchPlanRepository): Promise<StatusReport> {
+  expect(await run(['--json'], stubProvider(), undefined, reader)).toBe(0);
+  return JSON.parse(stdout) as StatusReport;
+}
+
+const IMPLING = "startedAt: '2026-10-01T00:00:00.000Z'\nbranch: impl-branch\n";
+
+describe('ai-board status --json の next.step', () => {
+  it('implement の手では、カードのブランチの計画から段を載せる', async () => {
+    await writeCard('impl', IMPLING, review('承認'));
+    const reader = stubPlanReader({ location: 'active', text: '# 計画\n\n- [x] 1\n- [ ] 2\n' });
+
+    const report = await runJsonWith(reader);
+
+    expect(report.next).toMatchObject({ cardId: 'impl', action: 'implement', step: 'task' });
+    expect(reader.calls).toEqual([['impl', 'impl-branch']]);
+  });
+
+  it('倒し終えて AI レビュー節が無ければ review、archive 済みなら close を載せる', async () => {
+    await writeCard('impl', IMPLING, review('承認'));
+
+    const toReview = await runJsonWith(stubPlanReader({ location: 'active', text: '- [x] 1\n' }));
+    expect(toReview.next?.step).toBe('review');
+
+    stdout = '';
+    const closed = await runJsonWith(stubPlanReader({ location: 'archived' }));
+    expect(closed.next?.step).toBe('close');
+  });
+
+  it('implement 以外の手では計画を読まず、step は null', async () => {
+    await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\nbranch: started\n");
+    const reader = stubPlanReader({ location: 'active', text: '- [ ] 1\n' });
+
+    const report = await runJsonWith(reader);
+
+    expect(report.next).toMatchObject({ cardId: 'started', action: 'plan', step: null });
+    expect(reader.calls).toEqual([]);
+  });
+
+  it('計画を読めなければ step は null のまま、status は成功する', async () => {
+    await writeCard('impl', IMPLING, review('承認'));
+
+    const report = await runJsonWith(stubPlanReader(null));
+
+    expect(report.next).toMatchObject({ cardId: 'impl', action: 'implement', step: null });
+  });
+
+  it('カードの branch が null なら、読み手を呼ばずに step は null', async () => {
+    await writeCard('impl', "startedAt: '2026-10-01T00:00:00.000Z'\n", review('承認'));
+    const reader = stubPlanReader({ location: 'active', text: '- [ ] 1\n' });
+
+    const report = await runJsonWith(reader);
+
+    expect(report.next).toMatchObject({ action: 'implement', step: null });
+    expect(reader.calls).toEqual([]);
+  });
+
+  it('読み手を渡さなければ、implement でも step は null', async () => {
+    await writeCard('impl', IMPLING, review('承認'));
+
+    const report = await runJson();
+
+    expect(report.next).toMatchObject({ action: 'implement', step: null });
+  });
+});
+
+// ============================================================
 // 人向けの出力
 // ============================================================
 
@@ -379,7 +472,16 @@ describe('ai-board status', () => {
     expect(stdout).toContain('AI 作業中 (1)');
     // 計画ファイルが無いので着手の時刻から数え、3 日以上たっている
     expect(stdout).toContain('impl  [実装中]  impl のタイトル  ※ 動きなし');
-    expect(stdout).toContain('次の一手: implement impl（計画が承認されている）');
+    expect(stdout).toContain('次の一手: implement impl 段=不明（計画が承認されている）');
+  });
+
+  it('implement の次の一手に、カードのブランチの計画から決めた段を出す', async () => {
+    await writeCard('impl', IMPLING, review('承認'));
+    const reader = stubPlanReader({ location: 'active', text: '- [x] 1\n' });
+
+    expect(await run([], stubProvider(), undefined, reader)).toBe(0);
+
+    expect(stdout).toContain('次の一手: implement impl 段=review（計画が承認されている）');
   });
 
   it('進められるカードが無ければ、次の一手は なし', async () => {

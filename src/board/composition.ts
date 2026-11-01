@@ -8,6 +8,10 @@ import { GhForgeClient } from './services/github-client.js';
 import { FsPlanRepository, type PlanRepository } from './repositories/plan.repository.js';
 import type { MrSnapshotRepository } from './repositories/mr-snapshot.repository.js';
 import { FileMrSnapshotRepository } from './repositories/file-mr-snapshot.repository.js';
+import {
+  GitBranchPlanRepository,
+  type BranchPlanRepository,
+} from './repositories/branch-plan.repository.js';
 import type { DataStore } from '../infrastructure/data-store.js';
 import {
   disabledMrStateProvider,
@@ -57,6 +61,14 @@ export interface MrStateSource {
 /** マージ済みの控えはデータ用ブランチに、それ以外は `<dataDir の親>/cache/` に置く */
 export function createFileMrSnapshotRepository(store: DataStore): MrSnapshotRepository {
   return new FileMrSnapshotRepository(store);
+}
+
+/** カードのブランチの計画を `git -C <repoRoot> show` で読む。`ai-board status` の `next.step` だけに使う */
+export function createBranchPlanRepository(
+  runner: CliRunner,
+  repoRoot: string
+): BranchPlanRepository {
+  return new GitBranchPlanRepository(runner, repoRoot);
 }
 
 /**
