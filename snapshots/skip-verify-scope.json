@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-11-01T11:22:49Z\",false,\"1cf5c631d5f7c4e9adfbf330dab723e60a719751\",0,0,\"2026-11-01T11:22:49Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 57,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "skip-verify-scope",
+    "title": "「動作確認を飛ばす」のチェックボックスを意味のあるカードにだけ出す",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/57",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-11-01T11:12:20Z",
+    "mergedAt": "2026-11-01T11:22:49Z",
+    "readyAt": "2026-11-01T11:12:24Z",
+    "convertedToDraftAt": null
+  }
+}
