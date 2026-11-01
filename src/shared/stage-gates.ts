@@ -1,4 +1,4 @@
-import type { Stage } from './schemas/common.js';
+import { stageRank, type Stage } from './schemas/common.js';
 
 /**
  * その列が人の判断を待っているゲート。待ちの列でなければ undefined。
@@ -26,4 +26,18 @@ export function withSkipGate<G extends 'plan' | 'verify'>(
   const others = skipGates.filter((each) => each !== gate);
 
   return skip ? [...others, gate] : others;
+}
+
+/**
+ * 詳細パネルに「動作確認を飛ばす」のチェックボックスを出すか。
+ *
+ * 動作確認の列をまだ通っていない（進行度が `verifying` 以下の）、中止でないカードだけ真を返す。
+ * PR中・マージ済みのカードはもう動作確認の列を通らず、中止のカードは作業も判断も待っていないので、
+ * 宣言を入れても何も変わらない。効かない操作を画面に出さないために使う。
+ *
+ * ステージを列挙せず進行度で比べるので、列が増えても `verifying` より前か後かで決まる。
+ * `src/shared/` は web からも読むので、サーバの `BoardCard` の型は引かず、使う形だけを受け取る。
+ */
+export function offersSkipVerify(card: { stage: Stage; aborted: boolean }): boolean {
+  return !card.aborted && stageRank(card.stage) <= stageRank('verifying');
 }

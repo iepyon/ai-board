@@ -104,7 +104,7 @@ PR中・マージ済み・中止のカードで入れても、そのカードは
 
 ### 1. 判定
 
-- [ ] `src/shared/stage-gates.ts` に `offersSkipVerify(card: { stage: Stage; aborted: boolean }): boolean` を足し、docstring に「動作確認の列をまだ通っていない、中止でないカードだけ」と理由を書く
+- [x] `src/shared/stage-gates.ts` に `offersSkipVerify(card: { stage: Stage; aborted: boolean }): boolean` を足し、docstring に「動作確認の列をまだ通っていない、中止でないカードだけ」と理由を書く
   - テスト（`stage-gates.test.ts`）: `idea` / `planning` / `plan-review` / `impling` / `verifying` は真、`pr` / `merged` は偽、`impling` でも中止なら偽
 
 ### 2. 画面
