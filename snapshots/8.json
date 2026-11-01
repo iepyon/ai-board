@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-10-31T05:11:48Z\",false,\"89096c4c7ff09e82d54e3c2d9ab5f2482cd55922\",0,0,\"2026-10-31T05:14:07Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 40,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "8",
+    "title": "カードの無い計画の警告を、既定では折りたたむ",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/40",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-10-31T05:09:37Z",
+    "mergedAt": "2026-10-31T05:11:48Z",
+    "readyAt": "2026-10-31T05:09:41Z",
+    "convertedToDraftAt": null
+  }
+}

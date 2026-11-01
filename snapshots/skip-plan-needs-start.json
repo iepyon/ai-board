@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-11-01T02:39:23Z\",false,\"eb544aada196b8e83665c0328f21c93a2652a9ee\",0,0,\"2026-11-01T02:39:29Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 49,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "skip-plan-needs-start",
+    "title": "計画レビューを飛ばすカードでも、着手してから計画を書かせる",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/49",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-11-01T02:35:51Z",
+    "mergedAt": "2026-11-01T02:39:23Z",
+    "readyAt": "2026-11-01T02:35:55Z",
+    "convertedToDraftAt": null
+  }
+}

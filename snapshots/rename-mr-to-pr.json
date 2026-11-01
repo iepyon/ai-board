@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-10-23T06:53:34Z\",false,\"7ef79524730d39b2f93f9f1dc5f062e8cb9b1ec1\",0,0,\"2026-10-29T22:50:52Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 32,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "rename-mr-to-pr",
+    "title": "画面と説明に残る GitLab 時代の書き方を、GitHub の PR に揃える",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/32",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-10-23T06:51:00Z",
+    "mergedAt": "2026-10-23T06:53:34Z",
+    "readyAt": "2026-10-23T06:51:15Z",
+    "convertedToDraftAt": null
+  }
+}

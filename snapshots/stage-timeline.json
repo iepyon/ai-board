@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-10-31T08:24:26Z\",false,\"0f7d5f2cc07ac845edca033a414dd770883e7325\",1,0,\"2026-10-31T08:24:30Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 44,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "stage-timeline",
+    "title": "カードが各工程にいた時間を区間として導出する",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/44",
+    "latestNoteAt": "2026-10-31T08:15:22Z",
+    "noteCount": 1,
+    "latestCommitAt": "2026-10-31T08:20:41Z",
+    "mergedAt": "2026-10-31T08:24:26Z",
+    "readyAt": "2026-10-31T08:20:45Z",
+    "convertedToDraftAt": null
+  }
+}

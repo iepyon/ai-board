@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-10-23T08:07:02Z\",false,\"a7a99338fb32aba2d4d4aba64204064c11738fbc\",0,0,\"2026-10-23T08:07:06Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 33,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "body-preview",
+    "title": "カードの本文を整形して読めるようにする",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/33",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-10-23T07:46:09Z",
+    "mergedAt": "2026-10-23T08:07:02Z",
+    "readyAt": "2026-10-23T07:46:13Z",
+    "convertedToDraftAt": null
+  }
+}

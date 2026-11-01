@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-10-30T05:34:41Z\",false,\"594f0e6f1bae33c9f6cb1289475e6fb379120c93\",0,0,\"2026-10-30T05:34:48Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 38,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "loop-respect-human",
+    "title": "人が止めたり Draft に戻したりしたカードを、ループが押し進めないようにする",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/38",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-10-30T05:30:25Z",
+    "mergedAt": "2026-10-30T05:34:41Z",
+    "readyAt": "2026-10-30T05:30:28Z",
+    "convertedToDraftAt": null
+  }
+}

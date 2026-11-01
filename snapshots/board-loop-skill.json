@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-10-23T05:45:26Z\",false,\"17d0678ff901eb6eda9147a6834a79d8a353e5c0\",0,0,\"2026-10-23T05:52:53Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 28,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "board-loop-skill",
+    "title": "ボードを読んで、優先順に 1 つずつ作業を進めるループ",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/28",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-10-23T05:39:52Z",
+    "mergedAt": "2026-10-23T05:45:26Z",
+    "readyAt": "2026-10-23T05:41:38Z",
+    "convertedToDraftAt": null
+  }
+}

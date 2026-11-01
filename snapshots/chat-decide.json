@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-10-31T06:37:34Z\",false,\"8f2c1a59bb01443a8fdfc4575fa9009e4c0fd0c7\",0,0,\"2026-10-31T06:39:07Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 42,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "chat-decide",
+    "title": "チャットから人の判断を書けるようにする",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/42",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-10-31T06:36:22Z",
+    "mergedAt": "2026-10-31T06:37:34Z",
+    "readyAt": "2026-10-31T06:36:25Z",
+    "convertedToDraftAt": null
+  }
+}
