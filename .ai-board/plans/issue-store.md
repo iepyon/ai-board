@@ -319,4 +319,4 @@ CLI に人の判断の入口を足すと、`CLAUDE.md` の「CLI に入口を足
 
 ### 6. 確かめる
 
-- [ ] `npm run typecheck && npm run lint && npm run format:check && npm test` と `npm run build` を通し、`## 動作確認の手順` の 1〜6 をスクラッチパッドの bare リポジトリで試す
+- [x] `npm run typecheck && npm run lint && npm run format:check && npm test` と `npm run build` を通し、`## 動作確認の手順` の 1〜6 をスクラッチパッドの bare リポジトリで試す
