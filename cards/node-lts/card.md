@@ -2,7 +2,8 @@
 id: node-lts
 title: ユーザは、研修 PC に入れやすい Node の LTS（24）で ai-board を動かしたい
 created: '2026-10-31T06:52:00.070Z'
-skipGates: []
+skipGates:
+  - plan
 branch: null
 mr: null
 ---
