@@ -132,7 +132,7 @@ API は 400（`INVALID_REVIEW_REASON`）、CLI は今の `reasonWritable` と同
 - [x] `src/cards/errors/card-errors.ts` に `ReasonHasEntryHeading` と `AppendReviewError` を足し、`createAppendReviewCommand` が上の関数で拒むようにする。`card-error-mappings.ts` に 400（`INVALID_REVIEW_REASON`）のマッピングを足し、`POST /api/cards/:id/reviews` で使う
   - テスト（`card-commands.test.ts`）: 見出しを含む理由は `ReasonHasEntryHeading` を返し、保存しない
   - テスト（API の e2e）: `POST /api/cards/:id/reviews` に見出しを含む理由の否決を送ると 400 で、カードの判断が増えない。`## ` の節を含む理由は通る
-- [ ] `src/cards/cli/card-cli.ts` の `reasonWritable` を消し、`card submit` / `card hold` は usecase のエラーを今と同じ文言で出す。冒頭の docstring の `reasonWritable` への言及を直す。既にある CLI のテスト（判断の見出しとして読める行を含む理由を 1 にする）が通ることを確かめる
+- [x] `src/cards/cli/card-cli.ts` の `reasonWritable` を消し、`card submit` / `card hold` は usecase のエラーを今と同じ文言で出す。冒頭の docstring の `reasonWritable` への言及を直す。既にある CLI のテスト（判断の見出しとして読める行を含む理由を 1 にする）が通ることを確かめる
 
 ### 2. 本文の差し替えの検査を usecase に寄せる
 

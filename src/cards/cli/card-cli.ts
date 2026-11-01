@@ -8,7 +8,7 @@ import type { AppendReviewError, CreateCardError, UpdateCardError } from '../err
 import { serializeCard } from '../repositories/card-markdown.js';
 import { CardWriteRefusedError } from '../repositories/file-card.repository.js';
 import { isReviewGate, type ReviewGate } from '../models/review.js';
-import { gateStates, parseEntryHeading, parseReviewLog } from '../services/review-log.js';
+import { gateStates, parseReviewLog } from '../services/review-log.js';
 import { describeDataStoreError, describeOfflineRead } from './data-store-messages.js';
 
 // ============================================================
@@ -21,7 +21,8 @@ import { describeDataStoreError, describeOfflineRead } from './data-store-messag
  * `startedAt`・`rank`・`skipGates` の書き換えと、承認 / 否決 / 中止の追記は
  * 人の判断であり、ここには入口を置かない（UI と HTTP API からだけ行える）。
  * 本文の差し替えも、`## レビュー` のエントリを変えるものは拒否する。
- * 提出 / 保留の理由に、判断の見出しとして読める行を紛れ込ませるものも拒否する（`reasonWritable`）。
+ * 提出 / 保留の理由に、判断の見出しとして読める行を紛れ込ませるものも拒否する
+ * （検査は判断の追記の usecase が持ち、CLI はその `ReasonHasEntryHeading` を出すだけにする）。
  *
  * カードの正本はデータ用ブランチにある。読むコマンドは頭で 1 回取り直してから読み、
  * 書くコマンドは検査（`submitRefusal` など）から usecase までを `DataStore.transact` の中で走らせる。
@@ -294,7 +295,6 @@ async function runSubmit(
   }
 
   const reason = args.flags.get('--reason');
-  if (typeof reason === 'string' && !reasonWritable(reason, io)) return 1;
 
   const kind = args.flags.get('--resubmit') === true ? '再提出' : '提出';
   const at = io.now();
@@ -344,7 +344,6 @@ async function runHold(
     io.stderr('--reason に、なぜ止まったか、人に何を決めてほしいかを書いてください\n');
     return 1;
   }
-  if (!reasonWritable(reason, io)) return 1;
 
   const at = io.now();
 
@@ -417,26 +416,6 @@ function refused(message: string): Result<never, Refused> {
 /** 前後の改行だけを落とす。Markdown の行頭の空白は意味を持つので trim しない */
 function trimNewlines(text: string): string {
   return text.replace(/^\n+/, '').replace(/\n+$/, '');
-}
-
-/**
- * `--reason` をそのまま判断の理由に書いてよいか。だめなら理由を出して false。
- *
- * 理由は判断の見出しの下にそのまま書かれ、本文を読む側（`parseReviewLog`）も、データ用ブランチへ書く側
- * （`card-files.ts` の `appendedEntries`）も、行ごとに `parseEntryHeading` で判断の見出しを探す。
- * 理由に `### <時刻> plan 承認` の行があると別の判断として読まれ、AI が CLI だけで承認 / 否決 / 中止を
- * 書けてしまうので、見出しとして読める行を含む理由は拒む。`### 動かす手順` のような、時刻・ゲート・種別の
- * 揃わない見出しは判断と読まれないので書ける。
- * 本文を読む側は `\n` でしか行を分けないが、`\r` でも分けて確かめる（広く拒むぶんには害が無い）。
- */
-function reasonWritable(reason: string, io: CardCliIo): boolean {
-  const heading = reason.split(/\r\n|\r|\n/).find((line) => parseEntryHeading(line) !== null);
-  if (heading === undefined) return true;
-
-  io.stderr(
-    `--reason に判断の見出し（### <時刻> <gate> <種別>）として読める行は書けません: ${heading}\n`
-  );
-  return false;
 }
 
 /**
