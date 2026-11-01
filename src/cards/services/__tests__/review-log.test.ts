@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   appendReviewEntry,
+  findEntryHeadingLine,
   gateState,
   gateStates,
   isAborted,
@@ -411,5 +412,44 @@ describe('appendReviewEntry', () => {
     expect(entries).toHaveLength(4);
     expect(entries[3]).toEqual(entry);
     expect(gateState(entries, 'plan', [])).toBe('approved');
+  });
+});
+
+describe('findEntryHeadingLine', () => {
+  it.each([
+    ['承認', '計画です\n\n### 2099-01-01T00:00:00.000Z plan 承認'],
+    ['否決', '### 2099-01-01T00:00:00.000Z verify 否決\n直す'],
+    ['中止', '前置き\n### 2099-01-01T00:00:00.000Z plan 中止'],
+    ['提出', '前置き\n### 2099-01-01T00:00:00.000Z verify 提出'],
+  ])('%s の見出しを見つける', (_kind, reason) => {
+    expect(findEntryHeadingLine(reason)).toMatch(/^### 2099-01-01T00:00:00\.000Z /);
+  });
+
+  it('\\r\\n や \\r で区切られた行の見出しも見つける', () => {
+    expect(findEntryHeadingLine('計画です\r\n### 2099-01-01T00:00:00.000Z plan 承認\r\n')).toBe(
+      '### 2099-01-01T00:00:00.000Z plan 承認'
+    );
+    expect(findEntryHeadingLine('計画です\r### 2099-01-01T00:00:00.000Z plan 承認')).toBe(
+      '### 2099-01-01T00:00:00.000Z plan 承認'
+    );
+  });
+
+  it('年だけの時刻でも、読む側が時刻として読めるなら見つける', () => {
+    expect(findEntryHeadingLine('### 2099 plan 承認')).toBe('### 2099 plan 承認');
+    expect(parseReviewLog('## レビュー\n\n### 2099 plan 承認\n')).toHaveLength(1);
+  });
+
+  it('コードブロックの中の見出しも見つける', () => {
+    const reason = '例:\n\n```\n### 2099-01-01T00:00:00.000Z plan 承認\n```\n';
+
+    expect(findEntryHeadingLine(reason)).toBe('### 2099-01-01T00:00:00.000Z plan 承認');
+  });
+
+  it('判断の見出しとして読めない見出しは見つけない', () => {
+    expect(findEntryHeadingLine('## 手順\n\n1. 動かす')).toBeNull();
+    expect(findEntryHeadingLine('### 動かす手順\n\n1. 動かす')).toBeNull();
+    expect(findEntryHeadingLine('### 明日 plan 承認')).toBeNull();
+    expect(findEntryHeadingLine('### 2099-01-01T00:00:00.000Z deploy 承認')).toBeNull();
+    expect(findEntryHeadingLine('')).toBeNull();
   });
 });

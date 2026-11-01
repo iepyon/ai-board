@@ -545,7 +545,8 @@ export interface CardWrite {
  * - `startedAt` が変われば、着手（その時刻）か着手を戻す（`now`）のファイルを足す
  *
  * 足した判断が本文の差し替えなのか判断の追記なのかは、ここでは区別できない。
- * 本文の差し替えで判断を足させない検査は、呼び出す側（`card body`）が持つ。
+ * 本文の差し替えで判断を足させない検査は、本文の差し替えの usecase（`createUpdateCardBodyCommand`）が持つ。
+ * CLI の `card body` も API の `PUT /api/cards/:id/body` もその usecase を通るので、入口ごとに検査を持たない。
  */
 export function planCardWrite(
   stored: StoredCard | null,

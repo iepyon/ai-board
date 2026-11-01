@@ -11,8 +11,10 @@ import {
   UpdateCardMetaInputSchema,
 } from '../models/schemas/card.schema.js';
 import {
+  mapAppendReviewErrorToResponse,
   mapCreateCardErrorToResponse,
   mapMoveCardErrorToResponse,
+  mapUpdateCardBodyErrorToResponse,
   mapUpdateCardErrorToResponse,
 } from './card-error-mappings.js';
 import type { Card } from '../models/card.js';
@@ -152,7 +154,7 @@ export function createCardRouter(deps: CardDependencies): Router {
     const result = await updateCardBodyCommand({ id, body: input.data.body });
 
     if (!result.ok) {
-      const { status, response } = mapUpdateCardErrorToResponse(result.error);
+      const { status, response } = mapUpdateCardBodyErrorToResponse(result.error);
       res.status(status).json(response);
       return;
     }
@@ -180,7 +182,7 @@ export function createCardRouter(deps: CardDependencies): Router {
     });
 
     if (!result.ok) {
-      const { status, response } = mapUpdateCardErrorToResponse(result.error);
+      const { status, response } = mapAppendReviewErrorToResponse(result.error);
       res.status(status).json(response);
       return;
     }
