@@ -271,3 +271,15 @@ PR #61 で入れたテストを、作りを変えた後も同じ攻撃で確か�
 - [x] 詳細パネルに `src/web/components/detail/ReviewLog.tsx` を足し、本文の欄の下に「判断の記録」を出す（見出しの行は値から描き、理由は `parseReasonBlocks` の木を Markdown として描く。空の理由は「（理由なし）」。判断が無ければ欄ごと出さない）。`BodyView.tsx` の木を要素に写す部分を理由でも使えるように切り出す。`BodyEditor` は節の無い `body` を表示・編集する（応答の形が変わるだけなので、組み立て直しはしない）。`styles.css` に欄の見た目を足す。描き方の判断（種別の色の分け方など）を純関数にするなら `src/shared/` に置いてテストする
 - [x] `README.md` の詳細パネルの説明、`docs/architecture.md` の API の応答と本文の差し替えの記述、`docs/specs/card-review-authority/spec.md` の「書ける主体の分離」（本文の差し替えは判断を足さない。節の無い本文は判断を変えず、節があってエントリが違えば拒む、の Scenario を足す）を新しい振る舞いに合わせる
 - [x] 品質ゲートと `npm run build` を通し、`## 動作確認の手順` を `AI_BOARD_DATA` の試しのデータで試す（画面の手順 5・7 はブラウザで見る）
+
+## AI レビュー
+
+### 見送った指摘
+
+- `src/board/models/board-card.ts:156` と `src/cards/controllers/card.controller.ts:45` の `reviews` は組み立てた本文から読み直すので、理由の `#`〜`###` の見出しの段の違いが `####` にそろって失われる。計画の Decisions「API の応答で本文と判断を分ける」と Risks で受け入れた振る舞いで、元の文を返すのは Non-Goals（`Card` に判断の配列を持たせる）に当たるので見送る
+- `src/cards/usecases/commands/update-card-body.command.ts:47` は、判断の無いカードの本文に人が `## レビュー` の見出しの行（コードブロックの中を含む）を書くと、保存時に次の `## ` の手前まで黙って消す。判断があるカードでは `REVIEW_ENTRIES_CHANGED` になり、文言が実際の操作と合わない。main の `planBody` も同じく `stripReviewSection` で消しており、この PR で入った振る舞いではない（docstring にも書かれている）。計画の Non-Goals（`## レビュー` 節を 2 つ書いた本文の扱いを変えない）の近くにあるので見送る
+- `src/cards/controllers/card.controller.ts:45` の `toCardResponse` が、`board-card.ts` の `toBoardCardReview` と同じ写し方を書き直している。振る舞いを変えない重複なので見送る
+- `src/cards/repositories/card-files.ts:592` の `planReviewAppend` が `LogAdditions.add` と同じファイル名の決め方（連番・`InvalidLogTime`・`logContent`）を持ち、`src/cards/repositories/file-card.repository.ts:119` の `appendReview` が `write()` の `log/` の書き方（`mkdirSync`・`wx`・`onWrite`）を写している。振る舞いを変えない重複なので見送る
+- `src/cards/usecases/commands/update-card-body.command.ts:48` の「節があってエントリが違えば拒む」が `card-files.ts` の `planBody` と 2 か所にある。今は同じ読み方で、振る舞いを変えない重複なので見送る
+- 本文の保存と判断の追記の後の `findById` での読み直し、`get-board.query` での組み立てた本文の繰り返しの解析で、同じカードを何度も読む・解析する。ローカルのファイルで計画の Risks に書いた範囲であり、性能の改善はこの PR の目的の外なので見送る
+- `src/shared/review-labels.ts` の `ReviewLabelGate` / `ReviewLabelKind` が `src/web/types.ts` の型を写している。書き方の好みなので見送る
