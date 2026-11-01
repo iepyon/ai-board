@@ -2,18 +2,31 @@ import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { startServer, DEFAULT_PORT } from './server.js';
-import { BOARD_DIR, DB_ENV, loadConfig, resolvePaths, type AppConfig } from './shared/config.js';
+import {
+  BOARD_DIR,
+  DB_ENV,
+  loadConfig,
+  resolvePaths,
+  type AppConfig,
+  type BoardPaths,
+} from './shared/config.js';
 import { openDatabase } from './infrastructure/database.js';
 import { createCliRunner } from './infrastructure/cli-runner.js';
-import { createCardDependencies } from './cards/composition.js';
+import {
+  createBoardDataStore,
+  createCardDependencies,
+  createFileCardDependencies,
+} from './cards/composition.js';
 import { runCardCli, runImport, type CardCliIo } from './cards/cli/card-cli.js';
+import { describeDataStoreError, describeOfflineRead } from './cards/cli/data-store-messages.js';
 import {
   createBoardDependencies,
-  createMrSnapshotRepository,
+  createFileMrSnapshotRepository,
   createMrStateSource,
 } from './board/composition.js';
 import { parseStatusArgs, runStatusCli, STATUS_USAGE } from './board/cli/status-cli.js';
 import { findLiveServer } from './infrastructure/server-info.js';
+import { isErr } from './shared/result.js';
 
 // ============================================================
 // ai-board CLI
@@ -104,34 +117,47 @@ function takeInteger(
 }
 
 /**
- * `card` / `import` サブコマンド。サーバを起動せず DB を直接開く。
- * サーバが動いていれば、その書き込みは data_version 経由で画面に届く。
+ * `card` サブコマンド。サーバを起動せず、データのワークツリーを直接読み書きする。
+ *
+ * 読むコマンドは頭で取り直し、書くコマンドは書き込みの 1 操作（コミットと push）として行う。
  */
-async function runSubcommand(command: 'card' | 'import', argv: readonly string[]): Promise<number> {
+async function runCard(argv: readonly string[]): Promise<number> {
+  const { root, rest } = extractRoot(argv);
+  const paths = resolvePaths(root);
+  const store = createBoardDataStore(paths, createCliRunner());
+
+  return runCardCli(
+    rest,
+    { store, cards: createFileCardDependencies(store.dataDir), legacyDb: legacyDbOf(paths) },
+    createProcessIo()
+  );
+}
+
+/** `import` サブコマンド。移行前の Markdown カードを DB に取り込む */
+async function runImportCommand(argv: readonly string[]): Promise<number> {
   const { root, rest } = extractRoot(argv);
   const paths = resolvePaths(root);
   const db = openDatabase(paths.dbPath);
 
   try {
-    const deps = createCardDependencies(db);
-    const io = createProcessIo();
-
-    if (command === 'card') {
-      return await runCardCli(rest, deps, io);
-    }
-
     const fromIndex = rest.indexOf('--from');
     const from =
       fromIndex === -1 ? paths.cardsDir : path.resolve(takeValue(rest, fromIndex + 1, '--from'));
-    return await runImport(from, deps, io);
+    return await runImport(from, createCardDependencies(db), createProcessIo());
   } finally {
     db.close();
   }
 }
 
+/** 移行前の DB があればその場所。データ用ブランチが無いときに `ai-board migrate` を案内するのに使う */
+function legacyDbOf(paths: BoardPaths): string | null {
+  return fs.existsSync(paths.dbPath) ? paths.dbPath : null;
+}
+
 /**
  * `status` サブコマンド。サーバを起動せず、ボードと同じ組み立てでステージを導出する。
  *
+ * カードは頭で 1 回データ用ブランチを取り直してから読む。
  * PR の状態はポーリングせず、`refresh()` を 1 回だけ待ってから読む。
  * `branch` から解決した PR 番号の書き戻しも、サーバと同じくここで起きる。
  */
@@ -146,34 +172,42 @@ async function runStatus(argv: readonly string[]): Promise<number> {
     return args === 'help' ? 0 : 1;
   }
 
-  const config = loadConfig(root);
-  const db = openDatabase(config.paths.dbPath);
+  // config.yaml はデータ用ブランチの根にあるので、取り直してから読む
+  const paths = resolvePaths(root);
+  const runner = createCliRunner();
+  const store = createBoardDataStore(paths, runner);
 
-  try {
-    const cards = createCardDependencies(db);
-    const { provider, poller } = await createMrStateSource(
-      config.forge,
-      cards.cardRepository,
-      createMrSnapshotRepository(db),
-      createCliRunner()
-    );
-    await poller?.refresh();
-
-    const board = createBoardDependencies(
-      config.paths.plansDir,
-      cards.cardRepository,
-      cards.ideaDividerRepository,
-      provider
-    );
-
-    return await runStatusCli(
-      rest,
-      { ...board, findServer: () => findLiveServer(config.paths.dataDir) },
-      io
-    );
-  } finally {
-    db.close();
+  const refreshed = await store.refresh();
+  if (isErr(refreshed)) {
+    io.stderr(`${describeDataStoreError(refreshed.error, legacyDbOf(paths))}\n`);
+    return 1;
   }
+  if (refreshed.value.kind === 'offline') {
+    io.stderr(`${describeOfflineRead(refreshed.value.reason)}\n`);
+  }
+
+  const config = loadConfig(root);
+  const cards = createFileCardDependencies(store.dataDir);
+  const { provider, poller } = await createMrStateSource(
+    config.forge,
+    cards.cardRepository,
+    createFileMrSnapshotRepository(store),
+    runner
+  );
+  await poller?.refresh();
+
+  const board = createBoardDependencies(
+    config.paths.plansDir,
+    cards.cardRepository,
+    cards.ideaDividerRepository,
+    provider
+  );
+
+  return runStatusCli(
+    rest,
+    { ...board, findServer: () => findLiveServer(config.paths.dataDir) },
+    io
+  );
 }
 
 /** `--root <path>` を取り除いた残りの引数を返す */
@@ -207,8 +241,13 @@ function createProcessIo(): CardCliIo {
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2);
 
-  if (command === 'card' || command === 'import') {
-    process.exitCode = await runSubcommand(command, rest);
+  if (command === 'card') {
+    process.exitCode = await runCard(rest);
+    return;
+  }
+
+  if (command === 'import') {
+    process.exitCode = await runImportCommand(rest);
     return;
   }
 
