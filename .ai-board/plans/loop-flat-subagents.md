@@ -257,4 +257,4 @@
 
 ### 4. ドキュメント
 
-- [ ] `README.md` の AI ループの節（段の表、作業中の判定）と、`docs/architecture.md` の `status` の出力に `next.step` を書く。`CLAUDE.md` に食い違う記述があれば直す
+- [x] `README.md` の AI ループの節（段の表、作業中の判定）と、`docs/architecture.md` の `status` の出力に `next.step` を書く。`CLAUDE.md` に食い違う記述があれば直す

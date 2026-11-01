@@ -135,9 +135,19 @@ PR の状態は `refresh()` を 1 回だけ待って引き、`branch` から解�
 実装中の手は verify ゲートの状態で分ける（未提出 → `implement`、否決 → `revise-impl`、承認 → `ready`）。
 verify を飛ばすカードの `verify 提出` / `verify 再提出` も承認と読まれて `ready` になり、締めの段を通さずに Ready にする
 （締めの段は PR の本文の見送りの節を計画から差し替えるので、`revise-impl` が足した見送りが消える）。
-`implement` は計画のタスクの進み具合では分けず、AI レビューの手（`review`）も無い。
-計画はブランチにあり、メインのチェックアウトからは読めないことが多いので、
-`implement` を受けた `board-worker` がワークツリーの計画を読んで段（タスクを倒す / AI レビュー / 締め）を決める。
+`implement` は手の種類を計画の進み具合では分けず、段を `next.step` として添える（`implement` 以外の手では常に `null`）。
+`pickNextAction` は純関数のまま `step: null` を返し、`status-cli.ts` が `implement` のときだけ、選ばれた 1 枚のカードのブランチの計画を読んで埋める。
+
+- 読み方: `src/board/repositories/` の読み手が `CliRunner` で `git show <ref>:.ai-board/plans/<id>.md` を、無ければ `plans/archive/<id>.md` を読む。
+  `<ref>` はローカルの `refs/heads/<branch>` があればそれ、無ければ `refs/remotes/origin/<branch>`。
+  `branch` は誰でも書けるので完全な ref 名にして渡し、`git check-ref-format --branch` を通らない名前では `git` を呼ばない。`git fetch` はしない
+- 段: `src/board/services/impl-step.ts` の `resolveImplStep` が決める。archive 済み → `close`、未チェックのタスクがある → `task`、
+  全部倒れていて `## AI レビュー` 節（コードブロックの外の見出し）が無い → `review`、ある → `close`。
+  タスクの行の正規表現は進捗バー（`plan.repository.ts`）と共有する
+- 読めない（`branch` が null、ブランチや計画が無い、`git` が失敗した）ときは例外を投げず `step` を `null` にし、`status` 自体は成功させる。
+  人向けの数行（`--json` を付けない形）では `段=task` のように添え、`null` は `段=不明` と出す（`status-describe.ts`）
+- 監視役は `task` なら `board-task`、`review` なら `board-reviewer`、`close` / `null` なら `board-worker` に渡す。
+  段はステージではなく、サーバ（`GetBoardQuery`）とステージの導出（`stage-resolver.ts`）はブランチの計画を読まない
 GitHub に接続できないとき（`forge.status` が `connected` でないとき）は `next` を `null` にする。
 
 `status` の `waiting` は画面の判断待ちの区画（`groupBySection` の inbox）をそのまま使うので、止まっているカードも 1 度だけ出て、`working` には出ない。
