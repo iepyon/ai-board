@@ -69,8 +69,31 @@ describe('resolveImplStep', () => {
       expect(resolveImplStep(plan)).toBe('close');
     });
 
-    it('コードブロックの中の未チェックの行もタスクとして数え、task（進捗バーと同じ）', () => {
+    it('コードブロックの中にだけ未チェックの行がある計画は、タスクと数えず review（進捗バーと同じ）', () => {
       const plan = active('- [x] 1 つ目', '', '```md', '- [ ] 例', '```');
+      expect(resolveImplStep(plan)).toBe('review');
+    });
+
+    it('~~~ の中の ## AI レビュー は節とみなさず、review', () => {
+      const plan = active(
+        '- [x] 1 つ目',
+        '',
+        '~~~markdown',
+        '## AI レビュー',
+        '',
+        '- [ ] 例',
+        '~~~'
+      );
+      expect(resolveImplStep(plan)).toBe('review');
+    });
+
+    it('箇条書きの中に字下げしたフェンスの中の未チェックの行も数えず、review', () => {
+      const plan = active('- [x] 1 つ目', '  ```md', '  - [ ] 例', '  ```');
+      expect(resolveImplStep(plan)).toBe('review');
+    });
+
+    it('閉じていないフェンスは無かったものとし、後ろの未チェックの行を数えて task', () => {
+      const plan = active('- [x] 1 つ目', '', '```md', '- [ ] 2 つ目');
       expect(resolveImplStep(plan)).toBe('task');
     });
 

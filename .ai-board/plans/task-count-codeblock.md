@@ -118,7 +118,7 @@
 ### 2. 進捗バーと段の判定
 
 - [x] `countTasks`（`plan.repository.ts`）を新しい関数の結果で数えるようにし、`plan.repository.test.ts` にコードブロックの中のチェックボックスを数えないケースを足す
-- [ ] `resolveImplStep`（`impl-step.ts`）の未チェックのタスクと `## AI レビュー` 節の判定を新しい関数に寄せ、`CODE_FENCE_PATTERN` を消す。docstring の「コードブロックの中の行も数える」を直す
+- [x] `resolveImplStep`（`impl-step.ts`）の未チェックのタスクと `## AI レビュー` 節の判定を新しい関数に寄せ、`CODE_FENCE_PATTERN` を消す。docstring の「コードブロックの中の行も数える」を直す
   - テスト（`impl-step.test.ts`）: コードブロックの中にだけ未チェックの行がある計画は `review`、`~~~` の中の `## AI レビュー` は節とみなさない
 
 ### 3. 手順書とドキュメント

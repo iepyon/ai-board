@@ -1,4 +1,8 @@
-import { COMPLETED_TASK_PATTERN, TASK_PATTERN } from '../models/plan-task.js';
+import {
+  COMPLETED_TASK_PATTERN,
+  TASK_PATTERN,
+  linesOutsideCodeBlocks,
+} from '../models/plan-task.js';
 
 // ============================================================
 // 実装中の段（implement の手の中の区切り）
@@ -20,7 +24,6 @@ export type ImplStepPlan =
   { readonly location: 'active'; readonly text: string } | { readonly location: 'archived' };
 
 const AI_REVIEW_HEADING = '## AI レビュー';
-const CODE_FENCE_PATTERN = /^\s*```/;
 
 /**
  * 計画から段を決める純関数。判定は `board-worker.md` の段の表と同じ順にする。
@@ -32,16 +35,18 @@ const CODE_FENCE_PATTERN = /^\s*```/;
  * | 全部倒れていて、`## AI レビュー` 節が無い | `review` |
  * | 全部倒れていて、`## AI レビュー` 節がある | `close`  |
  *
- * タスクは進捗バーと同じ `TASK_PATTERN` で数え、コードブロックの中の行も数える
- * （進捗バーと食い違わせないため）。タスクが 0 件の計画は「全部倒れている」と扱う。
- * `## AI レビュー` 節は、コードブロックの外にある、行全体がその見出しの行で決める。
+ * タスクは進捗バー（`plan.repository.ts` の `countTasks`）と同じく、`linesOutsideCodeBlocks` で
+ * フェンスで囲んだコードブロックの中の行を外してから `TASK_PATTERN` で数える
+ * （計画に書いたチェックボックスの例をタスクと数えないため。見分け方は `plan-task.ts`）。
+ * タスクが 0 件の計画は「全部倒れている」と扱う。
+ * `## AI レビュー` 節も、同じくコードブロックの外にある、行全体がその見出しの行で決める。
  */
 export function resolveImplStep(plan: ImplStepPlan): ImplStep {
   if (plan.location === 'archived') {
     return 'close';
   }
 
-  const lines = plan.text.split('\n');
+  const lines = linesOutsideCodeBlocks(plan.text);
   if (lines.some(isOpenTask)) {
     return 'task';
   }
@@ -53,15 +58,5 @@ function isOpenTask(line: string): boolean {
 }
 
 function hasAiReviewSection(lines: readonly string[]): boolean {
-  let inCodeBlock = false;
-  for (const line of lines) {
-    if (CODE_FENCE_PATTERN.test(line)) {
-      inCodeBlock = !inCodeBlock;
-      continue;
-    }
-    if (!inCodeBlock && line.trimEnd() === AI_REVIEW_HEADING) {
-      return true;
-    }
-  }
-  return false;
+  return lines.some((line) => line.trimEnd() === AI_REVIEW_HEADING);
 }
