@@ -74,8 +74,14 @@ export class GhForgeClient implements ForgeClient {
     this.base = `repos/${config.owner}/${config.repo}`;
   }
 
+  /**
+   * リポジトリを REST で 1 回引けるかで確かめる。
+   *
+   * `gh auth status` は使わない。クラウドのセッションでは「GH_TOKEN が無効」と失敗するが、
+   * 同じ認証で `gh api` は動く。ポーリングで使うのも `gh api` なので、同じ経路で確かめる。
+   */
   async checkAuth(): Promise<string | null> {
-    const result = await this.runner.run(GH, ['auth', 'status']);
+    const result = await this.runner.run(GH, ['api', this.base]);
 
     return result.ok ? null : describeCliError(result.error);
   }

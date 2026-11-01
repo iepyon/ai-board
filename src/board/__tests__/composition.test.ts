@@ -24,7 +24,7 @@ afterEach(() => {
 
 const forge: ForgeConfig = { kind: 'github', owner: 'acme', repo: 'board' };
 
-/** `gh auth status` の成否だけを決める偽の CLI */
+/** 接続の確かめ（`gh api repos/<owner>/<repo>`）の成否だけを決める偽の CLI */
 function authRunner(loggedIn: boolean): CliRunner {
   return {
     run: () =>
