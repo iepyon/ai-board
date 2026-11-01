@@ -18,6 +18,7 @@ ranks:
   loop-impl-review: 1000
   loop-permissions: 8000
   loop-respect-human: 35000
+  loop-task-batch: 2000
   loop-worker-dummy: 33000
   merged-before-ready: 17000
   node-lts: 4000
