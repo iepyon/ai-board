@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-11-01T12:01:29Z\",false,\"2fcbc5cab904bf583e18d081cd7e2ba29273182f\",0,0,\"2026-11-01T12:01:29Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 59,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "task-count-codeblock",
+    "title": "計画のタスクを数えるとき、コードブロックの中の行を外す",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/59",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-11-01T11:59:46Z",
+    "mergedAt": "2026-11-01T12:01:29Z",
+    "readyAt": "2026-11-01T11:59:50Z",
+    "convertedToDraftAt": null
+  }
+}
