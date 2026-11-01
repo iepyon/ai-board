@@ -3,7 +3,7 @@ id: review-reason-escape
 title: ユーザは、AI が理由の文字列に紛れ込ませた見出しで、承認や否決を偽造できないようにしたい
 created: '2026-10-30T05:09:22.169Z'
 skipGates: []
-branch: null
+branch: review-reason-escape
 mr: null
 ---
 
