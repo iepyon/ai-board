@@ -17,6 +17,13 @@ export const CONFIG_FILE = 'config.yaml';
 export const PLANS_DIR = 'plans';
 /** DB の場所を明示する環境変数。ワークツリーで共有の DB を使わせたくないとき（ai-board 自身の開発など）に使う */
 export const DB_ENV = 'AI_BOARD_DB';
+/** データ用ブランチのワークツリーの置き場所（`sharedBoardDir` の下） */
+export const DATA_DIR = 'data';
+/**
+ * データのワークツリーの代わりに使うディレクトリ（git のリポジトリ）を明示する環境変数。
+ * ワークツリーで共有のカードを汚さずに試すときに使う。そのディレクトリの `origin` に push する
+ */
+export const DATA_ENV = 'AI_BOARD_DATA';
 
 /** GitHub は API パスが owner/repo 固定なので数値 id を受ける意味が無い */
 const GitHubConfigSchema = z.object({
@@ -46,7 +53,7 @@ export interface BoardPaths {
   /** .ai-board/cards/（移行前のカードファイル。取り込み元としてだけ使う） */
   readonly cardsDir: string;
   /**
-   * git に載らない各自のファイル（DB と config.yaml）を置く .ai-board/。
+   * git に載らない各自のファイル（DB・config.yaml・データのワークツリー）を置く .ai-board/。
    * リンクされたワークツリーではメインのチェックアウトのもの、それ以外は `boardDir` と同じ
    */
   readonly sharedBoardDir: string;
@@ -54,6 +61,10 @@ export interface BoardPaths {
   readonly dbPath: string;
   /** DB の場所をどう決めたか（起動ログに出す） */
   readonly dbSource: 'local' | 'main-checkout' | 'env';
+  /** データ用ブランチのワークツリー。既定は `sharedBoardDir` の下の data/ */
+  readonly dataDir: string;
+  /** データのワークツリーの場所をどう決めたか（起動ログに出す） */
+  readonly dataSource: 'local' | 'main-checkout' | 'env';
   /** .ai-board/plans/（git でブランチに乗るので、常に `root` の下） */
   readonly plansDir: string;
 }
@@ -68,7 +79,7 @@ export interface AppConfig {
  * 置き場所を決める。
  *
  * 計画ファイルは git でブランチに乗るので `root` の下を読む。
- * DB と config.yaml は git に載らない各自のファイルなので、リンクされたワークツリーでは
+ * DB・config.yaml・データのワークツリーは git に載らない各自のファイルなので、リンクされたワークツリーでは
  * メインのチェックアウトのものを使う。全ワークツリーで 1 つのバックログを共有するため。
  */
 export function resolvePaths(root: string, env: NodeJS.ProcessEnv = process.env): BoardPaths {
@@ -76,7 +87,9 @@ export function resolvePaths(root: string, env: NodeJS.ProcessEnv = process.env)
   const boardDir = path.join(absoluteRoot, BOARD_DIR);
   const sharedBoardDir = resolveSharedBoardDir(absoluteRoot, boardDir);
   const dbFromEnv = env[DB_ENV] ?? '';
+  const dataFromEnv = env[DATA_ENV] ?? '';
   const shared = sharedBoardDir !== boardDir;
+  const sharedSource = shared ? 'main-checkout' : 'local';
 
   return {
     root: absoluteRoot,
@@ -84,7 +97,9 @@ export function resolvePaths(root: string, env: NodeJS.ProcessEnv = process.env)
     cardsDir: path.join(boardDir, CARDS_DIR),
     sharedBoardDir,
     dbPath: dbFromEnv !== '' ? path.resolve(dbFromEnv) : path.join(sharedBoardDir, DB_FILE),
-    dbSource: dbFromEnv !== '' ? 'env' : shared ? 'main-checkout' : 'local',
+    dbSource: dbFromEnv !== '' ? 'env' : sharedSource,
+    dataDir: dataFromEnv !== '' ? path.resolve(dataFromEnv) : path.join(sharedBoardDir, DATA_DIR),
+    dataSource: dataFromEnv !== '' ? 'env' : sharedSource,
     plansDir: path.join(boardDir, PLANS_DIR),
   };
 }
@@ -109,12 +124,16 @@ function resolveSharedBoardDir(root: string, boardDir: string): string {
 /**
  * 設定を読み込む。
  *
+ * config.yaml はデータ用ブランチの根（`dataDir`）から読む。クラウドの clone には
+ * git に載らない各自のファイルが無いからである。データ用ブランチに無ければ、
+ * 切り替えの前後で手元が止まらないよう `sharedBoardDir` の config.yaml を読む。
+ *
  * 設定ファイルが無い、取得先のセクションが無いのいずれの場合も
  * 連携は無効になるだけでエラーにはしない。
  */
-export function loadConfig(root: string): AppConfig {
-  const paths = resolvePaths(root);
-  const configPath = path.join(paths.sharedBoardDir, CONFIG_FILE);
+export function loadConfig(root: string, env: NodeJS.ProcessEnv = process.env): AppConfig {
+  const paths = resolvePaths(root, env);
+  const configPath = resolveConfigPath(paths);
 
   let raw: unknown = {};
   if (fs.existsSync(configPath)) {
@@ -129,6 +148,12 @@ export function loadConfig(root: string): AppConfig {
   }
 
   return { paths, forge: toForgeConfig(parsed.data) };
+}
+
+/** データ用ブランチの根の config.yaml を優先し、無ければ `sharedBoardDir` のものを使う */
+function resolveConfigPath(paths: BoardPaths): string {
+  const inData = path.join(paths.dataDir, CONFIG_FILE);
+  return fs.existsSync(inData) ? inData : path.join(paths.sharedBoardDir, CONFIG_FILE);
 }
 
 function toForgeConfig(data: z.infer<typeof ConfigFileSchema>): ForgeConfig | null {
