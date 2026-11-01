@@ -116,3 +116,9 @@ PR中・マージ済み・中止のカードで入れても、そのカードは
 - [x] `README.md` のゲートの欄とスキップの節、`docs/architecture.md` の `SkipGateField` の記述に、出すカードの範囲を書く
 - [x] `docs/specs/card-gate-skip/spec.md` に、PR中・マージ済み・中止のカードには動作確認を飛ばす手段を出さない Scenario を足す
 - [x] `.claude/skills/board-decide/SKILL.md` の「動作確認を飛ばす」の条件に、ステージが PR中・マージ済みでないことを足す
+
+## AI レビュー
+
+### 見送った指摘
+
+- `src/web/components/detail/SkipGateField.tsx` の説明文の出し分け（`card.stage === 'verifying'` の三項演算子）が `src/web/` に直接書かれている。文言を選ぶだけの 1 つの比較で、出すかどうかの判定は `offersSkipVerify` に切り出してテスト済みなので見送る
