@@ -8,18 +8,19 @@ import { z } from 'zod';
 
 /**
  * サーバは 5673 が使用中だと次のポートへ繰り上がるので、ポートを決め打ちできない。
- * そこで起動したサーバが自分の場所を DB の隣に書き、`ai-board status` がそれを読んで
+ * そこで起動したサーバが自分の場所をデータのワークツリーの親に書き、`ai-board status` がそれを読んで
  * チャットから人の API を叩く入口（`board-decide` のスキル）に URL を渡す。
  *
- * 置き場所を DB の隣にするのは、`AI_BOARD_DB` で別の DB を指す開発用のサーバが、
- * メインのサーバのファイルを上書きしたり消したりしないため。
+ * 置き場所をデータのワークツリーの親（既定なら `.ai-board/`、`AI_BOARD_DATA` ならそのディレクトリの隣）に
+ * するのは、`AI_BOARD_DATA` で別のデータを指す開発用のサーバが、メインのサーバのファイルを
+ * 上書きしたり消したりしないため。
  */
 export const SERVER_INFO_FILE = 'server.json';
 
 const ServerInfoSchema = z.object({
   url: z.string().min(1),
   pid: z.number().int().positive(),
-  dbPath: z.string().min(1),
+  dataDir: z.string().min(1),
   startedAt: z.string().min(1),
 });
 
@@ -30,15 +31,15 @@ export interface ServerLocation {
   readonly url: string;
 }
 
-/** DB に対応する server.json の場所 */
-export function serverInfoPath(dbPath: string): string {
-  return path.join(path.dirname(dbPath), SERVER_INFO_FILE);
+/** データのワークツリーに対応する server.json の場所 */
+export function serverInfoPath(dataDir: string): string {
+  return path.join(path.dirname(path.resolve(dataDir)), SERVER_INFO_FILE);
 }
 
 /** 起動時に書く。書けなくてもサーバは動けるので、警告だけ出して続ける */
 export function writeServerInfo(info: ServerInfo): void {
   try {
-    fs.writeFileSync(serverInfoPath(info.dbPath), `${JSON.stringify(info, null, 2)}\n`, 'utf-8');
+    fs.writeFileSync(serverInfoPath(info.dataDir), `${JSON.stringify(info, null, 2)}\n`, 'utf-8');
   } catch (error) {
     console.warn(`[ai-board] ${SERVER_INFO_FILE} を書けませんでした: ${String(error)}`);
   }
@@ -48,8 +49,8 @@ export function writeServerInfo(info: ServerInfo): void {
  * 止まるときに消す。中の pid が自分のときだけ消す。
  * 後から起動した別のサーバが上書きしていれば、それはそのサーバのものだから。
  */
-export function removeServerInfo(dbPath: string, pid: number): void {
-  const file = serverInfoPath(dbPath);
+export function removeServerInfo(dataDir: string, pid: number): void {
+  const file = serverInfoPath(dataDir);
   if (readServerInfo(file)?.pid !== pid) return;
 
   try {
@@ -60,18 +61,18 @@ export function removeServerInfo(dbPath: string, pid: number): void {
 }
 
 /**
- * `dbPath` の DB を使って生きているサーバを探す。無ければ null。
+ * `dataDir` のデータのワークツリーを使って生きているサーバを探す。無ければ null。
  *
- * ファイルが無い・形が違う・別の DB のもの・プロセスが死んでいる（落ちたサーバの残骸）の
+ * ファイルが無い・形が違う・別のデータのもの・プロセスが死んでいる（落ちたサーバの残骸）の
  * どれでも null にする。
  */
 export function findLiveServer(
-  dbPath: string,
+  dataDir: string,
   isAlive: (pid: number) => boolean = isProcessAlive
 ): ServerLocation | null {
-  const info = readServerInfo(serverInfoPath(dbPath));
+  const info = readServerInfo(serverInfoPath(dataDir));
   if (info === null) return null;
-  if (path.resolve(info.dbPath) !== path.resolve(dbPath)) return null;
+  if (path.resolve(info.dataDir) !== path.resolve(dataDir)) return null;
   if (!isAlive(info.pid)) return null;
 
   return { url: info.url };

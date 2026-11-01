@@ -168,7 +168,7 @@ async function runStatus(argv: readonly string[]): Promise<number> {
 
     return await runStatusCli(
       rest,
-      { ...board, findServer: () => findLiveServer(config.paths.dbPath) },
+      { ...board, findServer: () => findLiveServer(config.paths.dataDir) },
       io
     );
   } finally {

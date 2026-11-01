@@ -75,15 +75,15 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
   poller?.start();
 
   const url = `http://${BIND_HOST}:${port}`;
-  const { dbPath } = config.paths;
-  writeServerInfo({ url, pid: process.pid, dbPath, startedAt: new Date().toISOString() });
+  const { dataDir } = config.paths;
+  writeServerInfo({ url, pid: process.pid, dataDir, startedAt: new Date().toISOString() });
 
   return {
     url,
     port,
     config,
     close: async () => {
-      removeServerInfo(dbPath, process.pid);
+      removeServerInfo(dataDir, process.pid);
       poller?.stop();
       sse.close();
       dbWatcher.close();

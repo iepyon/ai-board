@@ -288,7 +288,7 @@ CLI に人の判断の入口を足すと、`CLAUDE.md` の「CLI に入口を足
 ### 2. 組み立てと設定
 
 - [x] `config.ts` に `dataDir` / `dataSource` と `AI_BOARD_DATA` を足す（`dbPath` / `dbSource` / `AI_BOARD_DB` は `migrate` が使うので、SQLite を消すタスクまで残す）。`config.yaml` をデータ用ブランチの根から読み、無ければ `.ai-board/config.yaml` を読む
-- [ ] `server-info.ts` を `dataDir` で照らし合わせるように変える
+- [x] `server-info.ts` を `dataDir` で照らし合わせるように変える
 - [ ] `card-cli.ts` の各コマンドと `status` を、頭で取り直してから読むようにし、書き込みのコマンドを `transact` の中で走らせる（`submitRefusal` などの検査も中に入れる）。データ用ブランチが無いときの案内を出す
   - テスト: `card-cli.test.ts` を一時の bare リポジトリで動かす。2 つの clone からの同時の `submit` で 1 つだけ通る（ルーティンの重複起動）
 - [ ] サーバの書き込みを `transact` に通し、push の失敗を `DataStorePushFailed`（503）にする。`card-errors.ts` と `card-error-mappings.ts` を網羅する。`board.e2e.test.ts` を一時の bare リポジトリで動かす
