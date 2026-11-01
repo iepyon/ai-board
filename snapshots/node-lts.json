@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-11-01T09:18:36Z\",false,\"ddc83abc059a73f20babf75956a1990ae7e4ed8c\",0,0,\"2026-11-01T09:18:36Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 55,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "node-lts",
+    "title": "Node の LTS（24）でも ai-board を動かせるようにする",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/55",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-11-01T09:11:50Z",
+    "mergedAt": "2026-11-01T09:18:36Z",
+    "readyAt": "2026-11-01T09:11:53Z",
+    "convertedToDraftAt": null
+  }
+}
