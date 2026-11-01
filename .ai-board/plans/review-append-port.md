@@ -159,7 +159,7 @@ PR #61 で入れたテストを、作りを変えた後も同じ攻撃で確か�
 どのタスクの後でも品質ゲートが通るように並べる。新しい口を足して判断の追記をそこへ切り替えてから、本文の形で推し量る古い道を消す。
 
 - [x] `card-files.ts` に `planReviewAppend` を足す（`planCardWrite` はまだ変えない）。`card-files.test.ts` に `planReviewAppend` のテストを足す
-- [ ] `CardRepository` に `appendReview` を足し、`FileCardRepository` に実装する（`wx` で書く、`onWrite`、拒否は `CardWriteRefusedError`）。テストの偽のリポジトリ 3 つにも足し、`file-card.repository.test.ts` に追記のテストを足す
+- [x] `CardRepository` に `appendReview` を足し、`FileCardRepository` に実装する（`wx` で書く、`onWrite`、拒否は `CardWriteRefusedError`）。テストの偽のリポジトリ 3 つにも足し、`file-card.repository.test.ts` に追記のテストを足す
 - [ ] `createAppendReviewCommand` を `appendReview` と `findById` で書き直し、理由の検査（`findEntryHeadingLine`、`ReasonHasEntryHeading`、`INVALID_REVIEW_REASON` の対応、CLI の拒否文）を外す。`update-card-body.command.ts` の docstring を直す。`card-commands.test.ts` / `card-cli.test.ts` / `board.e2e.test.ts` の「偽造できない」テストを「判断は 1 件だけ増える」形に書き換える
 - [ ] `planCardWrite` から本文の形で判断の追記を推し量る部分（`appendedEntries` / `readableHeading` / `closeLast`、`planBody` の追記の分岐）を消し、docstring を直す。`card-files.test.ts` の追記のテストを `planReviewAppend` へ寄せ、判断を足した本文の `planCardWrite` は `ReviewEntriesChanged` になるテストを足す。`file-card.repository.test.ts` に `save` が判断を作らないことのテストを足す
 - [ ] `docs/architecture.md` の「判断のボタンと画面の区画」と `docs/specs/card-review-authority/spec.md` を新しい振る舞いに合わせる

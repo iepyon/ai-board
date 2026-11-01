@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { isErr } from '../../shared/result.js';
 import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
 import type { Card } from '../models/card.js';
+import type { ReviewEntry } from '../models/review.js';
 import type { CardRepository } from './card.repository.js';
 import { compareCards } from '../services/card-order.js';
 import {
@@ -14,6 +15,7 @@ import {
   assembleCard,
   parseOrder,
   planCardWrite,
+  planReviewAppend,
   serializeOrder,
   withRank,
   type CardWriteError,
@@ -110,6 +112,28 @@ export class FileCardRepository implements CardRepository {
       if (stored === null) return false;
 
       this.write(stored, card);
+      return true;
+    });
+  }
+
+  appendReview(id: CardId, entry: ReviewEntry): Promise<boolean> {
+    return settle(() => {
+      if (!isCardId(id)) return false;
+
+      const stored = this.readStored(id, readOrderLeniently(this.dataDir));
+      if (stored === null) return false;
+
+      const planned = planReviewAppend(id, stored, entry);
+      if (isErr(planned)) throw new CardWriteRefusedError(planned.error);
+
+      const logDir = path.join(this.cardDir(id), LOG_DIR);
+      fs.mkdirSync(logDir, { recursive: true });
+      // 判断のファイルは追記だけ。既にあれば書き換えずに失敗する
+      fs.writeFileSync(path.join(logDir, planned.value.name), planned.value.content, {
+        flag: 'wx',
+      });
+
+      this.onWrite();
       return true;
     });
   }

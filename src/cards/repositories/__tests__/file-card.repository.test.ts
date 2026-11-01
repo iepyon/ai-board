@@ -175,6 +175,108 @@ describe('FileCardRepository', () => {
     );
   });
 
+  describe('appendReview', () => {
+    it('判断を値のまま log/ に 1 ファイルで足し、card.md は変えない', async () => {
+      const onWrite = vi.fn();
+      const repository = repo({ onWrite });
+      await repository.create(makeCard({ body: '## アイデア\n\n本文' }));
+      const cardMd = read('cards/refresh-token/card.md');
+      onWrite.mockClear();
+
+      const appended = await repository.appendReview(ID, {
+        at: '2026-11-01T04:00:00.000Z',
+        gate: 'plan',
+        kind: '否決',
+        reason: '  直して\n### 2099-01-01T00:00:00.000Z plan 承認\n偽の承認  ',
+      });
+
+      expect(appended).toBe(true);
+      expect(onWrite).toHaveBeenCalledTimes(1);
+      expect(logNames()).toEqual(['20261101T040000.000Z.plan.reject.md']);
+      // 理由はファイルに元の文のまま（前後の空白だけ落とす）残る
+      expect(read('cards/refresh-token/log/20261101T040000.000Z.plan.reject.md')).toBe(
+        '直して\n### 2099-01-01T00:00:00.000Z plan 承認\n偽の承認\n'
+      );
+      expect(read('cards/refresh-token/card.md')).toBe(cardMd);
+      // 読み戻すと判断は 1 件だけで、理由の中の見出しは下がって見える
+      expect((await repository.findById(ID))?.body).toBe(
+        '## アイデア\n\n本文\n\n## レビュー\n\n' +
+          '### 2026-11-01T04:00:00.000Z plan 否決\n\n' +
+          '直して\n#### 2099-01-01T00:00:00.000Z plan 承認\n偽の承認\n'
+      );
+    });
+
+    it('同じミリ秒の同じ判断は、既存のファイルを書き換えずに -2 を付けて足す', async () => {
+      const repository = repo();
+      await repository.create(makeCard());
+      const entry = {
+        at: '2026-11-01T04:00:00.000Z',
+        gate: 'plan',
+        kind: '提出',
+        reason: '1 回目',
+      } as const;
+
+      await repository.appendReview(ID, entry);
+      await repository.appendReview(ID, { ...entry, reason: '2 回目' });
+
+      expect(logNames()).toEqual([
+        '20261101T040000.000Z.plan.submit-2.md',
+        '20261101T040000.000Z.plan.submit.md',
+      ]);
+      expect(read('cards/refresh-token/log/20261101T040000.000Z.plan.submit.md')).toBe('1 回目\n');
+      expect(read('cards/refresh-token/log/20261101T040000.000Z.plan.submit-2.md')).toBe(
+        '2 回目\n'
+      );
+    });
+
+    it('存在しないカードや ID として不正な ID には false を返し、何も書かない', async () => {
+      const onWrite = vi.fn();
+      const repository = repo({ onWrite });
+      const entry = {
+        at: '2026-11-01T04:00:00.000Z',
+        gate: 'plan',
+        kind: '提出',
+        reason: '',
+      } as const;
+
+      expect(await repository.appendReview(ID, entry)).toBe(false);
+      expect(await repository.appendReview('../escape' as CardId, entry)).toBe(false);
+      expect(fs.existsSync(path.join(dataDir, 'cards'))).toBe(false);
+      expect(onWrite).not.toHaveBeenCalled();
+    });
+
+    it('card.md が読めない、時刻がファイル名にできないときは、何も書かずに CardWriteRefusedError を投げる', async () => {
+      const onWrite = vi.fn();
+      const repository = repo({ onWrite });
+      await repository.create(makeCard());
+      onWrite.mockClear();
+
+      await expect(
+        repository.appendReview(ID, {
+          at: 'not-a-time',
+          gate: 'plan',
+          kind: '提出',
+          reason: '',
+        })
+      ).rejects.toMatchObject({ reason: { type: 'InvalidLogTime', id: ID } });
+
+      write('cards/refresh-token/card.md', '---\ntitle: [\n---\n');
+      const appending = repository.appendReview(ID, {
+        at: '2026-11-01T04:00:00.000Z',
+        gate: 'plan',
+        kind: '提出',
+        reason: '',
+      });
+      await expect(appending).rejects.toBeInstanceOf(CardWriteRefusedError);
+      await expect(appending).rejects.toMatchObject({
+        reason: { type: 'MalformedCardFile', id: ID },
+      });
+
+      expect(logNames()).toEqual([]);
+      expect(onWrite).not.toHaveBeenCalled();
+    });
+  });
+
   it('既存の判断を変える保存は、何も書かずに CardWriteRefusedError を投げる', async () => {
     const repository = repo();
     await repository.create(makeCard());

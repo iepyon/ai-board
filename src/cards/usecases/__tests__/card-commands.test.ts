@@ -6,6 +6,9 @@ import { createAppendReviewCommand } from '../commands/append-review.command.js'
 import type { CardRepository } from '../../repositories/card.repository.js';
 import type { Card } from '../../models/card.js';
 import type { CardId } from '../../../shared/schemas/common.js';
+import type { ReviewEntry } from '../../models/review.js';
+import { appendReviewEntry } from '../../services/review-log.js';
+import { demoteHeadings } from '../../repositories/card-files.js';
 
 // ============================================================
 // インメモリのテストダブル
@@ -31,6 +34,15 @@ class InMemoryCardRepository implements CardRepository {
   async save(card: Card): Promise<boolean> {
     if (!this.cards.has(card.id)) return false;
     this.cards.set(card.id, card);
+    return true;
+  }
+
+  /** ファイルのリポジトリと同じく、理由の中の見出しを下げた判断を本文の `## レビュー` に足す */
+  async appendReview(id: CardId, entry: ReviewEntry): Promise<boolean> {
+    const card = this.cards.get(id);
+    if (card === undefined) return false;
+    const reason = demoteHeadings(entry.reason.trim());
+    this.cards.set(id, { ...card, body: appendReviewEntry(card.body, { ...entry, reason }) });
     return true;
   }
 }
