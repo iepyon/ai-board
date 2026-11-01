@@ -129,6 +129,7 @@ describe('ai-board status --json', () => {
       cardId: 'started',
       action: 'plan',
       reason: '着手が指示され、計画がまだ無い',
+      step: null,
     });
     expect(report.waiting.map((card) => [card.id, card.stage])).toEqual([
       ['reviewing', 'plan-review'],
@@ -218,6 +219,7 @@ describe('ai-board status --json', () => {
       cardId: 'started',
       action: 'plan',
       reason: '着手が指示され、計画がまだ無い',
+      step: null,
     });
     expect(report.waiting).toEqual([
       {

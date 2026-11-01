@@ -38,6 +38,7 @@ describe('pickNextAction', () => {
       cardId: 'impling',
       action: 'implement',
       reason: '計画が承認されている',
+      step: null,
     });
   });
 
@@ -59,7 +60,12 @@ describe('pickNextAction', () => {
       makeCard({ id: 'a', stage: 'planning', gates: gate('rejected') }),
     ]);
 
-    expect(next).toEqual({ cardId: 'a', action: 'revise-plan', reason: '計画が否決された' });
+    expect(next).toEqual({
+      cardId: 'a',
+      action: 'revise-plan',
+      reason: '計画が否決された',
+      step: null,
+    });
   });
 
   it('中止のカードは選ばない', () => {
@@ -93,7 +99,12 @@ describe('pickNextAction', () => {
       makeCard({ id: 'a', stage: 'impling', gates: gate('approved', 'rejected') }),
     ]);
 
-    expect(next).toEqual({ cardId: 'a', action: 'revise-impl', reason: '動作確認で否決された' });
+    expect(next).toEqual({
+      cardId: 'a',
+      action: 'revise-impl',
+      reason: '動作確認で否決された',
+      step: null,
+    });
   });
 
   it('動作確認を人が承認したカードは ready', () => {
@@ -101,7 +112,12 @@ describe('pickNextAction', () => {
       makeCard({ id: 'a', stage: 'impling', gates: gate('approved', 'approved') }),
     ]);
 
-    expect(next).toEqual({ cardId: 'a', action: 'ready', reason: '動作確認が承認された' });
+    expect(next).toEqual({
+      cardId: 'a',
+      action: 'ready',
+      reason: '動作確認が承認された',
+      step: null,
+    });
   });
 
   it('動作確認を待つカードは選ばず、次のカードを選ぶ', () => {
@@ -119,7 +135,12 @@ describe('pickNextAction', () => {
       makeCard({ id: 'next', stage: 'impling', gates: gate('approved', 'none') }),
     ]);
 
-    expect(next).toEqual({ cardId: 'next', action: 'implement', reason: '計画が承認されている' });
+    expect(next).toEqual({
+      cardId: 'next',
+      action: 'implement',
+      reason: '計画が承認されている',
+      step: null,
+    });
   });
 
   it('AI が保留を書いて止まった計画提案中のカードは飛ばす', () => {
@@ -142,7 +163,12 @@ describe('pickNextAction', () => {
       makeCard({ id: 'next', stage: 'impling', gates: gate('approved', 'rejected') }),
     ]);
 
-    expect(next).toEqual({ cardId: 'next', action: 'revise-impl', reason: '動作確認で否決された' });
+    expect(next).toEqual({
+      cardId: 'next',
+      action: 'revise-impl',
+      reason: '動作確認で否決された',
+      step: null,
+    });
   });
 
   it('人の判断を待つ列やアイデア・マージ済みしか無ければ null', () => {
@@ -221,7 +247,7 @@ describe('resolveHold', () => {
     expect(hold).toBeNull();
     expect(
       pickNextAction([makeCard({ id: 'a', stage: 'impling', gates: input.gates, hold })])
-    ).toEqual({ cardId: 'a', action: 'revise-impl', reason: '動作確認で否決された' });
+    ).toEqual({ cardId: 'a', action: 'revise-impl', reason: '動作確認で否決された', step: null });
   });
 
   it('plan 保留の計画提案中のカードは止まる', () => {
