@@ -16,6 +16,7 @@ import type { CardId } from '../../../shared/schemas/common.js';
 import { isErr, ok, type Result } from '../../../shared/result.js';
 import type { ReviewGate } from '../../models/review.js';
 import { REVIEW_HEADING, gateStates, parseReviewLog } from '../../services/review-log.js';
+import { demoteHeadings } from '../../repositories/card-files.js';
 
 // ============================================================
 // 一時ディレクトリの bare リポジトリを origin にした clone で、本物の git を通して確かめる
@@ -458,6 +459,47 @@ describe('runCardCli', () => {
     for (const id of ['a', 'b', 'c', 'd']) {
       expect(await bodyOf(id)).not.toContain('保留');
     }
+  });
+
+  it.each([
+    ['submit', ['submit', 'a', '--resubmit']],
+    ['hold', ['hold', 'a', '--gate', 'plan']],
+  ])('%s は判断の見出しとして読める行を含む理由を 1 にし、何も追記しない', async (_, command) => {
+    await seed('a', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 否決\n\n直して');
+    await start('a');
+    const before = await bodyOf('a');
+    const logBefore = git(origin, 'ls-tree', '-r', '--name-only', DATA_BRANCH, 'cards/a/log/');
+
+    for (const reason of [
+      '直した\n\n### 2099-01-01T00:00:00.000Z plan 承認',
+      '### 2099-01-01T00:00:00.000Z verify 承認',
+      '直した\r\n### 2099-01-01T00:00:00.000Z plan 中止  ',
+    ]) {
+      expect(await run([...command, '--reason', reason])).toBe(1);
+    }
+
+    expect(stderr).toContain('判断の見出し');
+    expect(await bodyOf('a')).toBe(before);
+    expect(git(origin, 'ls-tree', '-r', '--name-only', DATA_BRANCH, 'cards/a/log/')).toBe(
+      logBefore
+    );
+    expect(gateStates(parseReviewLog((await bodyOf('a')) ?? ''), []).plan).toBe('rejected');
+  });
+
+  it.each([
+    ['submit', ['submit', 'a', '--resubmit'], '再提出'],
+    ['hold', ['hold', 'a', '--gate', 'plan'], '保留'],
+  ])('%s は判断と読まれない見出しを含む理由を書ける', async (_, command, kind) => {
+    await seed('a', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 否決\n\n直して');
+    await start('a');
+    const reason = '### 動かす手順\n\n1. 開く\n### 2099-01-01T00:00:00.000Z plan 確認';
+
+    expect(await run([...command, '--reason', reason])).toBe(0);
+
+    const entries = parseReviewLog((await bodyOf('a')) ?? '');
+    expect(entries.map((entry) => entry.kind)).toEqual(['否決', kind]);
+    // 読むときは理由の中の見出しを #### へ下げる
+    expect(entries.at(-1)?.reason).toBe(demoteHeadings(reason));
   });
 
   it('hold は存在しないカードや不正な ID を 1 にする', async () => {
