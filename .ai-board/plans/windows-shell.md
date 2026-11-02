@@ -192,14 +192,14 @@ Windows では `rundll32 url.dll,FileProtocolHandler <url>` を引数の配列�
 
 ### 5. 手順書
 
-- [ ] `.claude/skills/board-decide/SKILL.md` の `jq` をすべて置き換える
+- [x] `.claude/skills/board-decide/SKILL.md` の `jq` をすべて置き換える
   - ボードを読む: `status --json --only server,waiting,ideas,cards.id,...,cards.mrState`
   - URL を読む: `status --json --only server`
   - 人の API の本文: `node -e` の 1 行で、値は `process.argv` から受ける。着手の時刻は `node` の中で作る。`skipGates` の出し入れも `node -e` で行う
   - サーバの起動を `--pid-file "$RUN/pid"` に変え、`echo $! > "$RUN/pid"` を消す。止めるのを `node -e 'process.kill(...)'` に変える
   - 「`jq -n --arg` で組み立てる」の説明を、`process.argv` で渡す理由に書き直す
-- [ ] `.claude/skills/board-loop/SKILL.md` のボードを読む手順を `status --json --only next,waiting,forge` に変える
-- [ ] `.claude/` の下に `jq` が残っていないことを `grep -rn '\bjq\b' .claude/` で確かめる
+- [x] `.claude/skills/board-loop/SKILL.md` のボードを読む手順を `status --json --only next,waiting,forge` に変える
+- [x] `.claude/` の下に `jq` が残っていないことを `grep -rn '\bjq\b' .claude/` で確かめる
 
 ### 6. CI
 
