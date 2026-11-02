@@ -20,6 +20,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 使い方・ステージの判定表・止まり・1 周の流れ・AI ループ: `README.md`
 - 実装の細部（ディレクトリ・ゲートの状態・判断のボタン・`status`・GitHub の取得・API・timeline）: `docs/architecture.md`
 - 仕様: `docs/specs/*/spec.md`、PR レビューだけに効く指示: `REVIEW.md`
+- 設計判断の理由と捨てた代案: `docs/adr/`（ADR。不変条件を外したくなったら先に読む。書くときは `adr` のスキル）
 - ループの手順: `.claude/skills/board-loop/SKILL.md`、サブエージェント: `.claude/agents/board-*.md`（共通の決まりは `.claude/skills/board-loop/subagent-rules.md`）
 
 ## 品質ゲート
@@ -93,6 +94,7 @@ CLI（`src/cards/cli/card-cli.ts`）はこれを構造で強制している。**
 ## 設計の不変条件
 
 ステージ導出の核は `src/board/services/stage-resolver.ts` の純関数。**変更するならまずここの docstring を読む。**
+各条件を決めた理由と退けた代案は `docs/adr/` にある。条件を崩す変更をしたら、新しい ADR で古い ADR を置き換える。
 
 - ルールは `RULES` 配列の順序で表す（上から評価して最初に真になったもの＝最も進んだステージが勝つ）。
 - ステージを保存する・直接指定する入力口は作らない。列を動かすなら、その列を成立させる実態を作る。
