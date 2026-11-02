@@ -11,7 +11,8 @@ import {
   createTransactionalCardDependencies,
   type CardDependencies,
 } from '../../../cards/composition.js';
-import { createBoardDependencies } from '../../composition.js';
+import { createBoardDependencies, createLoopHistoryRepository } from '../../composition.js';
+import { writeLoopFinish, writeLoopStart } from '../../repositories/loop-history.repository.js';
 import type { MrStateProvider } from '../../services/mr-state-provider.js';
 import type { MrState } from '../../models/mr-state.js';
 import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
@@ -158,7 +159,8 @@ function buildApp(mrProvider?: MrStateProvider): Application {
     path.join(root, '.ai-board', 'plans'),
     cards.cardRepository,
     cards.ideaDividerRepository,
-    mrProvider
+    mrProvider,
+    createLoopHistoryRepository(store.dataDir)
   );
 
   // フロントエンドの静的配信は e2e の対象外
@@ -394,59 +396,123 @@ describe('GET /api/board', () => {
         owner: 'human',
         start: '2026-09-01T00:00:00.000Z',
         end: '2026-09-02T00:00:00.000Z',
+        phases: [],
       },
       {
         kind: 'planning',
         owner: 'ai',
         start: '2026-09-02T00:00:00.000Z',
         end: '2026-09-03T00:00:00.000Z',
+        phases: [],
       },
       {
         kind: 'plan-review',
         owner: 'human',
         start: '2026-09-03T00:00:00.000Z',
         end: '2026-09-04T00:00:00.000Z',
+        phases: [],
       },
       {
         kind: 'plan-rework',
         owner: 'ai',
         start: '2026-09-04T00:00:00.000Z',
         end: '2026-09-05T00:00:00.000Z',
+        phases: [],
       },
       {
         kind: 'plan-review',
         owner: 'human',
         start: '2026-09-05T00:00:00.000Z',
         end: '2026-09-06T00:00:00.000Z',
+        phases: [],
       },
       {
         kind: 'implementing',
         owner: 'ai',
         start: '2026-09-06T00:00:00.000Z',
         end: '2026-09-07T00:00:00.000Z',
+        phases: [],
       },
       {
         kind: 'verifying',
         owner: 'human',
         start: '2026-09-07T00:00:00.000Z',
         end: '2026-09-08T00:00:00.000Z',
+        phases: [],
       },
       {
         kind: 'readying',
         owner: 'ai',
         start: '2026-09-08T00:00:00.000Z',
         end: '2026-09-09T00:00:00.000Z',
+        phases: [],
       },
       {
         kind: 'pr-review',
         owner: 'human',
         start: '2026-09-09T00:00:00.000Z',
         end: '2026-09-10T00:00:00.000Z',
+        phases: [],
       },
     ]);
     expect(byId.get('fresh-idea')?.timeline).toEqual([
-      { kind: 'idea', owner: 'human', start: '2026-09-01T00:00:00.000Z', end: null },
+      { kind: 'idea', owner: 'human', start: '2026-09-01T00:00:00.000Z', end: null, phases: [] },
     ]);
+  });
+
+  it('ループの 1 手の記録を loop・loopSteps・AI の区間の phases に載せる', async () => {
+    await writeCard(
+      'looped',
+      [
+        '---',
+        'id: looped',
+        'title: ループ',
+        "created: '2026-09-01T00:00:00.000Z'",
+        "startedAt: '2026-09-02T00:00:00.000Z'",
+        '---',
+        '',
+      ].join('\n')
+    );
+    const written = await store.transact('loop: テストの準備', (dataDir) => {
+      const started = writeLoopStart(dataDir, {
+        loop: 'session-a',
+        cardId: 'looped',
+        action: 'plan',
+        step: null,
+        agent: 'board-planner',
+        startedAt: '2026-09-02T06:00:00.000Z',
+      });
+      if (isErr(started)) return Promise.resolve(started);
+      return Promise.resolve(
+        writeLoopFinish(dataDir, {
+          loop: 'session-a',
+          cardId: 'looped',
+          result: 'stopped',
+          tokens: 5000,
+          durationMs: 60_000,
+          finishedAt: '2026-09-02T07:00:00.000Z',
+        })
+      );
+    });
+    if (isErr(written)) throw new Error('準備に失敗しました');
+
+    const response = await request(buildApp()).get('/api/board').expect(200);
+    const card = response.body.cards[0];
+
+    expect(response.body.loop).toEqual({ running: [], lastFinishedAt: '2026-09-02T07:00:00.000Z' });
+    expect(card.loopSteps).toHaveLength(1);
+    expect(card.loopSteps[0]).toMatchObject({ result: 'stopped', tokens: 5000 });
+    expect(card.timeline[1]).toEqual({
+      kind: 'planning',
+      owner: 'ai',
+      start: '2026-09-02T00:00:00.000Z',
+      end: null,
+      phases: [
+        { kind: 'wait', start: '2026-09-02T00:00:00.000Z', end: '2026-09-02T06:00:00.000Z' },
+        { kind: 'work', start: '2026-09-02T06:00:00.000Z', end: '2026-09-02T07:00:00.000Z' },
+        { kind: 'wait', start: '2026-09-02T07:00:00.000Z', end: null },
+      ],
+    });
   });
 
   it('カードが無い計画ファイルを orphanPlans として返す', async () => {

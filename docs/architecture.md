@@ -192,6 +192,7 @@ order.yaml                              rank とアイデアの区切り線（{ 
 cards/<id>/card.md                      frontmatter（id, title, created, skipGates, branch, mr）と本文
 cards/<id>/log/<時刻>.<gate>.<種別>.md   判断 1 件。中身は理由の本文。追記だけで、書き換えも削除もしない
 snapshots/<id>.json                     マージ済みの PR の控え
+loop/<時刻>.<ループの識別子>.json        ループの 1 手の記録（後述の「ループの 1 手の記録」）。カードではない
 ```
 
 `card show` の出力（`card.md`・`log/`・`order.yaml` から組み立てた `Card` を frontmatter の形で表したもの）:
@@ -331,7 +332,9 @@ GitHub の上限（5,000 回/時）の大半を使う。そこで引いた結果
 
 `GET /api/board` の各カードは `hold`（止まり。`{ reason, since }` か `null`）と、
 `mrState.readyAt`（最後に Ready にした時刻）、`mrState.convertedToDraftAt`（最後に Draft へ戻された時刻）、
-`timeline`（区間の並び）も持つ。`ai-board status --json` の `cards[]` も同じものを持つ。
+`timeline`（区間の並び。各区間に待ちと作業の `phases`）、`loopSteps`（そのカードのループの 1 手の記録）も持つ。
+`ai-board status --json` の `cards[]` も同じものを持つ。
+ボード全体には `loop`（`{ running, lastFinishedAt }`）が付く。`status --json` も同じ `loop` を持つ。
 
 ## 区間の並び（timeline）
 
@@ -343,3 +346,36 @@ GitHub の上限（5,000 回/時）の大半を使う。そこで引いた結果
 今いる区間は `end: null` で、導出は今の時刻を受け取らない（長さを出す側が `generatedAt` までを数える）。
 マージと中止は今の区間を閉じるだけで次の区間を始めない。長さ 0 の区間は落とし、隣り合う同じ種類の区間はつなぐ。
 画面にはまだ出さない。
+
+**待ちと作業。** `GetBoardQuery` は `resolveTimeline` の結果を `src/board/services/timeline-phases.ts` の純関数 `splitAiPhases` に通し、
+各区間に `phases`（`{ kind: 'wait' | 'work', start, end }` の配列、型は `src/shared/timeline.ts` の `PhasedTimelineSegment`）を付ける。
+AI の区間では、そのカードのループの 1 手の記録を区間の範囲で切り取り、重なった部分を `work`、区間の中のそれ以外を `wait` にする。
+重なる記録はつなぎ、終わっていない区間・記録は `end: null` のまま扱う（今の時刻は受け取らない）。
+人の区間と、記録が 1 つも重ならない AI の区間は空にする（記録を始める前の区間を、全部「待ち」と言い張らないため）。
+`resolveTimeline` は 1 手の記録を読まない。区間の導出（痕跡だけから決まる）と分け方を混ぜないためである。
+
+## ループの 1 手の記録
+
+監視役（`/board-loop`）がサブエージェントに 1 手を渡してから完了の通知を受けるまでを、1 件の記録としてデータ用ブランチの `loop/` に置く。
+型と語は `src/shared/loop-step.ts`、ファイルの形と読み書きは `src/board/repositories/loop-history.repository.ts`、CLI は `src/board/cli/loop-cli.ts`。
+
+- ファイル名は `loop/<開始の時刻>.<ループの識別子>.json`。時刻は判断のファイルと同じ `toLogStamp` の形で、同じ時刻と識別子が重なれば `-2` を付ける。
+  識別子は `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`（ファイル名に入るため）
+- 中身は `{ loop, cardId, action, step, agent, startedAt, finishedAt, result, tokens, durationMs }`。
+  開始で `finishedAt` / `result` / `tokens` / `durationMs` を `null` にして作り、終了で 1 度だけ埋める。終わった記録は書き換えない
+- `result` は `advanced` / `held` / `stopped`（報告の `結果:` の語）、`failed`（`Agent` の失敗）、`unknown`（結果の語が無い）、`interrupted`（途切れた）
+- `ai-board loop start` は、同じループに終わっていない記録が残っていれば `interrupted` で閉じてから作る（閉じた時刻は新しい手の開始）。
+  `finish` は、そのループの終わっていない記録を埋め、無いか `--card` が食い違えば拒む。`interrupted` は渡せない
+- どちらも `DataStore.transact` の 1 操作で、コミットのメッセージは `loop: <start|finish> <cardId> <手>`。`DATA_PATHS` に `loop` を足してある
+- `loop-cli.ts` は、カードについては「その ID のカードがあるか」を読む関数だけを受け取り、カードの書き込みの口を持たない
+- 読めないファイル（JSON でない、項目が不正、ファイル名と中身の時刻や識別子が食い違う）は警告して読み飛ばす
+- 手と段の値（`LOOP_ACTIONS` / `LOOP_IMPL_STEPS`）は `src/shared/` に置き、`NextActionKind` / `ImplStep` と食い違えば
+  `loop-history.repository.ts` の `LOOP_VOCABULARY_IN_SYNC` で型エラーになる
+
+形の版（`ai-board-data.yaml`）は上げない。`loop/` を足すだけで `cards/` と `order.yaml` の形は変わらず、
+古い CLI は `DATA_PATHS` に `loop/` を持たないが、`git add` も `git clean -x` も `DATA_PATHS` の下だけを扱い、追跡済みの `loop/` のファイルは `reset --hard` で保たれる。
+
+`GetBoardQuery` は全件を読み、`Board.loop`（`toBoardLoop`。ループごとの最新の終わっていない記録と、最後に終えた時刻）と、
+カードごとの `loopSteps` と、区間の `phases` を組み立てる。ステージの導出・止まり・次の一手には渡さない。
+トップバーと `status` の「ループ: …」の 1 行は `src/shared/loop-activity.ts` の `summarizeLoop` が `generatedAt` までを数えて作る（今の時刻は読まない）。
+画面のカードの行の「AI 稼働中」はカードの `loopSteps` に終わっていない記録があるか（`hasRunningStep`）で、詳細パネルの「ループの手」の書式も同じファイルの純関数にある。

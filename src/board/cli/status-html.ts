@@ -1,7 +1,7 @@
 import { groupBySection } from '../../shared/dashboard-sections.js';
 import { STAGE_LABELS } from '../../shared/stage-labels.js';
 import type { StatusCard, StatusReport, WaitingCard, WorkingCard } from './status-cli.js';
-import { describeForge, describeNext } from './status-describe.js';
+import { describeForge, describeLoop, describeNext } from './status-describe.js';
 
 // ============================================================
 // ai-board status --html — ボードを 1 枚の自己完結の HTML にする
@@ -65,6 +65,7 @@ function renderHeader(report: StatusReport): string {
 <dl class="meta">
 <dt>生成</dt><dd>${escapeHtml(formatTime(report.generatedAt))}</dd>
 <dt>GitHub</dt><dd>${escapeHtml(describeForge(report.forge))}</dd>
+<dt>ループ</dt><dd>${escapeHtml(describeLoop(report).replace(/^ループ: /, ''))}</dd>
 <dt>次の一手</dt><dd>${escapeHtml(describeNext(report.next, report.forge))}</dd>
 </dl>
 </header>`;
@@ -91,7 +92,13 @@ function renderWaiting(summary: WaitingCard, card: StatusCard | undefined): stri
           .map((decision) => escapeHtml(decision.label))
           .join(' / ')}</p>`;
 
-  return renderCard(summary, [hold, renderPr(card), decisions, renderLatestReview(card)]);
+  return renderCard(summary, [
+    renderRunning(summary),
+    hold,
+    renderPr(card),
+    decisions,
+    renderLatestReview(card),
+  ]);
 }
 
 function renderWorking(summary: WorkingCard, card: StatusCard | undefined): string {
@@ -99,9 +106,15 @@ function renderWorking(summary: WorkingCard, card: StatusCard | undefined): stri
   const stale = summary.stale ? '<span class="stale">動きなし</span>' : '';
 
   return renderCard(summary, [
+    renderRunning(summary),
     `<p class="reason">${escapeHtml(summary.reason)}${escapeHtml(tasks)}${stale}</p>`,
     renderPr(card),
   ]);
+}
+
+/** ループが今触っているカードの印 */
+function renderRunning(summary: WaitingCard | WorkingCard): string {
+  return summary.running ? '<p class="running">AI 稼働中</p>' : '';
 }
 
 function renderIdeas(report: StatusReport): string {
@@ -249,6 +262,10 @@ code { background: var(--code-bg); border-radius: 4px; padding: 0 4px; font-size
 .hold { background: var(--warn-bg); color: var(--warn); border-radius: 6px; padding: 6px 8px; }
 .hold .label { color: inherit; }
 .stale { color: var(--warn); margin-left: 8px; font-size: 0.85rem; }
+.running {
+  display: inline-block; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px;
+  padding: 0 6px; font-size: 0.8rem;
+}
 a { color: var(--accent); }
 details { margin-top: 8px; }
 summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }

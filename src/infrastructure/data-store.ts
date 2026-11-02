@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { SNAPSHOTS_DIR } from '../board/repositories/file-mr-snapshot.repository.js';
+import { LOOP_DIR } from '../board/repositories/loop-history.repository.js';
 import {
   CARDS_DIR,
   DATA_VERSION_FILE,
@@ -36,7 +37,14 @@ const DATA_PUSH_REFSPEC = `HEAD:refs/heads/${DATA_BRANCH}`;
  * 人のグローバルの gitignore（`core.excludesFile`）やメインのリポジトリの `.git/info/exclude` に
  * `log/` などがあっても、ここに置いたファイルは無視させずにコミットし、捨てるときも消す。
  */
-const DATA_PATHS = [CARDS_DIR, ORDER_FILE, SNAPSHOTS_DIR, DATA_VERSION_FILE, CONFIG_FILE] as const;
+const DATA_PATHS = [
+  CARDS_DIR,
+  ORDER_FILE,
+  SNAPSHOTS_DIR,
+  LOOP_DIR,
+  DATA_VERSION_FILE,
+  CONFIG_FILE,
+] as const;
 
 /** 手元の複数のプロセスの書き込みを直列にするロックファイル。データのワークツリーの親に置く */
 export const LOCK_FILE = 'data.lock';

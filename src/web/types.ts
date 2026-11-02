@@ -1,10 +1,20 @@
-import type { TimelineSegment } from '../shared/timeline.js';
+import type { PhasedTimelineSegment } from '../shared/timeline.js';
+import type { LoopStep } from '../shared/loop-step.js';
+import type { BoardLoop } from '../shared/loop-activity.js';
 
 // ============================================================
 // API レスポンスの型（サーバの BoardCard と対応）
 // ============================================================
 
-export type { TimelineKind, TimelineOwner, TimelineSegment } from '../shared/timeline.js';
+export type {
+  PhasedTimelineSegment,
+  TimelineKind,
+  TimelineOwner,
+  TimelinePhase,
+  TimelineSegment,
+} from '../shared/timeline.js';
+export type { LoopAction, LoopImplStep, LoopResult, LoopStep } from '../shared/loop-step.js';
+export type { BoardLoop } from '../shared/loop-activity.js';
 
 export type Stage = 'idea' | 'planning' | 'plan-review' | 'impling' | 'verifying' | 'pr' | 'merged';
 
@@ -85,8 +95,13 @@ export interface BoardCard {
   mrState: BoardCardMr | null;
   /** AI の列にいるが人の判断を待っているときの止まり。止まっていなければ null */
   hold: CardHold | null;
-  /** カードが各工程にいた区間の並び。時刻の順で、今いる区間は `end: null` */
-  timeline: TimelineSegment[];
+  /**
+   * カードが各工程にいた区間の並び。時刻の順で、今いる区間は `end: null`。
+   * AI の区間には、ループの 1 手の記録から分けた待ちと作業の小区間（`phases`）が付く
+   */
+  timeline: PhasedTimelineSegment[];
+  /** このカードに渡されたループの手（1 手の記録）。開始の時刻の順 */
+  loopSteps: LoopStep[];
 }
 
 /** AI の列にいるが人の判断を待っているカードの止まり（サーバの `resolveHold`） */
@@ -111,6 +126,8 @@ export interface Board {
   orphanPlans: string[];
   /** アイデアの表の区切り線の rank。未設定なら null（すべて「次にやる」） */
   ideaDivider: number | null;
+  /** ループの様子（今触っている手と、最後に手を終えた時刻） */
+  loop: BoardLoop;
   generatedAt: string;
 }
 

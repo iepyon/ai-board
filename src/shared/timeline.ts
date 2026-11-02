@@ -64,3 +64,29 @@ export interface TimelineSegment {
   readonly start: string;
   readonly end: string | null;
 }
+
+/**
+ * AI の区間の中の小区間の種類。
+ *
+ * - `wait`: ループが拾うまでの待ち（区間の中で、どの手も動いていない時間）
+ * - `work`: 作業者（サブエージェント）が動いていた時間（ループの 1 手の記録が重なる時間）
+ */
+export type TimelinePhaseKind = 'wait' | 'work';
+
+/** AI の区間の中の小区間 1 つ。今も続いていれば `end: null` */
+export interface TimelinePhase {
+  readonly kind: TimelinePhaseKind;
+  readonly start: string;
+  readonly end: string | null;
+}
+
+/**
+ * 小区間を添えた区間。`phases` は時刻の順。
+ *
+ * 人の区間と、ループの 1 手の記録が 1 つも重ならない AI の区間は、空にする
+ * （記録を始める前の区間を、全部「待ち」と言い張らないため）。
+ * 分け方は `src/board/services/timeline-phases.ts` の `splitAiPhases`。
+ */
+export interface PhasedTimelineSegment extends TimelineSegment {
+  readonly phases: readonly TimelinePhase[];
+}

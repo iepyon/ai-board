@@ -16,8 +16,9 @@ import { pickNextAction, type NextAction } from '../services/next-action.js';
 import { resolveImplStep, type ImplStep } from '../services/impl-step.js';
 import type { BranchPlanRepository } from '../repositories/branch-plan.repository.js';
 import { createCardId } from '../../shared/schemas/common.js';
-import { describeForge, describeNext } from './status-describe.js';
+import { describeForge, describeLoop, describeNext } from './status-describe.js';
 import { formatStatusHtml } from './status-html.js';
+import { isCardRunning, type BoardLoop } from '../../shared/loop-activity.js';
 
 // ============================================================
 // ai-board status — サーバを起動せずにボードの状態を読む
@@ -35,6 +36,8 @@ interface CardSummary {
   readonly title: string;
   readonly stage: Stage;
   readonly reason: string;
+  /** ループが今このカードを触っているか（終わっていない 1 手の記録がある） */
+  readonly running: boolean;
 }
 
 /**
@@ -65,6 +68,8 @@ export interface StatusReport {
   readonly cards: readonly StatusCard[];
   readonly ideas: readonly IdeaListRow[];
   readonly forge: ForgeConnection;
+  /** ループの様子（今触っている手と、最後に手を終えた時刻）。各カードの手の一覧は `cards[].loopSteps` */
+  readonly loop: BoardLoop;
   /** 同じ DB を使って起動中のサーバ。人の API を叩くとき（`board-decide`）に使う。無ければ null */
   readonly server: ServerLocation | null;
   readonly generatedAt: string;
@@ -186,13 +191,20 @@ export function buildStatusReport(
 
   return {
     next: board.forge.status === 'connected' ? pickNextAction(cards) : null,
-    waiting: sections.inbox.map((card) => ({ ...toSummary(card), decisions: decisionsFor(card) })),
-    working: sections.work.map((card) => ({ ...toSummary(card), stale: isStale(card, now) })),
+    waiting: sections.inbox.map((card) => ({
+      ...toSummary(card, board.loop),
+      decisions: decisionsFor(card),
+    })),
+    working: sections.work.map((card) => ({
+      ...toSummary(card, board.loop),
+      stale: isStale(card, now),
+    })),
     cards,
     ideas: ideaRows(sections.idea, board.ideaDivider).map((row) =>
       row.kind === 'card' ? { id: row.card.id, title: row.card.title } : { divider: true }
     ),
     forge: board.forge,
+    loop: board.loop,
     server,
     generatedAt: board.generatedAt,
   };
@@ -203,19 +215,22 @@ export function formatStatus(report: StatusReport): string {
   const lines = [
     `GitHub: ${describeForge(report.forge)}`,
     `サーバ: ${report.server?.url ?? '起動していません'}`,
+    describeLoop(report),
     '',
   ];
 
   lines.push(`判断待ち (${report.waiting.length})`);
   for (const card of report.waiting) {
-    lines.push(`  ${card.id}  [${STAGE_LABELS[card.stage]}]  ${card.title}`);
+    lines.push(`  ${card.id}  [${STAGE_LABELS[card.stage]}]  ${card.title}${runningMark(card)}`);
     lines.push(`    ${card.reason}`);
   }
 
   lines.push('', `AI 作業中 (${report.working.length})`);
   for (const card of report.working) {
     const stale = card.stale ? '  ※ 動きなし' : '';
-    lines.push(`  ${card.id}  [${STAGE_LABELS[card.stage]}]  ${card.title}${stale}`);
+    lines.push(
+      `  ${card.id}  [${STAGE_LABELS[card.stage]}]  ${card.title}${runningMark(card)}${stale}`
+    );
   }
 
   lines.push('', `次の一手: ${describeNext(report.next, report.forge)}`);
@@ -223,12 +238,17 @@ export function formatStatus(report: StatusReport): string {
   return `${lines.join('\n')}\n`;
 }
 
+function runningMark(card: CardSummary): string {
+  return card.running ? '  ※ AI 稼働中' : '';
+}
+
 /** 止まっているカードは、ステージの理由ではなく人が何をすればよいか（`hold.reason`）を出す */
-function toSummary(card: StatusCard): CardSummary {
+function toSummary(card: StatusCard, loop: BoardLoop): CardSummary {
   return {
     id: card.id,
     title: card.title,
     stage: card.stage,
     reason: card.hold?.reason ?? card.reason,
+    running: isCardRunning(loop, card.id),
   };
 }

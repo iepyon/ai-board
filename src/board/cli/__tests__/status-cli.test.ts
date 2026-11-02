@@ -6,7 +6,8 @@ import { createFileCardDependencies } from '../../../cards/composition.js';
 import { parseCard } from '../../../cards/repositories/card-markdown.js';
 import { REVIEW_HEADING, parseReviewLog } from '../../../cards/services/review-log.js';
 import { isErr } from '../../../shared/result.js';
-import { createBoardDependencies } from '../../composition.js';
+import { createBoardDependencies, createLoopHistoryRepository } from '../../composition.js';
+import { writeLoopFinish, writeLoopStart } from '../../repositories/loop-history.repository.js';
 import type { MrStateProvider } from '../../services/mr-state-provider.js';
 import type { ForgeConnection } from '../../models/mr-state.js';
 import { HOLD_REASONS } from '../../services/next-action.js';
@@ -92,7 +93,8 @@ async function run(
     path.join(root, '.ai-board', 'plans'),
     cards.cardRepository,
     cards.ideaDividerRepository,
-    provider
+    provider,
+    createLoopHistoryRepository(dataDir)
   );
 
   return runStatusCli(
@@ -173,15 +175,71 @@ describe('ai-board status --json', () => {
         owner: 'human',
         start: '2026-10-19T00:00:00.000Z',
         end: '2026-10-19T12:00:00.000Z',
+        phases: [],
       },
       {
         kind: 'planning',
         owner: 'ai',
         start: '2026-10-19T12:00:00.000Z',
         end: '2026-10-20T00:00:00.000Z',
+        phases: [],
       },
-      { kind: 'plan-review', owner: 'human', start: '2026-10-20T00:00:00.000Z', end: null },
+      {
+        kind: 'plan-review',
+        owner: 'human',
+        start: '2026-10-20T00:00:00.000Z',
+        end: null,
+        phases: [],
+      },
     ]);
+  });
+
+  it('ループの 1 手の記録を、ループの様子・カードの手の一覧・AI の区間の待ちと作業に載せる', async () => {
+    await writeCard(
+      'reviewing',
+      "created: '2026-10-19T00:00:00.000Z'\nstartedAt: '2026-10-19T12:00:00.000Z'\n",
+      review('提出')
+    );
+    await writePlan('reviewing', '# 計画\n\n- [ ] 1');
+    await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\n");
+    writeLoopStart(dataDir, {
+      loop: 'session-a',
+      cardId: 'reviewing',
+      action: 'plan',
+      step: null,
+      agent: 'board-planner',
+      startedAt: '2026-10-19T18:00:00.000Z',
+    });
+    writeLoopFinish(dataDir, {
+      loop: 'session-a',
+      cardId: 'reviewing',
+      result: 'advanced',
+      tokens: 100,
+      durationMs: 3_600_000,
+      finishedAt: '2026-10-19T19:00:00.000Z',
+    });
+    writeLoopStart(dataDir, {
+      loop: 'session-a',
+      cardId: 'started',
+      action: 'plan',
+      step: null,
+      agent: null,
+      startedAt: '2026-10-22T23:30:00.000Z',
+    });
+
+    const report = await runJson();
+    const reviewing = report.cards.find((card) => card.id === 'reviewing');
+
+    expect(report.loop.running.map((step) => step.cardId)).toEqual(['started']);
+    expect(report.loop.lastFinishedAt).toBe('2026-10-19T19:00:00.000Z');
+    expect(reviewing?.loopSteps.map((step) => step.result)).toEqual(['advanced']);
+    expect(reviewing?.timeline[1]?.phases).toEqual([
+      { kind: 'wait', start: '2026-10-19T12:00:00.000Z', end: '2026-10-19T18:00:00.000Z' },
+      { kind: 'work', start: '2026-10-19T18:00:00.000Z', end: '2026-10-19T19:00:00.000Z' },
+      { kind: 'wait', start: '2026-10-19T19:00:00.000Z', end: '2026-10-20T00:00:00.000Z' },
+    ]);
+    expect(report.working.find((card) => card.id === 'started')?.running).toBe(true);
+    expect(report.waiting.find((card) => card.id === 'reviewing')?.running).toBe(false);
   });
 
   it('提出したのに成果物の見えないカードは次の一手にせず、判断待ちに理由付きで出す', async () => {
@@ -196,6 +254,7 @@ describe('ai-board status --json', () => {
         title: 'lost のタイトル',
         stage: 'planning',
         reason: '計画を提出済みだが、計画ファイルも Draft の PR も見えない',
+        running: false,
         // 直させる先の計画が見えないので、中止だけ
         decisions: [{ gate: 'plan', kind: '中止', label: '中止する', reasonRequired: false }],
       },
@@ -234,6 +293,7 @@ describe('ai-board status --json', () => {
         title: 'held のタイトル',
         stage: 'impling',
         reason: HOLD_REASONS.verifyHeld,
+        running: false,
         decisions: [
           { gate: 'verify', kind: '否決', label: '実装を直させる', reasonRequired: true },
           { gate: 'plan', kind: '否決', label: '計画から立て直させる', reasonRequired: true },
@@ -264,6 +324,7 @@ describe('ai-board status --json', () => {
         title: 'verifying のタイトル',
         stage: 'verifying',
         reason: '実装が人の動作確認を待っている',
+        running: false,
         decisions: [
           { gate: 'verify', kind: '承認', label: '承認', reasonRequired: false },
           { gate: 'verify', kind: '否決', label: '否決して差し戻す', reasonRequired: true },
@@ -363,6 +424,7 @@ describe('ai-board status --json', () => {
         title: 'started のタイトル',
         stage: 'planning',
         reason: expect.any(String),
+        running: false,
         stale: false,
       },
     ]);
@@ -467,12 +529,30 @@ describe('ai-board status', () => {
 
     expect(stdout).toContain('GitHub: 接続済み');
     expect(stdout).toContain('サーバ: 起動していません');
+    expect(stdout).toContain('ループ: 記録なし');
     expect(stdout).toContain('判断待ち (1)');
     expect(stdout).toContain('reviewing  [計画レビュー]  reviewing のタイトル');
     expect(stdout).toContain('AI 作業中 (1)');
     // 計画ファイルが無いので着手の時刻から数え、3 日以上たっている
     expect(stdout).toContain('impl  [実装中]  impl のタイトル  ※ 動きなし');
     expect(stdout).toContain('次の一手: implement impl 段=不明（計画が承認されている）');
+  });
+
+  it('ループが今触っているカードと、その行の印を出す', async () => {
+    await writeCard('impl', "startedAt: '2026-10-22T00:00:00.000Z'\n", review('承認'));
+    writeLoopStart(dataDir, {
+      loop: 'session-a',
+      cardId: 'impl',
+      action: 'implement',
+      step: 'task',
+      agent: null,
+      startedAt: '2026-10-22T23:48:00.000Z',
+    });
+
+    expect(await run([])).toBe(0);
+
+    expect(stdout).toMatch(/ループ: impl のタイトル を implement（task） 中（[^）]+）/);
+    expect(stdout).toContain('impl  [実装中]  impl のタイトル  ※ AI 稼働中');
   });
 
   it('implement の次の一手に、カードのブランチの計画から決めた段を出す', async () => {

@@ -6,6 +6,7 @@ import {
   type BoardCard,
   type Stage,
 } from '../../types.js';
+import { hasRunningStep } from '../../../shared/loop-activity.js';
 
 // ============================================================
 // 区画をまたいで使う小さな部品
@@ -23,7 +24,10 @@ export function StagePill({ stage }: { stage: Stage }) {
   );
 }
 
-/** カードのタイトル。押すと詳細パネル（本文の編集・紐付け）が開く */
+/**
+ * カードのタイトル。押すと詳細パネル（本文の編集・紐付け）が開く。
+ * ループが今このカードを触っていれば、横に「AI 稼働中」の印を付ける
+ */
 export function CardTitle({
   card,
   onSelect,
@@ -32,9 +36,21 @@ export function CardTitle({
   onSelect: (card: BoardCard) => void;
 }) {
   return (
-    <button type="button" className="card-title" onClick={() => onSelect(card)}>
-      {card.title}
-    </button>
+    <>
+      <button type="button" className="card-title" onClick={() => onSelect(card)}>
+        {card.title}
+      </button>
+      {hasRunningStep(card.loopSteps) && <RunningBadge />}
+    </>
+  );
+}
+
+/** ループが今触っているカードの印 */
+export function RunningBadge() {
+  return (
+    <span className="loop-badge" title="ループがこのカードの手を進めています">
+      AI 稼働中
+    </span>
   );
 }
 

@@ -1,5 +1,6 @@
 import type { ForgeConnection } from '../models/mr-state.js';
 import type { NextAction } from '../services/next-action.js';
+import { summarizeLoop, type BoardLoop } from '../../shared/loop-activity.js';
 
 // ============================================================
 // ai-board status の文言 — 人向けの数行と HTML の両方で使う
@@ -33,4 +34,17 @@ export function describeForge(forge: ForgeConnection): string {
     case 'disabled':
       return forge.reason === null ? '未設定' : `使えません（${forge.reason}）`;
   }
+}
+
+/**
+ * ループの様子の 1 行（「ループ: …」）。画面のトップバーと同じ文言（`summarizeLoop`）。
+ * 経過時間は `generatedAt` までを数える
+ */
+export function describeLoop(report: {
+  readonly loop: BoardLoop;
+  readonly cards: readonly { readonly id: string; readonly title: string }[];
+  readonly generatedAt: string;
+}): string {
+  const titles = new Map(report.cards.map((card) => [card.id, card.title]));
+  return summarizeLoop(report.loop, report.generatedAt, (id) => titles.get(id) ?? null).text;
 }
