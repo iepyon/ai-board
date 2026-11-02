@@ -3,7 +3,7 @@ id: windows-shell
 title: ユーザは、Windows でも手順書のシェルを書き換えずにループを回したい
 created: '2026-10-31T06:52:00.276Z'
 skipGates: []
-branch: null
+branch: windows-shell
 mr: null
 ---
 
