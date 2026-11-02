@@ -176,11 +176,11 @@ board-planner（plan）→ 人の計画レビュー → board-worker（全部の
 
 ### 1. 共通の決まり
 
-- [ ] `.claude/skills/board-loop/subagent-rules.md` の「呼び名」の表を 3 つの役（`board-planner` / `board-worker` / `board-reviewer`）に直し、`board-task` の行を消して、
+- [x] `.claude/skills/board-loop/subagent-rules.md` の「呼び名」の表を 3 つの役（`board-planner` / `board-worker` / `board-reviewer`）に直し、`board-task` の行を消して、
       `board-worker` の行を「実装中の手（`implement` / `revise-impl` / `ready`）を受ける。`implement` では残りの節を倒し、`## AI レビュー` 節があれば締めの段まで進む」に直す。
       「段」「まっさらな文脈」の説明を、1 つの `board-worker` が節をまたいで同じカードの文脈を持ってよく、レビューの前でだけ必ず別の起動に分ける形に直す。
       「4 つのサブエージェント」などの数を 3 つに直す
-- [ ] `subagent-rules.md` の「タスクの数え方と `## AI レビュー` 節」の節の説明を、「`board-task` が 1 回の起動で倒す単位」から
+- [x] `subagent-rules.md` の「タスクの数え方と `## AI レビュー` 節」の節の説明を、「`board-task` が 1 回の起動で倒す単位」から
       「`board-worker` がゲートを通してコミットする単位で、止まってよい区切り」に直す。節の見出しを変えるときは `subagent-rules.md` を参照する側を grep で直す
 
 ### 2. 実装の役
