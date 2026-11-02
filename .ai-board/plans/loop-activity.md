@@ -260,9 +260,9 @@ ai-board loop finish --loop <id> --card <cardId> --result <advanced|held|stopped
 
 ### 5. 監視役の手順書とドキュメント
 
-- [ ] `.claude/skills/board-loop/SKILL.md` の手順 3 に、`Agent` を呼ぶ前の `ai-board loop start`（`--loop "${CLAUDE_CODE_SESSION_ID:-local-$(hostname)}"`、`--step` は `next.step` が null でなければ）を、
+- [x] `.claude/skills/board-loop/SKILL.md` の手順 3 に、`Agent` を呼ぶ前の `ai-board loop start`（`--loop "${CLAUDE_CODE_SESSION_ID:-local-$(hostname)}"`、`--step` は `next.step` が null でなければ）を、
       手順 4 に、報告を伝える前の `ai-board loop finish`（結果の語の対応表、`usage` の写し方、`Agent` の失敗は `failed`）を足す。失敗してもループを止めないことと、ハードルールの「カードへの書き込みはしない」との関係を書く
-- [ ] `.claude/skills/board-loop/subagent-rules.md` の呼び名の表とハードルールに、`ai-board loop` は監視役だけが使うことを足す
-- [ ] `CLAUDE.md` の書き込み境界の表に監視役の行を、CLI の一覧に `ai-board loop` を足す
-- [ ] `README.md` の AI ループの節と画面の節、`docs/architecture.md`（データ用ブランチの中身、1 手の記録の節、API、区間の並び）を直す
-- [ ] `docs/specs/loop-activity/spec.md` を足し、`docs/specs/board-timeline/spec.md` に待ちと作業の分け方の要件を足す
+- [x] `.claude/skills/board-loop/subagent-rules.md` の呼び名の表とハードルールに、`ai-board loop` は監視役だけが使うことを足す
+- [x] `CLAUDE.md` の書き込み境界の表に監視役の行を、CLI の一覧に `ai-board loop` を足す
+- [x] `README.md` の AI ループの節と画面の節、`docs/architecture.md`（データ用ブランチの中身、1 手の記録の節、API、区間の並び）を直す
+- [x] `docs/specs/loop-activity/spec.md` を足し、`docs/specs/board-timeline/spec.md` に待ちと作業の分け方の要件を足す
