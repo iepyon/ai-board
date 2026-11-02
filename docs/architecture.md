@@ -177,8 +177,17 @@ verify を飛ばすカードの `verify 提出` / `verify 再提出` も承認�
 `status --json` は、ほかにアイデアの表の並び（`ideas`。画面と同じ `ideaRows` の順で、区切り線も 1 行）と、
 同じデータのワークツリーを使って起動中のサーバの URL（`server`。無ければ `null`）を出す。どちらも `board-decide` のスキルが使う。
 
+`status --json --only <項目,...>` は、出力を組み立てた後に、コンマ区切りの項目だけに絞る（`status-cli.ts` の `pickFields`）。
+項目は `<key>`（最上位の項目をそのまま）か `<key>.<field>`（最上位の配列の各要素から `<field>` だけ）で、`.` の入れ子は 1 段まで。
+無い最上位の項目、配列でない項目への `.`、2 段以上の `.`、`--json` 以外との組み合わせは、使い方の誤りとして GitHub に問い合わせる前に失敗する。
+要素に無い `<field>` は、その要素では出さない。手順書（`board-loop` / `board-decide`）が `jq` の代わりに使う。
+
 サーバは起動中の自分の場所（URL・pid・データのワークツリーのパス `dataDir`）を、データのワークツリーの親の `server.json` に書き、止まるときに消す
 （`src/infrastructure/server-info.ts`。git には載せない）。`status` はこれを読み、`dataDir` が一致し pid が生きているときだけ `server` に URL を出す。
+
+サーバを `--pid-file <path>` 付きで起動すると、待ち受けを始める前に自分の pid（OS の pid）をそのファイルに書く（`src/infrastructure/pid-file.ts`。書けなければ警告して続け、消さない）。
+`board-decide` のスキルが、起動を待つ間の生存確認と、`node` の `process.kill` で止めるのに使う。Windows の Git Bash の `$!` は MSYS の pid で、OS の pid とは番号が違うためである。
+Windows の `process.kill(pid, 'SIGTERM')` は強制終了になり `server.json` が残るが、上のとおり pid が生きていなければ `server` に出ない。
 
 ## カードの保存と通知
 

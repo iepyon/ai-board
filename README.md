@@ -99,6 +99,7 @@ node dist/cli.js --root /path/to/your-project
   --port <n>             待ち受けポート (既定: 5673、使用中なら自動で繰り上げ)
   --no-open              ブラウザを自動で開かない
   --poll-interval <ms>   GitHub のポーリング間隔 (既定: 60000)
+  --pid-file <path>      起動したら、サーバの pid (OS の pid) をこのファイルに書く
   -h, --help             ヘルプを表示
 ```
 
@@ -307,7 +308,7 @@ ai-board card body <id> < body.md          # 本文の差し替え
 ai-board card branch <id> <name>           # ブランチの紐付け（--clear で外す）
 ai-board card submit <id> [--gate <plan|verify>] [--resubmit] [--reason <text>]   # 提出 / 再提出（既定は plan）
 ai-board card hold <id> --gate <plan|verify> --reason <text>   # 保留（否決を直しきれずに止まるとき。理由は必須）
-ai-board status [--json | --html]          # 導出したステージ・判断待ち・次の一手（サーバ不要）
+ai-board status [--json [--only <項目,...>] | --html]   # 導出したステージ・判断待ち・次の一手（サーバ不要）
 ```
 
 CLI にはエージェントに許す操作しか無い。`startedAt`・`rank`・`skipGates` の書き換えと、
@@ -445,6 +446,25 @@ ai-board loop finish --loop <id> --card <cardId> --result <advanced|held|stopped
 クラウドのセッションからはブランチを消せない。マージした PR のブランチが残らないよう、
 人がリポジトリの Settings → General の「Automatically delete head branches」を有効にしておく。
 これが消すのはマージした PR の head のブランチだけで、データ用ブランチ `ai-board/data` は PR の head にならないので消えない。
+
+### Windows で使う
+
+Windows では、Windows の Claude Code が使う Git Bash（Git for Windows に同梱）で、手順書（`.claude/skills/` と `.claude/agents/`）を書き換えずに回せる。
+PowerShell や cmd は想定しない。
+
+- `jq` は要らない。手順書は `ai-board status --json --only <項目,...>` で要る項目だけを出し、人の API に送る JSON は `node -e` で組み立てる。
+  `sed`・`grep`・`diff`・`curl` などは Git for Windows に同梱されている
+- 改行コードは `.gitattributes`（`* text=auto eol=lf`）で LF に揃える。Git for Windows の既定（`core.autocrlf=true`）で clone しても、`npm run format:check` は落ちない。
+  データのワークツリー（`.ai-board/data/`）も、`ai-board` が git に `-c core.autocrlf=false` を付けて触るので LF のまま取り出される
+- `.gitattributes` が入る前に clone した作業ツリーは CRLF のまま残る。未コミットの変更が無いことを確かめてから、取り出し直す
+
+  ```bash
+  git rm --cached -r . && git reset --hard
+  ```
+
+- 起動すると既定のブラウザが開く（`rundll32 url.dll,FileProtocolHandler`）。開けなくても警告を出すだけで、サーバは落ちない
+- テストは Windows を対象にしていない。POSIX 形式のパスや `chmod` を使うテストがあり、手元の `npm test` は落ちうる。
+  CI の Windows の行は、型検査・lint・整形の検査・ビルドと、ビルドした CLI の起動だけを確かめる
 
 ### ワークツリーではデータのワークツリーを共有する
 
@@ -699,7 +719,8 @@ npm run dev:web       # Vite dev サーバ（/api を 5673 へプロキシ）
 ```
 
 CI（`.github/workflows/ci.yml`）は PR と main への push で typecheck / lint / format:check /
-test:coverage / build を走らせる。PR のレビューだけに効く指示は `REVIEW.md` にある。
+test:coverage / build を走らせる。Windows の行（Git Bash）では、テストを除いた typecheck / lint / format:check / build と、
+ビルドした CLI の起動を走らせる。PR のレビューだけに効く指示は `REVIEW.md` にある。
 
 ### Claude Code のプレビュー
 

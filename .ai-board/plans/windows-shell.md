@@ -208,8 +208,8 @@ Windows では `rundll32 url.dll,FileProtocolHandler <url>` を引数の配列�
 
 ### 7. ドキュメント
 
-- [ ] `README.md` に「Windows で使う」節を足す（想定するシェルは Git Bash、`jq` は要らない、テストは Windows を対象にしていない、既存の CRLF の clone の取り出し直し方）
-- [ ] `CLAUDE.md` の `ai-board status` の行と、`docs/architecture.md` の CLI の説明に `--only` と `--pid-file` を足す
+- [x] `README.md` に「Windows で使う」節を足す（想定するシェルは Git Bash、`jq` は要らない、テストは Windows を対象にしていない、既存の CRLF の clone の取り出し直し方）
+- [x] `CLAUDE.md` の `ai-board status` の行と、`docs/architecture.md` の CLI の説明に `--only` と `--pid-file` を足す
 
 ### 8. 確かめる
 
