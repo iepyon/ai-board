@@ -181,8 +181,8 @@ Windows では `rundll32 url.dll,FileProtocolHandler <url>` を引数の配列�
 
 ### 3. `status --only`
 
-- [ ] `parseStatusArgs` に `--only <項目,...>` を足す（`--json` と一緒のときだけ）。`STATUS_USAGE` を直す
-- [ ] 出力を組み立てた後に絞る純関数 `pickFields` を足し、`--json` の出力に通す。無い項目・配列でない項目への `.`・2 段以上の `.` は使い方の誤り
+- [x] `parseStatusArgs` に `--only <項目,...>` を足す（`--json` と一緒のときだけ）。`STATUS_USAGE` を直す
+- [x] 出力を組み立てた後に絞る純関数 `pickFields` を足し、`--json` の出力に通す。無い項目・配列でない項目への `.`・2 段以上の `.` は使い方の誤り
   - テスト: 最上位の項目 / 配列の要素の項目 / 両方の混在 / 要素に無い項目は出さない / 誤りの 3 種 / `--only` と `--html` の組み合わせ
 
 ### 4. サーバの `--pid-file`
