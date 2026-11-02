@@ -240,9 +240,9 @@ ai-board loop finish --loop <id> --card <cardId> --result <advanced|held|stopped
 
 ### 2. `ai-board loop` の CLI
 
-- [ ] `src/board/cli/loop-cli.ts` に `start` / `finish` と使い方を置く。カードについては存在を確かめる関数だけを受け取り、書き込みは `transact` の 1 操作にする。`--loop` の形、`--action` / `--step` / `--result` の値、`--tokens` / `--duration-ms` の整数を検査する
-- [ ] `src/cli-main.ts` に `loop` サブコマンドの入口と、全体の使い方の行を足す
-- [ ] テスト: 正常な開始と終了、存在しないカード・不正な値・終わっていない記録が無いとき・`--card` が食い違うときの拒否（何も書かない）、`interrupted` を渡せないこと、コミットのメッセージ
+- [x] `src/board/cli/loop-cli.ts` に `start` / `finish` と使い方を置く。カードについては存在を確かめる関数だけを受け取り、書き込みは `transact` の 1 操作にする。`--loop` の形、`--action` / `--step` / `--result` の値、`--tokens` / `--duration-ms` の整数を検査する
+- [x] `src/cli-main.ts` に `loop` サブコマンドの入口と、全体の使い方の行を足す
+- [x] テスト: 正常な開始と終了、存在しないカード・不正な値・終わっていない記録が無いとき・`--card` が食い違うときの拒否（何も書かない）、`interrupted` を渡せないこと、コミットのメッセージ
 
 ### 3. ボードと `status` に載せる
 

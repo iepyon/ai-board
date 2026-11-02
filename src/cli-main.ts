@@ -30,8 +30,10 @@ import {
 } from './board/composition.js';
 import { parseStatusArgs, runStatusCli, STATUS_USAGE } from './board/cli/status-cli.js';
 import { isPrCommand, runPrCli } from './board/cli/pr-cli.js';
+import { runLoopCli } from './board/cli/loop-cli.js';
 import { findLiveServer } from './infrastructure/server-info.js';
 import { isErr } from './shared/result.js';
+import { CardIdSchema, type CardId } from './shared/schemas/common.js';
 
 // ============================================================
 // ai-board CLI
@@ -51,6 +53,8 @@ const USAGE = `使い方: ai-board [options]
        ai-board migrate [--from <db>] [--empty] [--root <path>]
                                                   board.db をデータ用ブランチへ書き出す（ai-board migrate --help）
        ai-board pr <command> [--root <path>]      PR の読み書き（gh api の REST。ai-board pr --help）
+       ai-board loop <start|finish> [--root <path>]
+                                                  ループの 1 手の記録を書く（監視役だけが使う。ai-board loop --help）
 
 計画ファイル駆動のローカル Web ダッシュボードを起動します。
 
@@ -235,6 +239,31 @@ async function runStatus(argv: readonly string[]): Promise<number> {
   );
 }
 
+/**
+ * `loop` サブコマンド。ループの監視役が 1 手の記録をデータ用ブランチの `loop/` に書く。
+ *
+ * カードについては、ある ID のカードがあるかを読むだけで、書き込みの口は渡さない。
+ */
+async function runLoop(argv: readonly string[]): Promise<number> {
+  const { root, rest } = extractRoot(argv);
+  const paths = resolvePaths(root);
+  const store = createBoardDataStore(paths, createCliRunner());
+  const { cardRepository } = createFileCardDependencies(store.dataDir);
+
+  return runLoopCli(
+    rest,
+    {
+      store,
+      cardExists: async (id) => {
+        const parsed = CardIdSchema.safeParse(id);
+        return parsed.success && (await cardRepository.findById(parsed.data as CardId)) !== null;
+      },
+      legacyDb: legacyDbOf(paths),
+    },
+    createProcessIo()
+  );
+}
+
 /** `ai-board pr` の `gh` の上限。差分やコメントの全ページは、ポーリングの既定（10 秒）では足りないことがある */
 const PR_TIMEOUT_MS = 60_000;
 
@@ -313,6 +342,11 @@ async function main(): Promise<void> {
 
   if (command === 'pr') {
     process.exitCode = await runPr(rest);
+    return;
+  }
+
+  if (command === 'loop') {
+    process.exitCode = await runLoop(rest);
     return;
   }
 
