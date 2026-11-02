@@ -266,3 +266,22 @@ ai-board loop finish --loop <id> --card <cardId> --result <advanced|held|stopped
 - [x] `CLAUDE.md` の書き込み境界の表に監視役の行を、CLI の一覧に `ai-board loop` を足す
 - [x] `README.md` の AI ループの節と画面の節、`docs/architecture.md`（データ用ブランチの中身、1 手の記録の節、API、区間の並び）を直す
 - [x] `docs/specs/loop-activity/spec.md` を足し、`docs/specs/board-timeline/spec.md` に待ちと作業の分け方の要件を足す
+
+## AI レビュー
+
+- [ ] `src/shared/loop-activity.ts:151` の `formatTokens` は、千で丸めてから百万の境を見ないため、999,500〜999,999 が「1000k」と出る（`Math.round(999.6)` が 1000）。丸めた値が 1000 に届くときは「1.0M」の書式へ進めるようにし、999,499 →「999k」と 999,500 →「1.0M」の境のテストを足す
+
+### 見送った指摘
+
+- `src/board/repositories/loop-history.repository.ts:268` の `writeLoopStart` は同じ `--loop` の記録しか閉じないので、監視役のセッションごと落ちると、その記録は「触っている」のまま残り続ける。計画の Risks「終了を書き損ねる」で受け入れ済みで、時刻での失効は宣言のカードで考えると決めているので見送る（ただし気づける前提は、下の「人に判断してほしいこと」の経過時間の止まりで崩れている）
+- `.claude/skills/board-loop/SKILL.md:104` の `local-$(hostname)` は、同じ端末で並べて回すと識別子が重なり、互いの記録を閉じ合う。並べて回すことは計画の Non-Goals で、ホスト名が 58 文字を超えて `LOOP_ID_PATTERN` に合わない場合も、Decisions どおり監視役は 1 行で知らせて続けるので見送る
+- `src/web/components/dashboard/parts.tsx:43` の印は `hasRunningStep(card.loopSteps)`、`status` は `isCardRunning(board.loop, id)` を使い、同じループに終わっていない記録が 2 つあるときだけ食い違う。`writeLoopStart` が `transact` の中で同じループの記録を閉じるので、その状態は通常起きない。1 つの判定に寄せる整理として見送る
+- `src/board/repositories/loop-history.repository.ts:166` の `readStored` は、ボードを組み立てるたびに `loop/` の全ファイルを同期で読み、記録は増える一方である。古い記録を消す・畳むことは計画の Non-Goals なので見送る
+- `src/web/components/detail/LoopSteps.tsx:43` の行の key `${step.loop}-${step.startedAt}` は、同じループが同じミリ秒に同じカードへ 2 回 `start` したときだけ重なる（React の警告）。実際には起きにくいので見送る
+- `src/cli-main.ts:261` の `parsed.data as CardId` はファクトリ（`createCardId`）を通していないが、`createCardId` は不正な ID で例外を投げるため `safeParse` の後に型を付けるのと振る舞いは同じである。書き方の整理として見送る
+- `src/board/cli/status-html.ts:68` の `describeLoop(report).replace(/^ループ: /, '')` は文言の接頭辞を文字列で剥がしている。`src/shared/loop-step.ts:104` の `isRunning` はどこからも使われていない。どちらも振る舞いを変えない整理なので見送る
+
+### 人に判断してほしいこと
+
+- `src/web/App.tsx:163` のトップバーの経過時間は `board.generatedAt` までを数え、画面は `board-changed` のときだけボードを取り直す（`src/web/hooks/useBoard.ts:51`。ポーラーもデータの取り直しも、変化があったときだけ知らせる）。監視役が手の途中で落ちて何も書かれなくなると、開いたままのタブは「…中（12 分）」で止まり、時間が伸びない。計画の Risks は「始めてからの時間を必ず添えて、長すぎることに人が気づけるようにする」に頼っているが、Decisions は「今の時刻は読まない（`generatedAt` までを数える）」としている。画面だけ一定の間隔で今の時刻を渡して数え直すか、サーバが一定の間隔で `board-changed` を送るか、今のままにするかを人が決める
+- `src/board/repositories/loop-history.repository.ts:271` は途切れた記録の `finishedAt` を次の `start` の時刻にし、`src/board/services/timeline-phases.ts` の `splitAiPhases` はそれも `work` に数える。終了の書き込みに失敗した後、次の手が 8 時間後なら、その 8 時間が「作業」になり、`Board.loop.lastFinishedAt` も 8 時間後へずれる。待ちと作業を見分けるという Why に反するが、直し方（途切れた記録を `work` から外す / 閉じる時刻を開始と同じにする / 今のまま）で区間の分け方が変わるので、人が決める
