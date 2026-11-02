@@ -5,6 +5,7 @@ import { PipelineStrip } from './components/dashboard/PipelineStrip.js';
 import { CardDetail } from './components/CardDetail.js';
 import { NewCardDialog } from './components/NewCardDialog.js';
 import { formatDateTime } from './format.js';
+import { summarizeLoop } from '../shared/loop-activity.js';
 import type { Board as BoardData, ForgeConnection, ForgeKind } from './types.js';
 
 // ============================================================
@@ -140,6 +141,7 @@ function TopBar({ board, onAdd, onReload }: TopBarProps) {
           {board.cards.length} cards
         </span>
       )}
+      {board !== null && <LoopStatus board={board} />}
       {board !== null && <ForgeStatus connection={board.forge} />}
       <button type="button" className="btn" onClick={onAdd}>
         ＋ アイデア
@@ -149,6 +151,19 @@ function TopBar({ board, onAdd, onReload }: TopBarProps) {
       </button>
     </div>
   );
+}
+
+/**
+ * ループの様子。今触っているカードと手、始めてからの時間か、最後の手からの時間を出す。
+ * 時間はボードを組み立てた時刻（`generatedAt`）までで数える
+ */
+function LoopStatus({ board }: { board: BoardData }) {
+  const summary = useMemo(() => {
+    const titles = new Map(board.cards.map((card) => [card.id, card.title]));
+    return summarizeLoop(board.loop, board.generatedAt, (id) => titles.get(id) ?? null);
+  }, [board]);
+
+  return <span className={`status loop-${summary.state}`}>{summary.text}</span>;
 }
 
 const FORGE_LABELS: Record<ForgeKind, string> = { github: 'GitHub' };

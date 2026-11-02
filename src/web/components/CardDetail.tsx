@@ -8,6 +8,7 @@ import { BodyEditor } from './detail/BodyEditor.js';
 import { ReviewLog } from './detail/ReviewLog.js';
 import { SummaryLine } from './detail/SummaryLine.js';
 import { HoldNote } from './detail/HoldNote.js';
+import { LoopSteps } from './detail/LoopSteps.js';
 import { updateCardMeta, type CardMetaPatch } from '../api.js';
 import { useAction } from '../hooks/useAction.js';
 import { awaitsDecision } from '../../shared/dashboard-sections.js';
@@ -54,6 +55,7 @@ export function CardDetail({ card, onClose, onChanged }: CardDetailProps) {
         <ReviewLog reviews={card.reviews} />
         <StageSection card={card} />
         <PlanSection card={card} />
+        <LoopSteps steps={card.loopSteps} />
         <SkipGateField card={card} saving={saving} onPatch={patch} />
         <LinkFields card={card} saving={saving} onPatch={patch} />
       </div>

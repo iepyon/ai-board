@@ -253,10 +253,10 @@ ai-board loop finish --loop <id> --card <cardId> --result <advanced|held|stopped
 
 ### 4. 画面
 
-- [ ] `src/web/types.ts` に `LoopStep` / `phases` / `Board.loop` / `BoardCard.loopSteps` を写す
-- [ ] トップバー（`App.tsx`）に、`loop-activity.ts` の文言でループの様子を出す。始めてからの時間は `generatedAt` までで数える
-- [ ] 判断待ち / AI 作業中の区画とアイデアの表のカードの行（`parts.tsx`）に「AI 稼働中」の印を付ける
-- [ ] 詳細パネルに「ループの手」の欄（`detail/LoopSteps.tsx`）を足す。開始時刻・手と段・作業者・時間・トークン・結果を新しい順に並べ、値の無いものは「—」と出す。時間とトークンの書式は `src/shared/` の純関数にしてテストする
+- [x] `src/web/types.ts` に `LoopStep` / `phases` / `Board.loop` / `BoardCard.loopSteps` を写す
+- [x] トップバー（`App.tsx`）に、`loop-activity.ts` の文言でループの様子を出す。始めてからの時間は `generatedAt` までで数える
+- [x] 判断待ち / AI 作業中の区画とアイデアの表のカードの行（`parts.tsx`）に「AI 稼働中」の印を付ける
+- [x] 詳細パネルに「ループの手」の欄（`detail/LoopSteps.tsx`）を足す。開始時刻・手と段・作業者・時間・トークン・結果を新しい順に並べ、値の無いものは「—」と出す。時間とトークンの書式は `src/shared/` の純関数にしてテストする
 
 ### 5. 監視役の手順書とドキュメント
 

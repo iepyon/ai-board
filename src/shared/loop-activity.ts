@@ -1,4 +1,4 @@
-import type { LoopStep } from './loop-step.js';
+import { LOOP_RESULT_LABELS, type LoopStep } from './loop-step.js';
 
 // ============================================================
 // ループの様子 — トップバーと `status` に出す要約の純関数
@@ -117,6 +117,50 @@ export function formatElapsed(from: string, to: string): string {
   if (hours < 24) return `${hours} 時間 ${minutes % 60} 分`;
 
   return `${Math.floor(hours / 24)} 日 ${hours % 24} 時間`;
+}
+
+/**
+ * 記録の中に終わっていないものがあるか。カードの `loopSteps` から、そのカードを今触っているかを見る
+ * （画面のカードの行の「AI 稼働中」の印）
+ */
+export function hasRunningStep(steps: readonly Pick<LoopStep, 'result'>[]): boolean {
+  return steps.some((step) => step.result === null);
+}
+
+// ------------------------------------------------------------
+// 詳細パネルの「ループの手」の書式
+// ------------------------------------------------------------
+
+/** サブエージェントが動いていた時間。「35 秒」「1 分 35 秒」「2 時間 5 分」。無ければ「—」 */
+export function formatDurationMs(ms: number | null): string {
+  if (ms === null || !Number.isFinite(ms) || ms < 0) return '—';
+
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return `${seconds} 秒`;
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} 分 ${seconds % 60} 秒`;
+
+  return `${Math.floor(minutes / 60)} 時間 ${minutes % 60} 分`;
+}
+
+/** トークン。「812」「81k」「1.2M」。無ければ「—」 */
+export function formatTokens(tokens: number | null): string {
+  if (tokens === null || !Number.isFinite(tokens) || tokens < 0) return '—';
+  if (tokens < 1000) return String(tokens);
+  if (tokens < 1_000_000) return `${Math.round(tokens / 1000)}k`;
+
+  return `${(tokens / 1_000_000).toFixed(1)}M`;
+}
+
+/** 結果の語。終わっていなければ「動作中」 */
+export function describeResult(step: Pick<LoopStep, 'result'>): string {
+  return step.result === null ? '動作中' : LOOP_RESULT_LABELS[step.result];
+}
+
+/** 手の一覧を新しい順に並べる（詳細パネルは新しい手を上に出す） */
+export function newestFirst<T extends Pick<LoopStep, 'startedAt'>>(steps: readonly T[]): T[] {
+  return [...steps].sort((a, b) => timeOf(b.startedAt) - timeOf(a.startedAt));
 }
 
 function timeOf(iso: string): number {

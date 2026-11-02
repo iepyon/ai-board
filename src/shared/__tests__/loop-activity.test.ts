@@ -2,7 +2,12 @@ import { describe, it, expect } from 'vitest';
 import type { LoopStep } from '../loop-step.js';
 import {
   describeAction,
+  describeResult,
+  formatDurationMs,
   formatElapsed,
+  formatTokens,
+  hasRunningStep,
+  newestFirst,
   isCardRunning,
   runningStepOf,
   summarizeLoop,
@@ -110,5 +115,38 @@ describe('describeAction / formatElapsed', () => {
     expect(formatElapsed('2026-10-30T08:00:00.000Z', GENERATED)).toBe('3 日 4 時間');
     expect(formatElapsed('2026-11-02T13:00:00.000Z', GENERATED)).toBe('0 分');
     expect(formatElapsed('nope', GENERATED)).toBe('—');
+  });
+});
+
+describe('詳細パネルの書式', () => {
+  it('時間を秒・分・時間で出し、無ければ —', () => {
+    expect(formatDurationMs(35_400)).toBe('35 秒');
+    expect(formatDurationMs(95_000)).toBe('1 分 35 秒');
+    expect(formatDurationMs(7_500_000)).toBe('2 時間 5 分');
+    expect(formatDurationMs(null)).toBe('—');
+    expect(formatDurationMs(-1)).toBe('—');
+  });
+
+  it('トークンを k / M で丸め、無ければ —', () => {
+    expect(formatTokens(812)).toBe('812');
+    expect(formatTokens(81_234)).toBe('81k');
+    expect(formatTokens(1_234_567)).toBe('1.2M');
+    expect(formatTokens(null)).toBe('—');
+  });
+
+  it('結果の語。終わっていなければ動作中', () => {
+    expect(describeResult({ result: 'advanced' })).toBe('進めた');
+    expect(describeResult({ result: 'interrupted' })).toBe('途切れた');
+    expect(describeResult({ result: null })).toBe('動作中');
+  });
+
+  it('新しい順に並べ、終わっていない記録があるかを見る', () => {
+    const steps = [step({ startedAt: '2026-11-02T01:00:00.000Z' }), done()];
+    expect(newestFirst(steps).map((s) => s.startedAt)).toEqual([
+      '2026-11-02T11:48:00.000Z',
+      '2026-11-02T01:00:00.000Z',
+    ]);
+    expect(hasRunningStep(steps)).toBe(true);
+    expect(hasRunningStep([done()])).toBe(false);
   });
 });

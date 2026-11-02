@@ -156,6 +156,18 @@ html {
 .status.error::before {
   color: var(--danger);
 }
+.status.loop-running::before {
+  color: var(--accent);
+}
+.status.loop-idle::before,
+.status.loop-none::before {
+  color: var(--text-2);
+}
+.status.loop-running,
+.status.loop-idle,
+.status.loop-none {
+  white-space: normal;
+}
 
 .btn {
   background: var(--accent);
@@ -1208,4 +1220,63 @@ tr.tier-divider.dragging td {
 .tier-count {
   margin-left: 6px;
   font-weight: 400;
+}
+
+/* ---------- ループが触っているカードの印と、詳細パネルのループの手 ---------- */
+
+.loop-badge {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 0 6px;
+  border-radius: 4px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  white-space: nowrap;
+  vertical-align: 1px;
+}
+
+.loop-steps-wrap {
+  overflow-x: auto;
+  margin-bottom: 12px;
+}
+
+.loop-steps {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.loop-steps th,
+.loop-steps td {
+  text-align: left;
+  padding: 3px 8px 3px 0;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.loop-steps th {
+  color: var(--text-2);
+  font-weight: 600;
+}
+
+.loop-steps .mono {
+  font-family: 'SF Mono', Menlo, monospace;
+}
+
+.loop-result.result-running,
+.loop-result.result-advanced {
+  color: var(--accent);
+}
+
+.loop-result.result-held,
+.loop-result.result-stopped,
+.loop-result.result-interrupted,
+.loop-result.result-unknown {
+  color: var(--warn);
+}
+
+.loop-result.result-failed {
+  color: var(--danger);
 }
