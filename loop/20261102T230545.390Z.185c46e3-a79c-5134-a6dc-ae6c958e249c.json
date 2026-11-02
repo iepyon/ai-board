@@ -5,8 +5,8 @@
   "step": "review",
   "agent": "board-reviewer-windows-shell-2305",
   "startedAt": "2026-11-02T23:05:45.390Z",
-  "finishedAt": null,
-  "result": null,
-  "tokens": null,
-  "durationMs": null
+  "finishedAt": "2026-11-02T23:29:42.228Z",
+  "result": "advanced",
+  "tokens": 100935,
+  "durationMs": 277021
 }
