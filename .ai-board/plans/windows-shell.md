@@ -203,7 +203,7 @@ Windows では `rundll32 url.dll,FileProtocolHandler <url>` を引数の配列�
 
 ### 6. CI
 
-- [ ] `.github/workflows/ci.yml` に `windows-latest` の行を足す（Node は 24 の 1 つ）。`npm ci` / `typecheck` / `lint` / `format:check` / `build` と、`node dist/cli.js status --help` を走らせる。テストは走らせない
+- [x] `.github/workflows/ci.yml` に `windows-latest` の行を足す（Node は 24 の 1 つ）。`npm ci` / `typecheck` / `lint` / `format:check` / `build` と、`node dist/cli.js status --help` を走らせる。テストは走らせない
   - Linux の行は今のまま（テストとカバレッジを含む）にする。`matrix` で分けるか job を分けるかは、条件の分岐が少ない方を選ぶ
 
 ### 7. ドキュメント
