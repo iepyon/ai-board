@@ -4,7 +4,7 @@ title: ユーザは、Windows でも手順書のシェルを書き換えずに�
 created: '2026-10-31T06:52:00.276Z'
 skipGates: []
 branch: windows-shell
-mr: null
+mr: 67
 ---
 
 ## アイデア
