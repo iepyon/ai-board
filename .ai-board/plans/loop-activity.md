@@ -269,7 +269,7 @@ ai-board loop finish --loop <id> --card <cardId> --result <advanced|held|stopped
 
 ## AI レビュー
 
-- [ ] `src/shared/loop-activity.ts:151` の `formatTokens` は、千で丸めてから百万の境を見ないため、999,500〜999,999 が「1000k」と出る（`Math.round(999.6)` が 1000）。丸めた値が 1000 に届くときは「1.0M」の書式へ進めるようにし、999,499 →「999k」と 999,500 →「1.0M」の境のテストを足す
+- [x] `src/shared/loop-activity.ts:151` の `formatTokens` は、千で丸めてから百万の境を見ないため、999,500〜999,999 が「1000k」と出る（`Math.round(999.6)` が 1000）。丸めた値が 1000 に届くときは「1.0M」の書式へ進めるようにし、999,499 →「999k」と 999,500 →「1.0M」の境のテストを足す
 
 ### 見送った指摘
 

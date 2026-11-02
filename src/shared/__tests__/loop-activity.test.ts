@@ -131,6 +131,9 @@ describe('詳細パネルの書式', () => {
     expect(formatTokens(812)).toBe('812');
     expect(formatTokens(81_234)).toBe('81k');
     expect(formatTokens(1_234_567)).toBe('1.2M');
+    expect(formatTokens(999_499)).toBe('999k');
+    expect(formatTokens(999_500)).toBe('1.0M');
+    expect(formatTokens(999_999)).toBe('1.0M');
     expect(formatTokens(null)).toBe('—');
   });
 

@@ -148,7 +148,10 @@ export function formatDurationMs(ms: number | null): string {
 export function formatTokens(tokens: number | null): string {
   if (tokens === null || !Number.isFinite(tokens) || tokens < 0) return '—';
   if (tokens < 1000) return String(tokens);
-  if (tokens < 1_000_000) return `${Math.round(tokens / 1000)}k`;
+
+  // 千で丸めて 1000 に届くもの（999,500 以上）は「1000k」ではなく M の書式へ進める
+  const thousands = Math.round(tokens / 1000);
+  if (thousands < 1000) return `${thousands}k`;
 
   return `${(tokens / 1_000_000).toFixed(1)}M`;
 }
