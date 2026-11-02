@@ -26,6 +26,8 @@ import {
  * order.yaml                              rank とアイデアの区切り線
  * cards/<id>/card.md                      frontmatter（id, title, created, skipGates, branch, mr）と本文
  * cards/<id>/log/<時刻>.<gate>.<種別>.md   判断 1 件。中身は理由の本文
+ * snapshots/<id>.json                    マージ済みの PR の控え（file-mr-snapshot.repository.ts）
+ * loop/<時刻>.<ループの識別子>.json        ループの 1 手の記録（loop-history.repository.ts）
  * ```
  *
  * `Card` の `startedAt` は `log/` の着手のファイルから、`rank` は `order.yaml` から、
@@ -231,7 +233,7 @@ export function toLogStamp(at: string): string | null {
 }
 
 /** `toLogStamp` の逆。`2026-11-01T03:52:08.000Z` の形に戻す */
-function fromLogStamp(stamp: string): string | null {
+export function fromLogStamp(stamp: string): string | null {
   const match = STAMP.exec(stamp);
   if (match === null) return null;
 

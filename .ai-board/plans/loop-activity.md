@@ -233,10 +233,10 @@ ai-board loop finish --loop <id> --card <cardId> --result <advanced|held|stopped
 
 ### 1. 1 手の記録の型とファイルの読み書き
 
-- [ ] `src/shared/loop-step.ts` に 1 手の記録の型（`LoopStep`）、結果の値（`LOOP_RESULTS`）と表示の語、手・段の値の一覧を足す（手と段は `next-action.ts` / `impl-step.ts` の型と食い違わないよう、そちらから導くか型テストで縛る）
-- [ ] `src/board/repositories/loop-history.repository.ts` に、ファイル名の組み立てと解釈・JSON の検証（Zod）・全件の読み出し（読めないものは警告して飛ばす）・開始の書き込み（同じループの終わっていない記録を `interrupted` で閉じる）・終了の書き込みを置く。書き込みは `dataDir` を受け取る関数にし、`transact` の中から呼べる形にする
-- [ ] `src/infrastructure/data-store.ts` の `DATA_PATHS` に `loop` を足す
-- [ ] テスト: ファイル名の往復と連番、不正なファイルの読み飛ばし、`interrupted` で閉じる、終わった記録を書き換えない、`DATA_PATHS` に無い古い CLI の書き込み（`loop` を除いた `add` と `clean`）でも `loop/` が残ること
+- [x] `src/shared/loop-step.ts` に 1 手の記録の型（`LoopStep`）、結果の値（`LOOP_RESULTS`）と表示の語、手・段の値の一覧を足す（手と段は `next-action.ts` / `impl-step.ts` の型と食い違わないよう、そちらから導くか型テストで縛る）
+- [x] `src/board/repositories/loop-history.repository.ts` に、ファイル名の組み立てと解釈・JSON の検証（Zod）・全件の読み出し（読めないものは警告して飛ばす）・開始の書き込み（同じループの終わっていない記録を `interrupted` で閉じる）・終了の書き込みを置く。書き込みは `dataDir` を受け取る関数にし、`transact` の中から呼べる形にする
+- [x] `src/infrastructure/data-store.ts` の `DATA_PATHS` に `loop` を足す
+- [x] テスト: ファイル名の往復と連番、不正なファイルの読み飛ばし、`interrupted` で閉じる、終わった記録を書き換えない、`DATA_PATHS` に無い古い CLI の書き込み（`loop` を除いた `add` と `clean`）でも `loop/` が残ること
 
 ### 2. `ai-board loop` の CLI
 
