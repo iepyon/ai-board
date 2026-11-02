@@ -3,7 +3,7 @@ id: loop-three-roles
 title: ユーザは、ループのサブエージェントを計画・実装・レビューの 3 つに絞り、実装は 1 回で倒し切ってほしい
 created: '2026-11-02T10:07:00.753Z'
 skipGates: []
-branch: null
+branch: loop-three-roles
 mr: null
 ---
 
