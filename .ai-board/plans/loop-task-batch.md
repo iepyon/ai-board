@@ -212,5 +212,5 @@ docstring を 1 か所直すだけのタスクでも約 75k トークンを使�
 
 ### 4. 監視役とドキュメント
 
-- [ ] `.claude/skills/board-loop/SKILL.md` の description、`implement` の渡し先の表の `task` の行、「タスクを倒し終えるまで、手ごとに新しい `board-task` が立つ」の段落、まっさらな文脈の理由を、節ごとに倒す形に直す
+- [x] `.claude/skills/board-loop/SKILL.md` の description、`implement` の渡し先の表の `task` の行、「タスクを倒し終えるまで、手ごとに新しい `board-task` が立つ」の段落、まっさらな文脈の理由を、節ごとに倒す形に直す
 - [ ] `README.md` の AI ループの節（段の表の `task` の行、まっさらな文脈の説明）を節ごとに倒す形に直す。`docs/architecture.md` と `CLAUDE.md` に 1 タスク 1 手の前提の記述があれば直し、`grep -rn 'タスクを 1 つだけ\|1 つずつ' .claude README.md docs CLAUDE.md` で残りが無いことを確かめる
