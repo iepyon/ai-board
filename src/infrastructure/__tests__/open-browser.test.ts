@@ -1,6 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { EventEmitter } from 'node:events';
-import type { ChildProcess } from 'node:child_process';
 import { browserCommand, openBrowser } from '../open-browser.js';
 
 const URL = 'http://127.0.0.1:5673/?a=1&b=2';
@@ -22,59 +20,45 @@ describe('browserCommand', () => {
   });
 });
 
-/** spawn の代わりに、error イベントを後から出せる子プロセスを返す */
-function fakeChild(): ChildProcess & { unrefed: boolean } {
-  const child = new EventEmitter() as ChildProcess & { unrefed: boolean };
-  child.unrefed = false;
-  child.unref = () => {
-    child.unrefed = true;
-  };
-  return child;
-}
-
 describe('openBrowser', () => {
-  it('OS のコマンドを引数の配列で起動し、待たずに切り離す', () => {
+  it('OS のコマンドを引数の配列で、切り離して起動する入口に渡す', () => {
     const calls: [string, readonly string[]][] = [];
-    const child = fakeChild();
 
     openBrowser(URL, {
       platform: 'win32',
       spawn: (command, args) => {
         calls.push([command, args]);
-        return child;
       },
       warn: () => {},
     });
 
     expect(calls).toEqual([['rundll32', ['url.dll,FileProtocolHandler', URL]]]);
-    expect(child.unrefed).toBe(true);
   });
 
-  it('子プロセスの error イベント（ENOENT など）で落ちず、警告を 1 行出す', () => {
-    const child = fakeChild();
+  it('起動の失敗（ENOENT など）が届いたら、落ちずに警告を 1 行出す', () => {
     const warnings: string[] = [];
-
-    openBrowser(URL, { platform: 'linux', spawn: () => child, warn: (m) => warnings.push(m) });
-    // リスナーが無ければ、EventEmitter は error を例外として投げる
-    child.emit('error', new Error('spawn xdg-open ENOENT'));
-
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain('xdg-open');
-    expect(warnings[0]).toContain(URL);
-  });
-
-  it('spawn が例外を投げても落ちず、警告を出す', () => {
-    const warnings: string[] = [];
+    let onError: ((error: unknown) => void) | undefined;
 
     openBrowser(URL, {
-      platform: 'darwin',
-      spawn: () => {
-        throw new Error('EACCES');
+      platform: 'linux',
+      spawn: (_command, _args, handler) => {
+        onError = handler;
       },
       warn: (m) => warnings.push(m),
     });
+    onError?.(new Error('spawn xdg-open ENOENT'));
 
     expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain('EACCES');
+    expect(warnings[0]).toContain('xdg-open');
+    expect(warnings[0]).toContain('ENOENT');
+    expect(warnings[0]).toContain(URL);
+  });
+
+  it('起動の入口が何も返さなければ、警告は出さない', () => {
+    const warnings: string[] = [];
+
+    openBrowser(URL, { platform: 'darwin', spawn: () => {}, warn: (m) => warnings.push(m) });
+
+    expect(warnings).toEqual([]);
   });
 });

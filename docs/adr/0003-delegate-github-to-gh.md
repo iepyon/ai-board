@@ -22,7 +22,7 @@ GitHub の PR を取得先に足すとき、それまでの GitLab 連携は Per
 - `branch` にシェルの特殊文字を入れてもコマンドにならない。git の操作（計画の `git show`・データ用ブランチ）も cli-runner を通る。
 - 問い合わせは 1 回約 0.4 秒遅くなる。
 - クラウドでは `gh auth status` と GraphQL が使えないので、接続の確かめは `gh api repos/...` に、`gh pr` は REST の `ai-board pr` に置き換えた（[10](0010-cards-on-data-branch.md)）。
-- 例外: ブラウザを開く処理（`cli-main.ts`）だけは cli-runner を通らず `spawn` を直接使う（引数は配列）。
+- ブラウザを開く処理（`open-browser.ts`）も、cli-runner の切り離して起動する入口（`spawnDetached`）を通る。例外は無い。
 
 ## 退けた案
 

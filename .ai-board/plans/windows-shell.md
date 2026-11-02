@@ -221,8 +221,8 @@ Windows では `rundll32 url.dll,FileProtocolHandler <url>` を引数の配列�
 - [x] `src/cli-main.ts:379` で `--pid-file` を書くのが `fs.existsSync(root)` の確かめと `warnIfNothingToShow` の後なので、`--root` が無いなどで起動の前に終わると pid のファイルが書かれない。`board-decide` の起動を待つ手順（`SKILL.md` の手順 4 の 2）は `pid > 0` のときだけ生存を見るので、すぐ終わったサーバを 60 秒待ってから報告する（前の `echo $!` なら 500ms で気づけた）。`writePidFile` の呼び出しを `parseArgs` の直後（`help` の判定の後、`root` の確かめの前）へ移し、コメントの理由もそれに合わせる
 - [x] `src/cli-main.ts:54` の最上位の `USAGE` が `ai-board status [--json | --html]` のままで、手順書が頼る `--only` が `ai-board --help` に出ない。`ai-board status [--json [--only <項目,...>] | --html]` の形に直す（`STATUS_USAGE`・README・CLAUDE.md と揃える）
 
-- [ ] 人の判断（2026-11-02、計画のタスク 4 の決め事を変える）: `--pid-file` を渡されて pid のファイルを書けなかったときは、警告して続けるのではなく、起動をやめて終了コード 1 で終わる。`cli-main.ts` の `writePidFile` の呼び出しと、そのテスト・USAGE・README の説明を合わせる
-- [ ] 人の判断（2026-11-02）: `src/infrastructure/open-browser.ts` の `spawn` を `src/infrastructure/cli-runner.ts` に移す。`cli-runner.ts` に切り離して起動する入口（detached / unref、shell 無し、引数は配列、`error` のリスナー付き）を足し、`open-browser.ts` はそれを使う。CLAUDE.md の「外部コマンドは cli-runner.ts に閉じる」の例外は作らない
+- [x] 人の判断（2026-11-02、計画のタスク 4 の決め事を変える）: `--pid-file` を渡されて pid のファイルを書けなかったときは、警告して続けるのではなく、起動をやめて終了コード 1 で終わる。`cli-main.ts` の `writePidFile` の呼び出しと、そのテスト・USAGE・README の説明を合わせる
+- [x] 人の判断（2026-11-02）: `src/infrastructure/open-browser.ts` の `spawn` を `src/infrastructure/cli-runner.ts` に移す。`cli-runner.ts` に切り離して起動する入口（detached / unref、shell 無し、引数は配列、`error` のリスナー付き）を足し、`open-browser.ts` はそれを使う。CLAUDE.md の「外部コマンドは cli-runner.ts に閉じる」の例外は作らない
 ### 見送った指摘
 
 - `src/board/cli/status-cli.ts:185` の `--only cards.<field>` は、`<field>` を打ち間違えても（`cards.stgae`）失敗せず空のオブジェクトを並べる。計画の Decisions「`--only` の形」が「要素に無い `<field>` は、その要素では出さない」と決めており、手順書の項目は固定の文字列なので見送る

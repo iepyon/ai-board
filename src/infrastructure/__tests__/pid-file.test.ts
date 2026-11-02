@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { writePidFile } from '../pid-file.js';
+import { describePidFileError, writePidFile } from '../pid-file.js';
 
 let tmp: string;
 
@@ -18,7 +18,7 @@ describe('writePidFile', () => {
   it('pid を 1 行で書く。親のディレクトリが無ければ作る', () => {
     const file = path.join(tmp, 'run', 'pid');
 
-    expect(writePidFile(file, 4321, () => {})).toBe(true);
+    expect(writePidFile(file, 4321).ok).toBe(true);
 
     expect(fs.readFileSync(file, 'utf-8')).toBe('4321\n');
   });
@@ -27,18 +27,21 @@ describe('writePidFile', () => {
     const file = path.join(tmp, 'pid');
     fs.writeFileSync(file, '1\n');
 
-    writePidFile(file, 99, () => {});
+    writePidFile(file, 99);
 
     expect(fs.readFileSync(file, 'utf-8')).toBe('99\n');
   });
 
-  it('書けなければ例外を投げず、警告を出して false を返す', () => {
+  it('書けなければ例外を投げず、PidFileWriteFailed を返す', () => {
     // ディレクトリをファイルとして書こうとして失敗させる
-    const warnings: string[] = [];
+    const result = writePidFile(tmp, 1);
 
-    expect(writePidFile(tmp, 1, (m) => warnings.push(m))).toBe(false);
-
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain(tmp);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.type).toBe('PidFileWriteFailed');
+      expect(result.error.file).toBe(tmp);
+      expect(describePidFileError(result.error)).toContain('起動をやめます');
+      expect(describePidFileError(result.error)).toContain(tmp);
+    }
   });
 });

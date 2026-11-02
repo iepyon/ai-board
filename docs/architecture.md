@@ -185,7 +185,8 @@ verify を飛ばすカードの `verify 提出` / `verify 再提出` も承認�
 サーバは起動中の自分の場所（URL・pid・データのワークツリーのパス `dataDir`）を、データのワークツリーの親の `server.json` に書き、止まるときに消す
 （`src/infrastructure/server-info.ts`。git には載せない）。`status` はこれを読み、`dataDir` が一致し pid が生きているときだけ `server` に URL を出す。
 
-サーバを `--pid-file <path>` 付きで起動すると、待ち受けを始める前に自分の pid（OS の pid）をそのファイルに書く（`src/infrastructure/pid-file.ts`。書けなければ警告して続け、消さない）。
+サーバを `--pid-file <path>` 付きで起動すると、待ち受けを始める前に自分の pid（OS の pid）をそのファイルに書く（`src/infrastructure/pid-file.ts`。消さない）。
+書けなければ起動をやめ、終了コード 1 で終わる。書けないまま動き続けると、スキルがサーバを止められないためである。
 `board-decide` のスキルが、起動を待つ間の生存確認と、`node` の `process.kill` で止めるのに使う。Windows の Git Bash の `$!` は MSYS の pid で、OS の pid とは番号が違うためである。
 Windows の `process.kill(pid, 'SIGTERM')` は強制終了になり `server.json` が残るが、上のとおり pid が生きていなければ `server` に出ない。
 

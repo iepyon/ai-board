@@ -33,7 +33,7 @@ import { isPrCommand, runPrCli } from './board/cli/pr-cli.js';
 import { runLoopCli } from './board/cli/loop-cli.js';
 import { findLiveServer } from './infrastructure/server-info.js';
 import { openBrowser } from './infrastructure/open-browser.js';
-import { writePidFile } from './infrastructure/pid-file.js';
+import { describePidFileError, writePidFile } from './infrastructure/pid-file.js';
 import { isErr } from './shared/result.js';
 import { CardIdSchema, type CardId } from './shared/schemas/common.js';
 
@@ -69,6 +69,7 @@ Options:
                   レビュー要求のポーリング間隔 (既定: 60000)
   --pid-file <path>
                   起動したら、サーバの pid (OS の pid) をこのファイルに書く
+                  (書けなければ起動をやめ、終了コード 1 で終わる)
   -h, --help      このヘルプを表示
 `;
 
@@ -370,9 +371,13 @@ async function main(): Promise<void> {
   const { root, port, open, pollIntervalMs, pidFile } = parsed;
 
   // 引数を読んだらすぐ書く。--root が無いなどで起動の前に終わったときも、起動を待つ側が
-  // pid のファイルからプロセスが終わったことに気づけるように（root の確かめや待ち受けより前）
+  // pid のファイルからプロセスが終わったことに気づけるように（root の確かめや待ち受けより前）。
+  // 書けなければ起動をやめる（終了コード 1）。書けないまま動くと、起動を待つ側がサーバを止められない
   if (pidFile !== undefined) {
-    writePidFile(pidFile, process.pid);
+    const written = writePidFile(pidFile, process.pid);
+    if (isErr(written)) {
+      throw new Error(describePidFileError(written.error));
+    }
   }
 
   if (!fs.existsSync(root)) {

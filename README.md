@@ -100,6 +100,7 @@ node dist/cli.js --root /path/to/your-project
   --no-open              ブラウザを自動で開かない
   --poll-interval <ms>   GitHub のポーリング間隔 (既定: 60000)
   --pid-file <path>      起動したら、サーバの pid (OS の pid) をこのファイルに書く
+                         (書けなければ起動をやめ、終了コード 1 で終わる)
   -h, --help             ヘルプを表示
 ```
 

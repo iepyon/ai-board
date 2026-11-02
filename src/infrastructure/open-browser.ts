@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawnDetached, type DetachedSpawn } from './cli-runner.js';
 
 // ============================================================
 // 既定のブラウザで URL を開く
@@ -28,38 +28,26 @@ export function browserCommand(platform: NodeJS.Platform, url: string): BrowserC
   }
 }
 
-type Spawn = (command: string, args: readonly string[]) => ChildProcess;
-
-const spawnDetached: Spawn = (command, args) =>
-  spawn(command, [...args], { detached: true, stdio: 'ignore' });
-
 /**
  * 既定のブラウザで `url` を開く。開けなくても例外を投げず、警告を 1 行出して続ける。
  *
- * コマンドが無いときの失敗は `spawn` の例外ではなく子プロセスの `error` イベントで届く。
- * リスナーが無いと未処理の `error` でサーバごと落ちるので、必ずリスナーを付ける。
- * URL は起動ログに出ているので、開けなくても人は自分で開ける。
+ * 起動は `cli-runner.ts` の `spawnDetached` に任せる（外部コマンドは cli-runner に閉じ、shell を介さない）。
+ * コマンドが無いときの失敗は子プロセスの `error` イベントで後から届くが、`spawnDetached` がリスナーを付けて
+ * `onError` に渡すので、サーバは落ちない。URL は起動ログに出ているので、開けなくても人は自分で開ける。
  */
 export function openBrowser(
   url: string,
   options: {
     readonly platform?: NodeJS.Platform;
-    readonly spawn?: Spawn;
+    readonly spawn?: DetachedSpawn;
     readonly warn?: (message: string) => void;
   } = {}
 ): void {
   const { command, args } = browserCommand(options.platform ?? process.platform, url);
   const warn = options.warn ?? ((message: string) => console.warn(message));
-  const report = (error: unknown): void => {
+
+  (options.spawn ?? spawnDetached)(command, args, (error) => {
     const reason = error instanceof Error ? error.message : String(error);
     warn(`[ai-board] ブラウザを開けませんでした（${command}: ${reason}）。${url} を開いてください`);
-  };
-
-  try {
-    const child = (options.spawn ?? spawnDetached)(command, args);
-    child.on('error', report);
-    child.unref();
-  } catch (error) {
-    report(error);
-  }
+  });
 }
