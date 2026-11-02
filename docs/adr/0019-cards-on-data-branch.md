@@ -2,7 +2,7 @@
 
 - 状態: 採用
 - 日付: 2026-11-01
-- 置き換え元: [0009](0009-cards-in-sqlite.md)・[0010](0010-share-main-checkout-data.md)（共有するものを変えた）
+- 置き換え元: [0009](0009-cards-in-sqlite.md)・[0010](0010-share-main-checkout-data.md)（一部）
 - 置き換え先: なし
 
 ## 状況

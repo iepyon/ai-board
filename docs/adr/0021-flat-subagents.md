@@ -3,7 +3,7 @@
 - 状態: 採用（一部を [0023](0023-three-loop-roles.md) が置き換え）
 - 日付: 2026-11-01
 - 置き換え元: [0012](0012-loop-supervisor-and-fresh-subagent.md)・[0015](0015-separate-ai-reviewer.md)（一部）
-- 置き換え先: なし
+- 置き換え先: [0023](0023-three-loop-roles.md)（一部）
 
 ## 状況
 
