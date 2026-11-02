@@ -4,7 +4,7 @@ title: ユーザは、実装中のタスクを 1 つずつ別のサブエージ�
 created: '2026-11-01T21:57:59.070Z'
 skipGates: []
 branch: loop-task-batch
-mr: null
+mr: 63
 ---
 
 ## アイデア
