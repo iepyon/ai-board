@@ -214,3 +214,22 @@ Windows では `rundll32 url.dll,FileProtocolHandler <url>` を引数の配列�
 ### 8. 確かめる
 
 - [x] 品質ゲートと `npm run build` を通し、`## 動作確認の手順` の「Linux / macOS で」を `AI_BOARD_DATA` のスクラッチの clone で試す
+
+## AI レビュー
+
+- [ ] `src/infrastructure/data-store.ts:56` の `DATA_GIT_CONFIG` は `core.autocrlf=false` だけで、`core.eol` は既定の `native`（Windows では CRLF）のまま。人の `core.attributesFile` やシステムの gitattributes に `* text=auto` などがあると、データ用ブランチには `.gitattributes` が無いのでその属性が効き、カードが CRLF で取り出される（計画の Decisions「改行コードをどう揃えるか」の LF の保証が崩れる）。`DATA_GIT_CONFIG` に `-c core.eol=lf` を足し、`data-store.test.ts` に、リポジトリに `core.attributesFile`（`* text=auto` を書いたファイル）と `core.eol=crlf` を設定しても `card.md` が LF のまま取り出されるテストを足す
+- [ ] `src/cli-main.ts:379` で `--pid-file` を書くのが `fs.existsSync(root)` の確かめと `warnIfNothingToShow` の後なので、`--root` が無いなどで起動の前に終わると pid のファイルが書かれない。`board-decide` の起動を待つ手順（`SKILL.md` の手順 4 の 2）は `pid > 0` のときだけ生存を見るので、すぐ終わったサーバを 60 秒待ってから報告する（前の `echo $!` なら 500ms で気づけた）。`writePidFile` の呼び出しを `parseArgs` の直後（`help` の判定の後、`root` の確かめの前）へ移し、コメントの理由もそれに合わせる
+- [ ] `src/cli-main.ts:54` の最上位の `USAGE` が `ai-board status [--json | --html]` のままで、手順書が頼る `--only` が `ai-board --help` に出ない。`ai-board status [--json [--only <項目,...>] | --html]` の形に直す（`STATUS_USAGE`・README・CLAUDE.md と揃える）
+
+### 見送った指摘
+
+- `src/board/cli/status-cli.ts:185` の `--only cards.<field>` は、`<field>` を打ち間違えても（`cards.stgae`）失敗せず空のオブジェクトを並べる。計画の Decisions「`--only` の形」が「要素に無い `<field>` は、その要素では出さない」と決めており、手順書の項目は固定の文字列なので見送る
+- `.claude/skills/board-decide/SKILL.md:34` で、前は `mrState.webUrl` だけだったのが `cards.mrState` を丸ごと出すようになり、出力が増える。計画の Decisions（入れ子は 1 段まで、`mrState` ごと出す）どおりなので見送る
+- `src/board/cli/status-cli.ts:243` の `withImplStep` は、`--only` が `next` を含まないときも計画を git で読み、結果を捨てる。振る舞いは変わらない小さな無駄なので見送る
+- `src/board/cli/status-cli.ts:184` で `--only` の値が誤っているとき、どの項目が誤りかを言わずに使い方だけを出す。`board-loop` の手順書は「使い方だけが出たら `$MAIN` が古い」と読むが、手順書の項目は固定なので誤りの値は出ない。見送る
+- `src/infrastructure/data-store.ts:56` で、この変更の前に Windows で `core.autocrlf=true` のまま取り出したデータのワークツリーは CRLF のまま残り、stat が変わったファイルを `add --all` が変換なしでコミットしうる。Git Bash の実機で確かめられず、前に Windows でデータのワークツリーを作った人に限られるので見送る（README の「Windows で使う」節に、データのワークツリーの取り直しも書き足すかは動作確認で判断する）
+
+### 人に判断してほしいこと
+
+- `src/cli-main.ts:380` で `--pid-file` を書けなかったとき、警告だけでサーバは動き続ける。`board-decide` の「止める」手順は pid のファイルを読むので、書けなければ止められず、`run_in_background` の `wait` が終わらない。計画のタスク 4 は「書けなければ警告を出して続ける」と決めているので、そのままにするか、`--pid-file` を渡されたときは書けなければ起動をやめる（終了コード 1）に変えるかは人が決める
+- `src/infrastructure/open-browser.ts:34` は `node:child_process` の `spawn` を `cli-runner.ts` の外で使う。CLAUDE.md の「外部コマンドは `cli-runner.ts` に閉じる」と食い違うが、前の `cli-main.ts` の `openBrowser` から移したもので、引数は配列で shell を介さず、計画の Decisions もこの場所に置くと決めている。`cli-runner.ts` に切り離して起動する入口を足すか、このままにするか（ADR か CLAUDE.md に例外として書くか）は人が決める
