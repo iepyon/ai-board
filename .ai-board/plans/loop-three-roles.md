@@ -193,8 +193,8 @@ board-planner（plan）→ 人の計画レビュー → board-worker（全部の
 
 ### 3. 計画を書く側とレビューする側
 
-- [ ] `.claude/agents/board-planner.md` の `plan` の 2 の節の説明を「`board-worker` がゲートを通してコミットする単位で、止まってよい区切り」に直し、`board-task` への言及を `board-worker` に直す
-- [ ] `.claude/agents/board-reviewer.md` の `board-task` への言及（直す指摘を倒す役、まとめて倒れる前提）を `board-worker` に直し、
+- [x] `.claude/agents/board-planner.md` の `plan` の 2 の節の説明を「`board-worker` がゲートを通してコミットする単位で、止まってよい区切り」に直し、`board-task` への言及を `board-worker` に直す
+- [x] `.claude/agents/board-reviewer.md` の `board-task` への言及（直す指摘を倒す役、まとめて倒れる前提）を `board-worker` に直し、
       直す指摘を倒した `board-worker` が同じ起動で締めの段へ進むことを、見送った指摘の書き方の説明に合わせて書く
 
 ### 4. 監視役とドキュメント
