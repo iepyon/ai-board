@@ -169,8 +169,8 @@ Windows では `rundll32 url.dll,FileProtocolHandler <url>` を引数の配列�
 
 ### 1. 改行コード
 
-- [ ] `.gitattributes` に `* text=auto eol=lf` を書く。`git add --renormalize .` で差分が出ないことを確かめる
-- [ ] `data-store.ts` で、データのワークツリーを作る・取り直す・書く git の呼び出し（`worktree add`、`clone`、`reset --hard`、`checkout` など）に `-c core.autocrlf=false` を付ける
+- [x] `.gitattributes` に `* text=auto eol=lf` を書く。`git add --renormalize .` で差分が出ないことを確かめる
+- [x] `data-store.ts` で、データのワークツリーを作る・取り直す・書く git の呼び出し（`worktree add`、`clone`、`reset --hard`、`checkout` など）に `-c core.autocrlf=false` を付ける
   - テスト: `core.autocrlf=true` のリポジトリでデータのワークツリーを作り、カードを書いて取り直した後も `card.md` が LF のまま
 
 ### 2. ブラウザを開く処理

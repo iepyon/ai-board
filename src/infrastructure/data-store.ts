@@ -46,6 +46,24 @@ const DATA_PATHS = [
   CONFIG_FILE,
 ] as const;
 
+/**
+ * データのワークツリーを触る git の呼び出しに付ける設定。
+ *
+ * Windows の Git の既定（`core.autocrlf=true`）では、取り出したカードのファイルが CRLF になる。
+ * データ用ブランチは別のブランチなのでメインの `.gitattributes` が効かず、データ用ブランチに
+ * `.gitattributes` を足すと形が変わる。CLI とサーバは LF で書くので、ここで変換を止めて LF のまま取り出す。
+ */
+export const DATA_GIT_CONFIG = ['-c', 'core.autocrlf=false'] as const;
+
+/** `dir` で git を走らせる。改行コードの変換を止める設定を必ず付ける */
+function runGit(
+  runner: CliRunner,
+  dir: string,
+  args: readonly string[]
+): Promise<Result<string, CliError>> {
+  return runner.run('git', ['-C', dir, ...DATA_GIT_CONFIG, ...args]);
+}
+
 /** 手元の複数のプロセスの書き込みを直列にするロックファイル。データのワークツリーの親に置く */
 export const LOCK_FILE = 'data.lock';
 
@@ -311,7 +329,7 @@ class GitDataStore implements DataStore {
   private async addWorktree(repoRoot: string): Promise<Result<void, DataStoreError>> {
     const dataDir = this.dataDir;
     const inRepo = (args: readonly string[]): Promise<Result<string, CliError>> =>
-      this.runner.run('git', ['-C', repoRoot, ...args]);
+      runGit(this.runner, repoRoot, args);
 
     const remotes = await inRepo(['remote']);
     if (isErr(remotes)) return err(gitFailed('remote', remotes.error));
@@ -485,7 +503,7 @@ class GitDataStore implements DataStore {
   }
 
   private git(args: readonly string[]): Promise<Result<string, CliError>> {
-    return this.runner.run('git', ['-C', this.dataDir, ...args]);
+    return runGit(this.runner, this.dataDir, args);
   }
 
   private async gitStep(
@@ -568,7 +586,7 @@ export async function checkDataBranchAbsent(
 
   const { kind, repo } = location.value;
   const inRepo = (args: readonly string[]): Promise<Result<string, CliError>> =>
-    options.runner.run('git', ['-C', repo, ...args]);
+    runGit(options.runner, repo, args);
 
   const remotes = await inRepo(['remote']);
   if (isErr(remotes)) return err(gitFailed('remote', remotes.error));
@@ -627,7 +645,7 @@ export async function createDataBranch(
   const target = checked.value;
   const dataDir = path.resolve(options.dataDir);
   const inData = (args: readonly string[]): Promise<Result<string, CliError>> =>
-    options.runner.run('git', ['-C', dataDir, ...args]);
+    runGit(options.runner, dataDir, args);
 
   const steps: readonly (readonly [string, () => Promise<Result<string, CliError>>])[] = [
     ...(target.kind === 'worktree'
@@ -635,9 +653,7 @@ export async function createDataBranch(
           [
             'worktree add',
             () =>
-              options.runner.run('git', [
-                '-C',
-                target.repo,
+              runGit(options.runner, target.repo, [
                 'worktree',
                 'add',
                 '--quiet',
@@ -698,7 +714,7 @@ async function rollbackDataBranch(
   dataDir: string
 ): Promise<void> {
   const inRepo = (args: readonly string[]): Promise<Result<string, CliError>> =>
-    runner.run('git', ['-C', target.repo, ...args]);
+    runGit(runner, target.repo, args);
 
   if (target.kind === 'worktree') {
     const removed = await inRepo(['worktree', 'remove', '--force', dataDir]);
