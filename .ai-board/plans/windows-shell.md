@@ -221,6 +221,8 @@ Windows では `rundll32 url.dll,FileProtocolHandler <url>` を引数の配列�
 - [x] `src/cli-main.ts:379` で `--pid-file` を書くのが `fs.existsSync(root)` の確かめと `warnIfNothingToShow` の後なので、`--root` が無いなどで起動の前に終わると pid のファイルが書かれない。`board-decide` の起動を待つ手順（`SKILL.md` の手順 4 の 2）は `pid > 0` のときだけ生存を見るので、すぐ終わったサーバを 60 秒待ってから報告する（前の `echo $!` なら 500ms で気づけた）。`writePidFile` の呼び出しを `parseArgs` の直後（`help` の判定の後、`root` の確かめの前）へ移し、コメントの理由もそれに合わせる
 - [x] `src/cli-main.ts:54` の最上位の `USAGE` が `ai-board status [--json | --html]` のままで、手順書が頼る `--only` が `ai-board --help` に出ない。`ai-board status [--json [--only <項目,...>] | --html]` の形に直す（`STATUS_USAGE`・README・CLAUDE.md と揃える）
 
+- [ ] 人の判断（2026-11-02、計画のタスク 4 の決め事を変える）: `--pid-file` を渡されて pid のファイルを書けなかったときは、警告して続けるのではなく、起動をやめて終了コード 1 で終わる。`cli-main.ts` の `writePidFile` の呼び出しと、そのテスト・USAGE・README の説明を合わせる
+- [ ] 人の判断（2026-11-02）: `src/infrastructure/open-browser.ts` の `spawn` を `src/infrastructure/cli-runner.ts` に移す。`cli-runner.ts` に切り離して起動する入口（detached / unref、shell 無し、引数は配列、`error` のリスナー付き）を足し、`open-browser.ts` はそれを使う。CLAUDE.md の「外部コマンドは cli-runner.ts に閉じる」の例外は作らない
 ### 見送った指摘
 
 - `src/board/cli/status-cli.ts:185` の `--only cards.<field>` は、`<field>` を打ち間違えても（`cards.stgae`）失敗せず空のオブジェクトを並べる。計画の Decisions「`--only` の形」が「要素に無い `<field>` は、その要素では出さない」と決めており、手順書の項目は固定の文字列なので見送る
@@ -230,6 +232,8 @@ Windows では `rundll32 url.dll,FileProtocolHandler <url>` を引数の配列�
 - `src/infrastructure/data-store.ts:56` で、この変更の前に Windows で `core.autocrlf=true` のまま取り出したデータのワークツリーは CRLF のまま残り、stat が変わったファイルを `add --all` が変換なしでコミットしうる。Git Bash の実機で確かめられず、前に Windows でデータのワークツリーを作った人に限られるので見送る（README の「Windows で使う」節に、データのワークツリーの取り直しも書き足すかは動作確認で判断する）
 
 ### 人に判断してほしいこと
+
+人が 2026-11-02 に回答し、2 件とも上の直す指摘に移した。
 
 - `src/cli-main.ts:380` で `--pid-file` を書けなかったとき、警告だけでサーバは動き続ける。`board-decide` の「止める」手順は pid のファイルを読むので、書けなければ止められず、`run_in_background` の `wait` が終わらない。計画のタスク 4 は「書けなければ警告を出して続ける」と決めているので、そのままにするか、`--pid-file` を渡されたときは書けなければ起動をやめる（終了コード 1）に変えるかは人が決める
 - `src/infrastructure/open-browser.ts:34` は `node:child_process` の `spawn` を `cli-runner.ts` の外で使う。CLAUDE.md の「外部コマンドは `cli-runner.ts` に閉じる」と食い違うが、前の `cli-main.ts` の `openBrowser` から移したもので、引数は配列で shell を介さず、計画の Decisions もこの場所に置くと決めている。`cli-runner.ts` に切り離して起動する入口を足すか、このままにするか（ADR か CLAUDE.md に例外として書くか）は人が決める
