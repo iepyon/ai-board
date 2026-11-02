@@ -167,7 +167,7 @@ verify を飛ばすカードの `verify 提出` / `verify 再提出` も承認�
   進捗バー（`plan.repository.ts`）と共有する。コードブロックの中のチェックボックスと見出しは数えない。閉じていないフェンスは無いものとして後ろの行を数える
 - 読めない（`branch` が null、ブランチや計画が無い、`git` が失敗した）ときは例外を投げず `step` を `null` にし、`status` 自体は成功させる。
   人向けの数行（`--json` を付けない形）では `段=task` のように添え、`null` は `段=不明` と出す（`status-describe.ts`）
-- 監視役は `task` なら `board-task`、`review` なら `board-reviewer`、`close` / `null` なら `board-worker` に渡す。
+- 監視役は `review` なら `board-reviewer`、`task` / `close` / `null` なら `board-worker` に渡す。
   段はステージではなく、サーバ（`GetBoardQuery`）とステージの導出（`stage-resolver.ts`）はブランチの計画を読まない
 GitHub に接続できないとき（`forge.status` が `connected` でないとき）は `next` を `null` にする。
 
