@@ -213,4 +213,4 @@ Windows では `rundll32 url.dll,FileProtocolHandler <url>` を引数の配列�
 
 ### 8. 確かめる
 
-- [ ] 品質ゲートと `npm run build` を通し、`## 動作確認の手順` の「Linux / macOS で」を `AI_BOARD_DATA` のスクラッチの clone で試す
+- [x] 品質ゲートと `npm run build` を通し、`## 動作確認の手順` の「Linux / macOS で」を `AI_BOARD_DATA` のスクラッチの clone で試す
