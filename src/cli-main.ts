@@ -24,6 +24,7 @@ import { runMigrateCli } from './cards/cli/migrate-cli.js';
 import { describeDataStoreError, describeOfflineRead } from './cards/cli/data-store-messages.js';
 import {
   createBoardDependencies,
+  createLoopHistoryRepository,
   createBranchPlanRepository,
   createFileMrSnapshotRepository,
   createMrStateSource,
@@ -224,7 +225,8 @@ async function runStatus(argv: readonly string[]): Promise<number> {
     config.paths.plansDir,
     cards.cardRepository,
     cards.ideaDividerRepository,
-    provider
+    provider,
+    createLoopHistoryRepository(store.dataDir)
   );
 
   return runStatusCli(

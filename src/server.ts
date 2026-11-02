@@ -12,6 +12,7 @@ import {
 import { describeDataStoreError, describeOfflineRead } from './cards/cli/data-store-messages.js';
 import {
   createBoardDependencies,
+  createLoopHistoryRepository,
   createFileMrSnapshotRepository,
   createMrStateSource,
 } from './board/composition.js';
@@ -96,7 +97,8 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
     config.paths.plansDir,
     cards.cardRepository,
     cards.ideaDividerRepository,
-    mrProvider
+    mrProvider,
+    createLoopHistoryRepository(store.dataDir)
   );
 
   const app = createApp({ cards, board, sse });

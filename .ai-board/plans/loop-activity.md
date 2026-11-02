@@ -246,10 +246,10 @@ ai-board loop finish --loop <id> --card <cardId> --result <advanced|held|stopped
 
 ### 3. ボードと `status` に載せる
 
-- [ ] `src/shared/timeline.ts` に `TimelinePhase` と `PhasedTimelineSegment` を足し、`src/board/services/timeline-phases.ts` に `splitAiPhases` を置く。テスト: 人の区間は空、記録の無い AI の区間は空、待ちと作業が交互に並ぶ、区間の外にはみ出した記録を切る、重なった記録をつなぐ、終わっていない区間と記録
-- [ ] `src/shared/loop-activity.ts` に、`Board.loop` と `generatedAt` から要約の文言と経過時間を作る純関数と、カードが今触られているかを返す関数を置く。テスト: 触っている（1 件 / 複数のループ）、最後の手から、記録なし
-- [ ] `GetBoardQuery` に 1 手の記録の読み手を渡し、`Board.loop` と `BoardCard.loopSteps` と `phases` 付きの `timeline` を組み立てる。`createBoardDependencies` とその呼び出し側（サーバ・`status`）を合わせて直す
-- [ ] `status` の人向けの出力と `--html` に、今触っているカードの行（`loop-activity.ts` の文言）と、作業中のカードの「AI 稼働中」の印を出す。`status-cli` / `status-html` / `get-board.query` のテストを足す
+- [x] `src/shared/timeline.ts` に `TimelinePhase` と `PhasedTimelineSegment` を足し、`src/board/services/timeline-phases.ts` に `splitAiPhases` を置く。テスト: 人の区間は空、記録の無い AI の区間は空、待ちと作業が交互に並ぶ、区間の外にはみ出した記録を切る、重なった記録をつなぐ、終わっていない区間と記録
+- [x] `src/shared/loop-activity.ts` に、`Board.loop` と `generatedAt` から要約の文言と経過時間を作る純関数と、カードが今触られているかを返す関数を置く。テスト: 触っている（1 件 / 複数のループ）、最後の手から、記録なし
+- [x] `GetBoardQuery` に 1 手の記録の読み手を渡し、`Board.loop` と `BoardCard.loopSteps` と `phases` 付きの `timeline` を組み立てる。`createBoardDependencies` とその呼び出し側（サーバ・`status`）を合わせて直す
+- [x] `status` の人向けの出力と `--html` に、今触っているカードの行（`loop-activity.ts` の文言）と、作業中のカードの「AI 稼働中」の印を出す。`status-cli` / `status-html` / `get-board.query` のテストを足す
 
 ### 4. 画面
 

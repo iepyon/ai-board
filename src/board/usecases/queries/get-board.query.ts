@@ -12,6 +12,10 @@ import {
 import { latestGateEntry, parseReviewLog } from '../../../cards/services/review-log.js';
 import { resolveHold } from '../../services/next-action.js';
 import { resolveTimeline } from '../../services/stage-timeline.js';
+import { splitAiPhases } from '../../services/timeline-phases.js';
+import type { LoopHistoryRepository } from '../../repositories/loop-history.repository.js';
+import type { LoopStep } from '../../../shared/loop-step.js';
+import { toBoardLoop } from '../../../shared/loop-activity.js';
 import type { ReviewEntry, ReviewGate } from '../../../cards/models/review.js';
 import type { Stage } from '../../../shared/schemas/common.js';
 import { GATE_OF_STAGE } from '../../../shared/stage-gates.js';
@@ -39,23 +43,28 @@ export type GetBoardQuery = () => Promise<Result<Board, GetBoardError>>;
  *
  * ステージ導出そのものは `resolveStage`（純関数）に委譲し、
  * ここは I/O と組み立てだけを担当する。
+ * ループの 1 手の記録は、ループの様子（`Board.loop`）・カードの手の一覧・区間の小区間にだけ使い、
+ * ステージの導出と止まりには渡さない。
  */
 export function createGetBoardQuery(
   cardRepository: CardRepository,
   ideaDividerRepository: IdeaDividerRepository,
   planRepository: PlanRepository,
-  mrProvider: MrStateProvider
+  mrProvider: MrStateProvider,
+  loopHistoryRepository: LoopHistoryRepository
 ): GetBoardQuery {
   return async () => {
     let cards;
     let planState;
     let ideaDivider;
+    let loopSteps;
 
     try {
-      [cards, planState, ideaDivider] = await Promise.all([
+      [cards, planState, ideaDivider, loopSteps] = await Promise.all([
         cardRepository.findAll(),
         planRepository.load(),
         ideaDividerRepository.get(),
+        loopHistoryRepository.findAll(),
       ]);
     } catch (error) {
       return err({
@@ -67,6 +76,7 @@ export function createGetBoardQuery(
     const cardIds = new Set<string>(cards.map((card) => card.id));
     const forge = mrProvider.connection();
     const mrKnown = forge.status === 'connected' && mrProvider.synced();
+    const stepsByCard = groupByCard(loopSteps);
 
     const boardCards: BoardCard[] = cards.map((card) => {
       const plan = planState.get(card.id) ?? null;
@@ -75,6 +85,7 @@ export function createGetBoardQuery(
       const resolution = resolveStage(card, plan, mr);
       const floorStage = resolveFloorStage(card, plan, mr);
       const entries = parseReviewLog(card.body);
+      const steps = stepsByCard.get(card.id) ?? [];
 
       return toBoardCard(
         card,
@@ -85,15 +96,19 @@ export function createGetBoardQuery(
         toBoardCardPlan(plan),
         toBoardCardMr(mr),
         resolveHold({ ...resolution, skipGates: card.skipGates, entries, mr, mrKnown }),
-        resolveTimeline({
-          created: card.created,
-          startedAt: card.startedAt,
-          skipGates: card.skipGates,
-          entries,
-          readyAt: mr?.readyAt ?? null,
-          mergedAt: mr?.mergedAt ?? null,
-          convertedToDraftAt: mr?.convertedToDraftAt ?? null,
-        })
+        splitAiPhases(
+          resolveTimeline({
+            created: card.created,
+            startedAt: card.startedAt,
+            skipGates: card.skipGates,
+            entries,
+            readyAt: mr?.readyAt ?? null,
+            mergedAt: mr?.mergedAt ?? null,
+            convertedToDraftAt: mr?.convertedToDraftAt ?? null,
+          }),
+          steps
+        ),
+        steps
       );
     });
 
@@ -106,9 +121,21 @@ export function createGetBoardQuery(
       forge,
       orphanPlans: orphanPlans.sort(),
       ideaDivider,
+      loop: toBoardLoop(loopSteps),
       generatedAt: new Date().toISOString(),
     });
   };
+}
+
+/** 記録をカードごとに分ける。並び（開始の時刻の順）は保つ */
+function groupByCard(steps: readonly LoopStep[]): Map<string, LoopStep[]> {
+  const byCard = new Map<string, LoopStep[]>();
+  for (const step of steps) {
+    const list = byCard.get(step.cardId);
+    if (list === undefined) byCard.set(step.cardId, [step]);
+    else list.push(step);
+  }
+  return byCard;
 }
 
 function toBoardCardPlan(plan: PlanDoc | null): BoardCardPlan | null {

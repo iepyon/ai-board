@@ -19,6 +19,10 @@ import {
   type MrStateProvider,
 } from './services/mr-state-provider.js';
 import { createGetBoardQuery, type GetBoardQuery } from './usecases/queries/get-board.query.js';
+import {
+  createFileLoopHistoryRepository,
+  type LoopHistoryRepository,
+} from './repositories/loop-history.repository.js';
 
 // ============================================================
 // Board コンテキスト 依存性構成
@@ -29,11 +33,17 @@ export interface BoardDependencies {
   readonly getBoardQuery: GetBoardQuery;
 }
 
+/** ループの 1 手の記録が無いことにする読み手。記録を読まない組み立て（テストなど）の既定 */
+export const emptyLoopHistoryRepository: LoopHistoryRepository = {
+  findAll: () => Promise.resolve([]),
+};
+
 export function createBoardDependencies(
   plansDir: string,
   cardRepository: CardRepository,
   ideaDividerRepository: IdeaDividerRepository,
-  mrProvider: MrStateProvider = disabledMrStateProvider
+  mrProvider: MrStateProvider = disabledMrStateProvider,
+  loopHistoryRepository: LoopHistoryRepository = emptyLoopHistoryRepository
 ): BoardDependencies {
   const planRepository = new FsPlanRepository(plansDir);
 
@@ -43,9 +53,15 @@ export function createBoardDependencies(
       cardRepository,
       ideaDividerRepository,
       planRepository,
-      mrProvider
+      mrProvider,
+      loopHistoryRepository
     ),
   };
+}
+
+/** データのワークツリーの `loop/` から 1 手の記録を読む */
+export function createLoopHistoryRepository(dataDir: string): LoopHistoryRepository {
+  return createFileLoopHistoryRepository(dataDir);
 }
 
 export function createForgeClient(forge: ForgeConfig, runner: CliRunner): ForgeClient {

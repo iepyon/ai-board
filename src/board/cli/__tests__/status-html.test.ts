@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import type { Board, BoardCard, BoardCardMr } from '../../models/board-card.js';
 import { buildStatusReport } from '../status-cli.js';
 import { escapeHtml, formatStatusHtml } from '../status-html.js';
+import type { BoardLoop } from '../../../shared/loop-activity.js';
+import type { LoopStep } from '../../../shared/loop-step.js';
 
 // ============================================================
 // テスト用のボード
@@ -31,6 +33,7 @@ function card(id: string, overrides: Partial<BoardCard> = {}): BoardCard {
     mrState: null,
     hold: null,
     timeline: [],
+    loopSteps: [],
     ...overrides,
   };
 }
@@ -54,12 +57,17 @@ function mrState(overrides: Partial<BoardCardMr> = {}): BoardCardMr {
   };
 }
 
-function html(cards: readonly BoardCard[], ideaDivider: number | null = null): string {
+function html(
+  cards: readonly BoardCard[],
+  ideaDivider: number | null = null,
+  loop: BoardLoop = { running: [], lastFinishedAt: null }
+): string {
   const board: Board = {
     cards,
     forge: { status: 'connected', kind: 'github' },
     orphanPlans: [],
     ideaDivider,
+    loop,
     generatedAt: '2026-10-23T00:00:00.000Z',
   };
 
@@ -128,6 +136,41 @@ describe('formatStatusHtml', () => {
 // ============================================================
 // 判断待ち
 // ============================================================
+
+describe('formatStatusHtml のループ', () => {
+  const running: LoopStep = {
+    loop: 'session-a',
+    cardId: 'working',
+    action: 'implement',
+    step: 'task',
+    agent: null,
+    startedAt: '2026-10-22T23:48:00.000Z',
+    finishedAt: null,
+    result: null,
+    tokens: null,
+    durationMs: null,
+  };
+
+  it('頭にループの様子を出し、今触っているカードに印を付ける', () => {
+    const page = html(
+      [card('working', { stage: 'impling' }), card('other', { stage: 'impling' })],
+      null,
+      { running: [running], lastFinishedAt: null }
+    );
+
+    expect(page).toContain(
+      '<dt>ループ</dt><dd>working のタイトル を implement（task） 中（12 分）</dd>'
+    );
+    const work = section(page, 'AI 作業中');
+    expect(work.indexOf('AI 稼働中')).toBeGreaterThan(work.indexOf('working のタイトル'));
+    expect(work.indexOf('AI 稼働中')).toBeLessThan(work.indexOf('other のタイトル'));
+    expect(work.match(/AI 稼働中/g)).toHaveLength(1);
+  });
+
+  it('記録が無ければ「記録なし」と出す', () => {
+    expect(html([])).toContain('<dt>ループ</dt><dd>記録なし</dd>');
+  });
+});
 
 describe('formatStatusHtml の判断待ち', () => {
   it('提出の本文を改行を保って出し、判断のラベルを並べる（ボタンは置かない）', () => {
