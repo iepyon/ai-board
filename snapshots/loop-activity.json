@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-11-02T13:51:14Z\",false,\"708a494903b34aa72a67ccf71e112325c25238fc\",0,0,\"2026-11-02T13:51:14Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 65,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "loop-activity",
+    "title": "AI ループの 1 手ごとの履歴を残し、今触っているカードと 1 手の時間をボードで見せる",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/65",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-11-02T13:48:08Z",
+    "mergedAt": "2026-11-02T13:51:14Z",
+    "readyAt": "2026-11-02T13:48:18Z",
+    "convertedToDraftAt": null
+  }
+}
