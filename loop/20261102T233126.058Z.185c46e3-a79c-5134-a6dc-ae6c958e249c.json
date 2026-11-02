@@ -1,0 +1,12 @@
+{
+  "loop": "185c46e3-a79c-5134-a6dc-ae6c958e249c",
+  "cardId": "windows-shell",
+  "action": "implement",
+  "step": "task",
+  "agent": "board-worker-windows-shell-2331",
+  "startedAt": "2026-11-02T23:31:26.058Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
