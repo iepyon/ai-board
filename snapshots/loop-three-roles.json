@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-11-02T10:48:05Z\",false,\"ce13bc381a0c6044e6ce6da776612e44afa9df92\",0,0,\"2026-11-02T10:48:06Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 64,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "loop-three-roles",
+    "title": "ループのサブエージェントを計画・実装・レビューの 3 つに絞る",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/64",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-11-02T10:44:26Z",
+    "mergedAt": "2026-11-02T10:48:05Z",
+    "readyAt": "2026-11-02T10:44:30Z",
+    "convertedToDraftAt": null
+  }
+}
