@@ -3,7 +3,7 @@ id: loop-task-batch
 title: ユーザは、実装中のタスクを 1 つずつ別のサブエージェントに読み直させず、まとめて倒してほしい
 created: '2026-11-01T21:57:59.070Z'
 skipGates: []
-branch: null
+branch: loop-task-batch
 mr: null
 ---
 
