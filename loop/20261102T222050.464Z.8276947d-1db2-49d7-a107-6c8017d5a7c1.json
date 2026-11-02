@@ -1,0 +1,12 @@
+{
+  "loop": "8276947d-1db2-49d7-a107-6c8017d5a7c1",
+  "cardId": "windows-shell",
+  "action": "plan",
+  "step": null,
+  "agent": "board-planner-windows-shell-2220",
+  "startedAt": "2026-11-02T22:20:50.464Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
