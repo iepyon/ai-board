@@ -52,8 +52,10 @@ const DATA_PATHS = [
  * Windows の Git の既定（`core.autocrlf=true`）では、取り出したカードのファイルが CRLF になる。
  * データ用ブランチは別のブランチなのでメインの `.gitattributes` が効かず、データ用ブランチに
  * `.gitattributes` を足すと形が変わる。CLI とサーバは LF で書くので、ここで変換を止めて LF のまま取り出す。
+ * 人の `core.attributesFile` やシステムの gitattributes に `* text=auto` などがあるとその属性が効くので、
+ * そのときも取り出しの改行が LF になるよう `core.eol=lf` も付ける（既定の `native` は Windows で CRLF）。
  */
-export const DATA_GIT_CONFIG = ['-c', 'core.autocrlf=false'] as const;
+export const DATA_GIT_CONFIG = ['-c', 'core.autocrlf=false', '-c', 'core.eol=lf'] as const;
 
 /** `dir` で git を走らせる。改行コードの変換を止める設定を必ず付ける */
 function runGit(

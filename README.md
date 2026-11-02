@@ -455,7 +455,7 @@ PowerShell や cmd は想定しない。
 - `jq` は要らない。手順書は `ai-board status --json --only <項目,...>` で要る項目だけを出し、人の API に送る JSON は `node -e` で組み立てる。
   `sed`・`grep`・`diff`・`curl` などは Git for Windows に同梱されている
 - 改行コードは `.gitattributes`（`* text=auto eol=lf`）で LF に揃える。Git for Windows の既定（`core.autocrlf=true`）で clone しても、`npm run format:check` は落ちない。
-  データのワークツリー（`.ai-board/data/`）も、`ai-board` が git に `-c core.autocrlf=false` を付けて触るので LF のまま取り出される
+  データのワークツリー（`.ai-board/data/`）も、`ai-board` が git に `-c core.autocrlf=false -c core.eol=lf` を付けて触るので LF のまま取り出される
 - `.gitattributes` が入る前に clone した作業ツリーは CRLF のまま残る。未コミットの変更が無いことを確かめてから、取り出し直す
 
   ```bash

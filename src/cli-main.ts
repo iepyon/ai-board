@@ -51,7 +51,7 @@ interface CliOptions {
 
 const USAGE = `使い方: ai-board [options]
        ai-board card <command> [--root <path>]    カードの読み書き（ai-board card --help）
-       ai-board status [--json | --html] [--root <path>]
+       ai-board status [--json [--only <項目,...>] | --html] [--root <path>]
                                                   ボードの状態と次の一手（サーバ不要）
        ai-board migrate [--from <db>] [--empty] [--root <path>]
                                                   board.db をデータ用ブランチへ書き出す（ai-board migrate --help）
@@ -369,16 +369,17 @@ async function main(): Promise<void> {
 
   const { root, port, open, pollIntervalMs, pidFile } = parsed;
 
+  // 引数を読んだらすぐ書く。--root が無いなどで起動の前に終わったときも、起動を待つ側が
+  // pid のファイルからプロセスが終わったことに気づけるように（root の確かめや待ち受けより前）
+  if (pidFile !== undefined) {
+    writePidFile(pidFile, process.pid);
+  }
+
   if (!fs.existsSync(root)) {
     throw new Error(`ディレクトリが見つかりません: ${root}`);
   }
 
   warnIfNothingToShow(root);
-
-  // 待ち受けを始める前に書く。起動を待つ側が、起動の途中で終わったことを pid で見分けられるように
-  if (pidFile !== undefined) {
-    writePidFile(pidFile, process.pid);
-  }
 
   const server = await startServer({
     root,

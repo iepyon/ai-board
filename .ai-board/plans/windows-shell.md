@@ -217,9 +217,9 @@ Windows では `rundll32 url.dll,FileProtocolHandler <url>` を引数の配列�
 
 ## AI レビュー
 
-- [ ] `src/infrastructure/data-store.ts:56` の `DATA_GIT_CONFIG` は `core.autocrlf=false` だけで、`core.eol` は既定の `native`（Windows では CRLF）のまま。人の `core.attributesFile` やシステムの gitattributes に `* text=auto` などがあると、データ用ブランチには `.gitattributes` が無いのでその属性が効き、カードが CRLF で取り出される（計画の Decisions「改行コードをどう揃えるか」の LF の保証が崩れる）。`DATA_GIT_CONFIG` に `-c core.eol=lf` を足し、`data-store.test.ts` に、リポジトリに `core.attributesFile`（`* text=auto` を書いたファイル）と `core.eol=crlf` を設定しても `card.md` が LF のまま取り出されるテストを足す
-- [ ] `src/cli-main.ts:379` で `--pid-file` を書くのが `fs.existsSync(root)` の確かめと `warnIfNothingToShow` の後なので、`--root` が無いなどで起動の前に終わると pid のファイルが書かれない。`board-decide` の起動を待つ手順（`SKILL.md` の手順 4 の 2）は `pid > 0` のときだけ生存を見るので、すぐ終わったサーバを 60 秒待ってから報告する（前の `echo $!` なら 500ms で気づけた）。`writePidFile` の呼び出しを `parseArgs` の直後（`help` の判定の後、`root` の確かめの前）へ移し、コメントの理由もそれに合わせる
-- [ ] `src/cli-main.ts:54` の最上位の `USAGE` が `ai-board status [--json | --html]` のままで、手順書が頼る `--only` が `ai-board --help` に出ない。`ai-board status [--json [--only <項目,...>] | --html]` の形に直す（`STATUS_USAGE`・README・CLAUDE.md と揃える）
+- [x] `src/infrastructure/data-store.ts:56` の `DATA_GIT_CONFIG` は `core.autocrlf=false` だけで、`core.eol` は既定の `native`（Windows では CRLF）のまま。人の `core.attributesFile` やシステムの gitattributes に `* text=auto` などがあると、データ用ブランチには `.gitattributes` が無いのでその属性が効き、カードが CRLF で取り出される（計画の Decisions「改行コードをどう揃えるか」の LF の保証が崩れる）。`DATA_GIT_CONFIG` に `-c core.eol=lf` を足し、`data-store.test.ts` に、リポジトリに `core.attributesFile`（`* text=auto` を書いたファイル）と `core.eol=crlf` を設定しても `card.md` が LF のまま取り出されるテストを足す
+- [x] `src/cli-main.ts:379` で `--pid-file` を書くのが `fs.existsSync(root)` の確かめと `warnIfNothingToShow` の後なので、`--root` が無いなどで起動の前に終わると pid のファイルが書かれない。`board-decide` の起動を待つ手順（`SKILL.md` の手順 4 の 2）は `pid > 0` のときだけ生存を見るので、すぐ終わったサーバを 60 秒待ってから報告する（前の `echo $!` なら 500ms で気づけた）。`writePidFile` の呼び出しを `parseArgs` の直後（`help` の判定の後、`root` の確かめの前）へ移し、コメントの理由もそれに合わせる
+- [x] `src/cli-main.ts:54` の最上位の `USAGE` が `ai-board status [--json | --html]` のままで、手順書が頼る `--only` が `ai-board --help` に出ない。`ai-board status [--json [--only <項目,...>] | --html]` の形に直す（`STATUS_USAGE`・README・CLAUDE.md と揃える）
 
 ### 見送った指摘
 
