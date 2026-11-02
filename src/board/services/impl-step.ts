@@ -11,7 +11,7 @@ import {
 /**
  * `implement` の手で、監視役が次に誰を立てるかを決める段。
  *
- * - `task`: 未チェックのタスクがある（`board-task` に渡す）
+ * - `task`: 未チェックのタスクがある（`board-worker` に渡す）
  * - `review`: 全部倒れていて、`## AI レビュー` 節が無い（`board-reviewer` に渡す）
  * - `close`: 全部倒れていて `## AI レビュー` 節がある、または計画が archive 済み（`board-worker` に渡す）
  *

@@ -199,10 +199,10 @@ board-planner（plan）→ 人の計画レビュー → board-worker（全部の
 
 ### 4. 監視役とドキュメント
 
-- [ ] `.claude/skills/board-loop/SKILL.md` の description、冒頭のサブエージェントの列挙、`implement` の渡し先の表（`task` を `board-worker` に）、
+- [x] `.claude/skills/board-loop/SKILL.md` の description、冒頭のサブエージェントの列挙、`implement` の渡し先の表（`task` を `board-worker` に）、
       「タスクを倒し終えるまで、節ごとに新しい `board-task` が立つ」の段落、手順 0 の名前の頭、手順 3 の `subagent_type` の決め方を 3 つの役の形に直す。
       `.claude/skills/board-decide/SKILL.md` のサブエージェントの列挙から `board-task` を外す
-- [ ] `README.md` の AI ループの節（渡し先の列挙、段の表の `task` の行、節の説明、まっさらな文脈の説明、作業中の判定の名前の頭）と、
+- [x] `README.md` の AI ループの節（渡し先の列挙、段の表の `task` の行、節の説明、まっさらな文脈の説明、作業中の判定の名前の頭）と、
       `docs/architecture.md` の「監視役は `task` なら `board-task`」を 3 つの役の形に直す。
       `src/board/services/impl-step.ts` / `next-action.ts` / `src/board/cli/status-describe.ts` の docstring の `board-task` を `board-worker` に直す。
       `grep -rn 'board-task' .claude README.md docs CLAUDE.md src` で残りが無いことを確かめる

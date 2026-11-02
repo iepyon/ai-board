@@ -13,7 +13,7 @@ import type { ImplStep } from './impl-step.js';
  * - `implement`   実装中で、動作確認をまだ頼んでいない。計画の状態から決まる 1 段を進める。
  *                 段はここでは分けず、`status` の CLI がカードのブランチの計画を読んで `NextAction.step` に載せる
  *                 （未チェックのタスクがあれば `task` / 倒し終えて `## AI レビュー` 節が無ければ `review` /
- *                 節があるか archive 済みなら `close`。監視役は段で `board-task` / `board-reviewer` / `board-worker` を選ぶ）
+ *                 節があるか archive 済みなら `close`。監視役は段が `review` なら `board-reviewer`、それ以外は `board-worker` を選ぶ）
  * - `revise-impl` 実装中で、動作確認の最新の判断が 否決。理由を読んで直し、動作確認を頼み直す
  * - `ready`       実装中で、verify ゲートを通った（人の承認、または verify を飛ばすカードの 提出 / 再提出）。
  *                 計画を archive へ移し、PR を Ready にする
