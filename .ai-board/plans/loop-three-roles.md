@@ -185,10 +185,10 @@ board-planner（plan）→ 人の計画レビュー → board-worker（全部の
 
 ### 2. 実装の役
 
-- [ ] `.claude/agents/board-worker.md` の `implement` を書き直し、今の `board-task.md` の 2〜6（節を選ぶ、タスクの範囲、上から倒して `[x]`、節の終わりのゲートと順番の直し、コミット前の確かめとコミットと push）を取り込む。
+- [x] `.claude/agents/board-worker.md` の `implement` を書き直し、今の `board-task.md` の 2〜6（節を選ぶ、タスクの範囲、上から倒して `[x]`、節の終わりのゲートと順番の直し、コミット前の確かめとコミットと push）を取り込む。
       節を倒し終えるごとに次の節へ進む繰り返しにし、要約が入っていたら節の区切りで止まる決まりと、倒し終えた後に `## AI レビュー` 節があれば締めの段へ進み、無ければ `進めた` で止まる決まりを足す。
       段の表（Decisions の「`implement` の手は、受けた段から締めの段まで続けて進める」）を差し替え、「タスクを倒す段は `board-task` に渡す。ここに来たら止まる」を消す
-- [ ] `board-worker.md` の frontmatter の description・冒頭の説明・報告（倒した節の数と題、止まった区切り、締めまで進んだか）・ハードルール
+- [x] `board-worker.md` の frontmatter の description・冒頭の説明・報告（倒した節の数と題、止まった区切り、締めまで進んだか）・ハードルール
       （節の外の `[x]` に触らない、順番を直してよい範囲、節の途中でコミットしない、を `board-task.md` から移す）を直し、`.claude/agents/board-task.md` を `git rm` で消す
 
 ### 3. 計画を書く側とレビューする側
