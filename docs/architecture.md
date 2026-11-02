@@ -1,7 +1,7 @@
 # 実装の細部
 
 `CLAUDE.md` から移した、触る箇所に応じて読めばよい細部。
-不変条件とハードルールは `CLAUDE.md`、使い方と 1 周の流れは `README.md` にある。
+不変条件とハードルールは `CLAUDE.md`、使い方と 1 周の流れは `README.md`、なぜそう作ったかは `docs/adr/` にある。
 
 ## ディレクトリ
 
@@ -169,7 +169,7 @@ verify を飛ばすカードの `verify 提出` / `verify 再提出` も承認�
   人向けの数行（`--json` を付けない形）では `段=task` のように添え、`null` は `段=不明` と出す（`status-describe.ts`）
 - 監視役は `review` なら `board-reviewer`、`task` / `close` / `null` なら `board-worker` に渡す。
   段はステージではなく、サーバ（`GetBoardQuery`）とステージの導出（`stage-resolver.ts`）はブランチの計画を読まない
-GitHub に接続できないとき（`forge.status` が `connected` でないとき）は `next` を `null` にする。
+  GitHub に接続できないとき（`forge.status` が `connected` でないとき）は `next` を `null` にする。
 
 `status` の `waiting` は画面の判断待ちの区画（`groupBySection` の inbox）をそのまま使うので、止まっているカードも 1 度だけ出て、`working` には出ない。
 止まっているカードの `reason` は `hold.reason` になる。
