@@ -187,7 +187,7 @@ Windows では `rundll32 url.dll,FileProtocolHandler <url>` を引数の配列�
 
 ### 4. サーバの `--pid-file`
 
-- [ ] `src/cli-main.ts` の `parseArgs` に `--pid-file <path>` を足し、起動後に `process.pid` を書く。書けなければ警告を出して続ける。使い方の文言を直す
+- [x] `src/cli-main.ts` の `parseArgs` に `--pid-file <path>` を足し、起動後に `process.pid` を書く。書けなければ警告を出して続ける。使い方の文言を直す
   - テスト: pid を書く処理を純関数か小さな関数に切り出し、`src/**/__tests__/` でファイルに pid が書かれることを確かめる
 
 ### 5. 手順書

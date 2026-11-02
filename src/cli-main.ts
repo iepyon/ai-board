@@ -33,6 +33,7 @@ import { isPrCommand, runPrCli } from './board/cli/pr-cli.js';
 import { runLoopCli } from './board/cli/loop-cli.js';
 import { findLiveServer } from './infrastructure/server-info.js';
 import { openBrowser } from './infrastructure/open-browser.js';
+import { writePidFile } from './infrastructure/pid-file.js';
 import { isErr } from './shared/result.js';
 import { CardIdSchema, type CardId } from './shared/schemas/common.js';
 
@@ -45,6 +46,7 @@ interface CliOptions {
   readonly port: number;
   readonly open: boolean;
   readonly pollIntervalMs: number | undefined;
+  readonly pidFile: string | undefined;
 }
 
 const USAGE = `使い方: ai-board [options]
@@ -65,6 +67,8 @@ Options:
   --no-open       ブラウザを自動で開かない
   --poll-interval <ms>
                   レビュー要求のポーリング間隔 (既定: 60000)
+  --pid-file <path>
+                  起動したら、サーバの pid (OS の pid) をこのファイルに書く
   -h, --help      このヘルプを表示
 `;
 
@@ -73,6 +77,7 @@ export function parseArgs(argv: readonly string[]): CliOptions | 'help' {
   let port = DEFAULT_PORT;
   let open = true;
   let pollIntervalMs: number | undefined;
+  let pidFile: string | undefined;
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -93,12 +98,15 @@ export function parseArgs(argv: readonly string[]): CliOptions | 'help' {
       case '--poll-interval':
         pollIntervalMs = takeInteger(argv, ++i, '--poll-interval', 1000, Number.MAX_SAFE_INTEGER);
         break;
+      case '--pid-file':
+        pidFile = path.resolve(takeValue(argv, ++i, '--pid-file'));
+        break;
       default:
         throw new Error(`不明なオプションです: ${String(arg)}`);
     }
   }
 
-  return { root, port, open, pollIntervalMs };
+  return { root, port, open, pollIntervalMs, pidFile };
 }
 
 /** 値を伴うオプションの引数を取り出す */
@@ -359,13 +367,18 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { root, port, open, pollIntervalMs } = parsed;
+  const { root, port, open, pollIntervalMs, pidFile } = parsed;
 
   if (!fs.existsSync(root)) {
     throw new Error(`ディレクトリが見つかりません: ${root}`);
   }
 
   warnIfNothingToShow(root);
+
+  // 待ち受けを始める前に書く。起動を待つ側が、起動の途中で終わったことを pid で見分けられるように
+  if (pidFile !== undefined) {
+    writePidFile(pidFile, process.pid);
+  }
 
   const server = await startServer({
     root,
