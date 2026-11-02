@@ -175,8 +175,8 @@ Windows では `rundll32 url.dll,FileProtocolHandler <url>` を引数の配列�
 
 ### 2. ブラウザを開く処理
 
-- [ ] `src/infrastructure/open-browser.ts` に `browserCommand(platform, url)` と `openBrowser(url)` を置く。Windows は `rundll32 url.dll,FileProtocolHandler <url>`、子プロセスに `error` のリスナーを付ける
-- [ ] `src/cli-main.ts` の `openBrowser` をこれに差し替える
+- [x] `src/infrastructure/open-browser.ts` に `browserCommand(platform, url)` と `openBrowser(url)` を置く。Windows は `rundll32 url.dll,FileProtocolHandler <url>`、子プロセスに `error` のリスナーを付ける
+- [x] `src/cli-main.ts` の `openBrowser` をこれに差し替える
   - テスト: `darwin` / `linux` / `win32` で、コマンドと引数の配列が期待どおり
 
 ### 3. `status --only`

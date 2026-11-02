@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { startServer, DEFAULT_PORT } from './server.js';
@@ -33,6 +32,7 @@ import { parseStatusArgs, runStatusCli, STATUS_USAGE } from './board/cli/status-
 import { isPrCommand, runPrCli } from './board/cli/pr-cli.js';
 import { runLoopCli } from './board/cli/loop-cli.js';
 import { findLiveServer } from './infrastructure/server-info.js';
+import { openBrowser } from './infrastructure/open-browser.js';
 import { isErr } from './shared/result.js';
 import { CardIdSchema, type CardId } from './shared/schemas/common.js';
 
@@ -396,17 +396,6 @@ function warnIfNothingToShow(root: string): void {
       `[ai-board] ${root} に ${BOARD_DIR}/ がありません。\n` +
         `           空のボードを表示します。--root で対象を指定できます。`
     );
-  }
-}
-
-function openBrowser(url: string): void {
-  const command =
-    process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
-
-  try {
-    spawn(command, [url], { detached: true, stdio: 'ignore' }).unref();
-  } catch {
-    // ブラウザが開けなくても URL は表示済みなので致命的ではない
   }
 }
 
