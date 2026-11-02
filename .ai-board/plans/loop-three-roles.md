@@ -206,3 +206,16 @@ board-planner（plan）→ 人の計画レビュー → board-worker（全部の
       `docs/architecture.md` の「監視役は `task` なら `board-task`」を 3 つの役の形に直す。
       `src/board/services/impl-step.ts` / `next-action.ts` / `src/board/cli/status-describe.ts` の docstring の `board-task` を `board-worker` に直す。
       `grep -rn 'board-task' .claude README.md docs CLAUDE.md src` で残りが無いことを確かめる
+
+## AI レビュー
+
+- [ ] `src/board/services/next-action.ts:13` の `implement` の説明「計画の状態から決まる 1 段を進める」、`README.md:347` の `implement` の行「計画の状態から決まる 1 段を進める」、`.claude/skills/board-loop/SKILL.md:25` の `implement` の行「計画から決まる段を 1 つ進める」が、Decisions「`implement` の手は、受けた段から締めの段まで続けて進める」と食い違う（`task` を受けた `board-worker` は 1 回の起動で残りの節を全部倒し、`## AI レビュー` 節があれば締めの段まで進む）。3 か所とも「計画の状態から決まる段を進める（タスクを倒す段から、AI レビューの後なら締めの段まで続けて進むことがある。レビューの段の前では止まる）」の趣旨に直す。判定のコードは変えない
+- [ ] `.claude/agents/board-worker.md:188` の「6. 次の節へ進むか、止まるか」の 2 番目の箇条「1 に戻り、次の節を選ぶ」の「1」が、同じ番号付きの箇条の 1 番目（「この起動の中で自動の要約が入っていた: ここで止まり」）とも読め、節ごとに止まる読み違いを招く。「`#### 1. 節を選ぶ` に戻り、次の節を選ぶ」のように戻り先の見出しを名前で書く
+- [ ] `.claude/agents/board-worker.md:206` の 2.2 の 2「`skipGates` で分かれる」は、1 でワークツリーに入るとき（`board-worker.md:33`）に読んだ `skipGates` を使うが、2.1 で節を全部倒してから締めの段へ続けると、読んでから長い時間が経つ。その間に人が `skipGates` の `verify` を足す・外すと、古い値で動作確認を頼む／archive して Ready にするを取り違える（外した後に Ready にすると、人の動作確認を通らない）。2.2 の 2 の分かれ道の直前で `ai-board card show <cardId>` を読み直し、その時点の `skipGates` で分かれるよう書き足す
+
+### 見送った指摘
+
+- `.claude/agents/board-worker.md:253` の報告の「6 行以内」は、節を多く倒したとき（節ごとの題とコミットのハッシュ、止まった区切り、ゲートの結果）に収まりにくい。監視役の文脈の量の話で、監視役は報告を 3 行に縮めて伝えるので振る舞いは壊れない。見送る
+- `.claude/skills/board-loop/SKILL.md:64` の「長く動き続けているサブエージェントは、固まっている見込みがある」は、1 回で残りの節を全部倒すようになった `board-worker` では長く動くのが普通になった。監視役は止めず、止めるかは人が報告を見て決める。止めて未コミットの変更が残っても次の起動が止まって報告するので気づける。見送る
+- `.claude/agents/board-worker.md:32` の止まる条件と 2.1 の `npm ci` は、共通の決まりの「ワークツリーに入る」と重なる。振る舞いを変えない重複なので見送る
+- `.claude/skills/board-loop/SKILL.md` の `null` の行と `.claude/skills/board-loop/subagent-rules.md` の `board-worker` の行で、表の列の幅が崩れ、`prettier --check` が警告を出す（main では通っていた）。品質ゲートの `format:check` は `src` だけを見るので通る。整形だけで振る舞いは変わらないので見送る
