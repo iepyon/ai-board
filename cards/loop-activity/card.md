@@ -3,7 +3,7 @@ id: loop-activity
 title: ユーザは、AI ループが今どのカードを触っているかと、1 手ごとにかかった時間をボードで見たい
 created: '2026-10-23T04:57:00.848Z'
 skipGates: []
-branch: null
+branch: loop-activity
 mr: null
 ---
 
