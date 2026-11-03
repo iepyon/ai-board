@@ -108,36 +108,18 @@ describe('.claude/settings.json の許可ルール', () => {
     expect(decide(perms, command)).toBe('allow');
   });
 
+  it('allow は auto モードの分類器が既定で止める操作だけを持つ', () => {
+    expect(perms.allow).toEqual([
+      'Bash(git push --force-with-lease origin *)',
+      'Bash(git -C * push --force-with-lease origin *)',
+      'Bash(git -C */.claude/worktrees/* checkout -- .)',
+      'Bash(git -C */.claude/worktrees/* clean -fd)',
+    ]);
+  });
+
   it.each([
-    'npm run typecheck',
-    'npm run lint',
-    'npm run format:check',
-    'npm test',
-    'npm ci',
-    'npx vitest run src/__tests__/claude-settings.test.ts',
-    'node /repo/dist/cli.js card show x --root /repo',
-    'node /repo/dist/cli.js pr view 1 --root /repo',
-    'node /repo/dist/cli.js status --json --root /repo',
-    'node dist/cli.js status',
-    'node /repo/dist/cli.js dist-check --root /repo',
-    'node dist/cli.js dist-check',
-    'npm --prefix /repo run build',
-    'git status',
-    'git -C /repo/.claude/worktrees/x status --porcelain',
-    'git -C /repo/.claude/worktrees/x log --oneline -5',
-    'git -C /repo/.claude/worktrees/x diff -- .ai-board/plans/x.md',
-    'git -C /repo/.claude/worktrees/x add .ai-board/plans/x.md',
-    'git -C /repo/.claude/worktrees/x commit -m msg',
-    'git -C /repo/.claude/worktrees/x rev-parse HEAD',
-    'git -C /repo/.claude/worktrees/x pull --ff-only',
-    'git -C /repo/.claude/worktrees/x push origin x',
-    'git push -u origin x',
     'git -C /repo/.claude/worktrees/x checkout -- .',
     'git -C /repo/.claude/worktrees/x clean -fd',
-    'git -C /repo fetch origin',
-    'git -C /repo worktree add -b x /repo/.claude/worktrees/x origin/main',
-    'git worktree list',
-    'git mv .ai-board/plans/x.md .ai-board/plans/archive/x.md',
   ])('%s は確認なしに走る', (command) => {
     expect(decide(perms, command)).toBe('allow');
   });
