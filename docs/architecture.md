@@ -366,7 +366,8 @@ AI の区間では、そのカードのループの 1 手の記録を区間の�
 
 ## ループの 1 手の記録
 
-監視役（`/board-loop`）がサブエージェントに 1 手を渡してから完了の通知を受けるまでを、1 件の記録としてデータ用ブランチの `loop/` に置く。
+監視役（`/board-loop`）がサブエージェントに 1 手を渡してから報告を受けるまでを、1 件の記録としてデータ用ブランチの `loop/` に置く。
+`tokens` / `durationMs` は、報告と同じ手番に完了の通知（`usage`）が届いていたときだけ埋まり、届いていなければ `null` のまま閉じる。
 型と語は `src/shared/loop-step.ts`、ファイルの形と読み書きは `src/board/repositories/loop-history.repository.ts`、CLI は `src/board/cli/loop-cli.ts`。
 
 - ファイル名は `loop/<開始の時刻>.<ループの識別子>.json`。時刻は判断のファイルと同じ `toLogStamp` の形で、同じ時刻と識別子が重なれば `-2` を付ける。
