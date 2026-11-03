@@ -194,7 +194,7 @@ Windows の `process.kill(pid, 'SIGTERM')` は強制終了になり `server.json
 
 `status --html` はボードを 1 枚の自己完結の HTML（ダッシュボード）にする（`src/board/cli/status-html.ts`）。`board-dashboard` のスキルが Artifact として公開する。
 
-- 頭に集計を置く。集計は `src/shared/board-metrics.ts` の `computeBoardMetrics`（純関数。今の時刻は読まず、今いる区間は `generatedAt` までを数える。中止したカードは入れない）。
+- 頭に集計を置く。集計は `src/shared/board-metrics.ts` の `computeBoardMetrics`（純関数。今の時刻は読まない。区間を数えるのはマージ済みのカードだけで、閉じていない区間はマージの時刻（無ければ計画の最終更新）で閉じ、どちらも無いカードは工程と人の番の割合から除く。中止したカードは入れない）。
   主な数字・工程ごとの滞在時間（マージ済みのカードごとに同じ種類の区間を足し、カードを並べた中央値。いちばん長い工程がボトルネック）・日ごとのマージ数（UTC の日付）・
   ループの手の種類ごとの回数と平均（`durationMs` / `tokens` が null の記録は除き、除いた件数を出す）・手の結果の内訳を出す
 - グラフは `src/board/cli/status-charts.ts` がインラインの SVG の文字列として描く。外部のスクリプトを読まず、色は `:root` のトークンを class で指す

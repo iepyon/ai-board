@@ -237,8 +237,8 @@
 
 ## AI レビュー
 
-- [ ] `src/shared/board-metrics.ts:127` の `computeBoardMetrics` は、計画が archive されて `merged` になったが `mrState.mergedAt` が無いカード（PR の無いカード、GitHub が読めず `mrState` が null のとき）もマージ済みとして集計する。`resolveTimeline`（`src/board/services/stage-timeline.ts:112`）は `mergedAt` が無いと最後の区間を閉じないので、`stageDurations` と `humanShare` がその区間を `generatedAt` まで数え、出し直すたびに工程の中央値・ボトルネック・人の番の割合が伸び続ける。`MetricsCard` にマージの時刻の代わり（`status-html.ts:170` と同じ `mrState.mergedAt ?? plan.updatedAt`）を渡し、マージ済みのカードの `end: null` の区間はその時刻で閉じる（時刻が無ければそのカードを工程と割合の集計から除く）。そのテストを `src/shared/__tests__/board-metrics.test.ts` に足す
-- [ ] `src/board/cli/status-charts.ts:74` の `renderStageChart` は、いちばん長い棒（必ずボトルネック）の値のラベルを `x = 150 + 320 + 6 = 476` から描くので、残りの 164 単位に `3日 23時間（AI・12 枚） ボトルネック` のような文字が収まらず、SVG の外で切れる（`.chart` は `overflow` を指定しておらず、インラインの SVG は既定で外を隠す）。色に頼らない唯一の印の「ボトルネック」が消える。値の欄（`STAGE_VALUE_WIDTH`）を広げて棒の領域を縮めるか、ボトルネックの印を工程名の側（左のラベル）に移すなどして、最長の棒のラベルが viewBox に収まるようにし、テストで最長の棒のラベルの書き出し位置と viewBox の幅を見る
+- [x] `src/shared/board-metrics.ts:127` の `computeBoardMetrics` は、計画が archive されて `merged` になったが `mrState.mergedAt` が無いカード（PR の無いカード、GitHub が読めず `mrState` が null のとき）もマージ済みとして集計する。`resolveTimeline`（`src/board/services/stage-timeline.ts:112`）は `mergedAt` が無いと最後の区間を閉じないので、`stageDurations` と `humanShare` がその区間を `generatedAt` まで数え、出し直すたびに工程の中央値・ボトルネック・人の番の割合が伸び続ける。`MetricsCard` にマージの時刻の代わり（`status-html.ts:170` と同じ `mrState.mergedAt ?? plan.updatedAt`）を渡し、マージ済みのカードの `end: null` の区間はその時刻で閉じる（時刻が無ければそのカードを工程と割合の集計から除く）。そのテストを `src/shared/__tests__/board-metrics.test.ts` に足す
+- [x] `src/board/cli/status-charts.ts:74` の `renderStageChart` は、いちばん長い棒（必ずボトルネック）の値のラベルを `x = 150 + 320 + 6 = 476` から描くので、残りの 164 単位に `3日 23時間（AI・12 枚） ボトルネック` のような文字が収まらず、SVG の外で切れる（`.chart` は `overflow` を指定しておらず、インラインの SVG は既定で外を隠す）。色に頼らない唯一の印の「ボトルネック」が消える。値の欄（`STAGE_VALUE_WIDTH`）を広げて棒の領域を縮めるか、ボトルネックの印を工程名の側（左のラベル）に移すなどして、最長の棒のラベルが viewBox に収まるようにし、テストで最長の棒のラベルの書き出し位置と viewBox の幅を見る
 
 ### 見送った指摘
 

@@ -31,6 +31,8 @@ export interface MetricsCard {
   readonly aborted: boolean;
   readonly startedAt: string | null;
   readonly mrState: { readonly mergedAt: string | null } | null;
+  /** 計画ファイルの最終更新。マージの時刻が読めないマージ済みのカードで、その代わりに使う */
+  readonly plan: { readonly updatedAt: string } | null;
   readonly reviews: readonly { readonly kind: string }[];
   readonly timeline: readonly TimelineSegment[];
   readonly loopSteps: readonly Pick<
@@ -116,20 +118,19 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /**
  * ボードのカードを集計する。
  *
- * 今の時刻は読まない。今いる区間（`end: null`）は `generatedAt` までを数える。
+ * 今の時刻は読まない。区間を数えるのはマージ済みのカードだけで、`end: null` の区間は
+ * マージの時刻（読めなければ計画の最終更新）で閉じる。どちらも無いマージ済みのカードは、
+ * 工程ごとの滞在時間と人の番の割合から除く（出し直すたびに伸び続けないように）。
  * 中止したカードはどの集計にも入れない。
  */
-export function computeBoardMetrics(
-  cards: readonly MetricsCard[],
-  generatedAt: string
-): BoardMetrics {
+export function computeBoardMetrics(cards: readonly MetricsCard[]): BoardMetrics {
   const live = cards.filter((card) => !card.aborted);
   const merged = live.filter((card) => card.stage === 'merged');
 
-  const stages = stageDurations(merged, generatedAt);
+  const stages = stageDurations(merged);
 
   return {
-    summary: summarize(live, merged, generatedAt),
+    summary: summarize(live, merged),
     stages,
     bottleneck: pickBottleneck(stages),
     dailyMerges: countDailyMerges(merged),
@@ -142,17 +143,13 @@ export function computeBoardMetrics(
 // 主な数字
 // ============================================================
 
-function summarize(
-  live: readonly MetricsCard[],
-  merged: readonly MetricsCard[],
-  generatedAt: string
-): MetricsSummary {
+function summarize(live: readonly MetricsCard[], merged: readonly MetricsCard[]): MetricsSummary {
   const leadTimes = merged
     .map((card) => leadTimeMs(card))
     .filter((value): value is number => value !== null);
 
   const shares = merged
-    .map((card) => humanShare(card, generatedAt))
+    .map((card) => humanShare(card))
     .filter((value): value is number => value !== null);
 
   const rejections = live.map(
@@ -179,12 +176,23 @@ function leadTimeMs(card: MetricsCard): number | null {
   return Number.isNaN(span) ? null : span;
 }
 
-/** 人の区間の合計 ÷ 全区間の合計。区間の長さが 0 なら null */
-function humanShare(card: MetricsCard, generatedAt: string): number | null {
+/**
+ * マージ済みのカードの区間を閉じる時刻。マージの時刻が無ければ計画の最終更新（ボードの画面のマージ済みの時刻と同じ）。
+ * どちらも無ければ null
+ */
+export function mergedEndOf(card: Pick<MetricsCard, 'mrState' | 'plan'>): string | null {
+  return card.mrState?.mergedAt ?? card.plan?.updatedAt ?? null;
+}
+
+/** 人の区間の合計 ÷ 全区間の合計。区間の長さが 0 か、閉じる時刻が無ければ null */
+function humanShare(card: MetricsCard): number | null {
+  const end = mergedEndOf(card);
+  if (end === null) return null;
+
   let human = 0;
   let total = 0;
   for (const segment of card.timeline) {
-    const length = segmentMs(segment, generatedAt);
+    const length = segmentMs(segment, end);
     total += length;
     if (segment.owner === 'human') human += length;
   }
@@ -195,15 +203,16 @@ function humanShare(card: MetricsCard, generatedAt: string): number | null {
 // 工程ごとの滞在時間
 // ============================================================
 
-function stageDurations(
-  merged: readonly MetricsCard[],
-  generatedAt: string
-): readonly StageDuration[] {
+/** マージ済みのカードの工程ごとの滞在時間。`end: null` の区間はマージの時刻で閉じ、その時刻が無いカードは除く */
+function stageDurations(merged: readonly MetricsCard[]): readonly StageDuration[] {
   const perKind = new Map<TimelineKind, number[]>();
   for (const card of merged) {
+    const end = mergedEndOf(card);
+    if (end === null) continue;
+
     const totals = new Map<TimelineKind, number>();
     for (const segment of card.timeline) {
-      totals.set(segment.kind, (totals.get(segment.kind) ?? 0) + segmentMs(segment, generatedAt));
+      totals.set(segment.kind, (totals.get(segment.kind) ?? 0) + segmentMs(segment, end));
     }
     for (const [kind, total] of totals) {
       perKind.set(kind, [...(perKind.get(kind) ?? []), total]);

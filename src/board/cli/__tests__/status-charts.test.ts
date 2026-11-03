@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   TIMELINE_KIND_LABELS,
+  estimateTextWidth,
   formatDuration,
   renderDailyMergesChart,
   renderStageChart,
@@ -14,6 +15,14 @@ const STAGES: readonly StageDuration[] = [
   { kind: 'plan-review', owner: 'human', medianMs: 10 * HOUR, cardCount: 3 },
   { kind: 'implementing', owner: 'ai', medianMs: 5 * HOUR, cardCount: 2 },
 ];
+
+const DAY = 24 * HOUR;
+
+/** `kind` の工程の棒の幅 */
+function barWidth(svg: string, kind: string): number {
+  const match = svg.match(new RegExp(`data-kind="${kind}">[\\s\\S]*?<rect [^>]*width="(\\d+)"`));
+  return Number(match?.[1]);
+}
 
 function count(text: string, pattern: RegExp): number {
   return text.match(pattern)?.length ?? 0;
@@ -53,8 +62,31 @@ describe('renderStageChart', () => {
   it('いちばん長い棒を棒の幅いっぱいにし、ほかは長さに比例させる', () => {
     const svg = renderStageChart(STAGES, 'plan-review');
 
-    expect(svg).toMatch(/data-kind="plan-review">[\s\S]*?width="320"/);
-    expect(svg).toMatch(/data-kind="implementing">[\s\S]*?width="160"/);
+    expect(barWidth(svg, 'plan-review')).toBe(276);
+    expect(barWidth(svg, 'implementing')).toBe(138);
+  });
+
+  it('いちばん長い棒の後ろのボトルネックのラベルが、viewBox の幅に収まる', () => {
+    const long: readonly StageDuration[] = [
+      { kind: 'implementing', owner: 'ai', medianMs: 2 * HOUR, cardCount: 12 },
+      { kind: 'draft-returned', owner: 'ai', medianMs: 123 * DAY + 23 * HOUR, cardCount: 120 },
+    ];
+    for (const stages of [STAGES, long]) {
+      const svg = renderStageChart(stages, stages[1]?.kind ?? null);
+      const viewBoxWidth = Number(svg.match(/viewBox="0 0 (\d+) /)?.[1]);
+      const value = svg.match(/<text class="value value-bottleneck" x="(\d+)"[^>]*>([^<]*)</);
+      const x = Number(value?.[1]);
+      const text = value?.[2] ?? '';
+
+      expect(text).toContain('ボトルネック');
+      expect(viewBoxWidth).toBe(640);
+      expect(x + estimateTextWidth(text)).toBeLessThanOrEqual(viewBoxWidth);
+    }
+  });
+
+  it('文字の幅の見積もりは、全角を 1em、半角を 0.6em と数える', () => {
+    expect(estimateTextWidth('ボトル')).toBe(36);
+    expect(estimateTextWidth('12 枚')).toBeCloseTo(12 * (0.6 * 3 + 1));
   });
 
   it('工程が無ければ「まだありません」', () => {

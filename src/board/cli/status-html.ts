@@ -51,7 +51,7 @@ export function formatStatusHtml(report: StatusReport, options: StatusHtmlOption
   const session = options.session ?? null;
   const byId = new Map(report.cards.map((card) => [card.id, card]));
   const sections = groupBySection(report.cards);
-  const metrics = computeBoardMetrics(report.cards, report.generatedAt);
+  const metrics = computeBoardMetrics(report.cards);
 
   const body = [
     renderHeader(report, session),

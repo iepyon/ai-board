@@ -40,7 +40,14 @@ const EMPTY = '<p class="empty">まだありません</p>';
 
 const STAGE_WIDTH = 640;
 const STAGE_LABEL_WIDTH = 150;
-const STAGE_VALUE_WIDTH = 170;
+/** 値のラベルの欄の最小の幅。実際の幅は、いちばん長いラベルが viewBox に収まるように広げる */
+const STAGE_VALUE_MIN_WIDTH = 170;
+/** 棒の終わりから値のラベルの書き出しまで */
+const STAGE_VALUE_GAP = 6;
+/** 値のラベルの右の余白（文字の幅の見積もりの誤差と太字の分） */
+const STAGE_VALUE_PADDING = 16;
+/** `.chart text` の文字の大きさ（`status-html.ts` の CSS と合わせる） */
+const CHART_FONT_SIZE = 12;
 const STAGE_ROW = 28;
 const STAGE_BAR = 18;
 const LEGEND_HEIGHT = 26;
@@ -56,22 +63,27 @@ export function renderStageChart(
   if (stages.length === 0) return EMPTY;
 
   const max = Math.max(...stages.map((stage) => stage.medianMs));
-  const barArea = STAGE_WIDTH - STAGE_LABEL_WIDTH - STAGE_VALUE_WIDTH;
+  const values = stages.map((stage) => stageValueLabel(stage, stage.kind === bottleneck));
+  // いちばん長い棒（棒の領域いっぱい）の後ろにも、いちばん長いラベルが収まる幅を値の欄に取る
+  const valueWidth = Math.max(
+    STAGE_VALUE_MIN_WIDTH,
+    Math.ceil(STAGE_VALUE_GAP + Math.max(...values.map(estimateTextWidth)) + STAGE_VALUE_PADDING)
+  );
+  const barArea = STAGE_WIDTH - STAGE_LABEL_WIDTH - valueWidth;
   const height = LEGEND_HEIGHT + stages.length * STAGE_ROW;
 
   const rows = stages.map((stage, index) => {
     const y = LEGEND_HEIGHT + index * STAGE_ROW;
     const width = max === 0 ? 0 : Math.max(2, Math.round((stage.medianMs / max) * barArea));
     const isBottleneck = stage.kind === bottleneck;
-    const value = `${formatDuration(stage.medianMs)}（${OWNER_LABELS[stage.owner]}・${stage.cardCount} 枚）`;
-    const mark = isBottleneck ? ' ボトルネック' : '';
+    const value = values[index] ?? '';
     const barClass = `bar bar-${stage.owner}${isBottleneck ? ' bar-bottleneck' : ''}`;
     const textY = y + STAGE_BAR / 2 + 5;
 
     return `<g class="row" data-kind="${escapeHtml(stage.kind)}">
 <text class="label" x="${STAGE_LABEL_WIDTH - 8}" y="${textY}" text-anchor="end">${escapeHtml(TIMELINE_KIND_LABELS[stage.kind])}</text>
 <rect class="${barClass}" x="${STAGE_LABEL_WIDTH}" y="${y}" width="${width}" height="${STAGE_BAR}" rx="3"/>
-<text class="value${isBottleneck ? ' value-bottleneck' : ''}" x="${STAGE_LABEL_WIDTH + width + 6}" y="${textY}">${escapeHtml(value + mark)}</text>
+<text class="value${isBottleneck ? ' value-bottleneck' : ''}" x="${STAGE_LABEL_WIDTH + width + STAGE_VALUE_GAP}" y="${textY}">${escapeHtml(value)}</text>
 </g>`;
   });
 
@@ -83,6 +95,24 @@ export function renderStageChart(
 ${renderLegend()}
 ${rows.join('\n')}
 </svg>`;
+}
+
+/** 棒の横に出す値のラベル。ボトルネックの工程には印を添える */
+function stageValueLabel(stage: StageDuration, isBottleneck: boolean): string {
+  const value = `${formatDuration(stage.medianMs)}（${OWNER_LABELS[stage.owner]}・${stage.cardCount} 枚）`;
+  return isBottleneck ? `${value} ボトルネック` : value;
+}
+
+/**
+ * グラフの文字の幅の見積もり（viewBox の単位）。全角は 1 文字 1em、半角は 0.6em と数える。
+ * SVG の文字は折り返さず、viewBox の外は隠れるので、ラベルが収まるかをこれで決める
+ */
+export function estimateTextWidth(text: string): number {
+  let ems = 0;
+  for (const char of text) {
+    ems += (char.codePointAt(0) ?? 0) > 0xff ? 1 : 0.6;
+  }
+  return ems * CHART_FONT_SIZE;
 }
 
 function renderLegend(): string {
