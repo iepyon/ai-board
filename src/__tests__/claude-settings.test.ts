@@ -166,7 +166,7 @@ describe('.claude/settings.json の許可ルール', () => {
       'Bash(node -e *)',
     ];
     for (const rule of broad) expect(perms.allow).not.toContain(rule);
-    expect(perms.allow.filter((rule) => rule.includes('cli.js init'))).toEqual([]);
+    expect(perms.allow.filter((rule) => /(cli\.js|ai-board) init\b/.test(rule))).toEqual([]);
   });
 
   it('allow と deny に同じルールが無い', () => {

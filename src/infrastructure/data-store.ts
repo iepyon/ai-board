@@ -580,7 +580,7 @@ interface DataBranchTarget {
  *   ほかのファイルがあると、それがデータ用ブランチに入ってしまう
  * - `origin` にも手元にも、データ用ブランチが無いこと。`origin` に問い合わせられなければ（オフライン）止まる
  */
-export async function checkDataBranchAbsent(
+async function checkDataBranchAbsent(
   options: CreateDataBranchOptions
 ): Promise<Result<DataBranchTarget, DataBranchCreateError>> {
   const location = dataBranchLocation(options);

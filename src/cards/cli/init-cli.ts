@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { CONFIG_FILE } from '../../shared/config.js';
 import { isErr } from '../../shared/result.js';
 import {
   createDataBranch,
@@ -26,9 +27,6 @@ export const INIT_USAGE = `使い方: ai-board init [--root <path>]
 Options:
   -h, --help    このヘルプを表示
 `;
-
-/** データ用ブランチの根の設定ファイル。`.ai-board/config.yaml` があれば写す */
-const CONFIG_FILE = 'config.yaml';
 
 export interface InitCliIo {
   readonly stdout: (text: string) => void;
@@ -59,11 +57,11 @@ export async function runInitCli(
     return args === 'help' ? 0 : 1;
   }
 
-  const files = initialFiles(readFileOrNull(deps.configFile));
+  // config.yaml はデータ用ブランチの有無を確かめた後に読む（読めなくても「既にあります」の案内を先に出す）
   const created = await createDataBranch(
     deps.target,
     'data: 空のデータ用ブランチを作る',
-    (dataDir) => writeFiles(dataDir, files)
+    (dataDir) => writeFiles(dataDir, initialFiles(readFileOrNull(deps.configFile)))
   );
   if (isErr(created)) {
     io.stderr(`${describeBranchError(created.error, deps.target)}\n`);
