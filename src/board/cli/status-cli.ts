@@ -24,10 +24,36 @@ import { isCardRunning, type BoardLoop } from '../../shared/loop-activity.js';
 // ai-board status — サーバを起動せずにボードの状態を読む
 // ============================================================
 
-export const STATUS_USAGE = `使い方: ai-board status [--json | --html] [--root <path>]
+/**
+ * `StatusReport` の最上位の項目と、配列かどうか。`--only` の打ち間違いを、出す前に見分けるのに使う。
+ * `satisfies` で `StatusReport` の項目と食い違えば型検査で落ちる
+ */
+const STATUS_KEY_KINDS = {
+  next: 'value',
+  waiting: 'array',
+  working: 'array',
+  cards: 'array',
+  ideas: 'array',
+  forge: 'value',
+  loop: 'value',
+  server: 'value',
+  generatedAt: 'value',
+} as const satisfies Record<keyof StatusReport, 'value' | 'array'>;
+
+const STATUS_KEYS = Object.keys(STATUS_KEY_KINDS) as (keyof StatusReport)[];
+
+function isStatusKey(key: string): key is keyof StatusReport {
+  return Object.hasOwn(STATUS_KEY_KINDS, key);
+}
+
+export const STATUS_USAGE = `使い方: ai-board status [--json [--only <項目,...>] | --html] [--root <path>]
 
 ボードの状態（導出したステージ、判断待ち、次の一手）を出します。サーバは要りません。
   --json   機械向けの JSON で出す（AI ループはこちらを読む）
+  --only <項目,...>
+           --json の出力を、コンマ区切りの項目だけに絞る。項目は <key>（最上位の項目）か
+           <key>.<field>（最上位の配列の各要素から <field> だけ）。例: --only next,waiting,cards.id
+           最上位の項目: ${STATUS_KEYS.join(', ')}
   --html   ボードを 1 枚の自己完結の HTML で出す（Artifact として公開して読む）
 `;
 
@@ -89,7 +115,17 @@ export interface StatusDependencies {
 /** 出す形。`text` は人向けの数行 */
 export type StatusFormat = 'text' | 'json' | 'html';
 
-export type StatusArgs = { readonly format: StatusFormat } | 'help' | 'invalid';
+export type StatusArgs =
+  { readonly format: StatusFormat; readonly only?: readonly StatusField[] } | 'help' | 'invalid';
+
+/**
+ * `--only` の 1 項目。`field` が null なら最上位の項目をそのまま出し、
+ * 文字列なら最上位の配列の各要素から `field` だけを出す
+ */
+export interface StatusField {
+  readonly key: keyof StatusReport;
+  readonly field: string | null;
+}
 
 /**
  * 引数を解釈する。DB を開いたり GitHub に問い合わせたりする前に呼ぶ
@@ -97,14 +133,92 @@ export type StatusArgs = { readonly format: StatusFormat } | 'help' | 'invalid';
  */
 export function parseStatusArgs(argv: readonly string[]): StatusArgs {
   if (argv.includes('--help') || argv.includes('-h')) return 'help';
-  if (argv.some((arg) => arg !== '--json' && arg !== '--html')) return 'invalid';
 
-  const json = argv.includes('--json');
-  const html = argv.includes('--html');
-  // 2 つの形を同時には出せない
+  const scanned = scanStatusArgs(argv);
+  if (scanned === null) return 'invalid';
+
+  const { json, html, only } = scanned;
+  // 2 つの形を同時には出せない。絞り込みは JSON にだけ効く
   if (json && html) return 'invalid';
+  if (only !== null && !json) return 'invalid';
 
-  return { format: json ? 'json' : html ? 'html' : 'text' };
+  const format = json ? 'json' : html ? 'html' : 'text';
+  return only === null ? { format } : { format, only };
+}
+
+/** 引数を 1 つずつ読む。不明な引数や、2 回目の `--only`、`--only` の値の誤りは null */
+function scanStatusArgs(argv: readonly string[]): {
+  readonly json: boolean;
+  readonly html: boolean;
+  readonly only: readonly StatusField[] | null;
+} | null {
+  let json = false;
+  let html = false;
+  let only: readonly StatusField[] | null = null;
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === '--json') json = true;
+    else if (arg === '--html') html = true;
+    else if (arg === '--only' && only === null) {
+      only = parseOnly(argv[++i]);
+      if (only === null) return null;
+    } else return null;
+  }
+  return { json, html, only };
+}
+
+/**
+ * `--only` の値を解釈する。誤り（値が無い、無い最上位の項目、配列でない項目への `.`、2 段以上の `.`）は null。
+ * 打ち間違いを黙って空の出力にしないため、出す前に失敗させる
+ */
+function parseOnly(value: string | undefined): readonly StatusField[] | null {
+  if (value === undefined || value.startsWith('--')) return null;
+
+  const fields: StatusField[] = [];
+  for (const item of value.split(',')) {
+    const [key, field, ...deeper] = item.split('.');
+    if (key === undefined || !isStatusKey(key) || deeper.length > 0) return null;
+    if (field === undefined) {
+      fields.push({ key, field: null });
+      continue;
+    }
+    if (field === '' || STATUS_KEY_KINDS[key] !== 'array') return null;
+    fields.push({ key, field });
+  }
+  return fields;
+}
+
+/**
+ * 出力を `fields` の項目だけに絞る。最上位の項目は `fields` に初めて出た順に並べる。
+ *
+ * 同じ最上位の項目を丸ごとと `.<field>` の両方で指したら、丸ごと出す。
+ * 要素に無い `<field>` は、その要素では出さない（カードによって無い項目があるため）。
+ */
+export function pickFields(
+  report: StatusReport,
+  fields: readonly StatusField[]
+): Record<string, unknown> {
+  const wanted = new Map<keyof StatusReport, Set<string> | 'whole'>();
+  for (const { key, field } of fields) {
+    const current = wanted.get(key);
+    if (field === null || current === 'whole') {
+      wanted.set(key, 'whole');
+    } else {
+      wanted.set(key, (current ?? new Set<string>()).add(field));
+    }
+  }
+
+  const picked: Record<string, unknown> = {};
+  for (const [key, want] of wanted) {
+    const value = report[key];
+    picked[key] =
+      want === 'whole' || !Array.isArray(value)
+        ? value
+        : value.map((element: object) =>
+            Object.fromEntries(Object.entries(element).filter(([name]) => want.has(name)))
+          );
+  }
+  return picked;
 }
 
 /** `ai-board status` を実行し、終了コードを返す */
@@ -128,7 +242,11 @@ export async function runStatusCli(
   const built = buildStatusReport(result.value, io.now(), deps.findServer?.() ?? null);
   const report = await withImplStep(built, deps.branchPlanRepository);
 
-  io.stdout(formatReport(report, args.format));
+  io.stdout(
+    args.only === undefined
+      ? formatReport(report, args.format)
+      : `${JSON.stringify(pickFields(report, args.only), null, 2)}\n`
+  );
   return 0;
 }
 

@@ -14,7 +14,7 @@ import { HOLD_REASONS } from '../../services/next-action.js';
 import type { ServerLocation } from '../../../infrastructure/server-info.js';
 import type { BranchPlanRepository } from '../../repositories/branch-plan.repository.js';
 import type { ImplStepPlan } from '../../services/impl-step.js';
-import { parseStatusArgs, runStatusCli, type StatusReport } from '../status-cli.js';
+import { parseStatusArgs, pickFields, runStatusCli, type StatusReport } from '../status-cli.js';
 
 // ============================================================
 // テスト用プロジェクトの組み立て
@@ -602,6 +602,89 @@ describe('ai-board status --html', () => {
 });
 
 // ============================================================
+// --only
+// ============================================================
+
+describe('ai-board status --json --only', () => {
+  beforeEach(async () => {
+    await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\n");
+    await writeCard('reviewing', "startedAt: '2026-10-21T00:00:00.000Z'\n", review('提出'));
+    await writePlan('reviewing', '# 計画\n\n- [ ] 1');
+  });
+
+  async function runOnly(only: string): Promise<Record<string, unknown>> {
+    expect(await run(['--json', '--only', only])).toBe(0);
+    return JSON.parse(stdout) as Record<string, unknown>;
+  }
+
+  it('最上位の項目だけを、指した順に出す', async () => {
+    const report = await runOnly('waiting,next,forge');
+
+    expect(Object.keys(report)).toEqual(['waiting', 'next', 'forge']);
+    expect(report['next']).toMatchObject({ cardId: 'started', action: 'plan' });
+    expect(report['forge']).toEqual({ status: 'connected', kind: 'github' });
+  });
+
+  it('配列の各要素から、指した項目だけを出す', async () => {
+    const report = await runOnly('cards.id,cards.stage');
+
+    expect(Object.keys(report)).toEqual(['cards']);
+    expect(report['cards']).toEqual(
+      expect.arrayContaining([
+        { id: 'started', stage: 'planning' },
+        { id: 'reviewing', stage: 'plan-review' },
+      ])
+    );
+  });
+
+  it('最上位の項目と、配列の要素の項目を混ぜられる', async () => {
+    const report = await runOnly('server,cards.id,next');
+
+    expect(Object.keys(report)).toEqual(['server', 'cards', 'next']);
+    expect(report['server']).toBeNull();
+    expect((report['cards'] as object[]).every((card) => Object.keys(card).join() === 'id')).toBe(
+      true
+    );
+  });
+
+  it.each([
+    ['無い最上位の項目', ['--json', '--only', 'nosuch']],
+    ['配列でない項目への .', ['--json', '--only', 'next.cardId']],
+    ['2 段以上の .', ['--json', '--only', 'cards.mrState.webUrl']],
+    ['空の項目', ['--json', '--only', 'cards.']],
+    ['値が無い', ['--json', '--only']],
+    ['--html と一緒', ['--html', '--only', 'cards.id']],
+    ['形の指定が無い', ['--only', 'next']],
+  ])('%s は使い方を出して 1 で終わる', async (_name, argv) => {
+    expect(await run(argv)).toBe(1);
+    expect(stderr).toContain('使い方: ai-board status');
+    expect(stdout).toBe('');
+  });
+});
+
+describe('pickFields', () => {
+  const report = {
+    next: null,
+    ideas: [{ id: 'a', title: 'A' }, { divider: true }, { id: 'b', title: 'B' }],
+  } as unknown as StatusReport;
+
+  it('要素に無い項目は、その要素では出さない', () => {
+    expect(pickFields(report, [{ key: 'ideas', field: 'id' }])).toEqual({
+      ideas: [{ id: 'a' }, {}, { id: 'b' }],
+    });
+  });
+
+  it('同じ項目を丸ごとと .<field> の両方で指したら、丸ごと出す', () => {
+    expect(
+      pickFields(report, [
+        { key: 'ideas', field: 'id' },
+        { key: 'ideas', field: null },
+      ])
+    ).toEqual({ ideas: report.ideas });
+  });
+});
+
+// ============================================================
 // 引数
 // ============================================================
 
@@ -627,5 +710,13 @@ describe('parseStatusArgs', () => {
     expect(parseStatusArgs(['--json', '--help'])).toBe('help');
     expect(parseStatusArgs(['-h'])).toBe('help');
     expect(parseStatusArgs(['--jsno'])).toBe('invalid');
+    expect(parseStatusArgs(['--json', '--only', 'next,cards.id'])).toEqual({
+      format: 'json',
+      only: [
+        { key: 'next', field: null },
+        { key: 'cards', field: 'id' },
+      ],
+    });
+    expect(parseStatusArgs(['--json', '--only', 'next', '--only', 'forge'])).toBe('invalid');
   });
 });

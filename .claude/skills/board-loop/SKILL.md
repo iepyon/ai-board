@@ -66,7 +66,7 @@ description: ai-board のボードを読み、AI が進めてよいカード（�
 ## 1. ボードを読む
 
 メインのチェックアウト（以下 `$MAIN`）で `status` を読む。`dist/` が古ければ先にビルドする。
-`status --json` は全カードの全項目を出すので、`next` / `waiting` / `forge` だけを取り出して読む（監視役の文脈を膨らませないため）。
+`status --json` は全カードの全項目を出すので、`--only next,waiting,forge` で `next` / `waiting` / `forge` だけを出して読む（監視役の文脈を膨らませないため）。
 
 ```bash
 MAIN=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
@@ -75,17 +75,13 @@ if ! node -e 'const fs=require("fs");const [f,t]=process.argv.slice(1);process.e
     "$MAIN/dist/cli.js" "$(git -C "$MAIN" log -1 --format=%ct)"; then
   npm --prefix "$MAIN" run build
 fi
-# パイプでつなぐと status の失敗が絞り込みの JSON エラーに隠れるので、一度受けてから絞る
-if out=$(node "$MAIN/dist/cli.js" status --json --root "$MAIN"); then
-  printf '%s' "$out" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);console.log(JSON.stringify({next:j.next,waiting:j.waiting,forge:j.forge}))})'
-else
-  echo "status が失敗した"
-fi
+node "$MAIN/dist/cli.js" status --json --only next,waiting,forge --root "$MAIN" || echo "status が失敗した"
 ```
 
 ## 2. 止まる条件（何も渡さずに報告して終わる）
 
 - `status` が失敗した。「不明なオプションです: status」なら、`$MAIN` のコードが `ai-board status` を持たない古いものである。
+  `status` の使い方だけが出て失敗したなら、`$MAIN` のコードが `--only` を持たない古いものである。どちらも
   `$MAIN` を `origin/main` に更新してビルドし直すよう人に頼む（自分では更新しない）
 - `next` が `null`。`waiting` のカードを人に知らせて終わる。
   `waiting` には 計画レビュー（計画を読む）・動作確認（ブランチを動かして確かめる）・PR中（差分を読む）のカードと、AI の列にいても止まっているカード（上の 3 つ）が入る。

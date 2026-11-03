@@ -7,6 +7,7 @@ import { createCliRunner, type CliRunner } from '../cli-runner.js';
 import {
   createDataStore,
   DATA_BRANCH,
+  DATA_GIT_CONFIG,
   LOCK_FILE,
   type DataStore,
   type DataStoreOptions,
@@ -603,6 +604,47 @@ describe('prepare', () => {
     expect(git(dataDir, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe(DATA_BRANCH);
   });
 
+  it('core.autocrlf=true のリポジトリでも、カードのファイルを LF のまま取り出す', async () => {
+    const repo = mainRepo();
+    git(repo, 'config', 'core.autocrlf', 'true');
+    const dataDir = path.join(repo, '.ai-board', 'data');
+    const dataStore = store(dataDir, { repoRoot: repo });
+    expect(await dataStore.prepare()).toEqual(ok(undefined));
+
+    await dataStore.transact('data: x を足す', async (dir) => {
+      write(dir, 'cards/x/card.md', '---\nid: x\n---\n\n## アイデア\n\n本文\n');
+      return ok(undefined);
+    });
+    // 取り直しで作業ツリーを書き直させる
+    fs.rmSync(path.join(dataDir, 'cards'), { recursive: true, force: true });
+    expect(await dataStore.refresh()).toEqual(ok({ kind: 'fetched' }));
+
+    expect(fs.readFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'utf-8')).toBe('version: 1\n');
+    expect(fs.readFileSync(path.join(dataDir, 'cards/x/card.md'), 'utf-8')).not.toContain('\r');
+  });
+
+  it('core.attributesFile の text=auto と core.eol=crlf があっても、カードのファイルを LF のまま取り出す', async () => {
+    const repo = mainRepo();
+    const attributes = path.join(tmp, 'global-gitattributes');
+    fs.writeFileSync(attributes, '* text=auto\n');
+    git(repo, 'config', 'core.attributesFile', attributes);
+    git(repo, 'config', 'core.eol', 'crlf');
+    const dataDir = path.join(repo, '.ai-board', 'data');
+    const dataStore = store(dataDir, { repoRoot: repo });
+    expect(await dataStore.prepare()).toEqual(ok(undefined));
+
+    await dataStore.transact('data: x を足す', async (dir) => {
+      write(dir, 'cards/x/card.md', '---\nid: x\n---\n\n## アイデア\n\n本文\n');
+      return ok(undefined);
+    });
+    // 取り直しで作業ツリーを書き直させる
+    fs.rmSync(path.join(dataDir, 'cards'), { recursive: true, force: true });
+    expect(await dataStore.refresh()).toEqual(ok({ kind: 'fetched' }));
+
+    expect(fs.readFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'utf-8')).toBe('version: 1\n');
+    expect(fs.readFileSync(path.join(dataDir, 'cards/x/card.md'), 'utf-8')).not.toContain('\r');
+  });
+
   it('人がデータのワークツリーを消しても、登録の残りを片付けて作り直す', async () => {
     const repo = mainRepo();
     const dataDir = path.join(repo, '.ai-board', 'data');
@@ -693,6 +735,7 @@ describe('git の呼び出し', () => {
       'git',
       '-C',
       dataDir,
+      ...DATA_GIT_CONFIG,
       'fetch',
       '--quiet',
       'origin',
@@ -702,6 +745,7 @@ describe('git の呼び出し', () => {
       'git',
       '-C',
       dataDir,
+      ...DATA_GIT_CONFIG,
       'commit',
       '--quiet',
       '--no-verify',
@@ -714,7 +758,7 @@ describe('git の呼び出し', () => {
     const dataDir = cloneData(path.join(tmp, 'a'));
     const failingCommit: CliRunner = {
       run: (command, args, options) =>
-        args[2] === 'commit'
+        args[2 + DATA_GIT_CONFIG.length] === 'commit'
           ? Promise.resolve(
               err({
                 type: 'Failed',

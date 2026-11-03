@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { startServer, DEFAULT_PORT } from './server.js';
@@ -33,6 +32,8 @@ import { parseStatusArgs, runStatusCli, STATUS_USAGE } from './board/cli/status-
 import { isPrCommand, runPrCli } from './board/cli/pr-cli.js';
 import { runLoopCli } from './board/cli/loop-cli.js';
 import { findLiveServer } from './infrastructure/server-info.js';
+import { openBrowser } from './infrastructure/open-browser.js';
+import { describePidFileError, writePidFile } from './infrastructure/pid-file.js';
 import { isErr } from './shared/result.js';
 import { CardIdSchema, type CardId } from './shared/schemas/common.js';
 
@@ -45,11 +46,12 @@ interface CliOptions {
   readonly port: number;
   readonly open: boolean;
   readonly pollIntervalMs: number | undefined;
+  readonly pidFile: string | undefined;
 }
 
 const USAGE = `使い方: ai-board [options]
        ai-board card <command> [--root <path>]    カードの読み書き（ai-board card --help）
-       ai-board status [--json | --html] [--root <path>]
+       ai-board status [--json [--only <項目,...>] | --html] [--root <path>]
                                                   ボードの状態と次の一手（サーバ不要）
        ai-board migrate [--from <db>] [--empty] [--root <path>]
                                                   board.db をデータ用ブランチへ書き出す（ai-board migrate --help）
@@ -65,6 +67,9 @@ Options:
   --no-open       ブラウザを自動で開かない
   --poll-interval <ms>
                   レビュー要求のポーリング間隔 (既定: 60000)
+  --pid-file <path>
+                  起動したら、サーバの pid (OS の pid) をこのファイルに書く
+                  (書けなければ起動をやめ、終了コード 1 で終わる)
   -h, --help      このヘルプを表示
 `;
 
@@ -73,6 +78,7 @@ export function parseArgs(argv: readonly string[]): CliOptions | 'help' {
   let port = DEFAULT_PORT;
   let open = true;
   let pollIntervalMs: number | undefined;
+  let pidFile: string | undefined;
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -93,12 +99,15 @@ export function parseArgs(argv: readonly string[]): CliOptions | 'help' {
       case '--poll-interval':
         pollIntervalMs = takeInteger(argv, ++i, '--poll-interval', 1000, Number.MAX_SAFE_INTEGER);
         break;
+      case '--pid-file':
+        pidFile = path.resolve(takeValue(argv, ++i, '--pid-file'));
+        break;
       default:
         throw new Error(`不明なオプションです: ${String(arg)}`);
     }
   }
 
-  return { root, port, open, pollIntervalMs };
+  return { root, port, open, pollIntervalMs, pidFile };
 }
 
 /** 値を伴うオプションの引数を取り出す */
@@ -359,7 +368,17 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { root, port, open, pollIntervalMs } = parsed;
+  const { root, port, open, pollIntervalMs, pidFile } = parsed;
+
+  // 引数を読んだらすぐ書く。--root が無いなどで起動の前に終わったときも、起動を待つ側が
+  // pid のファイルからプロセスが終わったことに気づけるように（root の確かめや待ち受けより前）。
+  // 書けなければ起動をやめる（終了コード 1）。書けないまま動くと、起動を待つ側がサーバを止められない
+  if (pidFile !== undefined) {
+    const written = writePidFile(pidFile, process.pid);
+    if (isErr(written)) {
+      throw new Error(describePidFileError(written.error));
+    }
+  }
 
   if (!fs.existsSync(root)) {
     throw new Error(`ディレクトリが見つかりません: ${root}`);
@@ -396,17 +415,6 @@ function warnIfNothingToShow(root: string): void {
       `[ai-board] ${root} に ${BOARD_DIR}/ がありません。\n` +
         `           空のボードを表示します。--root で対象を指定できます。`
     );
-  }
-}
-
-function openBrowser(url: string): void {
-  const command =
-    process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
-
-  try {
-    spawn(command, [url], { detached: true, stdio: 'ignore' }).unref();
-  } catch {
-    // ブラウザが開けなくても URL は表示済みなので致命的ではない
   }
 }
 

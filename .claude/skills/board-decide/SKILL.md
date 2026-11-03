@@ -30,20 +30,20 @@ if ! node -e 'const fs=require("fs");const [f,t]=process.argv.slice(1);process.e
     "$ROOT/dist/cli.js" "$(git -C "$ROOT" log -1 --format=%ct)"; then
   npm --prefix "$ROOT" run build
 fi
-# パイプでつなぐと status の失敗が jq のエラーに隠れるので、一度受けてから絞る
-if out=$(node "$ROOT/dist/cli.js" status --json --root "$ROOT"); then
-  printf '%s' "$out" | jq '{server, waiting, ideas, cards: [.cards[] | {id, title, stage, startedAt, skipGates, droppableStages, hold, latestReview, pr: .mrState.webUrl}]}'
-else
+# 全カードの全項目は要らないので、--only で要る項目だけを出す
+node "$ROOT/dist/cli.js" status --json --root "$ROOT" \
+  --only server,waiting,ideas,cards.id,cards.title,cards.stage,cards.startedAt,cards.skipGates,cards.droppableStages,cards.hold,cards.latestReview,cards.mrState ||
   echo "status が失敗した"
-fi
 ```
+
+PR の URL は `cards[].mrState.webUrl` にある（PR が無ければ `mrState` が `null`）。
 
 - `server` が `null` でなければ、人が起動したサーバが同じデータのワークツリーで動いている。手順 4 でその `server.url` に書く。このサーバは起動も停止もしない
 - `server` が `null` なら、同じデータのワークツリーのサーバが動いていない（別のデータのサーバしか無いときも `null`）。
   読むだけ（手順 2・3、手順 6 の一覧）ならサーバは要らないので、そのまま続ける。書くときに、手順 4 の頭でこのセッションの中で起動し、書き終えたら止める。
   手元でもクラウドでも同じにし、起動を人に頼んで止まらない
 - データのワークツリーを直接書いたり、ポートを推して叩いたりしない（使用中なら次のポートへ繰り上がるので、URL は `server.url` だけから取る）
-- `status` が「不明なオプション」で失敗する、`server` の項目が無い、といったときは `$ROOT` のコードが古い。`$ROOT` を `origin/main` に更新してビルドし直すよう頼んで止まる（自分では更新しない）
+- `status` が「不明なオプション」で失敗する、使い方だけが出て失敗する（`--only` を持たない）、`server` の項目が無い、といったときは `$ROOT` のコードが古い。`$ROOT` を `origin/main` に更新してビルドし直すよう頼んで止まる（自分では更新しない）
 
 ## 2. 依頼を、カードと操作に読み分ける
 
@@ -105,7 +105,7 @@ fi
 - ゲートと種類（例: `verify 中止`）。着手を戻すなら「計画提案中 → アイデア」。
   宣言を入れるなら、入れた後の `skipGates` と、「待っている提出がその場で承認と読まれる（計画レビュー → 実装中、動作確認 → ループが Ready にする）」こと
 - 送る理由の文字列そのもの（空ならそう書く）
-- 提出の本文（`latestReview.reason`）と PR の URL（`pr`）。計画や差分の中身は読みに行かず、要約もしない
+- 提出の本文（`latestReview.reason`）と PR の URL（`mrState.webUrl`）。計画や差分の中身は読みに行かず、要約もしない
 
 選択肢は「書く」と「やめる」。やめるなら何も書かずに終わる。
 
@@ -118,18 +118,19 @@ fi
 `null` なら、書く直前にこのセッションの中でサーバを起動する。手順 3 でやめたときは起動しない。
 手順 6 で続けて何件か書くときも、起動は 1 回にして、全部書き終えてから止める。
 
-ログと pid は `$ROOT` の外のスクラッチパッド（無ければ `mktemp -d` で作った場所）に置く。以下 `$RUN` と書く。
+ログと pid のファイルは `$ROOT` の外のスクラッチパッド（無ければ `mktemp -d` で作った場所）に置く。以下 `$RUN` と書く。
 Bash の呼び出しをまたいで変数は残らないので、`$RUN` のパスは会話に控えておき、呼び出しごとに設定し直す。
 
 1. 起動する。Bash の `run_in_background` で次を走らせる。`wait` で、サーバが止まるまでこの呼び出しを続け、止まったら知らせが届くようにする。
-   `npm run dev` は使わない（pid が node のものにならず、止める合図がサーバに届かない）
+   `npm run dev` は使わない（pid が node のものにならず、止める合図がサーバに届かない）。
+   pid は `$!` ではなく、サーバが `--pid-file` に書く OS の pid を使う。Windows の Git Bash の `$!` は MSYS の pid で、
+   `node` の `process.kill` が受ける pid とは別の番号になるためである
 
    ```bash
    ROOT=$(git rev-parse --show-toplevel)
    RUN=<スクラッチパッド>/board-decide-server
    mkdir -p "$RUN" && rm -f "$RUN/pid" "$RUN/log"
-   node "$ROOT/dist/cli.js" --no-open --root "$ROOT" > "$RUN/log" 2>&1 &
-   echo $! > "$RUN/pid"
+   node "$ROOT/dist/cli.js" --no-open --root "$ROOT" --pid-file "$RUN/pid" > "$RUN/log" 2>&1 &
    wait $!
    ```
 
@@ -157,36 +158,36 @@ Bash の呼び出しをまたいで変数は残らないので、`$RUN` のパ�
    ```
 
 3. URL を読む。`status --json` の `server.url`（サーバが書いた `server.json` から、データのワークツリーと pid を照らし合わせて出す）を `URL` にする。
-   空なら、起動したサーバが別のデータのワークツリーを見ている。「止める」へ進み、ログを見せて止まる
+   `server` が `null` なら、起動したサーバが別のデータのワークツリーを見ている。「止める」へ進み、ログを見せて止まる
 
    ```bash
    ROOT=$(git rev-parse --show-toplevel)
-   if out=$(node "$ROOT/dist/cli.js" status --json --root "$ROOT"); then
-     printf '%s' "$out" | jq -r '.server.url // empty'
-   else
-     echo "status が失敗した"
-   fi
+   node "$ROOT/dist/cli.js" status --json --only server --root "$ROOT" || echo "status が失敗した"
    ```
 
 ### 人の API を叩く
 
-本文は `jq -n --arg` で組み立てる。理由やタイトルを文字列連結で JSON に埋め込まない（引用符や改行で壊れる）。
+本文は `node -e` の 1 行で組み立て、値はコードに埋め込まずに `process.argv` から渡す。
+理由やタイトルを文字列連結で JSON やコードに埋め込まない（引用符や改行で壊れる）。
+Windows の Git Bash にも入っている `node` だけで組み立て、ほかのコマンドを要らなくするためでもある。
 
 ```bash
 URL=<server.url>
 # 承認 / 否決 / 中止。gate と kind は decisions の値をそのまま使う
-jq -n --arg gate "<gate>" --arg kind "<kind>" --arg reason "<人の言葉>" '{gate: $gate, kind: $kind, reason: $reason}' |
+# MSYS_NO_PATHCONV=1 は、Windows の Git Bash が / で始まる理由をパスと見て書き換えないようにする（ほかの OS では効かない）
+MSYS_NO_PATHCONV=1 node -e 'const [gate, kind, reason] = process.argv.slice(1); console.log(JSON.stringify({ gate, kind, reason }))' \
+  "<gate>" "<kind>" "<人の言葉>" |
   curl -sS --fail-with-body -X POST "$URL/api/cards/<id>/reviews" -H 'content-type: application/json' --data @-
 
-# 着手 / 着手を戻す
-jq -n --arg at "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" '{startedAt: $at}' |
+# 着手 / 着手を戻す。着手の時刻は node の中で作る
+node -e 'console.log(JSON.stringify({ startedAt: new Date().toISOString() }))' |
   curl -sS --fail-with-body -X PATCH "$URL/api/cards/<id>" -H 'content-type: application/json' --data @-
 curl -sS --fail-with-body -X PATCH "$URL/api/cards/<id>" -H 'content-type: application/json' --data '{"startedAt": null}'
 
 # 計画レビューを飛ばす / 動作確認を飛ばす。skipGates は配列ごとの置き換えなので、今の値から 1 つのゲートだけを出し入れする
-jq -n --argjson gates '<今の skipGates>' '{skipGates: ($gates - ["plan"] + ["plan"])}' |   # 外すなら ($gates - ["plan"])
-  curl -sS --fail-with-body -X PATCH "$URL/api/cards/<id>" -H 'content-type: application/json' --data @-
-jq -n --argjson gates '<今の skipGates>' '{skipGates: ($gates - ["verify"] + ["verify"])}' |   # 外すなら ($gates - ["verify"])
+# 2 つ目の引数はゲート（plan か verify）、3 つ目は add（入れる）か remove（外す）
+node -e 'const [now, gate, op] = process.argv.slice(1); const rest = JSON.parse(now).filter((g) => g !== gate); console.log(JSON.stringify({ skipGates: op === "add" ? [...rest, gate] : rest }))' \
+  '<今の skipGates>' plan add |
   curl -sS --fail-with-body -X PATCH "$URL/api/cards/<id>" -H 'content-type: application/json' --data @-
 ```
 
@@ -194,11 +195,13 @@ jq -n --argjson gates '<今の skipGates>' '{skipGates: ($gates - ["verify"] + [
 端なら `null`。区切り線は `":divider"` で指す（`{ "divider": true }` の行）。
 
 ```bash
-# カードを動かす（after / before はカード ID、":divider"、null のどれか）
-jq -n --argjson after '<"id" か ":divider" か null>' --argjson before '<同じ>' '{after: $after, before: $before}' |
+# カードを動かす（after / before は JSON の値で渡す。"id"、":divider"、null のどれか）
+node -e 'const [after, before] = process.argv.slice(1).map((v) => JSON.parse(v)); console.log(JSON.stringify({ after, before }))' \
+  '<"id" か ":divider" か null>' '<同じ>' |
   curl -sS --fail-with-body -X POST "$URL/api/cards/<id>/move" -H 'content-type: application/json' --data @-
-# 区切り線を動かす（after / before はカード ID か null）
-jq -n --argjson after '<"id" か null>' --argjson before '<"id" か null>' '{after: $after, before: $before}' |
+# 区切り線を動かす（after / before は "id" か null）
+node -e 'const [after, before] = process.argv.slice(1).map((v) => JSON.parse(v)); console.log(JSON.stringify({ after, before }))' \
+  '<"id" か null>' '<"id" か null>' |
   curl -sS --fail-with-body -X POST "$URL/api/idea-divider/move" -H 'content-type: application/json' --data @-
 ```
 
@@ -214,10 +217,12 @@ API が失敗を返したら（4xx、データ用ブランチへの push に失�
 
 ```bash
 RUN=<同じパス>
-kill -TERM "$(cat "$RUN/pid")"
+node -e 'process.kill(Number(require("fs").readFileSync(process.argv[1], "utf-8")), "SIGTERM")' "$RUN/pid"
 ```
 
+`kill` ではなく `node` の `process.kill` で止める。Git Bash の `kill` は MSYS の pid を受けるので、OS の pid を渡すと別のプロセスを指しうる。
 サーバは SIGTERM を受けると `server.json` を消してから終わる。
+Windows では強制終了になり `server.json` が残るが、`status` は pid が生きているかを確かめてから `server` を出すので、残ったファイルは無視される。
 `run_in_background` の呼び出しが終わった知らせで、止まったことを確かめる。
 
 ## 5. 伝える

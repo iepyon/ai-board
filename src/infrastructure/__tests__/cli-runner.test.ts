@@ -2,7 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { createCliRunner, parseJson, describeCliError, isNotFound } from '../cli-runner.js';
+import {
+  createCliRunner,
+  parseJson,
+  describeCliError,
+  isNotFound,
+  spawnDetached,
+} from '../cli-runner.js';
 
 const runner = createCliRunner({ timeoutMs: 5_000 });
 
@@ -120,5 +126,53 @@ describe('isNotFound', () => {
     expect(isNotFound({ type: 'Failed', command: 'gh', message: '', httpStatus: 404 })).toBe(true);
     expect(isNotFound({ type: 'Failed', command: 'gh', message: '', httpStatus: 500 })).toBe(false);
     expect(isNotFound({ type: 'NotInstalled', command: 'gh' })).toBe(false);
+  });
+});
+
+describe('spawnDetached', () => {
+  /** ファイルができるまで待つ（切り離した子プロセスの終わりは待てないため） */
+  async function waitForFile(file: string, timeoutMs = 5_000): Promise<string> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      try {
+        const content = await fs.readFile(file, 'utf-8');
+        if (content !== '') return content;
+      } catch {
+        // まだ無い
+      }
+      if (Date.now() > deadline) throw new Error(`${file} が作られなかった`);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  }
+
+  it('コマンドを引数の配列で起動する。シェルの特殊文字は解釈しない', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-board-spawn-detached-'));
+    const out = path.join(dir, 'out');
+    const marker = path.join(dir, 'marker');
+    const injected = `x; touch ${marker}`;
+    const errors: unknown[] = [];
+
+    try {
+      spawnDetached(
+        process.execPath,
+        ['-e', 'require("fs").writeFileSync(process.argv[1], process.argv[2])', out, injected],
+        (error) => errors.push(error)
+      );
+
+      expect(await waitForFile(out)).toBe(injected);
+      expect(errors).toEqual([]);
+      await expect(fs.access(marker)).rejects.toThrow();
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('コマンドが無ければ、落ちずに onError に渡す', async () => {
+    const error = await new Promise<unknown>((resolve) => {
+      spawnDetached('ai-board-no-such-command', ['x'], resolve);
+    });
+
+    expect(error).toBeInstanceOf(Error);
+    expect((error as NodeJS.ErrnoException).code).toBe('ENOENT');
   });
 });
