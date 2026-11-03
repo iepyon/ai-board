@@ -105,7 +105,7 @@ node "$MAIN/dist/cli.js" loop start --root "$MAIN" --loop "$LOOP_ID" \
 自分で差分を読んでレビューしない。バックグラウンドで立てない。
 
 - `subagent_type`: `board-reviewer`
-- `name`: `board-reviewer-<next.cardId の先頭 45 文字>-<HHmm>`（今の時刻）。
+- `name`: `board-reviewer-<next.cardId の先頭 43 文字>-<HHmm>`（今の時刻）。
   名前は 64 文字までだが、カード ID は 100 文字まで取りうるので切り詰める
 - `description`: `review <next.cardId>`
 - `prompt`: 次の 3 行だけを書く。要約や補足を足さない

@@ -210,8 +210,8 @@ ADR 0013 の続け方（AI の番を作る判断の後に 1 周を続ける）�
 
 ## AI レビュー
 
-- [ ] `.claude/skills/board-loop/SKILL.md:108` の `board-reviewer` の `name` は `board-reviewer-`（15 文字）＋カード ID の先頭 45 文字＋`-`＋`HHmm`（4 文字）で最大 65 文字になり、次の行の「名前は 64 文字まで」を超える。45 は消えた `board-worker-`（13 文字）に合わせた値で、カード ID が 44 文字以上だとレビューの段の `Agent` の呼び出しが失敗し、そのカードで毎周止まる。切り詰めを 43 文字にし、3.1 の `--agent` の説明など同じ式を書いた箇所（`README.md`・`docs/architecture.md`・ADR 0014 にあれば）も合わせる（計画の Decisions の「45 文字」も同じ数え違い）
-- [ ] `.claude/skills/board-loop/implement.md:40` の段の表で、レビューの段の行の「すること」が「`SKILL.md` の手順で `board-reviewer` を立てる。この手順書では何もしない」になっており、同じ節の箇条（52 行目）とハードルール（265 行目）の「コードにも計画にも触らず `止まった` で手を終える」と食い違う。表だけを読むと `結果:` の語を決めずに戻り、`loop finish` が `unknown` になるか、手順書の中から `board-reviewer` を立てうる。表の行を「何も変えずに `止まった` で手を終える（段の食い違い。`board-reviewer` を立てるのは `SKILL.md` だけ）」に直す
+- [x] `.claude/skills/board-loop/SKILL.md:108` の `board-reviewer` の `name` は `board-reviewer-`（15 文字）＋カード ID の先頭 45 文字＋`-`＋`HHmm`（4 文字）で最大 65 文字になり、次の行の「名前は 64 文字まで」を超える。45 は消えた `board-worker-`（13 文字）に合わせた値で、カード ID が 44 文字以上だとレビューの段の `Agent` の呼び出しが失敗し、そのカードで毎周止まる。切り詰めを 43 文字にし、3.1 の `--agent` の説明など同じ式を書いた箇所（`README.md`・`docs/architecture.md`・ADR 0014 にあれば）も合わせる（計画の Decisions の「45 文字」も同じ数え違い）
+- [x] `.claude/skills/board-loop/implement.md:40` の段の表で、レビューの段の行の「すること」が「`SKILL.md` の手順で `board-reviewer` を立てる。この手順書では何もしない」になっており、同じ節の箇条（52 行目）とハードルール（265 行目）の「コードにも計画にも触らず `止まった` で手を終える」と食い違う。表だけを読むと `結果:` の語を決めずに戻り、`loop finish` が `unknown` になるか、手順書の中から `board-reviewer` を立てうる。表の行を「何も変えずに `止まった` で手を終える（段の食い違い。`board-reviewer` を立てるのは `SKILL.md` だけ）」に直す
 
 ### 見送った指摘
 
