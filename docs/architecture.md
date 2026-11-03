@@ -351,6 +351,15 @@ GitHub の上限（5,000 回/時）の大半を使う。そこで引いた結果
 | `POST`   | `/api/idea-divider/move` | アイデアの表の区切り線を直前・直後のカードの間へ動かす  |
 | `GET`    | `/api/events`            | SSE。ファイル変更・ポーリング結果を push                |
 
+`/api/cards` と `/api/idea-divider` は人の判断を書く口（人の API）で、ループのサブエージェントからは使えない。
+`board-planner` / `board-worker` / `board-reviewer` の定義（`.claude/agents/board-*.md`）の frontmatter に `PreToolUse` の hook（matcher は `Bash|Skill`）があり、
+`.claude/hooks/guard-human-api.mjs` が、hook の入力に `agent_id` が載るとき（サブエージェントの中）だけ、
+コマンドに `/api/cards` か `/api/idea-divider` を含む Bash（大文字小文字を区別しない。メソッドでは分けないので読み取りも拒む）と、
+`board-decide`（`<plugin>:board-decide` も）の Skill を `permissionDecision: "deny"` で拒む。読めない入力は通す。
+道の文字列での照合なので、API を叩かず道を含むだけのコマンド（grep、コミットの文面、ヒアドキュメント）も拒む。
+この巻き添えは受け入れ、拒んだときの理由で「検索は Grep のツールを使い、コミットや本文の文面は道を書かずに言い換える」と伝える。
+`.claude/settings.json` には置かない（許可や hook の設定を AI が書き換えないため）。形は `src/__tests__/claude-hooks.test.ts` が守る。
+
 カードを返す口（`GET /api/board` の各カードと、`PUT /api/cards/:id/body` などの応答）は、本文と判断を分けて返す。
 `body` は `## レビュー` の節を除いた本文（`stripReviewSection`）、`reviews` は判断を書かれた順（`log/` の順）に並べた `{ at, gate, kind, reason }` の配列である
 （`toBoardCard` と `card.controller.ts` の `toCardResponse`）。`Card.body` は組み立てた本文のままで、読む側（ステージの導出・`get-board.query`・CLI）と `card show` の出力は変えていない。

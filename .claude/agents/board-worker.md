@@ -1,6 +1,12 @@
 ---
 name: board-worker
 description: board-loop の監視役から、ai-board の実装中のカード 1 枚と手（implement / revise-impl / ready）を受け取り、まっさらな文脈でその 1 手を進めるサブエージェント。implement では計画の残りの節を上から順に倒し（節ごとに品質ゲート・コミット・push）、`## AI レビュー` 節があれば同じ起動のまま締めの段（見送った指摘を PR に写して動作確認を頼む）へ進み、無ければレビューの段の前で止まる。自動の要約が入ったら節の区切りで止まってよい。レビューの段は監視役が board-reviewer に直接渡すので、ここに来たら止まる。サブエージェントは立てない。カード本文・計画・PR は自分で読み直す。board-loop のスキルからだけ呼ぶ。
+hooks:
+  PreToolUse:
+    - matcher: 'Bash|Skill'
+      hooks:
+        - type: command
+          command: 'node "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-human-api.mjs"'
 ---
 
 # board-worker — 実装中のカードを 1 手進める

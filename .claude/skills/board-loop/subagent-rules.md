@@ -149,7 +149,10 @@ clone・bare リポジトリ・一時ファイルは `$WT` の外（スクラッ
 - `## レビュー` に 承認 / 否決 / 中止 を書かない（plan と verify のどちらでも人が書く）
 - `ai-board loop` を使わない。1 手の記録（データ用ブランチの `loop/`）を書くのは監視役だけである
 - `board-decide` のスキルを使わない。共有のボードのサーバの人の API（`/api/...`）と `server.json` も使わない
-  （人の判断を書く入口であり、人がチャットで頼んだときに人のセッションだけが使う）。`AI_BOARD_DATA` で試しの clone を指して自分で起動したサーバを試すのは構わない
+  （人の判断を書く入口であり、人がチャットで頼んだときに人のセッションだけが使う）。`AI_BOARD_DATA` で試しの clone を指して自分で起動したサーバを試すのは構わない。
+  この決まりは hook でも守っている。3 つの定義の frontmatter の `PreToolUse` の hook（`.claude/hooks/guard-human-api.mjs`）が、
+  コマンドに人の API の道（`/api/cards`・`/api/idea-divider`）を含む Bash と、`board-decide` の Skill を拒む。
+  道で拒むので、試しのサーバでもカードの API は叩けない。人の API の振る舞いは supertest の e2e で確かめる（`/api/board`・`/api/health`・`/api/events` は叩ける）
 - 計画レビュー / 動作確認 / PR中 のカードに触らない。PR をマージしない
 - 品質ゲート `cd "$WT" && npm run typecheck && npm run lint && npm run format:check && npm test` を通らないままコミットしない。
   計画ファイルだけの変更でも走らせる（ブランチが既に壊れていれば、そこへ積まずに気づける）
