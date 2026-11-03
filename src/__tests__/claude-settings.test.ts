@@ -63,13 +63,15 @@ describe('.claude/settings.json の許可ルール', () => {
     for (const rule of [
       'Edit(/.ai-board/data/**)',
       'Edit(**/.ai-board/data/**)',
-      'Write(/.ai-board/data/**)',
-      'Write(**/.ai-board/data/**)',
       'Edit(/.claude/settings*.json)',
-      'Write(/.claude/settings*.json)',
     ]) {
       expect(perms.deny).toContain(rule);
     }
+  });
+
+  it('Write(...) のルールを持たない（Claude Code はファイルの書き込みも Edit(...) で照合し、Write(...) は照合されず警告になる）', () => {
+    const all = [...perms.allow, ...perms.ask, ...perms.deny];
+    expect(all.filter((rule) => rule.startsWith('Write('))).toEqual([]);
   });
 
   it.each([
