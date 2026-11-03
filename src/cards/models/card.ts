@@ -6,7 +6,9 @@ import type { ReviewGate } from './review.js';
 // ============================================================
 
 /**
- * カードは `.ai-board/board.db`（SQLite）の `cards` テーブルの 1 行に対応する。
+ * カードはデータ用ブランチ `ai-board/data` の `cards/<id>/` に対応する。frontmatter と本文は `card.md` に、
+ * `## レビュー` の判断と着手は `log/` の 1 件 1 ファイルに、`rank` は根の `order.yaml` にあり、
+ * 読むときにこれらから組み立てる（`repositories/card-files.ts` の `assembleCard`）。
  *
  * `id` は不変で、`branch` / `mr` が進行に応じて後から埋まる。
  * カードは全ステージを通じて存在し続ける（マージ済みでも削除しない）ため、

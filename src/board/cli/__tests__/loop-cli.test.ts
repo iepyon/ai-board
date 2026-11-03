@@ -43,7 +43,6 @@ function deps(): LoopCliDependencies {
   return {
     store: createDataStore({ dataDir, runner, lockPollMs: 10 }),
     cardExists: (id) => Promise.resolve(id === 'card-a'),
-    legacyDb: null,
   };
 }
 

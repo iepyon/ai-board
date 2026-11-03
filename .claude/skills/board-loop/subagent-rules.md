@@ -132,7 +132,7 @@ ai-board card hold <id> --gate verify --reason "<なぜ止まったか、人に�
 S=<スクラッチパッドの下の作業用ディレクトリ>
 git init --bare "$S/origin.git"
 git clone "$S/origin.git" "$S/data"
-AI_BOARD_DATA="$S/data" node "$WT/dist/cli.js" migrate --empty   # 空のデータ用ブランチを作る（カードを持ち込むなら --from <board.db の複製>）
+AI_BOARD_DATA="$S/data" node "$WT/dist/cli.js" init   # 空のデータ用ブランチを作る
 ```
 
 `server.json`・ロック（`data.lock`）・PR の状態の控え（`cache/`）は、`AI_BOARD_DATA` の指すディレクトリの親に置かれる。

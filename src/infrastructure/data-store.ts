@@ -421,7 +421,7 @@ class GitDataStore implements DataStore {
   /**
    * `ai-board-data.yaml` の版が、この CLI が読み書きできる版かを確かめる。
    *
-   * ファイルが無ければ確かめない（`migrate` は必ず書くので、無いのは版を持たない試しのデータだけである）。
+   * ファイルが無ければ確かめない（`init` は必ず書くので、無いのは版を持たない試しのデータだけである）。
    */
   private checkVersion(outcome: RefreshOutcome): Result<RefreshOutcome, DataStoreError> {
     const raw = readFileOrNull(path.join(this.dataDir, DATA_VERSION_FILE));
@@ -541,7 +541,7 @@ function includesOrigin(remotes: string): boolean {
 }
 
 // ============================================================
-// データ用ブランチを作る — `ai-board migrate`
+// データ用ブランチを作る — `ai-board init`
 // ============================================================
 
 /** データ用ブランチを作れなかった理由 */
@@ -580,7 +580,7 @@ interface DataBranchTarget {
  *   ほかのファイルがあると、それがデータ用ブランチに入ってしまう
  * - `origin` にも手元にも、データ用ブランチが無いこと。`origin` に問い合わせられなければ（オフライン）止まる
  */
-export async function checkDataBranchAbsent(
+async function checkDataBranchAbsent(
   options: CreateDataBranchOptions
 ): Promise<Result<DataBranchTarget, DataBranchCreateError>> {
   const location = dataBranchLocation(options);
@@ -633,8 +633,8 @@ function dataBranchLocation(
  * `origin` が無ければ（テスト用）、push せずにコミットだけする。
  *
  * どこかで失敗したら、作ったワークツリー・ブランチ・書いたファイルを片付けてから失敗を返す。
- * 片付けないと、次の `ai-board card` が案内（`ai-board migrate` を走らせる）ではなく git の失敗で止まり、
- * `migrate` のやり直しも「既にある」で拒まれる。
+ * 片付けないと、次の `ai-board card` が案内（`ai-board init` を走らせる）ではなく git の失敗で止まり、
+ * `init` のやり直しも「既にある」で拒まれる。
  */
 export async function createDataBranch(
   options: CreateDataBranchOptions,

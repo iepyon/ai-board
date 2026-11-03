@@ -17,10 +17,10 @@
       "Bash(git -C * branch -d *)",
       "Bash(git worktree remove *)",
       "Bash(git -C * worktree remove *)",
-      "Bash(node */dist/cli.js migrate)",
-      "Bash(node */dist/cli.js migrate *)",
-      "Bash(node dist/cli.js migrate)",
-      "Bash(node dist/cli.js migrate *)"
+      "Bash(node */dist/cli.js init)",
+      "Bash(node */dist/cli.js init *)",
+      "Bash(node dist/cli.js init)",
+      "Bash(node dist/cli.js init *)"
     ],
     "deny": [
       "Edit(/.ai-board/data/**)",

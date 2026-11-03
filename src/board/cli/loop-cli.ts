@@ -60,8 +60,6 @@ export interface LoopCliDependencies {
   readonly store: Pick<DataStore, 'transact'>;
   /** その ID のカードがあるか。`transact` の中（取り直した後）で呼ぶ */
   readonly cardExists: (id: string) => Promise<boolean>;
-  /** 移行前の DB（`board.db`）の場所。無ければ null。データ用ブランチが無いときの案内を変える */
-  readonly legacyDb: string | null;
 }
 
 /** CLI の検査で書き込みを拒んだ */
@@ -138,7 +136,7 @@ async function runStart(
     }
   );
 
-  if (isErr(result)) return fail(io, describeError(result.error, deps.legacyDb));
+  if (isErr(result)) return fail(io, describeError(result.error));
 
   for (const closed of result.value.interrupted) {
     io.stderr(
@@ -184,7 +182,7 @@ async function runFinish(
       )
   );
 
-  if (isErr(result)) return fail(io, describeError(result.error, deps.legacyDb));
+  if (isErr(result)) return fail(io, describeError(result.error));
 
   io.stdout(`${describeStep(result.value)}\n`);
   return 0;
@@ -270,7 +268,7 @@ function describeStep(step: LoopStep): string {
   return `${step.loop} ${step.cardId} ${step.action}${stepPart}${resultPart}`;
 }
 
-function describeError(error: LoopCliError | DataStoreError, legacyDb: string | null): string {
+function describeError(error: LoopCliError | DataStoreError): string {
   switch (error.type) {
     case 'CardNotFound':
       return `カードが見つかりません: ${error.id}`;
@@ -282,6 +280,6 @@ function describeError(error: LoopCliError | DataStoreError, legacyDb: string | 
       return `ループ ${error.loop} の終わっていない記録は ${error.running} のものです（--card ${error.given} と食い違います）`;
     default:
       // 残りは DataStoreError。describeDataStoreError の switch が種別を網羅する
-      return describeDataStoreError(error, legacyDb);
+      return describeDataStoreError(error);
   }
 }

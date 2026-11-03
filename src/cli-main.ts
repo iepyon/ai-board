@@ -5,13 +5,10 @@ import {
   BOARD_DIR,
   CONFIG_FILE,
   DATA_ENV,
-  legacyDbPath,
   loadConfig,
   resolvePaths,
   type AppConfig,
-  type BoardPaths,
 } from './shared/config.js';
-import { readLegacyBoard } from './infrastructure/database.js';
 import { createCliRunner } from './infrastructure/cli-runner.js';
 import {
   createBoardDataStore,
@@ -19,7 +16,7 @@ import {
   createTransactionalMrWriter,
 } from './cards/composition.js';
 import { runCardCli, type CardCliIo } from './cards/cli/card-cli.js';
-import { runMigrateCli } from './cards/cli/migrate-cli.js';
+import { runInitCli } from './cards/cli/init-cli.js';
 import { describeDataStoreError, describeOfflineRead } from './cards/cli/data-store-messages.js';
 import {
   createBoardDependencies,
@@ -54,8 +51,7 @@ const USAGE = `使い方: ai-board [options]
        ai-board card <command> [--root <path>]    カードの読み書き（ai-board card --help）
        ai-board status [--json [--only <項目,...>] | --html] [--root <path>]
                                                   ボードの状態と次の一手（サーバ不要）
-       ai-board migrate [--from <db>] [--empty] [--root <path>]
-                                                  board.db をデータ用ブランチへ書き出す（ai-board migrate --help）
+       ai-board init [--root <path>]              空のデータ用ブランチを作る（ai-board init --help）
        ai-board pr <command> [--root <path>]      PR の読み書き（gh api の REST。ai-board pr --help）
        ai-board loop <start|finish> [--root <path>]
                                                   ループの 1 手の記録を書く（監視役だけが使う。ai-board loop --help）
@@ -151,22 +147,22 @@ async function runCard(argv: readonly string[]): Promise<number> {
 
   return runCardCli(
     rest,
-    { store, cards: createFileCardDependencies(store.dataDir), legacyDb: legacyDbOf(paths) },
+    { store, cards: createFileCardDependencies(store.dataDir) },
     createProcessIo()
   );
 }
 
 /**
- * `migrate` サブコマンド。移行前の `board.db` を読み、データ用ブランチを作って push する。
+ * `init` サブコマンド。空のデータ用ブランチを作って push する。
  *
  * 既定の置き場所（`.ai-board/data/`）なら `root` のリポジトリからワークツリーを足して作る。
  * `AI_BOARD_DATA` なら、そのディレクトリ（`origin` を持つ空の clone）に作る。
  */
-async function runMigrate(argv: readonly string[]): Promise<number> {
+async function runInit(argv: readonly string[]): Promise<number> {
   const { root, rest } = extractRoot(argv);
   const paths = resolvePaths(root);
 
-  return runMigrateCli(
+  return runInitCli(
     rest,
     {
       target: {
@@ -174,18 +170,10 @@ async function runMigrate(argv: readonly string[]): Promise<number> {
         ...(paths.dataSource === 'env' ? {} : { repoRoot: paths.root }),
         runner: createCliRunner(),
       },
-      defaultFrom: legacyDbPath(paths),
       configFile: path.join(paths.sharedBoardDir, CONFIG_FILE),
-      readLegacy: readLegacyBoard,
     },
     createProcessIo()
   );
-}
-
-/** 移行前の DB があればその場所。データ用ブランチが無いときに `ai-board migrate` を案内するのに使う */
-function legacyDbOf(paths: BoardPaths): string | null {
-  const dbPath = legacyDbPath(paths);
-  return fs.existsSync(dbPath) ? dbPath : null;
 }
 
 /**
@@ -213,7 +201,7 @@ async function runStatus(argv: readonly string[]): Promise<number> {
 
   const refreshed = await store.refresh();
   if (isErr(refreshed)) {
-    io.stderr(`${describeDataStoreError(refreshed.error, legacyDbOf(paths))}\n`);
+    io.stderr(`${describeDataStoreError(refreshed.error)}\n`);
     return 1;
   }
   if (refreshed.value.kind === 'offline') {
@@ -274,7 +262,6 @@ async function runLoop(argv: readonly string[]): Promise<number> {
         const parsed = CardIdSchema.safeParse(id);
         return parsed.success && (await cardRepository.findById(parsed.data as CardId)) !== null;
       },
-      legacyDb: legacyDbOf(paths),
     },
     createProcessIo()
   );
@@ -317,7 +304,7 @@ async function runPr(argv: readonly string[]): Promise<number> {
   const paths = resolvePaths(root);
   const refreshed = await createBoardDataStore(paths, runner).refresh();
   if (isErr(refreshed)) {
-    io.stderr(`${describeDataStoreError(refreshed.error, legacyDbOf(paths))}\n`);
+    io.stderr(`${describeDataStoreError(refreshed.error)}\n`);
   } else if (refreshed.value.kind === 'offline') {
     io.stderr(`${describeOfflineRead(refreshed.value.reason)}\n`);
   }
@@ -356,7 +343,7 @@ function createProcessIo(): CardCliIo {
 /** サーバを起動しないサブコマンド。名前から実行する関数を引く */
 const SUBCOMMANDS: Readonly<Record<string, (argv: readonly string[]) => Promise<number>>> = {
   card: runCard,
-  migrate: runMigrate,
+  init: runInit,
   status: runStatus,
   pr: runPr,
   loop: runLoop,

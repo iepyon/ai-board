@@ -132,8 +132,8 @@ describe('.claude/settings.json の許可ルール', () => {
     'git branch -D x',
     'git -C /repo branch -d x',
     'git worktree remove /repo/.claude/worktrees/x',
-    'node /repo/dist/cli.js migrate --empty',
-    'node dist/cli.js migrate',
+    'node /repo/dist/cli.js init',
+    'node dist/cli.js init',
   ])('%s は毎回確かめる', (command) => {
     expect(decide(perms, command)).toBe('ask');
   });
@@ -153,7 +153,7 @@ describe('.claude/settings.json の許可ルール', () => {
     expect(decide(perms, command)).not.toBe('allow');
   });
 
-  it('allow に広すぎるルールと migrate が無い', () => {
+  it('allow に広すぎるルールと init が無い', () => {
     const broad = [
       'Bash',
       'Bash(*)',
@@ -166,7 +166,7 @@ describe('.claude/settings.json の許可ルール', () => {
       'Bash(node -e *)',
     ];
     for (const rule of broad) expect(perms.allow).not.toContain(rule);
-    expect(perms.allow.filter((rule) => rule.includes('migrate'))).toEqual([]);
+    expect(perms.allow.filter((rule) => /(cli\.js|ai-board) init\b/.test(rule))).toEqual([]);
   });
 
   it('allow と deny に同じルールが無い', () => {

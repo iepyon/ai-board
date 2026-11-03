@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { legacyDbPath, loadConfig, resolvePaths } from '../config.js';
+import { loadConfig, resolvePaths } from '../config.js';
 
 let root: string;
 
@@ -111,20 +111,19 @@ async function makeLinkedWorktree(name: string): Promise<string> {
 }
 
 describe('ワークツリーでの置き場所', () => {
-  it('メインのチェックアウトでは、移行前の DB も計画も root の下', () => {
+  it('メインのチェックアウトでは、共有の置き場所も計画も root の下', () => {
     const paths = resolvePaths(root, {});
 
     expect(paths.sharedBoardDir).toBe(path.join(root, '.ai-board'));
-    expect(legacyDbPath(paths)).toBe(path.join(root, '.ai-board', 'board.db'));
+    expect(paths.plansDir).toBe(path.join(root, '.ai-board', 'plans'));
   });
 
-  it('リンクされたワークツリーでは、移行前の DB をメインのチェックアウトから、計画をワークツリーから読む', async () => {
+  it('リンクされたワークツリーでは、共有の置き場所をメインのチェックアウトに、計画をワークツリーに置く', async () => {
     const tree = await makeLinkedWorktree('feature');
 
     const paths = resolvePaths(tree, {});
 
     expect(paths.sharedBoardDir).toBe(path.join(root, '.ai-board'));
-    expect(legacyDbPath(paths)).toBe(path.join(root, '.ai-board', 'board.db'));
     expect(paths.plansDir).toBe(path.join(tree, '.ai-board', 'plans'));
   });
 
@@ -189,10 +188,10 @@ describe('データのワークツリーの置き場所', () => {
     expect(resolvePaths(root, { AI_BOARD_DATA: '' }).dataSource).toBe('local');
   });
 
-  it('AI_BOARD_DATA があっても、移行前の DB は .ai-board/ の下のものを指す', () => {
+  it('AI_BOARD_DATA があっても、共有の置き場所は .ai-board/ を指す', () => {
     const paths = resolvePaths(root, { AI_BOARD_DATA: 'dev-data' });
 
-    expect(legacyDbPath(paths)).toBe(path.join(root, '.ai-board', 'board.db'));
+    expect(paths.sharedBoardDir).toBe(path.join(root, '.ai-board'));
   });
 });
 

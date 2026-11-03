@@ -9,8 +9,6 @@ import { locateWorktree } from './git-worktree.js';
 // ============================================================
 
 export const BOARD_DIR = '.ai-board';
-/** 移行前のカードの正本（SQLite）。`ai-board migrate` が既定で読む（`sharedBoardDir` の下） */
-export const DB_FILE = 'board.db';
 export const CONFIG_FILE = 'config.yaml';
 export const PLANS_DIR = 'plans';
 /** データ用ブランチのワークツリーの置き場所（`sharedBoardDir` の下） */
@@ -47,7 +45,7 @@ export interface BoardPaths {
   /** .ai-board/ */
   readonly boardDir: string;
   /**
-   * git に載らない各自のファイル（データのワークツリー・移行前の board.db と config.yaml）を置く .ai-board/。
+   * git に載らない各自のファイル（データのワークツリーと config.yaml）を置く .ai-board/。
    * リンクされたワークツリーではメインのチェックアウトのもの、それ以外は `boardDir` と同じ
    */
   readonly sharedBoardDir: string;
@@ -133,11 +131,6 @@ export function loadConfig(root: string, env: NodeJS.ProcessEnv = process.env): 
   }
 
   return { paths, forge: toForgeConfig(parsed.data) };
-}
-
-/** 移行前の DB（`board.db`）の場所。`ai-board migrate` の既定の読み出し元で、データ用ブランチが無いときの案内にも使う */
-export function legacyDbPath(paths: BoardPaths): string {
-  return path.join(paths.sharedBoardDir, DB_FILE);
 }
 
 /** データ用ブランチの根の config.yaml を優先し、無ければ `sharedBoardDir` のものを使う */

@@ -4,7 +4,7 @@ coverage/
 *.log
 .DS_Store
 
-# カードの正本（SQLite）。各自のローカルに置き、共有しない。
+# 移行前のカードの正本（SQLite）。古いチェックアウトに残っていても共有しない。
 # WAL / SHM（board.db-wal / -shm）と、退避したバックアップ（board.db.bak-… など）も含む
 /.ai-board/board.db*
 
