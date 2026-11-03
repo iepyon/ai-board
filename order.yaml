@@ -15,7 +15,7 @@ ranks:
   forge-poll-budget: -4750
   gitignore-db-backup: 29000
   harness-guide: 1793715939378
-  harness-metrics: 5687.5
+  harness-metrics: -8750
   idea-grill: 1793715932378
   inline-edit: 1793715934378
   issue-store: 2000
