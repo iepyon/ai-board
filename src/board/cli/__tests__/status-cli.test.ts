@@ -86,7 +86,8 @@ async function run(
   argv: readonly string[],
   provider = stubProvider(),
   findServer?: () => ServerLocation | null,
-  branchPlanRepository?: BranchPlanRepository
+  branchPlanRepository?: BranchPlanRepository,
+  repository?: { readonly owner: string; readonly repo: string }
 ): Promise<number> {
   const cards = createFileCardDependencies(dataDir);
   const board = createBoardDependencies(
@@ -103,6 +104,7 @@ async function run(
       ...board,
       ...(findServer ? { findServer } : {}),
       ...(branchPlanRepository ? { branchPlanRepository } : {}),
+      ...(repository ? { repository } : {}),
     },
     {
       stdout: (text) => {
@@ -598,6 +600,39 @@ describe('ai-board status --html', () => {
     expect(stdout).toContain('reviewing のタイトル');
     expect(stdout).toContain('判断してほしい点がある');
     expect(stdout).toContain('idea のタイトル');
+    expect(stdout).not.toContain('<script');
+  });
+
+  it('--session を渡すと、更新ボタンとセッション ID を入れる', async () => {
+    expect(await run(['--html', '--session', 'session_01ABCDEF'])).toBe(0);
+
+    expect(stdout).toContain('id="refresh-button"');
+    expect(stdout).toContain('"session":"session_01ABCDEF"');
+  });
+
+  it('リポジトリを渡すと、カードの詳細へのリンクを付ける。渡さなければ付けない', async () => {
+    await writeCard('idea', '');
+
+    expect(await run(['--html'], undefined, undefined, undefined, { owner: 'o', repo: 'r' })).toBe(
+      0
+    );
+    expect(stdout).toContain('href="https://github.com/o/r/blob/ai-board/data/cards/idea/card.md"');
+
+    stdout = '';
+    expect(await run(['--html'])).toBe(0);
+    expect(stdout).not.toContain('/cards/idea/card.md');
+  });
+
+  it.each([
+    ['形の合わない ID', ['--html', '--session', 'x</script>']],
+    ['session_ で始まらない ID', ['--html', '--session', '01ABCDEF']],
+    ['値が無い', ['--html', '--session']],
+    ['--json と一緒', ['--json', '--session', 'session_01ABCDEF']],
+    ['形の指定が無い', ['--session', 'session_01ABCDEF']],
+  ])('%s は使い方を出して 1 で終わる', async (_name, argv) => {
+    expect(await run(argv)).toBe(1);
+    expect(stderr).toContain('使い方: ai-board status');
+    expect(stdout).toBe('');
   });
 });
 
@@ -718,5 +753,23 @@ describe('parseStatusArgs', () => {
       ],
     });
     expect(parseStatusArgs(['--json', '--only', 'next', '--only', 'forge'])).toBe('invalid');
+  });
+
+  it('--session は --html のときだけ、形の合う ID を受け取る', () => {
+    expect(parseStatusArgs(['--html', '--session', 'session_01ABCDEF'])).toEqual({
+      format: 'html',
+      session: 'session_01ABCDEF',
+    });
+    expect(parseStatusArgs(['--session', 'session_01ABCDEF', '--html'])).toEqual({
+      format: 'html',
+      session: 'session_01ABCDEF',
+    });
+    expect(parseStatusArgs(['--json', '--session', 'session_01ABCDEF'])).toBe('invalid');
+    expect(parseStatusArgs(['--session', 'session_01ABCDEF'])).toBe('invalid');
+    expect(parseStatusArgs(['--html', '--session', 'session_a-b'])).toBe('invalid');
+    expect(parseStatusArgs(['--html', '--session', `session_${'a'.repeat(129)}`])).toBe('invalid');
+    expect(parseStatusArgs(['--html', '--session', 'session_a', '--session', 'session_b'])).toBe(
+      'invalid'
+    );
   });
 });

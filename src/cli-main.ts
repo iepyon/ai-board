@@ -247,6 +247,9 @@ async function runStatus(argv: readonly string[]): Promise<number> {
       findServer: () => findLiveServer(config.paths.dataDir),
       // implement の段（next.step）を、カードのブランチの計画から読む。git fetch はしない
       branchPlanRepository: createBranchPlanRepository(runner, paths.root),
+      // --html のページの、カードの詳細（GitHub 上のデータ用ブランチのカードのファイル）へのリンクに使う
+      repository:
+        config.forge === null ? null : { owner: config.forge.owner, repo: config.forge.repo },
     },
     io
   );
