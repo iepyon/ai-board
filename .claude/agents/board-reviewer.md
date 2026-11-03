@@ -109,7 +109,7 @@ Bash の作業ディレクトリは、呼び出しをまたいで保たれると
    ほかのファイルが変わっていたら（`/code-review` が書いたものも含む）、コミットせずに止まって報告する
 2. 共通の決まりのハードルールにある品質ゲートを通す。計画ファイルだけの変更でも走らせる。
    通らなければコミットせず、止まって報告する
-3. `git -C "$WT" add .ai-board/plans/<cardId>.md` → コミット（`docs: <cardId> の AI レビューの指摘を計画に書く`。末尾の署名は、そのセッションの指示に従う）→ `git -C "$WT" push`。
+3. `git -C "$WT" add .ai-board/plans/<cardId>.md` → コミット（`docs: <cardId> の AI レビューの指摘を計画に書く`。末尾の署名は、そのセッションの指示に従う）→ `git -C "$WT" push origin <branch>`。
    push が失敗したらやり直さずに止まり、コミットが手元にだけあることを報告する
 4. `git -C "$WT" rev-parse HEAD` と `git -C "$WT" rev-parse origin/<branch>` が一致し、`git -C "$WT" status --porcelain` が空であることを確かめる。
    満たされなければ止まって報告する（次の手を受けるサブエージェントは、ワークツリーと `origin` の状態から続きを選ぶ）

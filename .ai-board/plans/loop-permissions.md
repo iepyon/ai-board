@@ -165,9 +165,9 @@ README に「ループの許可ルール」の節を足して、何を許し・�
 
 ### 1. 許可ルールとテスト
 
-- [ ] `.claude/settings.json` に `allow` / `ask` を足し、`deny` を増やす（Decisions の「`allow` に入れるもの」「`deny` に足すもの」「`ask` に入れるもの」のとおり）
+- [x] `.claude/settings.json` に `allow` / `ask` を足し、`deny` を増やす（Decisions の「`allow` に入れるもの」「`deny` に足すもの」「`ask` に入れるもの」のとおり）
   - `git push` の扱いを Risks のとおり確かめ、絞れないなら `allow` から外して手順書の push を `git push origin <branch>` の明示の形に揃える
-- [ ] `src/__tests__/claude-settings.test.ts` を足す（Decisions の「形をテストで守る」の 5 点）
+- [x] `src/__tests__/claude-settings.test.ts` を足す（Decisions の「形をテストで守る」の 5 点）
 
 ### 2. ドキュメント
 

@@ -174,7 +174,7 @@ cd "$WT" && npm run typecheck && npm run lint && npm run format:check && npm tes
    本文に、倒した節の題と、倒したタスクの書き出しを並べる。
    4 の「タスクの順番を直す」をしたときは、本文に「何をどの節へ移したか（どの節を合わせたか、何を入れ替えたか）と、なぜか」も書く。
    末尾の署名は、そのセッションの指示に従う
-3. `git -C "$WT" push`。push が失敗したらやり直さずに止まり、コミットが手元にだけあることを報告する
+3. `git -C "$WT" push origin <branch>`。push が失敗したらやり直さずに止まり、コミットが手元にだけあることを報告する
 4. `git -C "$WT" rev-parse HEAD` と `git -C "$WT" rev-parse origin/<branch>` が一致し、`git -C "$WT" status --porcelain` が空であることを確かめる。
    満たされなければ止まって報告する（次の起動は、ワークツリーと `origin` の状態から続きを選ぶ）
 
