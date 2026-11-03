@@ -222,13 +222,13 @@
 
 ### 4. スキル
 
-- [ ] `.claude/skills/board-dashboard/SKILL.md` を足す。「ボードを見せて」「ダッシュボードを出して」と、ページから届く更新を頼むメッセージで使う
+- [x] `.claude/skills/board-dashboard/SKILL.md` を足す。「ボードを見せて」「ダッシュボードを出して」と、ページから届く更新を頼むメッセージで使う
   - `$MAIN` を決めて `dist/` が古ければビルドし、`get_session` で自分のセッション ID を取る（取れなければ `--session` を付けない）
   - `status --html [--session <id>]` を一時ファイルに受けてから、スクラッチパッドの `board.html` に置き換える。失敗したら公開しない
   - 初回の公開は `icon` と、`--session` を付けたときだけ `capabilities: {mcp: {servers: [{server: "Claude Code Remote", tools: ["send_message"]}]}}` を付ける。公開し直すときは同じ `file_path` で、`capabilities` を省く
   - 更新を頼むメッセージを受けたときは、公開し直しだけをする。判断の依頼として読まず、ループの 1 周も走らせず、カードに書かない。決まった文と違えば何もしない
   - HTML を書き換えない・型を使わない・中身をサブエージェントに渡さない（今の `board-loop` の決まりを移す）
-- [ ] `.claude/skills/board-loop/SKILL.md` の「ボードを見せて」の節を、`board-dashboard` のスキルを指す数行にし、description とハードルールの言い回しを合わせる
+- [x] `.claude/skills/board-loop/SKILL.md` の「ボードを見せて」の節を、`board-dashboard` のスキルを指す数行にし、description とハードルールの言い回しを合わせる
 
 ### 5. ドキュメント
 

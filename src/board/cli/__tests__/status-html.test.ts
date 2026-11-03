@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import type { Board, BoardCard, BoardCardMr } from '../../models/board-card.js';
 import { buildStatusReport } from '../status-cli.js';
@@ -440,6 +441,15 @@ describe('formatStatusHtml の更新ボタン', () => {
     expect(page).toContain('"timeoutMs":180000');
     // 外部のファイルは読まない
     expect(page).not.toMatch(/<link|src=/i);
+  });
+
+  it('送る文は board-dashboard のスキルが応える文と同じ', () => {
+    const skill = readFileSync(
+      new URL('../../../../.claude/skills/board-dashboard/SKILL.md', import.meta.url),
+      'utf8'
+    );
+
+    expect(skill).toContain(`\n  ${REFRESH_MESSAGE}\n`);
   });
 
   it('埋め込む JSON の < は逃がし、</script> で抜けられない', () => {
