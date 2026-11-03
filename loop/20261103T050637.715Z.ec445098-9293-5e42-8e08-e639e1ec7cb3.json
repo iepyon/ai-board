@@ -1,0 +1,12 @@
+{
+  "loop": "ec445098-9293-5e42-8e08-e639e1ec7cb3",
+  "cardId": "loop-resume-after-decide",
+  "action": "ready",
+  "step": null,
+  "agent": "board-worker-loop-resume-after-decide-0506",
+  "startedAt": "2026-11-03T05:06:37.715Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
