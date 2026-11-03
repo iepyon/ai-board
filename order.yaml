@@ -52,7 +52,7 @@ ranks:
   stage-timeline: 2000
   status-html-catchup: -6750
   task-count-codeblock: 13000
-  training-seed: 5750
+  training-seed: -9750
   typecheck-tests: -2750
   verify-evidence: 5500
   verify-gate: 34000
