@@ -40,6 +40,6 @@ ranks:
   stage-timeline: 2000
   task-count-codeblock: 13000
   training-seed: 5750
-  typecheck-tests: 8375
+  typecheck-tests: 7968.75
   verify-gate: 34000
   windows-shell: 5000
