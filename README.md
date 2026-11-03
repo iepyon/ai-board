@@ -440,8 +440,10 @@ Claude Code は `deny` → `ask` → `allow` の順に照合し、どれにも�
 | `ask`   | 手順書が使わないか、人が 1 回だけ行う、戻しにくい操作  | 毎回人に確かめる     |
 | `deny`  | ハーネスの境界を壊す。人もループ中には使わない         | 確認を経ずに拒まれる |
 
-- **`allow`:** 品質ゲートとビルド（`npm run typecheck` / `lint` / `format` / `format:check` / `build` / `test:coverage`、`npm test`、`npm ci`、`npx vitest run`）、
-  `ai-board` の `card` / `pr` / `status` / `loop`（手順書は `node "$MAIN/dist/cli.js" ...` で呼ぶので `node */dist/cli.js <サブコマンド>` の形で書く）、
+- **`allow`:** 品質ゲートとビルド（`npm run typecheck` / `lint` / `format` / `format:check` / `build` / `test:coverage`、`npm test`、`npm ci`、`npx vitest run`、
+  監視役と `board-decide` が `dist/` の古いときに走らせる `npm --prefix <path> run build`）、
+  `ai-board` の `card` / `pr` / `status` / `loop` / `dist-check`（手順書は `node "$MAIN/dist/cli.js" ...` で呼ぶので `node */dist/cli.js <サブコマンド>` の形で書く。
+  `dist-check` は監視役が周ごとに `dist/` の古さを確かめるのに使う）、
   手順書が使う `git` の操作（`status` / `diff` / `log` / `show` / `fetch` / `pull --ff-only` / `add` / `commit` / `mv` / `rev-parse` / `worktree list` / `worktree add` /
   `push origin <branch>` / `push -u origin <branch>` / `push --force-with-lease origin <branch>`。`git -C <path> ...` の形も）、
   カードのワークツリーの中の取り消し（`git -C <path>/.claude/worktrees/<id> checkout -- .` / `clean -fd` の形だけ。`-C` の無い形やメインのチェックアウトでは確認が出る）、
