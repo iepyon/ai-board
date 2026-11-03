@@ -45,7 +45,7 @@ ranks:
   reviewer-gates: 1793715931378
   server-shutdown-sse: 17774.5361328125
   setup-doctor: 1793715938378
-  share-api-types: 19152.587890625
+  share-api-types: 250
   skip-verify-scope: 23000
   slim-decide: 1250
   slim-worker: 2250
