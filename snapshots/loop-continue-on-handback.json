@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-11-03T07:21:26Z\",false,\"188646c05e3c64da8db2b71d782402dffe582867\",0,0,\"2026-11-03T07:21:26Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 70,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "loop-continue-on-handback",
+    "title": "サブエージェントの報告を受けたら、完了の通知を待たずに次の周へ進む",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/70",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-11-03T05:35:29Z",
+    "mergedAt": "2026-11-03T07:21:26Z",
+    "readyAt": "2026-11-03T05:35:33Z",
+    "convertedToDraftAt": null
+  }
+}
