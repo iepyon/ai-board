@@ -5,7 +5,7 @@ created: '2026-11-03T11:40:25.100Z'
 skipGates:
   - plan
   - verify
-branch: null
+branch: decide-guard
 mr: null
 ---
 
