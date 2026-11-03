@@ -145,9 +145,9 @@ hook は道だけを見るので、試しのサーバの `/api/cards` も拒む�
 
 ### 2. 手順書とドキュメントを今の形に書き直す
 
-- [ ] `.claude/skills/board-loop/subagent-rules.md` のハードルールに、人の API と `board-decide` は hook でも拒まれることと、
+- [x] `.claude/skills/board-loop/subagent-rules.md` のハードルールに、人の API と `board-decide` は hook でも拒まれることと、
       試しのサーバでもカードの API（`/api/cards`・`/api/idea-divider`）は叩けないので e2e で確かめることを書く
-- [ ] `CLAUDE.md` の「手順書の決まりで、技術的には止めていない」を、サブエージェントは hook で拒み、監視役は手順書の決まりで守る、に直す
-- [ ] `README.md` のループの許可ルールの節（境界の本体の行）と、`docs/architecture.md` に hook の置き場所と拒む範囲を書く
-- [ ] `docs/adr/0007-board-decide.md` の決定・結果・退けた案を今の形に書き直す（サブエージェントは hook で拒む、監視役は決まり、文字列の照合の限界、`.claude/settings.json` に置かない理由）。
+- [x] `CLAUDE.md` の「手順書の決まりで、技術的には止めていない」を、サブエージェントは hook で拒み、監視役は手順書の決まりで守る、に直す
+- [x] `README.md` のループの許可ルールの節（境界の本体の行）と、`docs/architecture.md` に hook の置き場所と拒む範囲を書く
+- [x] `docs/adr/0007-board-decide.md` の決定・結果・退けた案を今の形に書き直す（サブエージェントは hook で拒む、監視役は決まり、文字列の照合の限界、`.claude/settings.json` に置かない理由）。
       `docs/adr/0012-loop-permissions.md` の「境界の本体」の行も合わせる
