@@ -54,7 +54,7 @@ const USAGE = `使い方: ai-board [options]
        ai-board init [--root <path>]              空のデータ用ブランチを作る（ai-board init --help）
        ai-board pr <command> [--root <path>]      PR の読み書き（gh api の REST。ai-board pr --help）
        ai-board loop <start|finish> [--root <path>]
-                                                  ループの 1 手の記録を書く（監視役だけが使う。ai-board loop --help）
+                                                  ループの 1 手の記録を書く（ループだけが使う。ai-board loop --help）
        ai-board dist-check [--root <path>]       dist/ が HEAD のコミットより古いかを確かめる（古ければ終了コード 1）
 
 計画ファイル駆動のローカル Web ダッシュボードを起動します。
@@ -244,7 +244,7 @@ async function runStatus(argv: readonly string[]): Promise<number> {
 }
 
 /**
- * `loop` サブコマンド。ループの監視役が 1 手の記録をデータ用ブランチの `loop/` に書く。
+ * `loop` サブコマンド。ループ（本筋のセッション）が 1 手の記録をデータ用ブランチの `loop/` に書く。
  *
  * カードについては、ある ID のカードがあるかを読むだけで、書き込みの口は渡さない。
  */

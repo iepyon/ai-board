@@ -10,7 +10,7 @@ import { summarizeLoop, type BoardLoop } from '../../shared/loop-activity.js';
  * 次の一手の 1 行。無ければ、GitHub につながっているかで理由を分ける。
  *
  * `implement` の手では段（`next.step`）を `段=task` のように添える。
- * 段を読めなかった（`step` が null）ときは `段=不明` とし、監視役が `board-worker` に渡すことが分かるようにする
+ * 段を読めなかった（`step` が null）ときは `段=不明` とし、ループが `implement.md` で計画を読み直して段を確かめることが分かるようにする
  */
 export function describeNext(next: NextAction | null, forge: ForgeConnection): string {
   if (next !== null) return `${next.action} ${next.cardId}${describeStep(next)}（${next.reason}）`;

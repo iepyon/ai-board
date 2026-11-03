@@ -131,7 +131,7 @@ export function hasRunningStep(steps: readonly Pick<LoopStep, 'result'>[]): bool
 // 詳細パネルの「ループの手」の書式
 // ------------------------------------------------------------
 
-/** サブエージェントが動いていた時間。「35 秒」「1 分 35 秒」「2 時間 5 分」。無ければ「—」 */
+/** 1 手の始まりから終わりまでの時間。「35 秒」「1 分 35 秒」「2 時間 5 分」。無ければ「—」 */
 export function formatDurationMs(ms: number | null): string {
   if (ms === null || !Number.isFinite(ms) || ms < 0) return '—';
 

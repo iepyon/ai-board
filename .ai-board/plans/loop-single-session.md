@@ -202,8 +202,8 @@ ADR 0013 の続け方（AI の番を作る判断の後に 1 周を続ける）�
 
 ### 3. ドキュメントと ADR
 
-- [ ] `docs/adr/0011-loop-roles.md` と `docs/adr/0014-continue-loop-on-handback.md` を、Decisions の「ADR」のとおり書き直す（ファイル名も今の判断に合わせて `git mv` してよい）。`docs/adr/README.md` の表を合わせる
-- [ ] `docs/adr/0007`・`0008`・`0012`・`0013` の、監視役・作業者・サブエージェントの言葉を今の形に合わせる
-- [ ] `README.md` の「AI ループ」「ループの 1 手の記録」「クラウドのセッションで回す」と、`docs/architecture.md` の「ループの 1 手の記録」と段の渡し先、`docs/specs/loop-activity/spec.md` を直す
-- [ ] `CLAUDE.md` の「読む場所」のループの手順書、書き込み境界の表の「ループの監視役」の行、hook の段落を直す
-- [ ] `src/` の docstring と画面の注記（`loop-activity.ts`・`board-log.ts`・`timeline.ts`・`impl-step.ts`・`next-action.ts`・`status-describe.ts`・`branch-plan.repository.ts`・`cli-main.ts`・`dist-check-cli.ts`・`LoopSteps.tsx`）の監視役・サブエージェント・`board-worker` への言及を直す。判定と表示の振る舞いは変えない
+- [x] `docs/adr/0011-loop-roles.md` と `docs/adr/0014-continue-loop-on-handback.md` を、Decisions の「ADR」のとおり書き直す（ファイル名も今の判断に合わせて `git mv` してよい）。`docs/adr/README.md` の表を合わせる
+- [x] `docs/adr/0007`・`0008`・`0012`・`0013` の、監視役・作業者・サブエージェントの言葉を今の形に合わせる
+- [x] `README.md` の「AI ループ」「ループの 1 手の記録」「クラウドのセッションで回す」と、`docs/architecture.md` の「ループの 1 手の記録」と段の渡し先、`docs/specs/loop-activity/spec.md` を直す
+- [x] `CLAUDE.md` の「読む場所」のループの手順書、書き込み境界の表の「ループの監視役」の行、hook の段落を直す
+- [x] `src/` の docstring と画面の注記（`loop-activity.ts`・`board-log.ts`・`timeline.ts`・`impl-step.ts`・`next-action.ts`・`status-describe.ts`・`branch-plan.repository.ts`・`cli-main.ts`・`dist-check-cli.ts`・`LoopSteps.tsx`）の監視役・サブエージェント・`board-worker` への言及を直す。判定と表示の振る舞いは変えない

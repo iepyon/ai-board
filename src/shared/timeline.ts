@@ -69,7 +69,7 @@ export interface TimelineSegment {
  * AI の区間の中の小区間の種類。
  *
  * - `wait`: ループが拾うまでの待ち（区間の中で、どの手も動いていない時間）
- * - `work`: 作業者（サブエージェント）が動いていた時間（ループの 1 手の記録が重なる時間）
+ * - `work`: ループが手を進めていた時間（ループの 1 手の記録が重なる時間）
  */
 export type TimelinePhaseKind = 'wait' | 'work';
 
