@@ -32,7 +32,7 @@ interface LogEntryBase {
   readonly cardTitle: string;
 }
 
-/** ループの 1 手（監視役がサブエージェントに渡してから報告を受けるまで） */
+/** ループの 1 手（本筋のセッションが手を始めてから終えるまで） */
 export interface LoopLogEntry extends LogEntryBase {
   readonly kind: 'loop';
   readonly step: LogCard['loopSteps'][number];

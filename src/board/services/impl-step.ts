@@ -9,11 +9,11 @@ import {
 // ============================================================
 
 /**
- * `implement` の手で、監視役が次に誰を立てるかを決める段。
+ * `implement` の手で、ループが自分で進めるか `board-reviewer` を立てるかを決める段。
  *
- * - `task`: 未チェックのタスクがある（`board-worker` に渡す）
- * - `review`: 全部倒れていて、`## AI レビュー` 節が無い（`board-reviewer` に渡す）
- * - `close`: 全部倒れていて `## AI レビュー` 節がある、または計画が archive 済み（`board-worker` に渡す）
+ * - `task`: 未チェックのタスクがある（本筋のセッションが `implement.md` で進める）
+ * - `review`: 全部倒れていて、`## AI レビュー` 節が無い（`board-reviewer` のサブエージェントを立てる）
+ * - `close`: 全部倒れていて `## AI レビュー` 節がある、または計画が archive 済み（本筋のセッションが `implement.md` で進める）
  *
  * 段はステージではない。列の導出（`stage-resolver.ts`）には使わない。
  */
@@ -26,7 +26,7 @@ export type ImplStepPlan =
 const AI_REVIEW_HEADING = '## AI レビュー';
 
 /**
- * 計画から段を決める純関数。判定は `board-worker.md` の段の表と同じ順にする。
+ * 計画から段を決める純関数。判定は `.claude/skills/board-loop/implement.md` の段の表と同じ順にする。
  *
  * | 計画の状態                                | 段       |
  * | ----------------------------------------- | -------- |

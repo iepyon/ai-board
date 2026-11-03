@@ -14,6 +14,7 @@ import {
   type LoopStep,
 } from '../../shared/loop-step.js';
 import { fromLogStamp, toLogStamp } from '../../cards/repositories/card-files.js';
+import { segmentMs } from '../../shared/board-metrics.js';
 import type { ImplStep } from '../services/impl-step.js';
 import type { NextActionKind } from '../services/next-action.js';
 
@@ -303,6 +304,9 @@ export interface LoopFinishInput {
 /**
  * 終了を書く。そのループの終わっていない記録を 1 つ選び、終了・結果・トークン・時間を埋める。
  *
+ * 時間（`durationMs`）が渡されなければ、記録の開始から終了までのミリ秒で埋める（0 未満なら 0）。
+ * 手の始まりの時刻を持っているのは記録だけなので、本筋のセッションに時間を測らせない。
+ *
  * 終わっていない記録が無い、または `cardId` が食い違えば拒む。
  * 終わっていない記録が 2 つ以上残っていれば（開始が閉じるので通常は起きない）、最も新しいものを選ぶ。
  */
@@ -333,7 +337,8 @@ export function writeLoopFinish(
     finishedAt,
     result: input.result,
     tokens: input.tokens,
-    durationMs: input.durationMs,
+    durationMs:
+      input.durationMs ?? segmentMs({ start: target.step.startedAt, end: finishedAt }, finishedAt),
   };
   fs.writeFileSync(path.join(dataDir, LOOP_DIR, target.file), serializeLoopStep(finished));
 

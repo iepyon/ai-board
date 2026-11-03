@@ -8,7 +8,7 @@ import { describeCliError, type CliRunner } from './cli-runner.js';
 // ============================================================
 
 /**
- * ループの監視役（`/board-loop`）と `board-decide` が、`status` を読む前に `dist/` を作り直すかを決めるのに使う。
+ * ループ（`/board-loop`）と `board-decide` が、`status` を読む前に `dist/` を作り直すかを決めるのに使う。
  *
  * 以前は手順書が `node -e` で `dist/cli.js` の mtime と HEAD のコミット時刻を比べていたが、
  * `node -e` は任意のコードを走らせられるので許可ルールの `allow` に入れられず、毎周に確認が出ていた。

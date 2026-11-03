@@ -11,10 +11,10 @@ import type { ImplStep } from './impl-step.js';
  * ループが 1 周で行う作業の種類。
  *
  * - `implement`   実装中で、動作確認をまだ頼んでいない。計画の状態から決まる段を進める
- *                 （タスクを倒す段から、AI レビューの後なら締めの段まで続けて進むことがある。レビューの段の前では止まる）。
+ *                 （タスクを倒す段から、AI レビューの後なら締めの段まで続けて進むことがある。レビューの段の前で手を終える）。
  *                 段はここでは分けず、`status` の CLI がカードのブランチの計画を読んで `NextAction.step` に載せる
  *                 （未チェックのタスクがあれば `task` / 倒し終えて `## AI レビュー` 節が無ければ `review` /
- *                 節があるか archive 済みなら `close`。監視役は段が `review` なら `board-reviewer`、それ以外は `board-worker` を選ぶ）
+ *                 節があるか archive 済みなら `close`。ループは段が `review` なら `board-reviewer` を立て、それ以外は自分で進める）
  * - `revise-impl` 実装中で、動作確認の最新の判断が 否決。理由を読んで直し、動作確認を頼み直す
  * - `ready`       実装中で、verify ゲートを通った（人の承認、または verify を飛ばすカードの 提出 / 再提出）。
  *                 計画を archive へ移し、PR を Ready にする

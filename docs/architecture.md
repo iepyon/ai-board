@@ -78,7 +78,7 @@ AI の列（計画提案中 / 実装中）にいても、人の判断を待っ�
 
 - 実装中で、人の最新の判断より後に PR が Draft に戻された（`mrState.convertedToDraftAt`）。
   verify の状態より先に見るので、`ready` も、動作確認を飛ばすカードの `implement` も Ready にし直さない
-- 実装中で、verify の最新が 保留（`board-worker` が `card hold --gate verify` を書いた）
+- 実装中で、verify の最新が 保留（ループが `revise-impl` で `card hold --gate verify` を書いた）
 - 計画提案中で、plan の最新が 保留
 - 計画提案中で、plan が提出済みなのに計画ファイルも Draft の PR も見えない（作り直すと PR を二重に作りかねない）。
   PR の状態を引けていない（取得先に未接続、または起動直後で初回の取得前。`MrStateProvider.synced`）ときは、
@@ -167,7 +167,7 @@ verify を飛ばすカードの `verify 提出` / `verify 再提出` も承認�
   進捗バー（`plan.repository.ts`）と共有する。コードブロックの中のチェックボックスと見出しは数えない。閉じていないフェンスは無いものとして後ろの行を数える
 - 読めない（`branch` が null、ブランチや計画が無い、`git` が失敗した）ときは例外を投げず `step` を `null` にし、`status` 自体は成功させる。
   人向けの数行（`--json` を付けない形）では `段=task` のように添え、`null` は `段=不明` と出す（`status-describe.ts`）
-- 監視役は `review` なら `board-reviewer`、`task` / `close` / `null` なら `board-worker` に渡す。
+- ループ（本筋のセッション）は、`review` なら `board-reviewer` のサブエージェントを前景で立て、`task` / `close` / `null` なら `board-loop` の `implement.md` の手順で自分で進める。
   段はステージではなく、サーバ（`GetBoardQuery`）とステージの導出（`stage-resolver.ts`）はブランチの計画を読まない
   GitHub に接続できないとき（`forge.status` が `connected` でないとき）は `next` を `null` にする。
 
@@ -198,7 +198,7 @@ Windows の `process.kill(pid, 'SIGTERM')` は強制終了になり `server.json
   タブはラジオボタンと CSS だけで切り替え、スクリプトを使わない（`--session` の無いページにスクリプトを入れないため）
 - 今のタブには、画面と同じ振り分け（`groupBySection`）で判断待ち・AI 作業中（ループが触っていれば今の手）・アイデア（`ideaRows` の並びと区切り線）を並べる
 - ログのタブには、全カードのループの手（`loopSteps`）と判断の記録（`reviews`）を、`src/shared/board-log.ts` の `buildBoardLog`（純関数）で新しい順の 1 本にして出す。
-  多くても `BOARD_LOG_LIMIT`（200）件で、省いた件数を添える。サブエージェントの中の動きはボードのデータに無いので出せない
+  多くても `BOARD_LOG_LIMIT`（200）件で、省いた件数を添える。手の中の動き（コミットやコマンド）はボードのデータに無いので出せない
 - 振り返りのタブの頭に集計を置く。集計は `src/shared/board-metrics.ts` の `computeBoardMetrics`（純関数。今の時刻は読まない。区間を数えるのはマージ済みのカードだけで、閉じていない区間はマージの時刻（無ければ計画の最終更新）で閉じ、どちらも無いカードは工程と人の番の割合から除く。中止したカードは入れない）。
   主な数字・工程ごとの滞在時間（マージ済みのカードごとに同じ種類の区間を足し、カードを並べた中央値。いちばん長い工程がボトルネック）・日ごとのマージ数（UTC の日付）・
   ループの手の種類ごとの回数と平均（`durationMs` / `tokens` が null の記録は除き、除いた件数を出す）・手の結果の内訳を出す
@@ -384,15 +384,16 @@ AI の区間では、そのカードのループの 1 手の記録を区間の�
 
 ## ループの 1 手の記録
 
-監視役（`/board-loop`）がサブエージェントに 1 手を渡してから報告を受けるまでを、1 件の記録としてデータ用ブランチの `loop/` に置く。
-`tokens` / `durationMs` は、報告と同じ手番に完了の通知（`usage`）が届いていたときだけ埋まり、届いていなければ `null` のまま閉じる。
+ループ（`/board-loop` を動かした本筋のセッション）が 1 手を始めてから終えるまでを、1 件の記録としてデータ用ブランチの `loop/` に置く。
+本筋のセッションが手の始まりに `start`、終わりに `finish` を書く。`agent` はレビューの段で立てた `board-reviewer` の名前で、自分で進めた手は `null`。
+`durationMs` は `finish` に `--duration-ms` が無ければ開始から終了までのミリ秒で埋まる（0 未満は 0）。`tokens` は `board-reviewer` の結果に載っていたときだけ埋まる。
 型と語は `src/shared/loop-step.ts`、ファイルの形と読み書きは `src/board/repositories/loop-history.repository.ts`、CLI は `src/board/cli/loop-cli.ts`。
 
 - ファイル名は `loop/<開始の時刻>.<ループの識別子>.json`。時刻は判断のファイルと同じ `toLogStamp` の形で、同じ時刻と識別子が重なれば `-2` を付ける。
   識別子は `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`（ファイル名に入るため）
 - 中身は `{ loop, cardId, action, step, agent, startedAt, finishedAt, result, tokens, durationMs }`。
   開始で `finishedAt` / `result` / `tokens` / `durationMs` を `null` にして作り、終了で 1 度だけ埋める。終わった記録は書き換えない
-- `result` は `advanced` / `held` / `stopped`（報告の `結果:` の語）、`failed`（`Agent` の失敗）、`unknown`（結果の語が無い）、`interrupted`（途切れた）
+- `result` は `advanced` / `held` / `stopped`（手の終わりの `結果:` の語）、`failed`（`board-reviewer` の `Agent` の失敗）、`unknown`（結果の語が無い）、`interrupted`（途切れた）
 - `ai-board loop start` は、同じループに終わっていない記録が残っていれば `interrupted` で閉じてから作る（閉じた時刻は新しい手の開始）。
   `finish` は、そのループの終わっていない記録を埋め、無いか `--card` が食い違えば拒む。`interrupted` は渡せない
 - どちらも `DataStore.transact` の 1 操作で、コミットのメッセージは `loop: <start|finish> <cardId> <手>`。`DATA_PATHS` に `loop` を足してある

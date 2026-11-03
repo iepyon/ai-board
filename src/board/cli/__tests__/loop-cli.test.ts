@@ -170,16 +170,36 @@ describe('start と finish', () => {
     expect(originLog()[0]).toBe('loop: start card-a revise-impl');
   });
 
-  it('トークンと時間は省略できる', async () => {
+  it('トークンと時間は省略できる。時間を省くと開始から終了までのミリ秒で埋まる', async () => {
     await run(...START);
+    now = new Date('2026-11-02T11:14:09.500Z');
     expect(
       await run('finish', '--loop', 'session-a', '--card', 'card-a', '--result', 'unknown')
     ).toBe(0);
     expect(readLoopSteps(dataDir)[0]).toMatchObject({
       result: 'unknown',
       tokens: null,
-      durationMs: null,
+      durationMs: 3500,
     });
+  });
+
+  it('--duration-ms を渡したときは、開始からの時間ではなくその値を使う', async () => {
+    await run(...START);
+    now = new Date('2026-11-02T11:14:09.500Z');
+    expect(
+      await run(
+        'finish',
+        '--loop',
+        'session-a',
+        '--card',
+        'card-a',
+        '--result',
+        'advanced',
+        '--duration-ms',
+        '1234'
+      )
+    ).toBe(0);
+    expect(readLoopSteps(dataDir)[0]).toMatchObject({ durationMs: 1234 });
   });
 });
 
