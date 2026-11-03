@@ -24,7 +24,7 @@ ranks:
   loop-resume-after-decide: 5000
   loop-task-batch: 2000
   loop-worker-dummy: 33000
-  merged-before-ready: 8921.875
+  merged-before-ready: 8867.1875
   node-lts: 4000
   plan-visual: 22265.31982421875
   pr-checks: 14245.1171875
