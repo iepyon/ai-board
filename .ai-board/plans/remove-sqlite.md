@@ -168,7 +168,7 @@
 
 ## AI レビュー
 
-- [ ] `src/cards/controllers/card-error-mappings.ts:137` の `DataBranchMissing`（`DATA_BRANCH_MISSING`）の文は「ai-board init を走らせてください」で終わり、CLI の `describeDataStoreError`（`src/cards/cli/data-store-messages.ts:17`）にある「移行前の board.db があるなら、README の『board.db からの切り替え』を見てください」が無い。Decisions「データ用ブランチが無いときの案内は `board.db` を見ない」は案内を 1 通りにすると決めており、画面だけを見た `board.db` の持ち主が `init` を先に走らせると、`d2380ce` の `migrate` が `DataBranchExists` で止まる。HTTP の文にも同じ README への案内を足し、`card-error-mappings` のテスト（無ければ `src/cards/controllers/__tests__/` に足す）で `DataBranchMissing` の文が `ai-board init` と「board.db からの切り替え」を含むことを確かめる
+- [x] `src/cards/controllers/card-error-mappings.ts:137` の `DataBranchMissing`（`DATA_BRANCH_MISSING`）の文は「ai-board init を走らせてください」で終わり、CLI の `describeDataStoreError`（`src/cards/cli/data-store-messages.ts:17`）にある「移行前の board.db があるなら、README の『board.db からの切り替え』を見てください」が無い。Decisions「データ用ブランチが無いときの案内は `board.db` を見ない」は案内を 1 通りにすると決めており、画面だけを見た `board.db` の持ち主が `init` を先に走らせると、`d2380ce` の `migrate` が `DataBranchExists` で止まる。HTTP の文にも同じ README への案内を足し、`card-error-mappings` のテスト（無ければ `src/cards/controllers/__tests__/` に足す）で `DataBranchMissing` の文が `ai-board init` と「board.db からの切り替え」を含むことを確かめる
 
 ### 見送った指摘
 

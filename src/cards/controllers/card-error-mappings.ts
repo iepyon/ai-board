@@ -134,7 +134,7 @@ export function mapCardWriteFailureToResponse(error: CardWriteFailure): ErrorRes
         status: 500,
         response: {
           code: 'DATA_BRANCH_MISSING',
-          message: `データ用ブランチ（origin の ai-board/data）がありません（${error.dataDir}）。ai-board init を走らせてください`,
+          message: `データ用ブランチ（origin の ai-board/data）がありません（${error.dataDir}）。ai-board init を走らせてください。移行前の board.db があるなら、README の「board.db からの切り替え」を見てください`,
         },
       };
     case 'DataDirNotRepository':
