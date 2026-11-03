@@ -1,0 +1,12 @@
+{
+  "loop": "ef48b186-3beb-537b-996b-6208a75075dc",
+  "cardId": "board-artifact-dashboard",
+  "action": "ready",
+  "step": null,
+  "agent": "board-worker-board-artifact-dashboard-0947",
+  "startedAt": "2026-11-03T09:47:24.550Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
