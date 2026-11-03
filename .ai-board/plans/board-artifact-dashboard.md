@@ -234,3 +234,20 @@
 
 - [x] `docs/adr/0015-dashboard-refresh-via-session.md` を `adr` のスキルで書く（ボタンからセッションに頼む経路を採り、GitHub から読んでページで導出する経路・型を使う経路を退けた理由）
 - [x] `README.md` の「ボードを見せて」と、`docs/architecture.md` の `status` の節に、ダッシュボード・`--session`・更新ボタンを書く
+
+## AI レビュー
+
+- [ ] `src/shared/board-metrics.ts:127` の `computeBoardMetrics` は、計画が archive されて `merged` になったが `mrState.mergedAt` が無いカード（PR の無いカード、GitHub が読めず `mrState` が null のとき）もマージ済みとして集計する。`resolveTimeline`（`src/board/services/stage-timeline.ts:112`）は `mergedAt` が無いと最後の区間を閉じないので、`stageDurations` と `humanShare` がその区間を `generatedAt` まで数え、出し直すたびに工程の中央値・ボトルネック・人の番の割合が伸び続ける。`MetricsCard` にマージの時刻の代わり（`status-html.ts:170` と同じ `mrState.mergedAt ?? plan.updatedAt`）を渡し、マージ済みのカードの `end: null` の区間はその時刻で閉じる（時刻が無ければそのカードを工程と割合の集計から除く）。そのテストを `src/shared/__tests__/board-metrics.test.ts` に足す
+- [ ] `src/board/cli/status-charts.ts:74` の `renderStageChart` は、いちばん長い棒（必ずボトルネック）の値のラベルを `x = 150 + 320 + 6 = 476` から描くので、残りの 164 単位に `3日 23時間（AI・12 枚） ボトルネック` のような文字が収まらず、SVG の外で切れる（`.chart` は `overflow` を指定しておらず、インラインの SVG は既定で外を隠す）。色に頼らない唯一の印の「ボトルネック」が消える。値の欄（`STAGE_VALUE_WIDTH`）を広げて棒の領域を縮めるか、ボトルネックの印を工程名の側（左のラベル）に移すなどして、最長の棒のラベルが viewBox に収まるようにし、テストで最長の棒のラベルの書き出し位置と viewBox の幅を見る
+
+### 見送った指摘
+
+- `src/board/cli/status-html.ts:279` のループの手の表は、平均の時間を `formatDuration`（分で切り捨て、1 分未満は `1分未満`）で出し、`src/shared/loop-activity.ts` の `formatDurationMs` / `formatTokens` と書き方が違う。`status-html.ts:305` の `実行中` も、`loop-activity.ts` の `describeResult` の `動作中` と言葉が違う。表示の揃え方と重複の整理で振る舞いは壊れないので見送る
+- `src/shared/board-metrics.ts:290` の `loopActionMetrics` は、まだ終わっていない手（`result` が null で `durationMs` / `tokens` も null）も件数に入れ、`記録なし` の件数に数える。計画の決まり（null を除いて平均を出し、除いた件数を返す）どおりで、平均は狂わないので見送る
+- `src/board/cli/status-html.ts:377` の更新ボタンは、`send_message` が一度でも拒否されると（一時的な失敗でも）ボタンを隠し、ページを読み直すまで戻らない。計画の Decisions（拒否されたらボタンを隠して案内の文を出す）どおりで、読み直せば戻るので見送る
+- `src/shared/board-metrics.ts:209` の `stageDurations` は、カードごとに工程の配列を作り直していて、マージ済みの枚数の 2 乗に比例する。ボードの枚数では効かないので見送る
+
+### 人に判断してほしいこと
+
+- `src/shared/board-metrics.ts:205` の工程ごとの滞在時間と人の番の割合に、`idea` の区間（起票から着手まで。持ち主は人）が入る。着手を待つ時間がほぼいつもいちばん長くなるのでボトルネックはアイデアになりやすく、人の番の割合も高く出る。主な数字の着手からマージまでは着手から数えるので、数字どうしの基準もずれる。計画の Decisions（工程はすべての区間、割合は全区間の合計で割る）どおりの実装で、`idea` を外すかは人が決める
+- `src/shared/board-metrics.ts:236` の `countDailyMerges` は最初のマージの日から最後のマージの日まで 1 日ずつ並べ、`src/board/cli/status-charts.ts:114` はその日数に比例した幅の SVG を `width: 100%` に縮めて描く。履歴が数か月になると棒と日付が読めないほど細くなる。計画の Decisions は範囲を切らない形なので、直近 30 日などに切るか、どの幅にするかは人が決める
