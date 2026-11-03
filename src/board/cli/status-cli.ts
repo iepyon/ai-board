@@ -46,7 +46,7 @@ function isStatusKey(key: string): key is keyof StatusReport {
   return Object.hasOwn(STATUS_KEY_KINDS, key);
 }
 
-export const STATUS_USAGE = `使い方: ai-board status [--json [--only <項目,...>] | --html] [--root <path>]
+export const STATUS_USAGE = `使い方: ai-board status [--json [--only <項目,...>] | --html [--session <id>]] [--root <path>]
 
 ボードの状態（導出したステージ、判断待ち、次の一手）を出します。サーバは要りません。
   --json   機械向けの JSON で出す（AI ループはこちらを読む）
@@ -54,8 +54,14 @@ export const STATUS_USAGE = `使い方: ai-board status [--json [--only <項目,
            --json の出力を、コンマ区切りの項目だけに絞る。項目は <key>（最上位の項目）か
            <key>.<field>（最上位の配列の各要素から <field> だけ）。例: --only next,waiting,cards.id
            最上位の項目: ${STATUS_KEYS.join(', ')}
-  --html   ボードを 1 枚の自己完結の HTML で出す（Artifact として公開して読む）
+  --html   ボードを 1 枚の自己完結の HTML（ダッシュボード）で出す（Artifact として公開して読む）
+  --session <id>
+           --html のページに更新ボタンを入れ、押すとこのセッション（session_...）に更新を頼む。
+           無ければボタンもスクリプトも入れず、チャットで頼む案内だけを出す
 `;
+
+/** `--session` に渡せるセッション ID の形。ページのスクリプトに埋め込むので、英数字だけに絞る */
+export const SESSION_ID_PATTERN = /^session_[A-Za-z0-9]{1,128}$/;
 
 interface CardSummary {
   readonly id: string;
@@ -116,7 +122,14 @@ export interface StatusDependencies {
 export type StatusFormat = 'text' | 'json' | 'html';
 
 export type StatusArgs =
-  { readonly format: StatusFormat; readonly only?: readonly StatusField[] } | 'help' | 'invalid';
+  | {
+      readonly format: StatusFormat;
+      readonly only?: readonly StatusField[];
+      /** 更新ボタンが頼む先のセッション。`--html` のときだけ */
+      readonly session?: string;
+    }
+  | 'help'
+  | 'invalid';
 
 /**
  * `--only` の 1 項目。`field` が null なら最上位の項目をそのまま出し、
@@ -137,34 +150,60 @@ export function parseStatusArgs(argv: readonly string[]): StatusArgs {
   const scanned = scanStatusArgs(argv);
   if (scanned === null) return 'invalid';
 
-  const { json, html, only } = scanned;
-  // 2 つの形を同時には出せない。絞り込みは JSON にだけ効く
-  if (json && html) return 'invalid';
-  if (only !== null && !json) return 'invalid';
+  const format = pickFormat(scanned);
+  if (format === null) return 'invalid';
 
-  const format = json ? 'json' : html ? 'html' : 'text';
-  return only === null ? { format } : { format, only };
+  const { only, session } = scanned;
+  return {
+    format,
+    ...(only === null ? {} : { only }),
+    ...(session === null ? {} : { session }),
+  };
 }
 
-/** 引数を 1 つずつ読む。不明な引数や、2 回目の `--only`、`--only` の値の誤りは null */
-function scanStatusArgs(argv: readonly string[]): {
-  readonly json: boolean;
-  readonly html: boolean;
-  readonly only: readonly StatusField[] | null;
-} | null {
-  let json = false;
-  let html = false;
-  let only: readonly StatusField[] | null = null;
+/**
+ * 出す形を決める。2 つの形を同時には出せない。絞り込みは JSON にだけ、セッションは HTML にだけ効く。
+ * 組み合わせが誤っていれば null
+ */
+function pickFormat({ json, html, only, session }: ScannedStatusArgs): StatusFormat | null {
+  if (json && html) return null;
+  if (only !== null && !json) return null;
+  if (session !== null && !html) return null;
+
+  return json ? 'json' : html ? 'html' : 'text';
+}
+
+interface ScannedStatusArgs {
+  json: boolean;
+  html: boolean;
+  only: readonly StatusField[] | null;
+  session: string | null;
+}
+
+/**
+ * 引数を 1 つずつ読む。不明な引数や、2 回目の `--only` / `--session`、
+ * `--only` の値の誤り、`--session` の値が `SESSION_ID_PATTERN` に合わないものは null
+ */
+function scanStatusArgs(argv: readonly string[]): ScannedStatusArgs | null {
+  const scanned: ScannedStatusArgs = { json: false, html: false, only: null, session: null };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === '--json') json = true;
-    else if (arg === '--html') html = true;
-    else if (arg === '--only' && only === null) {
-      only = parseOnly(argv[++i]);
-      if (only === null) return null;
+    if (arg === '--json') scanned.json = true;
+    else if (arg === '--html') scanned.html = true;
+    else if (arg === '--only' && scanned.only === null) {
+      scanned.only = parseOnly(argv[++i]);
+      if (scanned.only === null) return null;
+    } else if (arg === '--session' && scanned.session === null) {
+      scanned.session = parseSession(argv[++i]);
+      if (scanned.session === null) return null;
     } else return null;
   }
-  return { json, html, only };
+  return scanned;
+}
+
+/** `--session` の値。形が合わなければ null（ページのスクリプトに埋め込む前に弾く） */
+function parseSession(value: string | undefined): string | null {
+  return value !== undefined && SESSION_ID_PATTERN.test(value) ? value : null;
 }
 
 /**
@@ -244,7 +283,7 @@ export async function runStatusCli(
 
   io.stdout(
     args.only === undefined
-      ? formatReport(report, args.format)
+      ? formatReport(report, args.format, args.session ?? null)
       : `${JSON.stringify(pickFields(report, args.only), null, 2)}\n`
   );
   return 0;
@@ -280,12 +319,12 @@ async function readImplStep(
   return plan === null ? null : resolveImplStep(plan);
 }
 
-function formatReport(report: StatusReport, format: StatusFormat): string {
+function formatReport(report: StatusReport, format: StatusFormat, session: string | null): string {
   switch (format) {
     case 'json':
       return `${JSON.stringify(report, null, 2)}\n`;
     case 'html':
-      return formatStatusHtml(report);
+      return formatStatusHtml(report, { session });
     case 'text':
       return formatStatus(report);
   }

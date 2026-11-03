@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import type { Board, BoardCard, BoardCardMr } from '../../models/board-card.js';
 import { buildStatusReport } from '../status-cli.js';
-import { escapeHtml, formatStatusHtml } from '../status-html.js';
+import {
+  PR_LINK_ATTRIBUTES,
+  REFRESH_MESSAGE,
+  escapeHtml,
+  formatStatusHtml,
+  scriptJson,
+} from '../status-html.js';
 import type { BoardLoop } from '../../../shared/loop-activity.js';
 import type { LoopStep } from '../../../shared/loop-step.js';
 
@@ -33,6 +39,7 @@ function card(id: string, overrides: Partial<BoardCard> = {}): BoardCard {
     mrState: null,
     hold: null,
     timeline: [],
+    reviews: [],
     loopSteps: [],
     ...overrides,
   };
@@ -60,7 +67,8 @@ function mrState(overrides: Partial<BoardCardMr> = {}): BoardCardMr {
 function html(
   cards: readonly BoardCard[],
   ideaDivider: number | null = null,
-  loop: BoardLoop = { running: [], lastFinishedAt: null }
+  loop: BoardLoop = { running: [], lastFinishedAt: null },
+  session: string | null = null
 ): string {
   const board: Board = {
     cards,
@@ -71,7 +79,7 @@ function html(
     generatedAt: '2026-10-23T00:00:00.000Z',
   };
 
-  return formatStatusHtml(buildStatusReport(board, NOW));
+  return formatStatusHtml(buildStatusReport(board, NOW), { session });
 }
 
 /** 見出し `<h2>` で区切った区画の HTML。区画にどのカードが出るかを確かめる */
@@ -193,14 +201,16 @@ describe('formatStatusHtml の判断待ち', () => {
     expect(waiting).not.toContain('<button');
   });
 
-  it('PR の URL をリンクにし、Draft なら添える', () => {
+  it('PR の URL を外側の窓で開くリンクにし、Draft なら添え、URL を文字でも出す', () => {
     const page = html([
       card('reviewing', { stage: 'plan-review', mr: 12, mrState: mrState({ draft: true }) }),
     ]);
 
+    expect(PR_LINK_ATTRIBUTES).toBe('target="_top" rel="noreferrer"');
     expect(section(page, '判断待ち')).toContain(
-      '<a href="https://github.com/o/r/pull/12" target="_blank" rel="noreferrer">#12</a>（Draft）'
+      '<a href="https://github.com/o/r/pull/12" target="_top" rel="noreferrer">#12</a>（Draft） <span class="url">https://github.com/o/r/pull/12</span>'
     );
+    expect(page).not.toContain('target="_blank"');
   });
 
   it('PR の状態が引けなければ、番号だけを文字で出す', () => {
@@ -323,5 +333,125 @@ describe('formatStatusHtml の文字の扱い', () => {
 
   it('escapeHtml は & < > " \' を置き換える', () => {
     expect(escapeHtml(`a&b<c>d"e'f`)).toBe('a&amp;b&lt;c&gt;d&quot;e&#39;f');
+  });
+});
+
+// ============================================================
+// 集計
+// ============================================================
+
+describe('formatStatusHtml の集計', () => {
+  const mergedCard = card('done', {
+    stage: 'merged',
+    startedAt: '2026-10-20T00:00:00.000Z',
+    mrState: mrState({ state: 'merged', mergedAt: '2026-10-20T06:00:00.000Z' }),
+    reviews: [{ at: '2026-10-20T01:00:00.000Z', gate: 'plan', kind: '否決', reason: '' }],
+    timeline: [
+      {
+        kind: 'planning',
+        owner: 'ai',
+        start: '2026-10-20T00:00:00.000Z',
+        end: '2026-10-20T01:00:00.000Z',
+        phases: [],
+      },
+      {
+        kind: 'plan-review',
+        owner: 'human',
+        start: '2026-10-20T01:00:00.000Z',
+        end: '2026-10-20T06:00:00.000Z',
+        phases: [],
+      },
+    ],
+    loopSteps: [
+      {
+        loop: 'session-a',
+        cardId: 'done',
+        action: 'implement',
+        step: 'task',
+        agent: null,
+        startedAt: '2026-10-20T02:00:00.000Z',
+        finishedAt: '2026-10-20T02:30:00.000Z',
+        result: 'advanced',
+        tokens: 12345,
+        durationMs: 30 * 60 * 1000,
+      },
+    ],
+  });
+
+  it('判断待ちの区画の上に、主な数字・グラフ・ループの手の表を出す', () => {
+    const page = html([mergedCard, card('idea')]);
+    const metrics = page.slice(page.indexOf('<h2>集計</h2>'), page.indexOf('<h2>判断待ち '));
+
+    expect(page.indexOf('<h2>集計</h2>')).toBeGreaterThan(-1);
+    expect(page.indexOf('<h2>集計</h2>')).toBeLessThan(page.indexOf('<h2>判断待ち '));
+    expect(metrics).toContain('<dt>マージ済み</dt><dd>1 枚</dd>');
+    expect(metrics).toContain('<dt>着手からマージ（中央値）</dt><dd>6時間</dd>');
+    expect(metrics).toContain('<dt>人の番の割合（中央値）</dt><dd>83%</dd>');
+    expect(metrics).toContain('<dt>否決</dt><dd>1 枚・1 回</dd>');
+    expect(metrics).toContain('<dt>アイデアの残り</dt><dd>1 枚</dd>');
+    expect(metrics).toContain('ボトルネックは計画レビュー');
+    expect(metrics).toContain('data-date="2026-10-20"');
+    expect(metrics).toContain(
+      '<th scope="row">implement · task</th><td>1</td><td>30分</td><td>12,345</td>'
+    );
+    expect(metrics).toContain('<li>進めた <span class="count">1</span></li>');
+  });
+
+  it('集計の元が無ければ、数字は — にし、グラフと表は「まだありません」', () => {
+    const page = html([]);
+    const metrics = page.slice(page.indexOf('<h2>集計</h2>'), page.indexOf('<h2>判断待ち '));
+
+    expect(metrics).toContain('<dt>着手からマージ（中央値）</dt><dd>—</dd>');
+    expect(metrics.match(/まだありません/g)?.length).toBe(4);
+  });
+
+  it('色のトークンを明るい / 暗いの両方に持つ', () => {
+    const page = html([]);
+
+    expect(page.match(/--chart-human:/g)?.length).toBe(3);
+    expect(page.match(/--chart-ai:/g)?.length).toBe(3);
+  });
+});
+
+// ============================================================
+// 更新ボタン
+// ============================================================
+
+describe('formatStatusHtml の更新ボタン', () => {
+  it('session が無ければ、スクリプトもボタンも入れず、チャットで頼む案内を出す', () => {
+    const page = html([]);
+
+    expect(page).not.toMatch(/<script|<button/i);
+    expect(page).toContain('チャットで「ボードを見せて」と頼んでください');
+  });
+
+  it('session があれば、隠した更新ボタンと、セッション ID を埋め込んだスクリプトを入れる', () => {
+    const page = html([], null, undefined, 'session_01ABCDEF');
+
+    expect(page).toContain('<button type="button" id="refresh-button" hidden>更新</button>');
+    expect(page).toContain('チャットで「ボードを見せて」と頼んでください');
+    expect(page.match(/<script>/g)?.length).toBe(1);
+    expect(page).toContain('"session":"session_01ABCDEF"');
+    expect(page).toContain('"server":"Claude Code Remote"');
+    expect(page).toContain('"tool":"send_message"');
+    expect(page).toContain(scriptJson(REFRESH_MESSAGE));
+    expect(page).toContain("window.claude.use('mcp')");
+    expect(page).toContain('session_id: config.session, message: config.message');
+    expect(page).toContain('"timeoutMs":180000');
+    // 外部のファイルは読まない
+    expect(page).not.toMatch(/<link|src=/i);
+  });
+
+  it('埋め込む JSON の < は逃がし、</script> で抜けられない', () => {
+    expect(scriptJson({ session: 'x</script><script>alert(1)</script>' })).toBe(
+      '{"session":"x\\u003c/script>\\u003cscript>alert(1)\\u003c/script>"}'
+    );
+
+    const page = html([], null, undefined, 'session_01ABCDEF');
+    const script = page.slice(
+      page.indexOf('<script>') + '<script>'.length,
+      page.indexOf('</script>')
+    );
+    expect(script).not.toContain('<');
   });
 });

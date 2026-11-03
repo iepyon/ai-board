@@ -211,13 +211,13 @@
 
 ### 3. ダッシュボードのページと更新ボタン
 
-- [ ] `mcp__claude-code-remote__send_message` の入力の形（道具の上流の名前と、`session_id` / `message` の項目名）を、この会話の道具の定義で確かめ、計画の「設計」と食い違えば計画を直す
-- [ ] `status-html.ts` に、主な数字の行・グラフ・ループの手の表の区画を、判断待ちの区画の上に足す。`:root` の色のトークンを足す（明るい / 暗いの両方）
-- [ ] PR のリンクの属性を定数 1 か所にまとめて `target="_top"` にし、リンクの隣に URL の文字を出す
-- [ ] `status-cli.ts` に `--session <id>` を足す（`--html` のときだけ。形が合わなければ `invalid`）。`STATUS_USAGE` を直し、`formatStatusHtml` に `session` を渡す
-- [ ] `session` があるときだけ、更新ボタンとスクリプトを入れる。スクリプトは `claude.use("mcp")` → `send_message` で決まった文を送り、null や拒否ではボタンを隠して案内の文を出す。押した後は二度押しを止め、3 分で戻す。
+- [x] `mcp__claude-code-remote__send_message` の入力の形（道具の上流の名前と、`session_id` / `message` の項目名）を、この会話の道具の定義で確かめ、計画の「設計」と食い違えば計画を直す
+- [x] `status-html.ts` に、主な数字の行・グラフ・ループの手の表の区画を、判断待ちの区画の上に足す。`:root` の色のトークンを足す（明るい / 暗いの両方）
+- [x] PR のリンクの属性を定数 1 か所にまとめて `target="_top"` にし、リンクの隣に URL の文字を出す
+- [x] `status-cli.ts` に `--session <id>` を足す（`--html` のときだけ。形が合わなければ `invalid`）。`STATUS_USAGE` を直し、`formatStatusHtml` に `session` を渡す
+- [x] `session` があるときだけ、更新ボタンとスクリプトを入れる。スクリプトは `claude.use("mcp")` → `send_message` で決まった文を送り、null や拒否ではボタンを隠して案内の文を出す。押した後は二度押しを止め、3 分で戻す。
       セッション ID は JSON にして `<` を `<` に直して埋め込む。送る文は `status-html.ts` から `export` する定数にする（スキルの文と食い違わないよう、テストで見る）
-- [ ] テストを足す: `status-cli.test.ts`（`--session` の解釈、`--json` との組み合わせは `invalid`、不正な ID は `invalid`）/
+- [x] テストを足す: `status-cli.test.ts`（`--session` の解釈、`--json` との組み合わせは `invalid`、不正な ID は `invalid`）/
       `status-html.test.ts`（`session` が無ければ `<script` を含まない、あればボタンと ID が入る、ID の `<` がエスケープされる、集計の区画が出る、PR の URL の文字とリンクの属性）
 
 ### 4. スキル
