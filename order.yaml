@@ -53,7 +53,7 @@ ranks:
   status-html-catchup: 15853.02734375
   task-count-codeblock: 13000
   training-seed: 5750
-  typecheck-tests: 7968.75
+  typecheck-tests: -2750
   verify-evidence: 5500
   verify-gate: 34000
   windows-shell: 5000
