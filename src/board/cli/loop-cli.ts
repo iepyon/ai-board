@@ -23,11 +23,11 @@ import {
 } from '../repositories/loop-history.repository.js';
 
 // ============================================================
-// ai-board loop — ループの監視役が 1 手の記録を書くための CLI
+// ai-board loop — ループが 1 手の記録を書くための CLI
 // ============================================================
 
 /**
- * 監視役（`/board-loop`）だけが使う。書くのはデータ用ブランチの `loop/` のファイルだけで、カードには書かない。
+ * ループ（`/board-loop` を動かした本筋のセッション）だけが、手の始まりと終わりに使う。書くのはデータ用ブランチの `loop/` のファイルだけで、カードには書かない。
  *
  * カードについては「その ID のカードがあるか」を読む関数（`cardExists`）だけを受け取り、
  * カードのリポジトリの書き込みの口を持たない。`card-cli.ts` の書き込み境界には入口を足さない。
@@ -35,7 +35,8 @@ import {
  */
 export const LOOP_USAGE = `使い方: ai-board loop <command> [--root <path>]
 
-ループの監視役が、サブエージェントに渡した 1 手の記録を書く（データ用ブランチの loop/）。カードには書かない。
+ループ（/board-loop を動かした本筋のセッション）が、手の始まりと終わりに 1 手の記録を書く
+（データ用ブランチの loop/）。カードには書かない。
 
 Commands:
   start  --loop <id> --card <cardId> --action <手> [--step <段>] [--agent <name>]
@@ -44,9 +45,11 @@ Commands:
                            --step は ${LOOP_IMPL_STEPS.join(' / ')} で、implement のときだけ）
   finish --loop <id> --card <cardId> --result <結果> [--tokens <n>] [--duration-ms <n>]
                            そのループの終わっていない記録に、終了・結果・トークン・時間を埋める
-                           （--result は ${LOOP_FINISH_RESULTS.join(' / ')}）
+                           （--result は ${LOOP_FINISH_RESULTS.join(' / ')}。
+                           --duration-ms を省くと、開始から終了までの時間で埋める）
 
---loop はループの識別子（英数字と . _ -、64 文字まで）。監視役のセッション ID を渡す
+--loop はループの識別子（英数字と . _ -、64 文字まで）。本筋のセッションの ID を渡す
+--agent は手を進めたサブエージェントの名前。本筋のセッションが自分で進める手では渡さない
 `;
 
 export interface LoopCliIo {

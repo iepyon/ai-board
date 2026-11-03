@@ -214,6 +214,29 @@ describe('writeLoopFinish', () => {
     });
   });
 
+  it('時間が null なら、開始から終了までのミリ秒で埋める', () => {
+    unwrap(writeLoopStart(dataDir, START));
+    const finished = unwrap(
+      writeLoopFinish(dataDir, { ...FINISH, tokens: null, durationMs: null })
+    );
+
+    // 11:14:06 から 11:31:40 まで
+    expect(finished).toMatchObject({ tokens: null, durationMs: 1054000 });
+  });
+
+  it('終了が開始より前（時計の戻り）なら、時間は 0 にする', () => {
+    unwrap(writeLoopStart(dataDir, START));
+    const finished = unwrap(
+      writeLoopFinish(dataDir, {
+        ...FINISH,
+        durationMs: null,
+        finishedAt: '2026-11-02T11:14:00.000Z',
+      })
+    );
+
+    expect(finished.durationMs).toBe(0);
+  });
+
   it('終わった記録は書き換えない。2 度目の終了は終わっていない記録が無いので拒む', () => {
     unwrap(writeLoopStart(dataDir, START));
     unwrap(writeLoopFinish(dataDir, FINISH));

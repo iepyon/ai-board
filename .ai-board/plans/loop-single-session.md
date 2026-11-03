@@ -185,9 +185,9 @@ ADR 0013 の続け方（AI の番を作る判断の後に 1 周を続ける）�
 
 ### 1. `loop finish` が時間を埋める
 
-- [ ] `src/board/repositories/loop-history.repository.ts` の `finish` で、`input.durationMs` が `null` なら `startedAt` から `finishedAt` までのミリ秒（0 未満なら 0）で埋める
-- [ ] `src/board/repositories/__tests__/loop-history.repository.test.ts` と `src/board/cli/__tests__/loop-cli.test.ts` に、`--duration-ms` を省いたときに埋まること、渡したときはその値になることのテストを足す（今の「省いたら null」を確かめるテストがあれば直す）
-- [ ] `src/shared/loop-step.ts` の docstring（1 手の記録の説明、`agent` / `tokens` / `durationMs` / `failed` の意味）と `loop-cli.ts` の使い方の文を、本筋のセッションが手の始まりと終わりに書く形に直す
+- [x] `src/board/repositories/loop-history.repository.ts` の `finish` で、`input.durationMs` が `null` なら `startedAt` から `finishedAt` までのミリ秒（0 未満なら 0）で埋める
+- [x] `src/board/repositories/__tests__/loop-history.repository.test.ts` と `src/board/cli/__tests__/loop-cli.test.ts` に、`--duration-ms` を省いたときに埋まること、渡したときはその値になることのテストを足す（今の「省いたら null」を確かめるテストがあれば直す）
+- [x] `src/shared/loop-step.ts` の docstring（1 手の記録の説明、`agent` / `tokens` / `durationMs` / `failed` の意味）と `loop-cli.ts` の使い方の文を、本筋のセッションが手の始まりと終わりに書く形に直す
 
 ### 2. 手順書を本筋のセッションの形に移す
 
