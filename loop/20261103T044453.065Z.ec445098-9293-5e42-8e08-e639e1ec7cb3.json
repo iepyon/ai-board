@@ -1,0 +1,12 @@
+{
+  "loop": "ec445098-9293-5e42-8e08-e639e1ec7cb3",
+  "cardId": "loop-resume-after-decide",
+  "action": "implement",
+  "step": "review",
+  "agent": "board-reviewer-loop-resume-after-decide-0444",
+  "startedAt": "2026-11-03T04:44:53.065Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
