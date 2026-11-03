@@ -191,14 +191,14 @@ ADR 0013 の続け方（AI の番を作る判断の後に 1 周を続ける）�
 
 ### 2. 手順書を本筋のセッションの形に移す
 
-- [ ] `.claude/skills/board-loop/subagent-rules.md` を `git mv` で `rules.md` にし、作業者向けの部分（呼び名の監視役と作業者の表、まっさらな文脈、入れ子にしない）を削る。残す節の見出しは変えない
-- [ ] `.claude/agents/board-planner.md` の手順を `.claude/skills/board-loop/plan.md` に移し、サブエージェントであるための部分（入力の 3 行、役違いで止まる、報告の 5 行）を削る。`board-planner.md` を消す
-- [ ] `.claude/agents/board-worker.md` の手順を `.claude/skills/board-loop/implement.md` に移し、同じく削る。レビューの段では止まらず `SKILL.md` の手順で `board-reviewer` を立てる、に変える。`board-worker.md` を消す
-- [ ] `.claude/skills/board-loop/SKILL.md` を書き直す: ボードを読む → 止まる条件（`status` の失敗、`next` が null、別のループが `next.cardId` を触っている）→ `loop start` → 手に応じて `plan.md` / `implement.md` で自分で進めるか、`board-reviewer` を前景で立てる → `loop finish` → 3 行以内で伝える → 続けるか決める。
+- [x] `.claude/skills/board-loop/subagent-rules.md` を `git mv` で `rules.md` にし、作業者向けの部分（呼び名の監視役と作業者の表、まっさらな文脈、入れ子にしない）を削る。残す節の見出しは変えない
+- [x] `.claude/agents/board-planner.md` の手順を `.claude/skills/board-loop/plan.md` に移し、サブエージェントであるための部分（入力の 3 行、役違いで止まる、報告の 5 行）を削る。`board-planner.md` を消す
+- [x] `.claude/agents/board-worker.md` の手順を `.claude/skills/board-loop/implement.md` に移し、同じく削る。レビューの段では止まらず `SKILL.md` の手順で `board-reviewer` を立てる、に変える。`board-worker.md` を消す
+- [x] `.claude/skills/board-loop/SKILL.md` を書き直す: ボードを読む → 止まる条件（`status` の失敗、`next` が null、別のループが `next.cardId` を触っている）→ `loop start` → 手に応じて `plan.md` / `implement.md` で自分で進めるか、`board-reviewer` を前景で立てる → `loop finish` → 3 行以内で伝える → 続けるか決める。
       `ListAgents`・バックグラウンド・報告と完了の通知の扱いを消す。ハードルール（人の判断を周の中で書かない、`fork` を使わない、`waiting` のカードに触らない など）は残す。`description` も合わせる
-- [ ] `.claude/agents/board-reviewer.md` の呼び出し元の言葉と共通の決まりのファイル名（`rules.md`）を直す。`description` も合わせる
-- [ ] `.claude/skills/board-decide/SKILL.md` の手順 6 を、本筋のセッションが `board-loop` の手順で 1 周を進める形に直す（「続けて作業者に渡す」→「続けて直す」）
-- [ ] `.claude/skills/board-dashboard/SKILL.md` のサブエージェントへの言及を、レビューのサブエージェントの `prompt` に混ぜない、の形に直す
+- [x] `.claude/agents/board-reviewer.md` の呼び出し元の言葉と共通の決まりのファイル名（`rules.md`）を直す。`description` も合わせる
+- [x] `.claude/skills/board-decide/SKILL.md` の手順 6 を、本筋のセッションが `board-loop` の手順で 1 周を進める形に直す（「続けて作業者に渡す」→「続けて直す」）
+- [x] `.claude/skills/board-dashboard/SKILL.md` のサブエージェントへの言及を、レビューのサブエージェントの `prompt` に混ぜない、の形に直す
 
 ### 3. ドキュメントと ADR
 
