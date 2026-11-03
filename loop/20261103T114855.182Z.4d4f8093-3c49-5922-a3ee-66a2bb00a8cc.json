@@ -5,8 +5,8 @@
   "step": null,
   "agent": "board-planner-decide-guard-1148",
   "startedAt": "2026-11-03T11:48:55.182Z",
-  "finishedAt": null,
-  "result": null,
-  "tokens": null,
-  "durationMs": null
+  "finishedAt": "2026-11-03T11:54:40.170Z",
+  "result": "advanced",
+  "tokens": 117041,
+  "durationMs": 331404
 }
