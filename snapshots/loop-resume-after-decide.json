@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-11-03T05:15:49Z\",false,\"8941d1fa6710f40907223b97c50fef5c262087e0\",0,0,\"2026-11-03T05:15:49Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 69,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "loop-resume-after-decide",
+    "title": "人が判断を書いた後、頼み直さなくてもループが続きを進める",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/69",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-11-03T05:07:56Z",
+    "mergedAt": "2026-11-03T05:15:49Z",
+    "readyAt": "2026-11-03T05:07:59Z",
+    "convertedToDraftAt": null
+  }
+}
