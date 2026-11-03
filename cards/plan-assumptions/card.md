@@ -30,3 +30,8 @@ Mastra Factory の triage と計画役は「Decide and record」を決まりに�
 - **探索メモの形。** 対応を取りやすいよう、探索メモに問いの番号を振る決まりを置くか。自由記述のままにするか
 - **確かめ方。** 対応の漏れを、レビューの作業者が見るか、提出の前に計画役自身が確かめるか
 - **idea-grill との関係。** idea-grill は着手の前に人に問いを重ねる方向、この案は AI が決めて記録する方向。研修で問い詰められる体験が要るなら両立させ、グリルの答えが探索メモに入り、それを計画が対応させる流れにする
+
+## 探索メモ
+
+2026-11-03、PR #75（`loop-single-session`）がマージされ、`board-planner` / `board-worker` のエージェント定義は消えた。計画と実装の手は、本筋のセッションが `.claude/skills/board-loop/plan.md`・`implement.md` を読んで自分で進める。共通の決まり `subagent-rules.md` は `rules.md` に改名された。残るエージェント定義は `board-reviewer` だけである。
+このカードの「`board-planner` の書く計画」「`board-planner.md`」は、今は本筋のセッションが読む `.claude/skills/board-loop/plan.md` のことである
