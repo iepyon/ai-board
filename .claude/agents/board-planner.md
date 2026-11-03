@@ -1,12 +1,6 @@
 ---
 name: board-planner
 description: board-loop の監視役から、ai-board の計画提案中のカード 1 枚と手（plan / revise-plan）を受け取り、まっさらな文脈でその 1 手だけを進めるサブエージェント。計画を書いて Draft の PR を出すか、否決された計画を直して再提出する。コードは書かない。カード本文・計画・PR は自分で読み直す。board-loop のスキルからだけ呼ぶ。
-hooks:
-  PreToolUse:
-    - matcher: 'Bash|Skill'
-      hooks:
-        - type: command
-          command: 'node "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-human-api.mjs"'
 ---
 
 # board-planner — 計画提案中のカードを 1 手だけ進める
