@@ -9,6 +9,7 @@ ranks:
   chat-decide: 37000
   decide-guard: 4750
   decide-guard-settings: 1793715929378
+  decide-via-cli: -11750
   detail-layout: 31000
   drop-dashboard-refresh: 4250
   forge-card-error: -5750
