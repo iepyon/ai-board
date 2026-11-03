@@ -3,7 +3,7 @@ id: merge-verify-into-pr
 title: ユーザは、動作確認の列を無くし、PR で証拠を見て動かして差分を読む、を 1 回で済ませたい
 created: '2026-11-03T14:35:05.182Z'
 skipGates: []
-branch: null
+branch: merge-verify-into-pr
 mr: null
 ---
 
