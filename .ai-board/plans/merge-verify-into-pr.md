@@ -183,9 +183,9 @@ timeline は `## レビュー` のエントリから区間を導く（ADR 0008�
 
 ### 3. ループと判断の手順書を直す
 
-- [ ] `.claude/skills/board-loop/implement.md` から `revise-impl` / `ready` の節を消し、締めの段を Decisions 2・3 の形（動かす → PR の本文の 3 節 → archive → Ready）にする。手の終わりと ハードルールの verify の記述を直す
-- [ ] `.claude/skills/board-loop/SKILL.md` の手の表・動作確認の説明・止まりの説明、`rules.md` の「直しきれないとき」（`--gate verify` を消す）と「指摘の分け方」の `revise-impl`、`plan.md` の `revise-plan` の verify の記述を直す
-- [ ] `.claude/skills/board-decide/SKILL.md` から「動作確認を飛ばす」と verify の判断を消し、`.claude/agents/board-reviewer.md` に verify の記述があれば直す
+- [x] `.claude/skills/board-loop/implement.md` から `revise-impl` / `ready` の節を消し、締めの段を Decisions 2・3 の形（動かす → PR の本文の 3 節 → archive → Ready）にする。手の終わりと ハードルールの verify の記述を直す
+- [x] `.claude/skills/board-loop/SKILL.md` の手の表・動作確認の説明・止まりの説明、`rules.md` の「直しきれないとき」（`--gate verify` を消す）と「指摘の分け方」の `revise-impl`、`plan.md` の `revise-plan` の verify の記述を直す
+- [x] `.claude/skills/board-decide/SKILL.md` から「動作確認を飛ばす」と verify の判断を消し、`.claude/agents/board-reviewer.md` に verify の記述があれば直す
 
 ### 4. ドキュメントと ADR を直す
 
