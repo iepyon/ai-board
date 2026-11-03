@@ -189,6 +189,6 @@ timeline は `## レビュー` のエントリから区間を導く（ADR 0008�
 
 ### 4. ドキュメントと ADR を直す
 
-- [ ] `README.md`（列の図・判定表・判断のボタンの表・スキップ・CLI の使い方・次の一手の表）と `CLAUDE.md`（列の図・CLI の使い方・ハードルールの verify）を直す
-- [ ] `docs/architecture.md` と `docs/specs/` の `board-stages` / `board-hold` / `board-timeline` / `card-gate-skip` / `card-review-authority` / `card-review-log` を今の形に直す
-- [ ] ADR 0005 を「動作確認を独立した列に置かず、AI の証拠を PR の本文に書いて PR中 で確かめる」に書き直し（ファイル名も合わせる）、0006・0009・0011 から verify を外し、`docs/adr/README.md` の表を直す
+- [x] `README.md`（列の図・判定表・判断のボタンの表・スキップ・CLI の使い方・次の一手の表）と `CLAUDE.md`（列の図・CLI の使い方・ハードルールの verify）を直す
+- [x] `docs/architecture.md` と `docs/specs/` の `board-stages` / `board-hold` / `board-timeline` / `card-gate-skip` / `card-review-authority` / `card-review-log` を今の形に直す
+- [x] ADR 0005 を「動作確認を独立した列に置かず、AI の証拠を PR の本文に書いて PR中 で確かめる」に書き直し（ファイル名も合わせる）、0006・0009・0011 から verify を外し、`docs/adr/README.md` の表を直す
