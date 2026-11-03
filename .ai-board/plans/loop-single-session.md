@@ -207,3 +207,20 @@ ADR 0013 の続け方（AI の番を作る判断の後に 1 周を続ける）�
 - [x] `README.md` の「AI ループ」「ループの 1 手の記録」「クラウドのセッションで回す」と、`docs/architecture.md` の「ループの 1 手の記録」と段の渡し先、`docs/specs/loop-activity/spec.md` を直す
 - [x] `CLAUDE.md` の「読む場所」のループの手順書、書き込み境界の表の「ループの監視役」の行、hook の段落を直す
 - [x] `src/` の docstring と画面の注記（`loop-activity.ts`・`board-log.ts`・`timeline.ts`・`impl-step.ts`・`next-action.ts`・`status-describe.ts`・`branch-plan.repository.ts`・`cli-main.ts`・`dist-check-cli.ts`・`LoopSteps.tsx`）の監視役・サブエージェント・`board-worker` への言及を直す。判定と表示の振る舞いは変えない
+
+## AI レビュー
+
+- [ ] `.claude/skills/board-loop/SKILL.md:108` の `board-reviewer` の `name` は `board-reviewer-`（15 文字）＋カード ID の先頭 45 文字＋`-`＋`HHmm`（4 文字）で最大 65 文字になり、次の行の「名前は 64 文字まで」を超える。45 は消えた `board-worker-`（13 文字）に合わせた値で、カード ID が 44 文字以上だとレビューの段の `Agent` の呼び出しが失敗し、そのカードで毎周止まる。切り詰めを 43 文字にし、3.1 の `--agent` の説明など同じ式を書いた箇所（`README.md`・`docs/architecture.md`・ADR 0014 にあれば）も合わせる（計画の Decisions の「45 文字」も同じ数え違い）
+- [ ] `.claude/skills/board-loop/implement.md:40` の段の表で、レビューの段の行の「すること」が「`SKILL.md` の手順で `board-reviewer` を立てる。この手順書では何もしない」になっており、同じ節の箇条（52 行目）とハードルール（265 行目）の「コードにも計画にも触らず `止まった` で手を終える」と食い違う。表だけを読むと `結果:` の語を決めずに戻り、`loop finish` が `unknown` になるか、手順書の中から `board-reviewer` を立てうる。表の行を「何も変えずに `止まった` で手を終える（段の食い違い。`board-reviewer` を立てるのは `SKILL.md` だけ）」に直す
+
+### 見送った指摘
+
+- `.claude/skills/board-loop/implement.md:52` で、`git pull` の後にレビューの段だと分かると `止まった` で手を終え、`SKILL.md` の手順 5 は続けないので、正しい段は次の周（間隔運転か人の「ボードを進めて」）まで選ばれない。本筋のセッションが自分で push するので `status` と計画が食い違うことは稀で、止まった後に次の周を待つのは前の監視役の形と同じなので見送る
+- `.claude/skills/board-loop/SKILL.md:182` で、周を回すセッションが `board-decide` も持ち、周の中で人の判断を書かないことを手順書の決まりだけで守っている。計画の Risks「人の判断の口を技術的には止めていない」で受け入れた形なので見送る
+- `.claude/skills/board-loop/SKILL.md:154` の手順 5 は、カードが変わっても回数の上限なく同じセッションで続けるので、前のカードの前提が紛れ込む余地が残る。`## 探索メモ` 2 で人が決めた形で、計画の Risks にも書かれているので見送る
+- `src/board/repositories/loop-history.repository.ts:339` の時間の既定は開始から終了までの壁時計の時間なので、手の途中の許可の確認や人への問いで待った時間も `durationMs` に入る。計画の Risks「`durationMs` の意味が変わる」で受け入れており、メトリクスの改良は `harness-metrics` の範囲なので見送る
+- `.claude/skills/board-loop/SKILL.md:143` のとおり、トークンはレビューの段でしか残らず、振り返りの手ごとのトークンの集計は一部の手だけになる。計画の Decisions と Non-Goals（メトリクスとチャートの改良は `harness-metrics`・`bottleneck-chart`）のとおりなので見送る
+
+### 人に判断してほしいこと
+
+- `.claude/skills/board-loop/rules.md:20` と `implement.md:8` は「実装を書いた本筋のセッションは、自分の差分を AI レビューしない」と書くが、`implement.md:214` の `revise-impl` では同じ本筋のセッションが直した差分に自分で `/code-review` をかける。前は `revise-impl` もまっさらな `board-worker` が直してレビューしていたが、今は元の実装を書いた文脈のまま審査する。決まりの文を「`implement` のレビューの段だけを切り分ける」に狭めるか、`revise-impl` のレビューも `board-reviewer` に切り分けるか（`next.step` の判定や `board-reviewer` の前提の確かめに手が入る）は人が決める
