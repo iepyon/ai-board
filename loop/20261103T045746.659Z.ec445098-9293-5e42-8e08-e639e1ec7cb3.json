@@ -5,8 +5,8 @@
   "step": "task",
   "agent": "board-worker-loop-resume-after-decide-0457",
   "startedAt": "2026-11-03T04:57:46.659Z",
-  "finishedAt": null,
-  "result": null,
-  "tokens": null,
-  "durationMs": null
+  "finishedAt": "2026-11-03T05:04:58.676Z",
+  "result": "advanced",
+  "tokens": 97402,
+  "durationMs": 143911
 }
