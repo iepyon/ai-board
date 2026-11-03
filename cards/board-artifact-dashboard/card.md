@@ -2,7 +2,8 @@
 id: board-artifact-dashboard
 title: ユーザは、ボードの Artifact を更新ボタン 1 つで最新の状態にして、ダッシュボードとして開いたまま追いたい
 created: '2026-11-01T09:46:10.627Z'
-skipGates: []
+skipGates:
+  - plan
 branch: null
 mr: null
 ---
