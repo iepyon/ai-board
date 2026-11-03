@@ -194,12 +194,19 @@ Windows の `process.kill(pid, 'SIGTERM')` は強制終了になり `server.json
 
 `status --html` はボードを 1 枚の自己完結の HTML（ダッシュボード）にする（`src/board/cli/status-html.ts`）。`board-dashboard` のスキルが Artifact として公開する。
 
-- 頭に集計を置く。集計は `src/shared/board-metrics.ts` の `computeBoardMetrics`（純関数。今の時刻は読まない。区間を数えるのはマージ済みのカードだけで、閉じていない区間はマージの時刻（無ければ計画の最終更新）で閉じ、どちらも無いカードは工程と人の番の割合から除く。中止したカードは入れない）。
+- 頭（生成の時刻・ループ・次の一手・更新ボタン）の下を、今 / ログ / 振り返り の 3 つのタブに分ける。
+  タブはラジオボタンと CSS だけで切り替え、スクリプトを使わない（`--session` の無いページにスクリプトを入れないため）
+- 今のタブには、画面と同じ振り分け（`groupBySection`）で判断待ち・AI 作業中（ループが触っていれば今の手）・アイデア（`ideaRows` の並びと区切り線）を並べる
+- ログのタブには、全カードのループの手（`loopSteps`）と判断の記録（`reviews`）を、`src/shared/board-log.ts` の `buildBoardLog`（純関数）で新しい順の 1 本にして出す。
+  多くても `BOARD_LOG_LIMIT`（200）件で、省いた件数を添える。サブエージェントの中の動きはボードのデータに無いので出せない
+- 振り返りのタブの頭に集計を置く。集計は `src/shared/board-metrics.ts` の `computeBoardMetrics`（純関数。今の時刻は読まない。区間を数えるのはマージ済みのカードだけで、閉じていない区間はマージの時刻（無ければ計画の最終更新）で閉じ、どちらも無いカードは工程と人の番の割合から除く。中止したカードは入れない）。
   主な数字・工程ごとの滞在時間（マージ済みのカードごとに同じ種類の区間を足し、カードを並べた中央値。いちばん長い工程がボトルネック）・日ごとのマージ数（UTC の日付）・
   ループの手の種類ごとの回数と平均（`durationMs` / `tokens` が null の記録は除き、除いた件数を出す）・手の結果の内訳を出す
 - グラフは `src/board/cli/status-charts.ts` がインラインの SVG の文字列として描く。外部のスクリプトを読まず、色は `:root` のトークンを class で指す
-- その下に、画面と同じ振り分け（`groupBySection`）で判断待ち・AI 作業中・アイデア・マージ済み・中止の区画を並べる。
+- 集計の下に、マージ済み・中止の区画を並べる。
   PR のリンクは `PR_LINK_ATTRIBUTES`（`target="_top"`）で開き、URL を文字でも出す
+- 設定に `github.repository` があれば、カードのタイトルを `cardUrl` の指す GitHub 上のデータ用ブランチのカードのファイル
+  （`https://github.com/<owner>/<repo>/blob/ai-board/data/cards/<id>/card.md`）へのリンクにする（同じ `PR_LINK_ATTRIBUTES` で開く）
 - `--session <id>`（`session_` に英数字。`--html` のときだけ）を渡すと、更新ボタンとスクリプトが入る。
   スクリプトは `claude.use("mcp")` で `Claude Code Remote` の `send_message` を呼び、埋め込んだセッションに `REFRESH_MESSAGE` を送るだけである。
   値は JSON にして `<` を逃がして埋め込む。`mcp` が使えない・呼べないときはボタンを隠し、チャットで頼む案内を出す。頼んで 3 分たっても読み直されなければボタンを戻す

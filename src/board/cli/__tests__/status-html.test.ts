@@ -5,6 +5,7 @@ import { buildStatusReport } from '../status-cli.js';
 import {
   PR_LINK_ATTRIBUTES,
   REFRESH_MESSAGE,
+  cardUrl,
   escapeHtml,
   formatStatusHtml,
   scriptJson,
@@ -69,7 +70,8 @@ function html(
   cards: readonly BoardCard[],
   ideaDivider: number | null = null,
   loop: BoardLoop = { running: [], lastFinishedAt: null },
-  session: string | null = null
+  session: string | null = null,
+  repository: { readonly owner: string; readonly repo: string } | null = null
 ): string {
   const board: Board = {
     cards,
@@ -80,7 +82,17 @@ function html(
     generatedAt: '2026-10-23T00:00:00.000Z',
   };
 
-  return formatStatusHtml(buildStatusReport(board, NOW), { session });
+  return formatStatusHtml(buildStatusReport(board, NOW), { session, repository });
+}
+
+/** タブの中身（`<div class="tab-panel" id="panel-<id>">` から次のタブの手前まで） */
+function panel(page: string, id: string): string {
+  const start = page.indexOf(`<div class="tab-panel" id="panel-${id}">`);
+  if (start === -1) throw new Error(`タブがありません: ${id}`);
+
+  const end = page.indexOf('<div class="tab-panel"', start + 1);
+
+  return page.slice(start, end === -1 ? undefined : end);
 }
 
 /** 見出し `<h2>` で区切った区画の HTML。区画にどのカードが出るかを確かめる */
@@ -379,12 +391,12 @@ describe('formatStatusHtml の集計', () => {
     ],
   });
 
-  it('判断待ちの区画の上に、主な数字・グラフ・ループの手の表を出す', () => {
+  it('振り返りのタブの頭に、主な数字・グラフ・ループの手の表を出す', () => {
     const page = html([mergedCard, card('idea')]);
-    const metrics = page.slice(page.indexOf('<h2>集計</h2>'), page.indexOf('<h2>判断待ち '));
+    const metrics = page.slice(page.indexOf('<h2>集計</h2>'), page.indexOf('<h2>マージ済み '));
 
-    expect(page.indexOf('<h2>集計</h2>')).toBeGreaterThan(-1);
-    expect(page.indexOf('<h2>集計</h2>')).toBeLessThan(page.indexOf('<h2>判断待ち '));
+    expect(panel(page, 'retro')).toContain('<h2>集計</h2>');
+    expect(page.indexOf('<h2>集計</h2>')).toBeLessThan(page.indexOf('<h2>マージ済み '));
     expect(metrics).toContain('<dt>マージ済み</dt><dd>1 枚</dd>');
     expect(metrics).toContain('<dt>着手からマージ（中央値）</dt><dd>6時間</dd>');
     expect(metrics).toContain('<dt>人の番の割合（中央値）</dt><dd>83%</dd>');
@@ -400,7 +412,7 @@ describe('formatStatusHtml の集計', () => {
 
   it('集計の元が無ければ、数字は — にし、グラフと表は「まだありません」', () => {
     const page = html([]);
-    const metrics = page.slice(page.indexOf('<h2>集計</h2>'), page.indexOf('<h2>判断待ち '));
+    const metrics = page.slice(page.indexOf('<h2>集計</h2>'), page.indexOf('<h2>マージ済み '));
 
     expect(metrics).toContain('<dt>着手からマージ（中央値）</dt><dd>—</dd>');
     expect(metrics.match(/まだありません/g)?.length).toBe(4);
@@ -411,6 +423,177 @@ describe('formatStatusHtml の集計', () => {
 
     expect(page.match(/--chart-human:/g)?.length).toBe(3);
     expect(page.match(/--chart-ai:/g)?.length).toBe(3);
+  });
+});
+
+// ============================================================
+// タブ
+// ============================================================
+
+describe('formatStatusHtml のタブ', () => {
+  it('今 / ログ / 振り返り の 3 つのタブを、スクリプト無しのラジオボタンで切り替える。最初は今', () => {
+    const page = html([card('reviewing', { stage: 'plan-review' })]);
+
+    expect(page).toContain(
+      '<input type="radio" name="tab" class="tab-input" id="tab-now" checked>'
+    );
+    expect(page).toContain('<input type="radio" name="tab" class="tab-input" id="tab-log">');
+    expect(page).toContain('<input type="radio" name="tab" class="tab-input" id="tab-retro">');
+    expect(page).toContain(
+      '<nav class="tab-list"><label for="tab-now">今 <span class="count">1</span></label><label for="tab-log">ログ</label><label for="tab-retro">振り返り</label></nav>'
+    );
+    expect(page).toContain('#tab-now:checked ~ #panel-now');
+    expect(page).not.toMatch(/<script/i);
+  });
+
+  it('今に判断待ち・AI 作業中・アイデア、振り返りに集計・マージ済み・中止を入れる', () => {
+    const page = html([
+      card('reviewing', { stage: 'plan-review' }),
+      card('working', { stage: 'impling' }),
+      card('idea'),
+      card('merged', { stage: 'merged' }),
+      card('aborted', { stage: 'impling', aborted: true }),
+    ]);
+    const now = panel(page, 'now');
+    const retro = panel(page, 'retro');
+
+    for (const title of ['<h2>判断待ち ', '<h2>AI 作業中 ', '<h2>アイデア ']) {
+      expect(now).toContain(title);
+      expect(retro).not.toContain(title);
+    }
+    for (const title of ['<h2>集計</h2>', '<h2>マージ済み ', '<h2>中止 ']) {
+      expect(retro).toContain(title);
+      expect(now).not.toContain(title);
+    }
+    expect(panel(page, 'log')).toContain('<h2>ログ ');
+  });
+
+  it('AI 作業中のカードに、今の手を添える', () => {
+    const running: LoopStep = {
+      loop: 'session-a',
+      cardId: 'working',
+      action: 'implement',
+      step: 'review',
+      agent: null,
+      startedAt: '2026-10-22T23:48:00.000Z',
+      finishedAt: null,
+      result: null,
+      tokens: null,
+      durationMs: null,
+    };
+    const page = html([card('working', { stage: 'impling' })], null, {
+      running: [running],
+      lastFinishedAt: null,
+    });
+
+    expect(section(page, 'AI 作業中')).toContain(
+      '<p class="running">AI 稼働中 · implement（review）</p>'
+    );
+  });
+});
+
+// ============================================================
+// ログ
+// ============================================================
+
+describe('formatStatusHtml のログ', () => {
+  it('ループの手と判断を、新しい順の 1 本にして出す', () => {
+    const page = html([
+      card('a', {
+        stage: 'impling',
+        reviews: [
+          { at: '2026-10-21T00:00:00.000Z', gate: 'verify', kind: '否決', reason: '直して' },
+        ],
+        loopSteps: [
+          {
+            loop: 'session-a',
+            cardId: 'a',
+            action: 'revise-impl',
+            step: null,
+            agent: null,
+            startedAt: '2026-10-22T00:00:00.000Z',
+            finishedAt: '2026-10-22T00:01:35.000Z',
+            result: 'advanced',
+            tokens: 81_000,
+            durationMs: 95_000,
+          },
+        ],
+      }),
+    ]);
+    const log = section(page, 'ログ');
+
+    expect(log).toContain('<span class="count">2</span>');
+    expect(log).toContain('revise-impl · 進めた · 1 分 35 秒 · 81k トークン');
+    expect(log).toContain('<p>verify 否決</p>');
+    expect(log).toContain('<summary>理由</summary><div class="review">直して</div>');
+    expect(log.indexOf('revise-impl')).toBeLessThan(log.indexOf('verify 否決'));
+    expect(log).toContain('2026-10-22 00:00 UTC');
+  });
+
+  it('記録が無ければ「ありません」', () => {
+    expect(section(html([card('idea')]), 'ログ')).toContain('ありません');
+  });
+
+  it('判断の理由と、カードのタイトルをエスケープする', () => {
+    const page = html([
+      card('a', {
+        title: '<b>x</b>',
+        reviews: [
+          { at: '2026-10-21T00:00:00.000Z', gate: 'plan', kind: '否決', reason: '<i>y</i>' },
+        ],
+      }),
+    ]);
+    const log = section(page, 'ログ');
+
+    expect(log).toContain('&lt;b&gt;x&lt;/b&gt;');
+    expect(log).toContain('&lt;i&gt;y&lt;/i&gt;');
+    expect(log).not.toContain('<i>');
+  });
+});
+
+// ============================================================
+// カードの詳細へのリンク
+// ============================================================
+
+describe('formatStatusHtml のカードの詳細へのリンク', () => {
+  const repository = { owner: 'o', repo: 'r' };
+
+  it('cardUrl はデータ用ブランチのカードのファイルを指し、各部分をエスケープする', () => {
+    expect(cardUrl(repository, 'my-card')).toBe(
+      'https://github.com/o/r/blob/ai-board/data/cards/my-card/card.md'
+    );
+    expect(cardUrl({ owner: 'o"', repo: 'r?x' }, 'a b')).toBe(
+      'https://github.com/o%22/r%3Fx/blob/ai-board/data/cards/a%20b/card.md'
+    );
+  });
+
+  it('リポジトリがあれば、カード・アイデア・ログのタイトルを外側の窓で開くリンクにする', () => {
+    const page = html(
+      [
+        card('reviewing', {
+          stage: 'plan-review',
+          reviews: [{ at: '2026-10-21T00:00:00.000Z', gate: 'plan', kind: '提出', reason: '' }],
+        }),
+        card('idea'),
+      ],
+      null,
+      undefined,
+      null,
+      repository
+    );
+    const link = (id: string): string =>
+      `<a href="https://github.com/o/r/blob/ai-board/data/cards/${id}/card.md" ${PR_LINK_ATTRIBUTES}>${id} のタイトル</a>`;
+
+    expect(section(page, '判断待ち')).toContain(link('reviewing'));
+    expect(section(page, 'アイデア')).toContain(link('idea'));
+    expect(section(page, 'ログ')).toContain(link('reviewing'));
+  });
+
+  it('リポジトリが無ければ、リンクを付けない', () => {
+    const page = html([card('idea')]);
+
+    expect(page).not.toContain('/card.md');
+    expect(section(page, 'アイデア')).toContain('<li>idea のタイトル <code>idea</code></li>');
   });
 });
 

@@ -17,7 +17,7 @@ import { resolveImplStep, type ImplStep } from '../services/impl-step.js';
 import type { BranchPlanRepository } from '../repositories/branch-plan.repository.js';
 import { createCardId } from '../../shared/schemas/common.js';
 import { describeForge, describeLoop, describeNext } from './status-describe.js';
-import { formatStatusHtml } from './status-html.js';
+import { formatStatusHtml, type CardRepository } from './status-html.js';
 import { isCardRunning, type BoardLoop } from '../../shared/loop-activity.js';
 
 // ============================================================
@@ -116,6 +116,11 @@ export interface StatusDependencies {
    * 省略時は段を読まず、`next.step` は null のまま
    */
   readonly branchPlanRepository?: BranchPlanRepository;
+  /**
+   * `--html` のページで、カードの詳細（データ用ブランチのカードのファイル）へのリンクを作る GitHub のリポジトリ。
+   * 省略か null なら、リンクを出さない
+   */
+  readonly repository?: CardRepository | null;
 }
 
 /** 出す形。`text` は人向けの数行 */
@@ -283,7 +288,10 @@ export async function runStatusCli(
 
   io.stdout(
     args.only === undefined
-      ? formatReport(report, args.format, args.session ?? null)
+      ? formatReport(report, args.format, {
+          session: args.session ?? null,
+          repository: deps.repository ?? null,
+        })
       : `${JSON.stringify(pickFields(report, args.only), null, 2)}\n`
   );
   return 0;
@@ -319,12 +327,16 @@ async function readImplStep(
   return plan === null ? null : resolveImplStep(plan);
 }
 
-function formatReport(report: StatusReport, format: StatusFormat, session: string | null): string {
+function formatReport(
+  report: StatusReport,
+  format: StatusFormat,
+  html: { readonly session: string | null; readonly repository: CardRepository | null }
+): string {
   switch (format) {
     case 'json':
       return `${JSON.stringify(report, null, 2)}\n`;
     case 'html':
-      return formatStatusHtml(report, { session });
+      return formatStatusHtml(report, html);
     case 'text':
       return formatStatus(report);
   }

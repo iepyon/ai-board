@@ -1,6 +1,15 @@
 import { computeBoardMetrics, type BoardMetrics } from '../../shared/board-metrics.js';
+import { buildBoardLog, type BoardLogEntry } from '../../shared/board-log.js';
 import { groupBySection } from '../../shared/dashboard-sections.js';
+import {
+  describeAction,
+  describeResult,
+  formatDurationMs,
+  formatTokens,
+  runningStepOf,
+} from '../../shared/loop-activity.js';
 import { LOOP_RESULT_LABELS } from '../../shared/loop-step.js';
+import { DATA_BRANCH } from '../../infrastructure/data-store.js';
 import { STAGE_LABELS } from '../../shared/stage-labels.js';
 import type { StatusCard, StatusReport, WaitingCard, WorkingCard } from './status-cli.js';
 import { describeForge, describeLoop, describeNext } from './status-describe.js';
@@ -33,14 +42,31 @@ export interface StatusHtmlOptions {
    * null か省略なら、ボタンもスクリプトも入れず、チャットで頼む案内だけを出す
    */
   readonly session?: string | null;
+  /**
+   * カードの詳細へのリンクを作る GitHub のリポジトリ（設定の `github.repository`）。
+   * null か省略なら、カードの詳細へのリンクを出さない
+   */
+  readonly repository?: CardRepository | null;
+}
+
+/** カードのファイルを置いた GitHub のリポジトリ */
+export interface CardRepository {
+  readonly owner: string;
+  readonly repo: string;
 }
 
 /**
  * ボードを 1 枚の HTML（ダッシュボード）にする。クラウドのセッションが Artifact として公開して読む。
  *
- * 頭に集計（主な数字・グラフ・ループの手の表。`board-metrics.ts`）を置き、その下に
- * 画面と同じ `dashboard-sections.ts` の振り分け（`buildStatusReport` が済ませたもの）で区画を並べる。
+ * 頭（生成の時刻・ループ・次の一手・更新ボタン）の下を、使う場面ごとに 3 つのタブに分ける。
+ * タブはラジオボタンと CSS だけで切り替え、スクリプトに頼らない（`session` が無いページにもスクリプトを入れないため）。
+ *
+ * - 今: 判断待ち・AI 作業中（今の手）・アイデア。画面と同じ `dashboard-sections.ts` の振り分け（`buildStatusReport` が済ませたもの）
+ * - ログ: ループの手と判断の記録を新しい順の 1 本にしたもの（`board-log.ts`）
+ * - 振り返り: 集計（主な数字・グラフ・ループの手の表。`board-metrics.ts`）・マージ済み・中止
+ *
  * 判断待ちのカードには、待っているゲートの最新のエントリ（提出の本文など）・PR の URL・止まりの理由を出す。
+ * `repository` があれば、カードごとにデータ用ブランチのカードのファイル（GitHub）へのリンクを付ける。
  * 判断のボタンは置かない。判断は会話で頼む。
  *
  * カードのタイトルや理由は人もエージェントも書ける文字なので、すべてエスケープして埋め込み、外部のファイルを読まない。
@@ -49,26 +75,45 @@ export interface StatusHtmlOptions {
  */
 export function formatStatusHtml(report: StatusReport, options: StatusHtmlOptions = {}): string {
   const session = options.session ?? null;
+  const link = cardLinker(options.repository ?? null);
   const byId = new Map(report.cards.map((card) => [card.id, card]));
   const sections = groupBySection(report.cards);
   const metrics = computeBoardMetrics(report.cards);
 
-  const body = [
-    renderHeader(report, session),
-    renderMetrics(metrics),
+  const now = [
     renderSection(
       '判断待ち',
       report.waiting.length,
-      report.waiting.map((summary) => renderWaiting(summary, byId.get(summary.id)))
+      report.waiting.map((summary) => renderWaiting(summary, byId.get(summary.id), link))
     ),
     renderSection(
       'AI 作業中',
       report.working.length,
-      report.working.map((summary) => renderWorking(summary, byId.get(summary.id)))
+      report.working.map((summary) => renderWorking(summary, byId.get(summary.id), report, link))
     ),
-    renderIdeas(report),
-    renderSection('マージ済み', sections.merged.length, sections.merged.map(renderMerged)),
-    renderSection('中止', sections.aborted.length, sections.aborted.map(renderAborted)),
+    renderIdeas(report, link),
+  ];
+  const retro = [
+    renderMetrics(metrics),
+    renderSection(
+      'マージ済み',
+      sections.merged.length,
+      sections.merged.map((card) => renderMerged(card, link))
+    ),
+    renderSection(
+      '中止',
+      sections.aborted.length,
+      sections.aborted.map((card) => renderAborted(card, link))
+    ),
+  ];
+
+  const body = [
+    renderHeader(report, session),
+    renderTabs([
+      { id: 'now', label: '今', count: report.waiting.length, content: now },
+      { id: 'log', label: 'ログ', count: null, content: [renderLog(report, link)] },
+      { id: 'retro', label: '振り返り', count: null, content: retro },
+    ]),
   ].join('\n');
 
   return `<!doctype html>
@@ -107,6 +152,38 @@ ${renderRefresh(session)}
 </header>`;
 }
 
+interface Tab {
+  readonly id: string;
+  readonly label: string;
+  /** タブの見出しに添える件数（今のタブの判断待ち）。null なら添えない */
+  readonly count: number | null;
+  readonly content: readonly string[];
+}
+
+/**
+ * タブ。ラジオボタン・見出しのラベル・中身を兄弟に並べ、選ばれたラジオボタンの後ろの中身だけを CSS で出す。
+ * 最初のタブを選んでおく。スクリプトは使わない
+ */
+function renderTabs(tabs: readonly Tab[]): string {
+  const inputs = tabs.map(
+    (tab, index) =>
+      `<input type="radio" name="tab" class="tab-input" id="tab-${tab.id}"${index === 0 ? ' checked' : ''}>`
+  );
+  const labels = tabs.map((tab) => {
+    const count = tab.count === null ? '' : ` <span class="count">${tab.count}</span>`;
+    return `<label for="tab-${tab.id}">${escapeHtml(tab.label)}${count}</label>`;
+  });
+  const panels = tabs.map(
+    (tab) => `<div class="tab-panel" id="panel-${tab.id}">\n${tab.content.join('\n')}\n</div>`
+  );
+
+  return `<div class="tabs">
+${inputs.join('\n')}
+<nav class="tab-list">${labels.join('')}</nav>
+${panels.join('\n')}
+</div>`;
+}
+
 function renderSection(title: string, count: number, items: readonly string[]): string {
   const content = items.length === 0 ? '<p class="empty">ありません</p>' : items.join('\n');
 
@@ -116,7 +193,11 @@ ${content}
 </section>`;
 }
 
-function renderWaiting(summary: WaitingCard, card: StatusCard | undefined): string {
+function renderWaiting(
+  summary: WaitingCard,
+  card: StatusCard | undefined,
+  link: CardLinker
+): string {
   const hold =
     card?.hold != null
       ? `<p class="hold"><span class="label">止まり</span>${escapeHtml(card.hold.reason)}</p>`
@@ -128,8 +209,8 @@ function renderWaiting(summary: WaitingCard, card: StatusCard | undefined): stri
           .map((decision) => escapeHtml(decision.label))
           .join(' / ')}</p>`;
 
-  return renderCard(summary, [
-    renderRunning(summary),
+  return renderCard(summary, link, [
+    renderRunning(summary, null),
     hold,
     renderPr(card),
     decisions,
@@ -137,44 +218,99 @@ function renderWaiting(summary: WaitingCard, card: StatusCard | undefined): stri
   ]);
 }
 
-function renderWorking(summary: WorkingCard, card: StatusCard | undefined): string {
+function renderWorking(
+  summary: WorkingCard,
+  card: StatusCard | undefined,
+  report: StatusReport,
+  link: CardLinker
+): string {
   const tasks = card?.plan ? ` · タスク ${card.plan.tasks.completed}/${card.plan.tasks.total}` : '';
   const stale = summary.stale ? '<span class="stale">動きなし</span>' : '';
+  const running = runningStepOf(report.loop, summary.id);
 
-  return renderCard(summary, [
-    renderRunning(summary),
+  return renderCard(summary, link, [
+    renderRunning(summary, running === null ? null : describeAction(running)),
     `<p class="reason">${escapeHtml(summary.reason)}${escapeHtml(tasks)}${stale}</p>`,
     renderPr(card),
   ]);
 }
 
-/** ループが今触っているカードの印 */
-function renderRunning(summary: WaitingCard | WorkingCard): string {
-  return summary.running ? '<p class="running">AI 稼働中</p>' : '';
+/** ループが今触っているカードの印。`action` があれば今の手（`implement（task）`）を添える */
+function renderRunning(summary: WaitingCard | WorkingCard, action: string | null): string {
+  if (!summary.running) return '';
+
+  const now = action === null ? '' : ` · ${escapeHtml(action)}`;
+  return `<p class="running">AI 稼働中${now}</p>`;
 }
 
-function renderIdeas(report: StatusReport): string {
+function renderIdeas(report: StatusReport, link: CardLinker): string {
   const count = report.ideas.filter((row) => !('divider' in row)).length;
   if (count === 0) return renderSection('アイデア', 0, []);
 
   const rows = report.ideas.map((row) =>
     'divider' in row
       ? '<li class="divider">ここから下は、あとで考える</li>'
-      : `<li>${escapeHtml(row.title)} <code>${escapeHtml(row.id)}</code></li>`
+      : `<li>${link(row.id, escapeHtml(row.title))} <code>${escapeHtml(row.id)}</code></li>`
   );
 
   return renderSection('アイデア', count, [`<ul class="ideas">\n${rows.join('\n')}\n</ul>`]);
 }
 
-function renderMerged(card: StatusCard): string {
+function renderMerged(card: StatusCard, link: CardLinker): string {
   const at = card.mrState?.mergedAt ?? card.plan?.updatedAt ?? null;
   const when = at === null ? '' : `<p class="reason">${escapeHtml(formatTime(at))}</p>`;
 
-  return renderCard(card, [when, renderPr(card)]);
+  return renderCard(card, link, [when, renderPr(card)]);
 }
 
-function renderAborted(card: StatusCard): string {
-  return renderCard(card, []);
+function renderAborted(card: StatusCard, link: CardLinker): string {
+  return renderCard(card, link, []);
+}
+
+// ============================================================
+// ログ
+// ============================================================
+
+/** ループの手と判断の記録を、新しい順の 1 本の時系列で出す。古いものを省いたら件数を添える */
+function renderLog(report: StatusReport, link: CardLinker): string {
+  const log = buildBoardLog(report.cards);
+  const total = log.entries.length + log.omitted;
+  if (total === 0) return renderSection('ログ', 0, []);
+
+  const items = log.entries.map((entry) => renderLogEntry(entry, link));
+  const omitted =
+    log.omitted === 0
+      ? ''
+      : `\n<p class="empty">古い ${log.omitted} 件は省きました（新しい ${log.entries.length} 件を出しています）</p>`;
+
+  return renderSection('ログ', total, [`<ol class="log">\n${items.join('\n')}\n</ol>${omitted}`]);
+}
+
+function renderLogEntry(entry: BoardLogEntry, link: CardLinker): string {
+  const head = `<span class="log-time">${escapeHtml(formatTime(entry.at))}</span>`;
+  const title = link(entry.cardId, escapeHtml(entry.cardTitle));
+
+  if (entry.kind === 'loop') {
+    const { step } = entry;
+    const detail = [
+      describeAction(step),
+      describeResult(step),
+      formatDurationMs(step.durationMs),
+      `${formatTokens(step.tokens)} トークン`,
+    ].join(' · ');
+
+    return `<li class="log-loop">${head}<span class="log-kind">ループ</span>${title}<p>${escapeHtml(detail)}</p></li>`;
+  }
+
+  const { review } = entry;
+  const reason =
+    review.reason.trim() === ''
+      ? ''
+      : `\n<details><summary>理由</summary><div class="review">${escapeHtml(review.reason)}</div></details>`;
+
+  return `<li class="log-review">${head}<span class="log-kind">判断</span>${title}<p>${escapeHtml(
+    `${review.gate} ${review.kind}`
+  )}</p>${reason}</li>`;
 }
 
 // ============================================================
@@ -183,15 +319,39 @@ function renderAborted(card: StatusCard): string {
 
 function renderCard(
   card: Pick<StatusCard, 'id' | 'title' | 'stage'>,
+  link: CardLinker,
   parts: readonly string[]
 ): string {
   const content = parts.filter((part) => part !== '').join('\n');
 
   return `<article>
-<h3><span class="stage">${escapeHtml(STAGE_LABELS[card.stage])}</span>${escapeHtml(card.title)}</h3>
+<h3><span class="stage">${escapeHtml(STAGE_LABELS[card.stage])}</span>${link(card.id, escapeHtml(card.title))}</h3>
 <p class="id"><code>${escapeHtml(card.id)}</code></p>
 ${content}
 </article>`;
+}
+
+/**
+ * カードの詳細へのリンクを付ける関数。`html` はエスケープ済みの中身で、リポジトリが無ければそのまま返す
+ */
+type CardLinker = (cardId: string, html: string) => string;
+
+function cardLinker(repository: CardRepository | null): CardLinker {
+  if (repository === null) return (_cardId, html) => html;
+
+  return (cardId, html) =>
+    `<a href="${escapeHtml(cardUrl(repository, cardId))}" ${PR_LINK_ATTRIBUTES}>${html}</a>`;
+}
+
+/**
+ * データ用ブランチのカードのファイルの GitHub の URL。
+ * `https://github.com/<owner>/<repo>/blob/ai-board/data/cards/<id>/card.md`。各部分は URL のエスケープを通す
+ */
+export function cardUrl(repository: CardRepository, cardId: string): string {
+  const branch = DATA_BRANCH.split('/').map(encodeURIComponent).join('/');
+  return `https://github.com/${encodeURIComponent(repository.owner)}/${encodeURIComponent(
+    repository.repo
+  )}/blob/${branch}/cards/${encodeURIComponent(cardId)}/card.md`;
 }
 
 /** PR の URL。`http(s)` でなければリンクにせず番号の文字だけを出す */
@@ -391,7 +551,7 @@ export function scriptJson(value: unknown): string {
 // ============================================================
 
 /**
- * PR のリンクの属性。Artifact の中では `target="_blank"` が開かなかったので、外側の窓で開く `_top` にする。
+ * PR とカードの詳細のリンクの属性。Artifact の中では `target="_blank"` が開かなかったので、外側の窓で開く `_top` にする。
  * 開かない場合に備えて、リンクの隣に URL を文字でも出す
  */
 export const PR_LINK_ATTRIBUTES = 'target="_top" rel="noreferrer"';
@@ -500,4 +660,29 @@ table.loop { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
 table.loop th, table.loop td { border-bottom: 1px solid var(--border); padding: 4px 8px; text-align: right; white-space: nowrap; }
 table.loop th[scope="row"], table.loop thead th:first-child { text-align: left; }
 .results { display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 0; margin: 0; list-style: none; }
+.tab-input { position: absolute; opacity: 0; pointer-events: none; }
+.tab-list { display: flex; gap: 4px; margin: 16px 0 0; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.tab-list label {
+  padding: 6px 14px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent;
+  margin-bottom: -1px; white-space: nowrap;
+}
+#tab-now:checked ~ .tab-list label[for="tab-now"],
+#tab-log:checked ~ .tab-list label[for="tab-log"],
+#tab-retro:checked ~ .tab-list label[for="tab-retro"] { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+#tab-now:focus-visible ~ .tab-list label[for="tab-now"],
+#tab-log:focus-visible ~ .tab-list label[for="tab-log"],
+#tab-retro:focus-visible ~ .tab-list label[for="tab-retro"] { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tab-panel { display: none; }
+#tab-now:checked ~ #panel-now,
+#tab-log:checked ~ #panel-log,
+#tab-retro:checked ~ #panel-retro { display: block; }
+.log { list-style: none; padding: 0; margin: 0; }
+.log li { border-bottom: 1px solid var(--border); padding: 6px 0; overflow-wrap: anywhere; }
+.log li p { margin: 2px 0 0; font-size: 0.9rem; }
+.log-time { color: var(--muted); font-size: 0.8rem; margin-right: 8px; }
+.log-kind {
+  display: inline-block; font-size: 0.75rem; background: var(--stage-bg); border-radius: 4px;
+  padding: 0 6px; margin-right: 8px;
+}
+.log-review .log-kind { color: var(--warn); background: var(--warn-bg); }
 `;

@@ -1,6 +1,6 @@
 ---
 name: board-dashboard
-description: ai-board のボードを、集計の数字・グラフと更新ボタンの付いたダッシュボード（1 枚の HTML）にして Artifact として公開する。HTML は `ai-board status --html` が作り、Claude はその場で集計も手直しもしない。公開したダッシュボードの更新ボタンが送る決まったメッセージ（`[ai-board dashboard refresh] …`）を受けたときは、出し直して同じ URL に公開し直すだけをする。「ボードを見せて」「ダッシュボードを出して」「ダッシュボードを更新して」と、更新ボタンからのメッセージで使う。
+description: ai-board のボードを、今 / ログ / 振り返り のタブと更新ボタンの付いたダッシュボード（1 枚の HTML）にして Artifact として公開する。HTML は `ai-board status --html` が作り、Claude はその場で集計も手直しもしない。公開したダッシュボードの更新ボタンが送る決まったメッセージ（`[ai-board dashboard refresh] …`）を受けたときは、出し直して同じ URL に公開し直すだけをする。「ボードを見せて」「ダッシュボードを出して」「ダッシュボードを更新して」と、更新ボタンからのメッセージで使う。
 ---
 
 # board-dashboard — ボードのダッシュボードを公開する・公開し直す
@@ -8,7 +8,7 @@ description: ai-board のボードを、集計の数字・グラフと更新ボ�
 ボードを 1 枚の HTML（ダッシュボード）にして Artifact として公開する。
 クラウドのセッションにはボードの画面（サーバ）が無いので、これがボードを読む手段になる。手元のセッションでも同じ手順で使える。
 
-ダッシュボードは `ai-board status --html` がすべて作る（集計は `src/shared/board-metrics.ts`、グラフは `src/board/cli/status-charts.ts`、ページは `src/board/cli/status-html.ts`）。
+ダッシュボードは `ai-board status --html` がすべて作る（集計は `src/shared/board-metrics.ts`、ログは `src/shared/board-log.ts`、グラフは `src/board/cli/status-charts.ts`、ページは `src/board/cli/status-html.ts`）。
 同じデータからは毎回同じダッシュボードができる。Claude はその場で集計したり、HTML を書き換えたりしない。
 
 ## 使うとき

@@ -86,7 +86,8 @@ async function run(
   argv: readonly string[],
   provider = stubProvider(),
   findServer?: () => ServerLocation | null,
-  branchPlanRepository?: BranchPlanRepository
+  branchPlanRepository?: BranchPlanRepository,
+  repository?: { readonly owner: string; readonly repo: string }
 ): Promise<number> {
   const cards = createFileCardDependencies(dataDir);
   const board = createBoardDependencies(
@@ -103,6 +104,7 @@ async function run(
       ...board,
       ...(findServer ? { findServer } : {}),
       ...(branchPlanRepository ? { branchPlanRepository } : {}),
+      ...(repository ? { repository } : {}),
     },
     {
       stdout: (text) => {
@@ -606,6 +608,19 @@ describe('ai-board status --html', () => {
 
     expect(stdout).toContain('id="refresh-button"');
     expect(stdout).toContain('"session":"session_01ABCDEF"');
+  });
+
+  it('リポジトリを渡すと、カードの詳細へのリンクを付ける。渡さなければ付けない', async () => {
+    await writeCard('idea', '');
+
+    expect(await run(['--html'], undefined, undefined, undefined, { owner: 'o', repo: 'r' })).toBe(
+      0
+    );
+    expect(stdout).toContain('href="https://github.com/o/r/blob/ai-board/data/cards/idea/card.md"');
+
+    stdout = '';
+    expect(await run(['--html'])).toBe(0);
+    expect(stdout).not.toContain('/cards/idea/card.md');
   });
 
   it.each([
