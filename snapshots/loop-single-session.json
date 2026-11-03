@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-11-03T22:11:58Z\",false,\"51bee26acc6d88cd5768ff057018ed6f0a0da1ca\",0,0,\"2026-11-03T22:11:58Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 75,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "loop-single-session",
+    "title": "ループを本筋のセッション 1 つで回し、AI レビューだけをサブエージェントに切り分ける",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/75",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-11-03T22:09:21Z",
+    "mergedAt": "2026-11-03T22:11:58Z",
+    "readyAt": "2026-11-03T22:09:28Z",
+    "convertedToDraftAt": null
+  }
+}
