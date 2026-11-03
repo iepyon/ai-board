@@ -4,6 +4,7 @@ title: ユーザは、人の判断を書く口を、サブエージェントが�
 created: '2026-11-03T11:40:25.100Z'
 skipGates:
   - plan
+  - verify
 branch: null
 mr: null
 ---
