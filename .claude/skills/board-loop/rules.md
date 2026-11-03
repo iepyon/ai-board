@@ -46,6 +46,10 @@ PR は `node "$MAIN/dist/cli.js" pr ... --root "$MAIN"` で読み書きする（
 
 ワークツリーのパスは `WT="$MAIN/.claude/worktrees/<id>"`（`git worktree list` で見つけたものならそのパス）と決める。
 
+Bash の作業ディレクトリは、呼び出しをまたいで保たれるとは限らない。
+`git` は `git -C "$WT"`、`npm` や `gh` は毎回 `cd "$WT" && ...` で走らせ、ファイルの読み書きは `$WT` からの絶対パスで行う。
+相対パスのまま走らせると、メインのチェックアウト（多くは main）に書いてコミットしてしまう。
+
 push は、各手順書で「push」とだけ書いたところも、`git -C "$WT" push origin <branch>`（初回は `git push -u origin <branch>`）の明示の形で行う。
 `git push` だけの形は、上流が `origin/main` のままだと `main` へ向かいうるので使わない。
 
@@ -140,12 +144,12 @@ clone・bare リポジトリ・一時ファイルは `$WT` の外（スクラッ
 
 本筋のセッションが手を進めるときと `board-reviewer` に共通する。手ごとの決まりは各手順書のハードルールにある。
 
-- 渡されたカードの、渡された仕事だけを行う。ほかのカードに触らない
+- `next` のカードの、その手だけを行う（`board-reviewer` は渡されたカードのレビューだけ）。ほかのカードに触らない
 - `startedAt` / `rank` / `skipGates` を書かない。アイデアの表の区切り線も動かさない
 - `## レビュー` に 承認 / 否決 / 中止 を書かない（plan と verify のどちらでも人が書く）
-- `ai-board loop` は手の手順の中では使わない。1 手の記録（データ用ブランチの `loop/`）は、本筋のセッションが `SKILL.md` の手順で手の始まりと終わりに書く。`board-reviewer` は書かない
-- 手の中で `board-decide` のスキルを使わない。共有のボードのサーバの人の API（`/api/...`）と `server.json` も使わない
-  （人の判断を書く入口であり、人がチャットで頼んだときに、周とは別に使う。`board-reviewer` は使わない）。`AI_BOARD_DATA` で試しの clone を指して自分で起動したサーバを試すのは構わない
+- 1 手の記録（`ai-board loop`）は `SKILL.md` の手順でだけ書く。`board-reviewer` は書かない
+- 手の中で `board-decide` のスキル・共有のボードのサーバの人の API（`/api/...`）・`server.json` を使わない（人がチャットで頼んだときの扱いは `SKILL.md` のハードルール）。
+  `AI_BOARD_DATA` で試しの clone を指して自分で起動したサーバを試すのは構わない
 - 計画レビュー / 動作確認 / PR中 のカードに触らない。PR をマージしない
 - 品質ゲート `cd "$WT" && npm run typecheck && npm run lint && npm run format:check && npm test` を通らないままコミットしない。
   計画ファイルだけの変更でも走らせる（ブランチが既に壊れていれば、そこへ積まずに気づける）

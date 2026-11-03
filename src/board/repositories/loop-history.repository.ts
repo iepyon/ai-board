@@ -14,6 +14,7 @@ import {
   type LoopStep,
 } from '../../shared/loop-step.js';
 import { fromLogStamp, toLogStamp } from '../../cards/repositories/card-files.js';
+import { segmentMs } from '../../shared/board-metrics.js';
 import type { ImplStep } from '../services/impl-step.js';
 import type { NextActionKind } from '../services/next-action.js';
 
@@ -336,16 +337,12 @@ export function writeLoopFinish(
     finishedAt,
     result: input.result,
     tokens: input.tokens,
-    durationMs: input.durationMs ?? elapsedMs(target.step.startedAt, finishedAt),
+    durationMs:
+      input.durationMs ?? segmentMs({ start: target.step.startedAt, end: finishedAt }, finishedAt),
   };
   fs.writeFileSync(path.join(dataDir, LOOP_DIR, target.file), serializeLoopStep(finished));
 
   return ok(finished);
-}
-
-/** 開始から終了までのミリ秒。0 未満（時計の戻り）は 0 にする */
-function elapsedMs(startedAt: string, finishedAt: string): number {
-  return Math.max(0, Date.parse(finishedAt) - Date.parse(startedAt));
 }
 
 /** 時刻を `toISOString` の形にそろえる。読めなければ null */

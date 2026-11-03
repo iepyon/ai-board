@@ -30,7 +30,7 @@ description: ai-board のボードを読み、AI が進めてよいカード（�
 | `ready`                                  | 実装中で、動作確認を通った           | `implement.md`                     | 本筋のセッション                    | 計画を archive へ移し、PR を Ready にする                                   |
 
 段は `status` がカードのブランチの計画を読んで決めたものである。`implement.md` は計画を読み直して段を確かめ、食い違えば何も変えずに `止まった` で手を終える。
-節は計画の `## タスク` を `### <番号>. <題>` で区切った範囲で、品質ゲートとコミットの単位であり、止まってよい区切りでもある。
+節（品質ゲートとコミットの単位で、止まってよい区切り）の決め方は `rules.md` の「タスクの数え方と `## AI レビュー` 節」にある。
 止まっても、次の周が計画の `[x]` とコミットから続きを選ぶ。
 
 動作確認を頼んだカードは 動作確認 の列に移り、人が承認か否決をするまで `next` に選ばれない（`waiting` に出る）。
@@ -82,7 +82,7 @@ node "$MAIN/dist/cli.js" status --json --only next,waiting,forge,loop --root "$M
 
 手を始める前に、`ai-board loop start` で 1 手の開始を書く（ボードの「今どのカードを触っているか」と、カードの「ループの手」の一覧になる）。
 `--step` には `next.step` が null でないときだけその値を渡す。
-`--agent` は、レビューの段（`next.step` が `review`）でだけ、3.3 で決める `board-reviewer` の名前を渡す。本筋のセッションが自分で進める手では渡さない（記録には「—」と出る）。
+`--agent` は、レビューの段（`next.step` が `review`）でだけ `board-reviewer` を渡す。本筋のセッションが自分で進める手では渡さない（記録には「—」と出る）。
 
 ```bash
 LOOP_ID="${CLAUDE_CODE_SESSION_ID:-local-$(hostname)}"
@@ -96,7 +96,7 @@ node "$MAIN/dist/cli.js" loop start --root "$MAIN" --loop "$LOOP_ID" \
 
 ### 3.2 計画と実装の手 — 自分で進める
 
-レビューの段でなければ、上の表の手順書（`plan.md` / `implement.md`）を読み、その手順を自分で行う。
+レビューの段でなければ、上の表の手順書（`plan.md` / `implement.md`）の手順を自分で行う。手順書と `rules.md` は、文脈に無いとき（初めての手、自動の要約の後）だけ読む。
 手順書の最後で `結果:` の語（`進めた` / `保留して止まった` / `止まった`）を決める。
 
 ### 3.3 レビューの段 — `board-reviewer` を前景で立てる
@@ -105,14 +105,11 @@ node "$MAIN/dist/cli.js" loop start --root "$MAIN" --loop "$LOOP_ID" \
 自分で差分を読んでレビューしない。バックグラウンドで立てない。
 
 - `subagent_type`: `board-reviewer`
-- `name`: `board-reviewer-<next.cardId の先頭 43 文字>-<HHmm>`（今の時刻）。
-  名前は 64 文字までだが、カード ID は 100 文字まで取りうるので切り詰める
 - `description`: `review <next.cardId>`
-- `prompt`: 次の 3 行だけを書く。要約や補足を足さない
+- `prompt`: 次の 2 行だけを書く。要約や補足を足さない
 
 ```
 cardId: <next.cardId>
-action: implement
 MAIN: <$MAIN>
 ```
 
@@ -176,7 +173,7 @@ node "$MAIN/dist/cli.js" loop finish --root "$MAIN" --loop "${CLAUDE_CODE_SESSIO
 - 1 周で進める手は高々 1 つ。`next` に従い、自分で手やカードを選ばない。続けるのは手順 5 のとおりにする
 - 別の文脈に切り分けるのはレビューの段だけ。そこでは `board-reviewer` を前景で 1 つだけ立て、自分でレビューしない。
   計画と実装の手でサブエージェントを立てない。`subagent_type: "fork"` を使わない
-- `board-reviewer` の `prompt` には `cardId` / `action` / `MAIN` の 3 行だけを書く。実装した側の要約や、ダッシュボードで読んだ中身を混ぜない
+- `board-reviewer` の `prompt` には `cardId` / `MAIN` の 2 行だけを書く。実装した側の要約や、ダッシュボードで読んだ中身を混ぜない
 - カードへの書き込みは、手順書が許すもの（`ai-board card` の CLI のブランチ・提出 / 再提出 / 保留）だけ。
   `startedAt` / `rank` / `skipGates` や承認 / 否決 / 中止（plan と verify のどちらでも）を書かず、PR をマージしない
 - 周の中で、人の判断を自分から書かない（`board-decide` のスキルを周の手順として使わない）。
