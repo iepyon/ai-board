@@ -192,3 +192,16 @@ timeline は `## レビュー` のエントリから区間を導く（ADR 0008�
 - [x] `README.md`（列の図・判定表・判断のボタンの表・スキップ・CLI の使い方・次の一手の表）と `CLAUDE.md`（列の図・CLI の使い方・ハードルールの verify）を直す
 - [x] `docs/architecture.md` と `docs/specs/` の `board-stages` / `board-hold` / `board-timeline` / `card-gate-skip` / `card-review-authority` / `card-review-log` を今の形に直す
 - [x] ADR 0005 を「動作確認を独立した列に置かず、AI の証拠を PR の本文に書いて PR中 で確かめる」に書き直し（ファイル名も合わせる）、0006・0009・0011 から verify を外し、`docs/adr/README.md` の表を直す
+
+## AI レビュー
+
+### 見送った指摘
+
+- `src/shared/timeline.ts:22` の区間の種類 `readying` は、始めていた `verify:承認` の遷移が消えたので、もう現れない（`src/board/cli/status-charts.ts:25` の語も同じ）。同じファイルの docstring の「7 区間 / 9 種類」も数が合わない。`board-metrics` は数えたカードの無い工程を入れないので、画面と数値は変わらない。仕様（`docs/specs/board-timeline/spec.md`）も「今は始まらない」と書いており、振る舞いに関わらない整理なので見送る
+- `src/board/services/stage-timeline.ts:160` の `walk` の docstring「PR が Ready かどうかは、閉じている間も追い続ける」と、`:69` の「`currentEntries` は通さない」は、消した `prReady` の追跡と `currentEntries` を指したまま残っている。コメントだけの古さなので見送る
+- `src/cards/services/review-log.ts:175` の `latestGateEntry` は、ゲートが `plan` だけになり、`gate` が `undefined` のときと `'plan'` のときで同じ結果になる（`GATE_OF_STAGE` / `DecisionGate` / `withSkipGate` の型引数も 1 つの値だけ）。振る舞いを変えない整理なので見送る
+- `.claude/skills/board-loop/implement.md:197` の見出しが `## 1` / `## 2` の次に `## 5. 手の終わり` と飛ぶ（3・4 の節を消した名残）。同じファイルの 15 行目が「5 の「手の終わり」」と指しており、食い違ってはいない。番号の見た目だけなので見送る
+
+### 人に判断してほしいこと
+
+- 移り途中のカードの扱い。`src/cards/repositories/card-files.ts:357` で廃止した `verify` の判断のファイルを黙って読み飛ばすため、最新のエントリが `verify 否決` / `verify 保留` / `verify 中止` のカードがあると、どれも無かったことになる。否決・保留なら `src/board/services/next-action.ts:193` の `judgeImpling` が `implement` を返し、計画に `## AI レビュー` 節があれば締めの段で人の否決の理由を読まずに Ready にする。中止なら `isAborted`（`src/cards/services/review-log.ts:185`）が偽になり、中止したカードがループに戻る。このボードのデータ用ブランチを確かめたところ、`verify` の中止のファイルは 0 件、最新のエントリが `verify` の否決・保留のカードも 0 枚で（最新が `verify 提出` の `windows-shell` はマージ済み）、Decisions 1 と What Changes の「移り途中のカードは無い」のとおり今は起きない。ほかのボードでこの版に上げる場合に備えて、`verify 中止` だけは中止として読み続ける・移る前に確かめる手順を README に書く、などの手当てを入れるか、今のまま入れるかは人が決める
