@@ -34,3 +34,8 @@ AI が動かした結果とテストの証拠を PR に付ければ（`verify-ev
 - **既にあるカードの移り方。** 動作確認の列にいる・verify の判断が `## レビュー` に残っているカードを、導出がどう読むか（古い `verify` のエントリは無視するか）
 - **研修。** 研修で伝える人の判断ゲート（HIL）が、計画レビューと PR中 の 2 つになる。「動作確認で人が動かして初めて分かるズレ」の題材（`training-seed`）をどう扱うか
 - **ADR。** ADR 0005（verify ゲート）と 0009（飛ばす宣言）を書き直すか消す。0006（AI が書ける判断と止まり）も見直す
+
+## 探索メモ
+
+2026-11-03、PR #75（`loop-single-session`）がマージされ、`board-planner` / `board-worker` のエージェント定義は消えた。計画と実装の手は、本筋のセッションが `.claude/skills/board-loop/plan.md`・`implement.md` を読んで自分で進める。共通の決まり `subagent-rules.md` は `rules.md` に改名された。残るエージェント定義は `board-reviewer` だけである。
+アイデアの「`board-worker` の締めの段と `revise-impl` / `ready` の手順」は、今は `.claude/skills/board-loop/implement.md` の 2.2・3・4 節である
