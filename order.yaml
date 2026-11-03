@@ -16,7 +16,7 @@ ranks:
   loop-dummy: 28000
   loop-fresh-context: 32000
   loop-impl-review: 1000
-  loop-permissions: 8000
+  loop-permissions: 5000
   loop-respect-human: 35000
   loop-task-batch: 2000
   loop-worker-dummy: 33000
