@@ -3,7 +3,8 @@
 // 人の判断を書く口（人の API と board-decide のスキル）を呼ぶツールの呼び出しを拒む PreToolUse の hook。
 //
 // - hook の入力に agent_id が載るのはサブエージェントの中で発火したときだけなので、無ければ何もしない（本筋は止めない）
-// - Bash はコマンドの文字列に人の API の道（/api/cards・/api/idea-divider）を含めば拒む。メソッドでは分けない
+// - Bash はコマンドの文字列に人の API の道（/api/cards・/api/idea-divider）を含めば拒む。メソッドでは分けない。
+//   API を叩かず道を含むだけのコマンド（grep、コミットの文面、ヒアドキュメント）も巻き添えで拒み、理由でそれを伝える
 // - Skill は board-decide（<plugin>:board-decide も）を拒む
 // - 読めない入力・想定外の形は拒まずに通す（hook の不具合で全部のツールを止めないため）
 //
@@ -13,7 +14,8 @@ const HUMAN_API_PATTERN = /\/api\/(cards|idea-divider)/i;
 const DECIDE_SKILL_PATTERN = /^(?:[^:\s]+:)?board-decide$/i;
 const REASON =
   '人の判断を書く口（人の API の /api/cards・/api/idea-divider と board-decide のスキル）はサブエージェントからは使えない。' +
-  '人に頼むことは報告に書く。カードは ai-board card の CLI で読み書きする。';
+  '人に頼むことは報告に書く。カードは ai-board card の CLI で読み書きする。' +
+  '道の文字列を含むだけのコマンドも拒む。検索は Grep のツールを使い、コミットや本文の文面は道を書かずに言い換える。';
 
 /** 拒むなら理由を、通すなら null を返す。 */
 export function decide(input) {

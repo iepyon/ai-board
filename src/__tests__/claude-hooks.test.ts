@@ -88,6 +88,22 @@ describe('guard-human-api.mjs — サブエージェントの中の Bash', () =>
   });
 
   it.each([
+    ['grep', `grep -rn "/api/cards" src/`],
+    ['コミットの文面', `git commit -m "docs: /api/idea-divider の説明を直す"`],
+  ])(
+    'API を叩かず道を含むだけの %s も拒み、理由で巻き添えと代わりの手を伝える',
+    (_label, command) => {
+      const result = runHook(bash(command));
+      expectDenied(result);
+      const reason = (
+        JSON.parse(result.stdout) as { hookSpecificOutput: { permissionDecisionReason: string } }
+      ).hookSpecificOutput.permissionDecisionReason;
+      expect(reason).toContain('道の文字列を含むだけのコマンドも拒む');
+      expect(reason).toContain('Grep のツール');
+    }
+  );
+
+  it.each([
     ['カードの提出', `node /m/dist/cli.js card submit x --gate verify --reason "r" --root /m`],
     ['status', `node /m/dist/cli.js status --json --only server --root /m`],
     ['ボードの読み取り', `curl -sS http://127.0.0.1:5673/api/board`],

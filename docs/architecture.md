@@ -356,6 +356,8 @@ GitHub の上限（5,000 回/時）の大半を使う。そこで引いた結果
 `.claude/hooks/guard-human-api.mjs` が、hook の入力に `agent_id` が載るとき（サブエージェントの中）だけ、
 コマンドに `/api/cards` か `/api/idea-divider` を含む Bash（大文字小文字を区別しない。メソッドでは分けないので読み取りも拒む）と、
 `board-decide`（`<plugin>:board-decide` も）の Skill を `permissionDecision: "deny"` で拒む。読めない入力は通す。
+道の文字列での照合なので、API を叩かず道を含むだけのコマンド（grep、コミットの文面、ヒアドキュメント）も拒む。
+この巻き添えは受け入れ、拒んだときの理由で「検索は Grep のツールを使い、コミットや本文の文面は道を書かずに言い換える」と伝える。
 `.claude/settings.json` には置かない（許可や hook の設定を AI が書き換えないため）。形は `src/__tests__/claude-hooks.test.ts` が守る。
 
 カードを返す口（`GET /api/board` の各カードと、`PUT /api/cards/:id/body` などの応答）は、本文と判断を分けて返す。
