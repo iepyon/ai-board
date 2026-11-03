@@ -7,6 +7,7 @@ ranks:
   body-preview: 26000
   bottleneck-chart: 8923.828125
   chat-decide: 37000
+  decide-guard: 4750
   detail-layout: 31000
   forge-card-error: 8625
   forge-poll-budget: 14583.49609375
