@@ -39,7 +39,7 @@ ranks:
   review-append-port: 2000
   review-reason-escape: 12000
   reviewer-code-review: 1793715930378
-  reviewer-gates: 5625
+  reviewer-gates: 1793715931378
   server-shutdown-sse: 17774.5361328125
   setup-doctor: 6125
   share-api-types: 19152.587890625
