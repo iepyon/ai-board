@@ -5,8 +5,8 @@
   "step": "task",
   "agent": "board-worker-remove-sqlite-1021",
   "startedAt": "2026-11-03T10:21:12.284Z",
-  "finishedAt": null,
-  "result": null,
+  "finishedAt": "2026-11-03T10:23:25.674Z",
+  "result": "stopped",
   "tokens": null,
   "durationMs": null
 }
