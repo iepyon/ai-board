@@ -1,0 +1,12 @@
+{
+  "loop": "f21a130b-de36-499d-b82c-d6daf025ded7",
+  "cardId": "merge-verify-into-pr",
+  "action": "plan",
+  "step": null,
+  "agent": null,
+  "startedAt": "2026-11-03T22:18:30.987Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
