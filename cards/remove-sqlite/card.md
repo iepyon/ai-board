@@ -2,7 +2,8 @@
 id: remove-sqlite
 title: ユーザは、移行が済んだ今、SQLite への依存をコードから残らず消したい
 created: '2026-11-03T09:56:28.829Z'
-skipGates: []
+skipGates:
+  - plan
 branch: null
 mr: null
 ---
