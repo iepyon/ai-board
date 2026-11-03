@@ -34,7 +34,7 @@ ranks:
   review-append-port: 2000
   review-reason-escape: 12000
   reviewer-code-review: 11598.6328125
-  server-shutdown-sse: 17122.55859375
+  server-shutdown-sse: 17774.5361328125
   setup-doctor: 6125
   share-api-types: 19061.279296875
   skip-verify-scope: 23000
