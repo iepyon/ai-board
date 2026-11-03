@@ -151,3 +151,13 @@ hook は道だけを見るので、試しのサーバの `/api/cards` も拒む�
 - [x] `README.md` のループの許可ルールの節（境界の本体の行）と、`docs/architecture.md` に hook の置き場所と拒む範囲を書く
 - [x] `docs/adr/0007-board-decide.md` の決定・結果・退けた案を今の形に書き直す（サブエージェントは hook で拒む、監視役は決まり、文字列の照合の限界、`.claude/settings.json` に置かない理由）。
       `docs/adr/0012-loop-permissions.md` の「境界の本体」の行も合わせる
+
+## AI レビュー
+
+### 見送った指摘
+
+- `.claude/skills/board-loop/subagent-rules.md:152` は「自分で起動したサーバを試すのは構わない」と書いた直後に「試しのサーバでもカードの API は叩けない」と続き、一読では食い違って見える。直後の文で範囲（`/api/board`・`/api/health`・`/api/events` は叩ける）が読み取れ、振る舞いに関わらない言い回しなので見送る
+
+### 人に判断してほしいこと
+
+- `.claude/hooks/guard-human-api.mjs:12` の `HUMAN_API_PATTERN` はコマンドの文字列全体を照合するので、人の API を叩かず道の文字列を含むだけの Bash も拒む。例: `grep -rn "/api/cards" src/`、`git commit -m "docs: /api/cards の…"`、ヒアドキュメントで `/api/cards` を含む文書やPR の本文を書くコマンド。計画の Decisions は「道で拒むので読み取りも拒む」までは受け入れているが、この種の巻き添えには触れていない。拒んだときの理由（`REASON`）も「道の文字列を含むだけで拒む」ことを言わないので、サブエージェントが理由を取り違えて止まりうる。（a）このまま受け入れ、`REASON` に「道の文字列を含むだけのコマンドも拒む。検索は Grep のツールを使い、コミットや本文の文面は道を書かずに言い換える」と足す、（b）`curl` / `fetch` / `wget` などの送る形に絞って照合する（Decisions の「メソッドや書き方で分けると抜けやすい」とぶつかる）、のどちらにするかは人が決める
