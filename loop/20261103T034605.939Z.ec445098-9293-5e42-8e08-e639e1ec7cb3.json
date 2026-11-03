@@ -5,8 +5,8 @@
   "step": null,
   "agent": "board-planner-loop-resume-after-decide-0346",
   "startedAt": "2026-11-03T03:46:05.939Z",
-  "finishedAt": null,
-  "result": null,
+  "finishedAt": "2026-11-03T03:50:05.913Z",
+  "result": "advanced",
   "tokens": null,
   "durationMs": null
 }
