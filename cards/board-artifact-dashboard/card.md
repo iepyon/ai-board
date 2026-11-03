@@ -4,7 +4,7 @@ title: ユーザは、ボードの Artifact を更新ボタン 1 つで最新の
 created: '2026-11-01T09:46:10.627Z'
 skipGates:
   - plan
-branch: null
+branch: board-artifact-dashboard
 mr: null
 ---
 
