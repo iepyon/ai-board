@@ -1,0 +1,12 @@
+{
+  "loop": "4d4f8093-3c49-5922-a3ee-66a2bb00a8cc",
+  "cardId": "decide-guard",
+  "action": "implement",
+  "step": "review",
+  "agent": "board-reviewer-decide-guard-1158",
+  "startedAt": "2026-11-03T11:58:58.636Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
