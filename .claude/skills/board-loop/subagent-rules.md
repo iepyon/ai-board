@@ -50,6 +50,9 @@ PR は `node "$MAIN/dist/cli.js" pr ... --root "$MAIN"` で読み書きする（
 
 ワークツリーのパスは `WT="$MAIN/.claude/worktrees/<id>"`（`git worktree list` で見つけたものならそのパス）と決める。
 
+push は、各定義で「push」とだけ書いたところも、`git -C "$WT" push origin <branch>`（初回は `git push -u origin <branch>`）の明示の形で行う。
+`git push` だけの形は、上流が `origin/main` のままだと `main` へ向かいうるので使わない。
+
 ## タスクの数え方と `## AI レビュー` 節
 
 `board-worker` の段の判定と節の選び方、`board-reviewer` の前提の確かめ、`board-planner` の計画の立て直しで、同じ決まりを使う。

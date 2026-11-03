@@ -70,9 +70,9 @@ description: ai-board のボードを読み、AI が進めてよいカード（�
 
 ```bash
 MAIN=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
-# dist/cli.js が無いか、HEAD のコミットより古ければビルドする（stat の書式は OS で違うので node で比べる）
-if ! node -e 'const fs=require("fs");const [f,t]=process.argv.slice(1);process.exit(fs.existsSync(f)&&fs.statSync(f).mtimeMs/1000>=Number(t)?0:1)' \
-    "$MAIN/dist/cli.js" "$(git -C "$MAIN" log -1 --format=%ct)"; then
+# dist/cli.js が無いか、HEAD のコミットより古ければビルドする。
+# dist-check を持たない古い dist/ や dist/cli.js が無いときも 0 以外で終わるので、ビルドに倒れる
+if ! node "$MAIN/dist/cli.js" dist-check --root "$MAIN"; then
   npm --prefix "$MAIN" run build
 fi
 node "$MAIN/dist/cli.js" status --json --only next,waiting,forge --root "$MAIN" || echo "status が失敗した"

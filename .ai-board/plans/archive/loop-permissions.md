@@ -1,0 +1,194 @@
+# ループに要る操作の許可ルールを `.claude/settings.json` に同梱する
+
+## 提案
+
+### Why
+
+ループの監視役とサブエージェント（`board-planner` / `board-worker` / `board-reviewer`）は、1 手のあいだに git・npm・`ai-board` の CLI を何度も呼ぶ。
+今の `.claude/settings.json` には、データのワークツリーへの書き込みとデータ用ブランチへの push を止める deny ルールしか無い。
+許すルールが無いので、受講者は 1 手ごとに確認の応答に追われ、応答を待つ間ループは「止まっている」ように見える。
+2026-10-31 には、自動許可の判定が実装の開始を自己承認と見なして止めたこともあった。
+
+確認が多すぎると、受講者は場当たりで「全部許す」を選びがちになる。
+ループに要る操作だけを明文化して許し、ハーネスの境界を壊す操作は明文化して禁じておけば、確認の数も、何でも許してしまう危うさも減らせる。
+
+### What Changes
+
+使う人から見た変化は次のとおり。
+
+- clone してループを回すと、手順書が使う操作（品質ゲート、`ai-board` の CLI、決まった `git` の操作、カードのワークツリーの中の編集）で確認が出なくなる
+- 境界を壊す操作（`main` への push、`--force` での force push、DB の直接操作など）は、許可の確認を経ずに拒まれる
+- リベースしたブランチの push のため、`--force-with-lease` での force push だけは `main` 以外へ確認なしで走る
+- 取り返しのつきにくい操作（`git reset --hard`、ブランチの削除、ワークツリーの削除、`ai-board migrate`）は、許すでも禁じるでもなく、毎回人に確かめる
+- README に「ループの許可ルール」の節が増え、何を許し何を禁じたかと、その理由が読める。判断の理由と捨てた代案は ADR に残す
+
+中の仕組みの変化は次のとおり。
+
+- `.claude/settings.json` の `permissions` に `allow` と `ask` を足し、`deny` を増やす
+- 許可ルールの形を守るテストを足す（禁じるべきものが `deny` にあること、広すぎるルールが `allow` に無いこと）
+
+### Impact
+
+- 設定: `.claude/settings.json`
+- テスト: `src/__tests__/claude-settings.test.ts`（新規）
+- ドキュメント: `README.md`、`CLAUDE.md`（書き込み境界の節から 1 行で指す）、`docs/adr/0012-loop-permissions.md`（新規）と `docs/adr/README.md` の表
+- コードの振る舞いは変わらない。サーバ・CLI・ステージの導出には触らない
+
+## 設計
+
+### Decisions
+
+#### 3 段に分ける（allow / ask / deny）
+
+Claude Code の許可ルールは `deny` → `ask` → `allow` の順に評価され、どれにも当たらなければ確認が出る。
+これを使って、操作を次の 3 つに分ける。
+
+| 段      | 何を入れるか                                           | 当たったとき         |
+| ------- | ------------------------------------------------------ | -------------------- |
+| `allow` | 手順書が毎手のように使い、壊しても PR とゲートで戻せる | 確認なしで走る       |
+| `ask`   | 手順書が使わないか、人が 1 回だけ行う、戻しにくい操作  | 毎回人に確かめる     |
+| `deny`  | ハーネスの境界を壊す。人もループ中には使わない         | 確認を経ずに拒まれる |
+
+`ask` を設けるのは、`deny` にすると人がチャットで頼んだ正当な操作（README の CRLF の取り出し直しの `git reset --hard` など）まで止まり、
+何も書かないと `allow` に紛れた広いルールに飲まれうるからである。
+
+#### `allow` に入れるもの
+
+手順書（`.claude/skills/board-loop/`、`.claude/agents/board-*.md`、`subagent-rules.md`）が実際に使う形に合わせる。
+CLI は `node "$MAIN/dist/cli.js" ...` で呼ばれるので、`ai-board` という名前ではなく `node */dist/cli.js <サブコマンド> *` の形で書く。
+
+- 品質ゲートとビルド: `npm run typecheck` / `lint` / `format` / `format:check` / `build` / `test:coverage`、`npm test`、`npm ci`、`npx vitest run *`
+- `ai-board` の CLI: `card` / `pr` / `status` / `loop` のサブコマンド。`migrate` は入れない（`ask`）
+  - `card` で書けるものは CLI が構造で絞っている（`startedAt` / `rank` / 承認 / 否決 / 中止は書けない）ので、`card` は丸ごと許してよい
+  - `pr` に merge は無い（`create` / `view` / `edit` / `comment` / `diff` / `ready` だけ）
+- `git`: `status` / `diff` / `log` / `show` / `fetch` / `pull --ff-only` / `add` / `commit` / `mv` / `rev-parse` / `worktree list` / `worktree add` / `push`（`-u origin <branch>` を含む）、`push --force-with-lease`（次の節）、
+  ワークツリーの中の取り消し（`checkout -- .`、`clean -fd`。`board-worker` が節の途中で止まるときに使う）。どれも `git -C <path> ...` の形も許す
+- 編集: カードのワークツリーの下（`Edit(/.claude/worktrees/**)` / `Write(/.claude/worktrees/**)`）。メインのチェックアウトの編集は許さず、今どおり確認を出す
+- `cd`、`ls`、`cat` などの読むだけの操作は、Claude Code が既定で許す範囲に任せ、ここには書かない
+
+`gh` は許さない。手順書は PR の読み書きに `ai-board pr` を使い（クラウドでは `gh pr` が GraphQL の 403 で動かない）、
+`ai-board` の中から呼ぶ `gh api` は Bash の道具を通らないので、許可ルールの対象にならない。
+カードの「アイデア」にある `gh pr create --draft` / `gh pr ready` の許可は、今の手順書には要らない。
+
+`node -e` と `curl` は許さない。`node -e` は任意のコードを走らせられ、`curl` で人の API（`/api/...`）を叩けば人の判断を書ける。
+`board-decide`（人がチャットで頼んだときだけ使う）はこの 2 つを使うので、人のセッションでは確認が出るが、人が頼んだ操作なので確認は妥当とする。
+
+#### force push は `--force-with-lease` だけ許す
+
+ブランチを `origin/main` にリベースし直すことがあり、そのときは force push が要る。
+force push のうち、`--force-with-lease` だけを `allow` に入れ、ほかの形（`--force`、`-f`、`+` で始まる refspec）は `deny` に残す。
+
+- `--force-with-lease` は、リモートのブランチが手元の知っている位置から動いていれば push を拒む。
+  人や別のセッションが同じブランチに積んだコミットを黙って消すことがなく、消えるのは自分がリベースで書き換えた履歴だけになる
+- `--force` は相手の位置を確かめずに上書きするので、`deny` のままにする
+- `main` へは `--force-with-lease` でも push させない。`main` への push の `deny` が `--force-with-lease` の `allow` より先に効く（`deny` → `ask` → `allow` の順）
+- Claude Code の照合は前方一致なので、`deny` の force push の形が `--force-with-lease` にも当たらないよう、`--force` の後ろは空白か行の終わりで区切って書く
+  （`git push --force *` と `git push * --force` / `git push * --force *`。`git push * --force*` のように `*` を詰めて書かない）。
+  `deny` に当たると `allow` に何を書いても通らないので、ここを誤るとリベースの後の push が止まる
+- リベースそのもの（`git rebase`）は手順書の 1 手の中では使わないので、どの段にも書かない（確認が出る）
+
+#### `deny` に足すもの
+
+- `main` への push: `git push * main`、`git push * HEAD:main`、`git push * *:main`、`git -C * push ...` の同じ形
+- force push: `--force` / `-f` を含む `git push`、`+` で始まる refspec。`--force-with-lease` は入れない（前の節）
+- DB の直接操作: `sqlite3 *`（カードの正本はデータ用ブランチに移ったが、古いチェックアウトに `board.db` が残りうる）
+- ループの設定そのものの編集: メインのチェックアウトの `Edit(/.claude/settings*.json)` / `Write(/.claude/settings*.json)`。
+  ワークツリーの中の `.claude/settings.json` は PR で人が読むので止めない（このカード自身の実装もそこを書く）
+- 今ある deny（データのワークツリーの編集、データ用ブランチへの push）は残す
+
+#### `ask` に入れるもの
+
+`git reset --hard`、`git branch -D` / `-d`、`git worktree remove`、`node */dist/cli.js migrate *`。
+どれも手順書の 1 手の中では使わず、使うなら人が意図して 1 回行う操作である。
+
+#### 許可ルールは境界の保険で、境界そのものではない
+
+Bash の許可ルールは前方一致の文字列の照合で、`git -c x push --force`、`bash -c '...'`、環境変数を前に付けた形などで迂回できる。
+`deny` はうっかりの事故を止める保険とし、境界の本体は今どおり次に置く。
+
+- カードの書き込み: `ai-board card` の CLI の構造（`src/cards/cli/card-cli.ts`）
+- 人の判断: `board-decide` と人の API を使わないという手順書の決まり
+- `main` の保護: GitHub のブランチ保護（人がリポジトリの設定で入れる。このカードでは README で勧めるだけ）
+
+#### 説明をどこに書くか
+
+カードは `harness-guide` に書くとしているが、このリポジトリに `harness-guide` という文書は無い。
+README に「ループの許可ルール」の節を足して、何を許し・確かめ・禁じたかと理由を書き、判断の理由と捨てた代案を ADR 0012 に残す。
+`harness-guide` が研修の別の教材を指すなら、そちらへの転記はこのカードの外とする（判断してほしい点）。
+
+#### 形をテストで守る
+
+`src/__tests__/claude-settings.test.ts` で `.claude/settings.json` を読み、次を確かめる。
+
+- JSON として読め、`permissions.allow` / `ask` / `deny` が文字列の配列である
+- `deny` に、データのワークツリーの編集・データ用ブランチへの push・`main` への push・`--force` / `-f` の force push・`sqlite3` が入っている
+- `deny` のどのルールも `--force-with-lease` を含む `main` 以外への push（`git push --force-with-lease origin loop-permissions` など）に当たらず、`allow` のルールに当たる。
+  照合はルールの `*` を任意の文字列とみなす前方一致の近似をテストの中に書いて確かめる（Claude Code の照合そのものではないので、動作確認でも見る）
+- `allow` に、広すぎるルール（`Bash`、`Bash(*)`、`Bash(git *)`、`Bash(node *)`、`Bash(gh *)`、`Bash(curl *)`、`Bash(node -e *)`）と `migrate` を含むルールが無い
+- `allow` と `deny` に同じ文字列が無い
+
+許可ルールの照合そのもの（Claude Code の挙動）はテストできないので、動作確認で人が確かめる。
+
+### Risks / Trade-offs
+
+- **迂回できる。** 前の節のとおり、`deny` は前方一致で迂回できる。保険と割り切り、境界の本体を CLI の構造と GitHub のブランチ保護に置く
+- **auto モードの判定とは別物である。** 2026-10-31 の止まりは自動許可の判定によるもので、`allow` に書いても判定が同じ操作を止めることはありうる。
+  動作確認でループを 1 手回して、確認や判定の止まりが減ったかを見る
+- **手順書が変わると許可ルールが古くなる。** 新しい操作を手順書に足したら、確認が出て気づける（危険側には倒れない）。README の節に「手順書に操作を足したら許可ルールも見直す」と書く
+- **`allow` の `git push` が広い。** `push` を許すと、`deny` に当たらない形の `main` への push（`git push` だけで上流が `main` のとき）は通りうる。
+  ワークツリーのブランチは `origin/main` を追跡して作られる（`subagent-rules.md` の `worktree add -b <id> ... origin/main`）ので、`git push` だけの形は許さず、`git push -u origin <branch>` と、上流を設定した後の `git -C * push` に絞るかは実装で確かめる。
+  絞れないなら `git push` は `allow` に入れず、手順書を `git push origin <branch>` の明示の形に揃える
+
+### Non-Goals
+
+- `~/.claude/settings.json`（人ごとの設定）や `settings.local.json` には触らない
+- `defaultMode`（`acceptEdits` など）は変えない。どのモードで回すかは人が選ぶ
+- GitHub のブランチ保護の設定は入れない（README で勧めるだけ）
+- `harness-guide`（研修の別の教材）への転記はしない
+- サーバ・CLI・ステージの導出の振る舞いは変えない
+
+## 動作確認の手順
+
+1. ワークツリーで品質ゲートを通す（`npm run typecheck && npm run lint && npm run format:check && npm test`）。`claude-settings.test.ts` が通ることを見る
+2. このブランチを clone した新しいディレクトリで Claude Code を開き、`/permissions` で `allow` / `ask` / `deny` が `.claude/settings.json` のとおりに読まれていることを見る
+3. 同じセッションで次を頼み、期待どおりかを見る（共有のカードを汚さないよう、カードを書く操作は `AI_BOARD_DATA` でスクラッチの clone を指す。手順は `subagent-rules.md` の「動かして確かめるとき」）
+   - `npm run typecheck`、`git status`、`node dist/cli.js status` は確認なしで走る
+   - `git push --force origin x`、`git push -f origin x`、`git push origin main`、`git push --force-with-lease origin main`、`sqlite3 .ai-board/board.db` は確認なしに拒まれる
+   - `git push --force-with-lease origin <試しのブランチ>` は確認なしに走る（試し用のリポジトリか、捨ててよいブランチで行う）
+   - `git reset --hard` は確認が出る
+   - `.claude/worktrees/<何か>/` の下のファイルの編集は確認なしで、メインのチェックアウトの `src/` の編集は確認が出る
+4. 着手済みのダミーのカードで `/board-loop` を 1 手回し、`plan` の手が確認なしに Draft の PR まで進むことを見る
+   （PR を作るので、試し用のリポジトリか、後で閉じる前提の PR で行う）
+5. README の「ループの許可ルール」の節を読み、許す・確かめる・禁じるの理由が分かることを見る
+
+## タスク
+
+### 1. 許可ルールとテスト
+
+- [x] `.claude/settings.json` に `allow` / `ask` を足し、`deny` を増やす（Decisions の「`allow` に入れるもの」「`deny` に足すもの」「`ask` に入れるもの」のとおり）
+  - `git push` の扱いを Risks のとおり確かめ、絞れないなら `allow` から外して手順書の push を `git push origin <branch>` の明示の形に揃える
+- [x] `src/__tests__/claude-settings.test.ts` を足す（Decisions の「形をテストで守る」の 5 点）
+
+### 2. ドキュメント
+
+- [x] `README.md` の「AI ループ」の後に「ループの許可ルール」の節を足す（3 段の分け方、それぞれに入れたものと理由、force push は `--force-with-lease` だけ許す理由、迂回できる保険であること、`main` のブランチ保護を勧めること、手順書に操作を足したら見直すこと）
+- [x] `CLAUDE.md` の書き込み境界の節の deny ルールの記述を、README の新しい節を指す 1 行に直す
+- [x] `adr` のスキルで `docs/adr/0012-loop-permissions.md` を書き、`docs/adr/README.md` の表に足す（3 段に分けた理由、force push を `--force-with-lease` だけ許す理由、`gh` / `node -e` / `curl` を許さない理由、許可ルールを境界の本体にしない理由と捨てた代案）
+
+### 3. 確かめる
+
+- [x] 品質ゲートと `npm run build` を通し、`## 動作確認の手順` の 1 と 3 のうち、サブエージェントの中で確かめられるもの（許されたコマンドが確認なしに走ること）を確かめる
+
+## AI レビュー
+
+- [x] `.claude/settings.json` の `allow` の `Bash(git checkout -- .)` / `Bash(git -C * checkout -- .)` / `Bash(git clean -fd)` / `Bash(git -C * clean -fd)` は場所を問わないので、メインのチェックアウトの未コミットの変更や未追跡のファイルも確認なしに消せる。`git -C ""` は今の作業ディレクトリで動く（git の仕様。手元で確かめた）ため、`board-worker.md:110` / `:141` の `git -C "$WT" checkout -- .` は `$WT` が空になると、監視役のチェックアウト（多くはメイン）を戻してしまう。Decisions の「ワークツリーの中の取り消し」に合わせ、`Bash(git -C */.claude/worktrees/* checkout -- .)` と `Bash(git -C */.claude/worktrees/* clean -fd)` だけに絞り、`-C` の無い形と `git -C * ...` の形を外す。`src/__tests__/claude-settings.test.ts` に、`git checkout -- .`・`git -C /repo checkout -- .`・`git -C "" clean -fd` が `allow` に当たらないこと、`git -C /repo/.claude/worktrees/x checkout -- .` は `allow` のままであることを足す
+- [x] `allow` の `Bash(git push origin *)` / `Bash(git -C * push origin *)` は `git push origin --mirror` にも当たり、`deny` のどれにも当たらないので確認なしに走る。`--mirror` は強制の上書きと、手元に無いリモートのブランチ（`main` と `ai-board/data` を含む）の削除を伴う。Decisions の「`--force` / `-f` / `+` の refspec の force push は `deny`」の趣旨に合わせ、`deny` に `Bash(git push * --mirror)` / `Bash(git push * --mirror *)` と `git * push` の同じ形を足し、`src/__tests__/claude-settings.test.ts` の deny の例に `git push origin --mirror` と `git -C /repo push --mirror origin` を足す
+
+### 見送った指摘
+
+- `.claude/settings.json` の `allow` の `Bash(node */dist/cli.js card *)` などは、`*` が空白をまたぐので `node -e '<任意のコード>' x/dist/cli.js card` のような形にも当たる。わざとそう書かないと当たらず、glob ではこれ以上絞れない。README と ADR 0012 が許可ルールは迂回できる保険だと書いているので見送る
+- `allow` の `git push origin *` は、`main` / `ai-board/data` 以外のリモートのブランチの削除（`git push origin --delete x`、`git push origin :x`）や、`-uf` のように詰めた force push の形にも当たる。手順書はこれらの形を使わず、うっかり打つ見込みも薄い。計画の Decisions の `deny` に挙げた形の外なので見送る
+
+### 人に判断してほしいこと
+
+- `.claude/skills/board-loop/SKILL.md:74` の監視役は、周ごとに `dist/` の古さを `node -e '...'` で比べ、古ければ `npm --prefix "$MAIN" run build` を走らせる。どちらも `allow` に当たらないので、`/loop 5m /board-loop` の毎周に確認が出て、What Changes の「clone してループを回すと確認が出なくなる」が満たされない（Decisions は `node -e` を許さないとしている）。手順書の比べ方を `node -e` を使わない形（`ai-board` の CLI に古さを確かめるサブコマンドを足す、毎周 `npm run build` する など）に変えるか、この 1 行に限った `allow` を足すか、許容して README に書くかは、人が決める
