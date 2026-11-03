@@ -10,6 +10,7 @@ ranks:
   decide-guard: 4750
   decide-guard-settings: 1793715929378
   detail-layout: 31000
+  drop-dashboard-refresh: 4250
   forge-card-error: 8625
   forge-poll-budget: 14583.49609375
   gitignore-db-backup: 29000
