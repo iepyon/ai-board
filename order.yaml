@@ -8,6 +8,7 @@ ranks:
   bottleneck-chart: 8960.9375
   chat-decide: 37000
   detail-layout: 31000
+  forge-card-error: 8625
   forge-poll-budget: 12490.234375
   gitignore-db-backup: 29000
   harness-guide: 8406.25
