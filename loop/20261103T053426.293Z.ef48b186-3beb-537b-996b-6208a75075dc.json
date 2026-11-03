@@ -1,0 +1,12 @@
+{
+  "loop": "ef48b186-3beb-537b-996b-6208a75075dc",
+  "cardId": "loop-continue-on-handback",
+  "action": "ready",
+  "step": null,
+  "agent": "board-worker-loop-continue-on-handback-0534",
+  "startedAt": "2026-11-03T05:34:26.293Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
