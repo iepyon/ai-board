@@ -219,7 +219,7 @@ Windows の `process.kill(pid, 'SIGTERM')` は強制終了になり `server.json
 
 ```
 ai-board-data.yaml                      形の版（version: 1）。CLI はこれより新しい版を読まずに止まる
-config.yaml                             GitHub の接続設定（ai-board migrate が .ai-board/config.yaml を写す）
+config.yaml                             GitHub の接続設定（ai-board init が .ai-board/config.yaml を写す）
 order.yaml                              rank とアイデアの区切り線（{ divider, ranks: { <id>: <数> } }）
 cards/<id>/card.md                      frontmatter（id, title, created, skipGates, branch, mr）と本文
 cards/<id>/log/<時刻>.<gate>.<種別>.md   判断 1 件。中身は理由の本文。追記だけで、書き換えも削除もしない
@@ -250,7 +250,7 @@ Markdown 表現（`card-markdown.ts`）は `card show` の出力にだけ使う�
 **置き場所。** 手元では、メインのチェックアウトの `.ai-board/data/` に `git worktree add` でデータ用ブランチのワークツリー
 （データのワークツリー、`dataDir`）を 1 か所置く。`sharedBoardDir` はリンクされたワークツリーからもメインの `.ai-board/` に解決されるので、
 どのワークツリーから動かしても同じ場所になる。無ければ CLI とサーバが最初に作る。
-データ用ブランチが `origin` に無ければ止まり、`.ai-board/board.db` があれば `ai-board migrate` を、無ければ `ai-board migrate --empty` を案内する。
+データ用ブランチが `origin` に無ければ止まり、空のデータ用ブランチを作る `ai-board init`（`src/cards/cli/init-cli.ts`）を案内する。
 `AI_BOARD_DATA` を指すと、データのワークツリーの代わりにそのディレクトリ（git のリポジトリ）を使い、その `origin` に push する。
 試すときはスクラッチパッドの bare リポジトリを `origin` にした clone を指す。
 `server.json`・ロック（`data.lock`）・開いている PR の控え（`cache/`）は、どれも `dataDir` の親に置き、git に載せない
@@ -279,10 +279,7 @@ usecase が書く前に拒むもの（本文の差し替えでエントリが変
 （`src/infrastructure/data-refresher.ts`）、取り直しで書き換わったファイルをファイル監視が拾う。
 手元にしか無い変更は持たない前提なので、取り直しで失うものは無い。サーバ自身の書き込みは、push の後に `onWrite` からも知らせる。
 
-移行前の `.ai-board/board.db` は `ai-board migrate` で 1 回だけデータ用ブランチへ書き出す（`src/cards/cli/migrate-cli.ts`）。
-`## レビュー` の各エントリを元の時刻のまま `log/` の 1 件 1 ファイルに分け、`startedAt` は着手を 1 件書く。
-書き出した後、組み立て直した全カードが DB と一致するかを確かめ、食い違えば push しない。
-SQLite（`src/infrastructure/database.ts`）は、この読み出しのためだけに残っている。
+移行前の `.ai-board/board.db`（SQLite）は、今の版では読まない。移行は SQLite を消す前の版（`d2380ce`）の `ai-board migrate` で行う（README の「board.db からの切り替え」）。
 
 ## GitHub の PR の取得
 
@@ -340,7 +337,6 @@ GitHub の上限（5,000 回/時）の大半を使う。そこで引いた結果
 かつて GitLab の MR の番号も同じ `mr` 列に入っていた。GitLab の MR !1 と GitHub の PR #1 は別物で、
 番号をそのまま引くと列は正しく埋まったままリンクだけが別の PR を指す。そのため出どころを確かめられない番号は
 移行前の DB のマイグレーション（v2・v3）で消し、`branch` から解決し直させていた。
-`ai-board migrate` は、その後の版（`LEGACY_SCHEMA_VERSION`）の `board.db` だけを読み、ほかの版の DB は読まずに止まる。
 
 ## API
 

@@ -49,7 +49,7 @@ export function BodyEditor({ card, saving, onRun }: BodyEditorProps) {
           <button type="button" className="btn" onClick={startEditing}>
             編集
           </button>
-          <span className="status">{`.ai-board/board.db · ${card.id}`}</span>
+          <span className="status">{`ai-board/data · ${card.id}`}</span>
         </div>
       </>
     );
@@ -105,7 +105,7 @@ export function BodyEditor({ card, saving, onRun }: BodyEditorProps) {
           {dirty ? '取り消す' : '編集をやめる'}
         </button>
 
-        <span className="status">{`.ai-board/board.db · ${card.id}`}</span>
+        <span className="status">{`ai-board/data · ${card.id}`}</span>
       </div>
     </>
   );

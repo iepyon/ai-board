@@ -24,6 +24,7 @@
 - 2 つの clone から同時に書いても 1 つだけ通る。代わりに書き込みのたびに fetch と push が走り、オフラインでは書けない。
 - 形の版（`ai-board-data.yaml`）を上げて push すると古い CLI が読めなくなるので、形を変えるコードは `AI_BOARD_DATA` で試す決まりになった。
 - 直接の書き換えへの守りは deny ルールだけで、Bash の書き方次第ですり抜けられる。
+- `board.db` からの移行の `ai-board migrate` は `d2380ce` までの版にあり、今の版は SQLite を読まない。空のデータ用ブランチは `ai-board init` で作る。
 
 ## 退けた案
 
@@ -31,4 +32,4 @@
 - **SQLite のファイルをブランチに載せる** — バイナリは rebase も確かめもできない。
 - **push の拒否で rebase する** — 離れた行の編集を git が黙って混ぜ、検査を経ない状態が push されうる。
 
-根拠: `.ai-board/plans/archive/issue-store.md`、`.ai-board/plans/archive/board-seed.md`、PR #22・#54、`4d7fe32`
+根拠: `.ai-board/plans/archive/issue-store.md`、`.ai-board/plans/archive/board-seed.md`、`.ai-board/plans/archive/remove-sqlite.md`、PR #22・#54・#72、`4d7fe32`

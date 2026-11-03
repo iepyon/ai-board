@@ -45,7 +45,7 @@ export interface BoardPaths {
   /** .ai-board/ */
   readonly boardDir: string;
   /**
-   * git に載らない各自のファイル（データのワークツリー・移行前の board.db と config.yaml）を置く .ai-board/。
+   * git に載らない各自のファイル（データのワークツリーと config.yaml）を置く .ai-board/。
    * リンクされたワークツリーではメインのチェックアウトのもの、それ以外は `boardDir` と同じ
    */
   readonly sharedBoardDir: string;

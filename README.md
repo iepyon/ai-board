@@ -456,7 +456,7 @@ Claude Code は `deny` → `ask` → `allow` の順に照合し、どれにも�
   - `main` 以外への `git push --force-with-lease origin <branch>`（`git -C <path> ...` の形も）。ブランチを `origin/main` にリベースし直したときに要る
   - カードのワークツリーの中の取り消し（`git -C <path>/.claude/worktrees/<id> checkout -- .` / `clean -fd` の形だけ）。
     `board-worker` が節の変更を戻すときに使う。`-C` の無い形やメインのチェックアウトでは分類器の判定に回る
-- **`ask`:** `git reset --hard`、`git branch -D` / `-d`、`git worktree remove`、`ai-board migrate`。手順書の 1 手の中では使わず、使うなら人が意図して 1 回行う。
+- **`ask`:** `git reset --hard`、`git branch -D` / `-d`、`git worktree remove`、`ai-board init`。手順書の 1 手の中では使わず、使うなら人が意図して 1 回行う。
   `deny` にしないのは、人がチャットで頼んだ正当な操作（「Windows で使う」の取り出し直しなど）まで止めないためである
 - **`deny`:** データのワークツリーの編集とデータ用ブランチへの push、`main` への push、`--force` / `-f` / `+` の refspec での force push、`--mirror` の push、
   DB の直接操作（`sqlite3`）、メインのチェックアウトの `.claude/settings*.json` の編集
@@ -556,24 +556,17 @@ ai-board 自身をワークツリーで開発し、カードに書くコード�
 
 ### board.db からの切り替え
 
-カードの正本は、かつて `.ai-board/board.db`（SQLite）にあった。
-データ用ブランチへの切り替えは、人が 1 回だけ次の順で行う。
+カードの正本は、かつて `.ai-board/board.db`（SQLite）にあった。今の版は `board.db` を読まない。
 
-1. 動いている ai-board のサーバと、`/loop` を回しているセッションを止める。
-   `migrate` の後に `board.db` へ書かれた変更はデータ用ブランチに移らず、`migrate` は 2 回目を走らせられない
-2. データ用ブランチに切り替える PR をマージし、メインのチェックアウトを最新の main にする
-3. メインのチェックアウトで `npm run build` を走らせ、`dist/` を作り直す
-4. メインのチェックアウトで `node dist/cli.js migrate` を走らせる
+- **新しいリポジトリ:** メインのチェックアウトで `node dist/cli.js init` を走らせる。
+  空のデータ用ブランチ `ai-board/data` を作って `origin` へ push し、`.ai-board/config.yaml` があればデータ用ブランチの根へ写す。
+  `origin` か手元に `ai-board/data` が既にあれば、何もせずに止まる
+- **`board.db` しか持たない手元:** SQLite を消す前の版（main のコミット `d2380ce`）の `ai-board migrate` で移行する。
+  動いているサーバと `/loop` のセッションを止め、`d2380ce` を checkout して `npm ci && npm run build && node dist/cli.js migrate` を走らせ、
+  データ用ブランチができたら今の版に戻す。データ用ブランチの形の版は変わっていないので、今の版がそのまま読める
 
-`migrate` は `.ai-board/board.db` を読み、データ用ブランチ `ai-board/data` を作って `origin` へ push する。
-`## レビュー` のエントリは元の時刻のまま `log/` の 1 件 1 ファイルに分かれ、`startedAt` は着手の 1 件に、`rank` と区切り線は `order.yaml` に、`.ai-board/config.yaml` は `config.yaml` に移る。
-書き出したカードを組み立て直して `board.db` のカードと比べ、食い違えば push せずに止まる。
-`--from <db>` で読む DB を変えられる。`board.db` の無いリポジトリでは、`--empty` で空のデータ用ブランチを作る。
-`origin` に `ai-board/data` が既にあれば、何もせずに止まる。
-
-マージしてから `migrate` を走らせるまでの間、CLI とサーバはカードを読めずに止まり、`ai-board migrate` を走らせるよう案内する。
-`migrate` の後は `ai-board card list` や `ai-board status` でカードが見えることを確かめ、サーバを起動し直す。
-ほかのマシンやクラウドのセッションでは `migrate` は要らない。最初に CLI かサーバを動かしたときに、`origin` のデータ用ブランチからデータのワークツリーが作られる。
+データ用ブランチが無いと、CLI とサーバはカードを読めずに止まり、`ai-board init` を走らせるよう案内する。
+ほかのマシンやクラウドのセッションでは `init` は要らない。最初に CLI かサーバを動かしたときに、`origin` のデータ用ブランチからデータのワークツリーが作られる。
 
 ### 並び順
 
@@ -646,7 +639,7 @@ ai-board 自身をワークツリーで開発し、カードに書くコード�
 
 接続設定はデータ用ブランチの根の `config.yaml` から読む。クラウドのセッションの clone には、git に載らない各自のファイルが無いためである。
 データ用ブランチに無ければ、メインのチェックアウトの `.ai-board/config.yaml`（git の追跡外）を読む。
-`ai-board migrate` は `.ai-board/config.yaml` をデータ用ブランチへ写すので、切り替えの前に用意しておく。
+`ai-board init` は `.ai-board/config.yaml` をデータ用ブランチへ写すので、`init` の前に用意しておく。
 
 ```bash
 cp .ai-board/config.example.yaml .ai-board/config.yaml

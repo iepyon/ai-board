@@ -157,11 +157,11 @@
 
 ### 4. 説明とドキュメントを今の形にする
 
-- [ ] `src/cards/models/card.ts` の docstring を、データ用ブランチの `cards/<id>/card.md` と `log/` から組み立てる今の形に直す
-- [ ] `src/web/components/detail/BodyEditor.tsx` の `.ai-board/board.db · <id>` を `ai-board/data · <id>` に直す
-- [ ] README の「board.db からの切り替え」を、`d2380ce` の `ai-board migrate` で移行する案内に縮め、新しいリポジトリでは `ai-board init` を走らせることを書く。
+- [x] `src/cards/models/card.ts` の docstring を、データ用ブランチの `cards/<id>/card.md` と `log/` から組み立てる今の形に直す
+- [x] `src/web/components/detail/BodyEditor.tsx` の `.ai-board/board.db · <id>` を `ai-board/data · <id>` に直す
+- [x] README の「board.db からの切り替え」を、`d2380ce` の `ai-board migrate` で移行する案内に縮め、新しいリポジトリでは `ai-board init` を走らせることを書く。
       許可ルールの節の `ai-board migrate` を `ai-board init` に、`config.yaml` の節の `migrate` の 1 文を `init` に直す
-- [ ] `docs/architecture.md` の `migrate` と SQLite の段落・`LEGACY_SCHEMA_VERSION` の 1 文・データ用ブランチが無いときの案内・`config.yaml` の注を今の形に直す
-- [ ] `.claude/skills/board-loop/subagent-rules.md` の「動かして確かめるとき」の `migrate --empty` を `init` にし、`--from <board.db の複製>` の注を消す
-- [ ] `docs/adr/0010-cards-on-data-branch.md` の結果に、移行の `migrate` は `d2380ce` までの版にあり、空のデータ用ブランチは `ai-board init` で作ると 1 行足し、根拠にこの計画を足す
-- [ ] `.gitignore` のコメントを「移行前のカードの正本（SQLite）」に直す
+- [x] `docs/architecture.md` の `migrate` と SQLite の段落・`LEGACY_SCHEMA_VERSION` の 1 文・データ用ブランチが無いときの案内・`config.yaml` の注を今の形に直す
+- [x] `.claude/skills/board-loop/subagent-rules.md` の「動かして確かめるとき」の `migrate --empty` を `init` にし、`--from <board.db の複製>` の注を消す
+- [x] `docs/adr/0010-cards-on-data-branch.md` の結果に、移行の `migrate` は `d2380ce` までの版にあり、空のデータ用ブランチは `ai-board init` で作ると 1 行足し、根拠にこの計画を足す
+- [x] `.gitignore` のコメントを「移行前のカードの正本（SQLite）」に直す
