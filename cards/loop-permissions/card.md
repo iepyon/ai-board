@@ -3,7 +3,7 @@ id: loop-permissions
 title: ユーザは、ループを回すときに許可の確認で何度も止められたくない
 created: '2026-10-31T06:52:00.967Z'
 skipGates: []
-branch: null
+branch: loop-permissions
 mr: null
 ---
 
