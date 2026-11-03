@@ -165,3 +165,19 @@
 - [x] `.claude/skills/board-loop/subagent-rules.md` の「動かして確かめるとき」の `migrate --empty` を `init` にし、`--from <board.db の複製>` の注を消す
 - [x] `docs/adr/0010-cards-on-data-branch.md` の結果に、移行の `migrate` は `d2380ce` までの版にあり、空のデータ用ブランチは `ai-board init` で作ると 1 行足し、根拠にこの計画を足す
 - [x] `.gitignore` のコメントを「移行前のカードの正本（SQLite）」に直す
+
+## AI レビュー
+
+- [ ] `src/cards/controllers/card-error-mappings.ts:137` の `DataBranchMissing`（`DATA_BRANCH_MISSING`）の文は「ai-board init を走らせてください」で終わり、CLI の `describeDataStoreError`（`src/cards/cli/data-store-messages.ts:17`）にある「移行前の board.db があるなら、README の『board.db からの切り替え』を見てください」が無い。Decisions「データ用ブランチが無いときの案内は `board.db` を見ない」は案内を 1 通りにすると決めており、画面だけを見た `board.db` の持ち主が `init` を先に走らせると、`d2380ce` の `migrate` が `DataBranchExists` で止まる。HTTP の文にも同じ README への案内を足し、`card-error-mappings` のテスト（無ければ `src/cards/controllers/__tests__/` に足す）で `DataBranchMissing` の文が `ai-board init` と「board.db からの切り替え」を含むことを確かめる
+
+### 見送った指摘
+
+- `src/__tests__/claude-settings.test.ts:169` の allow の確かめが `rule.includes('migrate')` から `rule.includes('cli.js init')` に狭まり、`Bash(ai-board init *)` のような書き方を allow に足しても通る。`init` は `git init` などとも当たるので部分一致を狭めたもので、今の allow に該当するルールは無い。テストの守りの広さの話なので見送る
+- `.claude/settings.json:20` の `ask` は `node [*/]dist/cli.js init` の形だけで、`ai-board init`（`package.json` の `bin`）や `node "$WT/dist/cli.js" init` の引用符付きの形は当たらない。`migrate` のときから同じ範囲で、この PR で狭まったものではないので見送る
+- `src/cards/cli/init-cli.ts:62` は `config.yaml` を `createDataBranch` の有無の確かめより前に読むので、`config.yaml` が読めない（EACCES / ディレクトリ）と、ブランチが既にあるときも「既にあります」ではなく Node の例外で止まる。旧 `migrate` は確かめの後に読んでいた。起こりにくい境界で、`main().catch` で止まりはするので見送る
+- `src/cards/cli/init-cli.ts:31` の `CONFIG_FILE` は `src/shared/config.ts` の `CONFIG_FILE` と同じ値の定義の重複、`init-cli.ts:129` の `readFileOrNull` も `data-store.ts` などにある同じ関数の写し。振る舞いを変えない整理なので見送る
+- `src/infrastructure/data-store.ts:583` の `checkDataBranchAbsent` は、`migrate` が消えて `createDataBranch` の中からしか呼ばれないが、export のまま残っている。振る舞いを変えない整理なので見送る
+
+### 人に判断してほしいこと
+
+- `src/cards/cli/data-store-messages.ts:17` の案内は、誰にもまず「ai-board init を走らせてください」と言い、`board.db` の話はその後に続く。`board.db` の持ち主が先に `init` を走らせると空のデータ用ブランチが `origin` に push され、README の手順（`d2380ce` の `migrate`）は `checkDataBranchAbsent` で `DataBranchExists` になり、`origin` の `ai-board/data` を手で消すまで移行できない。Decisions はこの文を決めているので、「`board.db` があるなら `init` を走らせず README を見てください」のように順を入れ替えるか、今の文のままにするかは人が決める
