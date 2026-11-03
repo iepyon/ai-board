@@ -56,8 +56,8 @@ interface GateReviewItemProps {
 }
 
 /**
- * 計画レビューと動作確認のカード、と AI の列で止まっているカード。
- * 提出に書かれた本文（判断待ちの点、動かす手順）や保留の理由と PR へのリンクを見せ、
+ * 計画レビューのカード、と AI の列で止まっているカード。
+ * 提出に書かれた本文（判断待ちの点）や保留の理由と PR へのリンクを見せ、
  * 「判断する」でその場にレビュー欄を開く。計画の本文や差分は PR で読む。
  */
 function GateReviewItem({ card, onSelect, onChanged }: GateReviewItemProps) {
@@ -116,7 +116,7 @@ function GateReviewItem({ card, onSelect, onChanged }: GateReviewItemProps) {
 
 /**
  * 判断の材料を読む PR へのリンク。計画レビューと計画提案中の止まりでは計画を読み、
- * 動作確認と実装中の止まりでは PR から手元へ取り込んで動かす。
+ * 実装中の止まり（Draft に戻された PR）では PR を開く。
  */
 function ReviewPrLink({ card }: { card: BoardCard }) {
   const mr = card.mrState;

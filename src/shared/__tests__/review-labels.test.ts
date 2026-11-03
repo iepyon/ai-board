@@ -4,7 +4,6 @@ import { REVIEW_GATE_LABELS, reviewTone } from '../review-labels.js';
 describe('REVIEW_GATE_LABELS', () => {
   it('ゲートを日本語の名前にする', () => {
     expect(REVIEW_GATE_LABELS.plan).toBe('計画');
-    expect(REVIEW_GATE_LABELS.verify).toBe('動作確認');
   });
 });
 

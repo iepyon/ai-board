@@ -8,7 +8,7 @@ import { DIVIDER_ID } from './card-reorder.js';
 /**
  * ダッシュボードの区画。ステージの導出はサーバが済ませており、ここは見せ方の振り分けだけを持つ。
  *
- * - `inbox`   人の判断待ち（計画レビュー / 動作確認 / PR中、と AI の列で止まっているカード）
+ * - `inbox`   人の判断待ち（計画レビュー / PR中、と AI の列で止まっているカード）
  * - `work`    AI が進めている（計画提案中 / 実装中。止まっているカードを除く）
  * - `idea`    アイデア
  * - `merged`  マージ済み
@@ -22,7 +22,6 @@ export const SECTION_OF_STAGE: Record<Stage, Exclude<DashboardSection, 'aborted'
   planning: 'work',
   'plan-review': 'inbox',
   impling: 'work',
-  verifying: 'inbox',
   pr: 'inbox',
   merged: 'merged',
 };
@@ -86,9 +85,8 @@ function sectionOf(card: SectionCard): DashboardSection {
  *
  * 計画レビューは提出（再提出）の時刻。提出を書き忘れて計画ファイルだけがある場合は
  * ファイルの更新時刻で代える。
- * 動作確認は verify の提出（再提出）の時刻（`latestReview` がその列の待つゲートのエントリを指す）。
  * PR中 は最新コミットの時刻（修正を push した時点から人の番になる）。取れなければゲートを問わず最新のレビューエントリの時刻
- * （多くは verify の承認、動作確認を飛ばしたなら plan の承認）。
+ * （多くは plan の承認）。
  */
 export function waitingSince(card: SectionCard): string | null {
   if (card.hold !== null) return card.hold.since;
@@ -113,13 +111,13 @@ export function mergedAt(card: SectionCard): string | null {
 // ============================================================
 
 /** 人が判断するゲート。`ReviewGate`（`src/cards/models/review.ts`）と同じ値をリテラルで書く */
-export type DecisionGate = 'plan' | 'verify';
+export type DecisionGate = 'plan';
 
 /**
  * 詳細パネルに出す判断のボタン 1 つ。押すと `## レビュー` へ `gate` の `kind` を追記する。
  *
- * 同じ 否決 でも、どのゲートに書くかで差し戻す先が変わる。
- * verify の否決は実装を直させ（`revise-impl`）、plan の否決は計画から立て直させる（`revise-plan`）。
+ * plan の否決は、計画提案中へ落として計画を直させる（`revise-plan`）。
+ * 実装中のカードに書けば、承認済みの計画から立て直させることになる。
  */
 export interface Decision {
   readonly gate: DecisionGate;
@@ -164,10 +162,7 @@ const replan = reject('plan', '計画から立て直させる');
  * 詳細パネルに出す判断のボタン。判断を待っていなければ空。
  *
  * - **計画レビュー**: 承認 / 否決して差し戻す / 中止
- * - **動作確認**: 承認 / 否決して差し戻す / 計画から立て直させる / 中止。
- *   動かした時点で、計画からやり直すべきと分かることがあるため
- * - **実装中で止まっている**（AI の verify 保留、または PR が Draft に戻された）:
- *   実装を直させる / 計画から立て直させる / 中止
+ * - **実装中で止まっている**（判断の後に PR が Draft に戻された）: 計画から立て直させる / 中止
  * - **計画提案中で止まっている**: AI の plan 保留なら 計画を直させる / 中止。
  *   提出済みなのに成果物が見えないなら 中止 だけ（直させる先の計画が見えない）
  *
@@ -175,7 +170,7 @@ const replan = reject('plan', '計画から立て直させる');
  *
  * 飛ばす宣言（`skipGates`）の有無では出し分けない。
  * 宣言のあるゲートでも、AI の 提出 / 再提出 を承認と読むだけで、人の否決 / 承認はふつうに効く（`gateState`）。
- * plan を飛ばすカードでも「計画から立て直させる」を、verify を飛ばすカードでも「実装を直させる」を押せる。
+ * plan を飛ばすカードでも「計画から立て直させる」を押せる。
  */
 export function decisionsFor(card: DecisionCard): Decision[] {
   if (card.aborted) return [];
@@ -183,12 +178,8 @@ export function decisionsFor(card: DecisionCard): Decision[] {
   switch (card.stage) {
     case 'plan-review':
       return [approve('plan'), reject('plan', '否決して差し戻す'), abort('plan')];
-    case 'verifying':
-      return [approve('verify'), reject('verify', '否決して差し戻す'), replan, abort('verify')];
     case 'impling':
-      return card.hold === null
-        ? []
-        : [reject('verify', '実装を直させる'), replan, abort('verify')];
+      return card.hold === null ? [] : [replan, abort('plan')];
     case 'planning':
       if (card.hold === null) return [];
       return card.gates.plan === 'held'
@@ -202,7 +193,7 @@ export function decisionsFor(card: DecisionCard): Decision[] {
 /**
  * 詳細パネルで、判断のボタンを本文より前に出すか。出すボタン（`decisionsFor`）が 1 つでもあれば出す。
  *
- * ゲートを待つ列（計画レビュー / 動作確認）のカードと、AI の列で止まっているカードが当たる。
+ * ゲートを待つ列（計画レビュー）のカードと、AI の列で止まっているカードが当たる。
  */
 export function awaitsDecision(card: DecisionCard): boolean {
   return decisionsFor(card).length > 0;

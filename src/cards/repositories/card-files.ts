@@ -6,7 +6,13 @@ import { ok, err, type Result } from '../../shared/result.js';
 import { CardIdSchema, type CardId, type MergeRequestIid } from '../../shared/schemas/common.js';
 import { CardFrontmatterSchema } from '../models/schemas/card.schema.js';
 import type { Card } from '../models/card.js';
-import type { ReviewEntry, ReviewGate, ReviewKind } from '../models/review.js';
+import {
+  isReviewGate,
+  RETIRED_REVIEW_GATES,
+  type ReviewEntry,
+  type ReviewGate,
+  type ReviewKind,
+} from '../models/review.js';
 import {
   appendReviewEntry,
   hasReviewSection,
@@ -245,6 +251,13 @@ export function fromLogStamp(stamp: string): string | null {
   return !Number.isNaN(ms) && new Date(ms).toISOString() === iso ? iso : null;
 }
 
+/** 廃止したゲートの判断のファイル名か */
+export function isRetiredLogFileName(name: string): boolean {
+  const gate = LOG_NAME.exec(name)?.[2];
+
+  return gate !== undefined && RETIRED_REVIEW_GATES.includes(gate);
+}
+
 /** 判断のファイル名を読む。形が違う・ゲートと種別の組み合わせが規定外なら null */
 export function parseLogFileName(name: string): LogName | null {
   const match = LOG_NAME.exec(name);
@@ -268,7 +281,7 @@ function toLogName(at: string, gate: string, kindName: string, seq: number): Log
       : null;
   }
 
-  if (gate !== 'plan' && gate !== 'verify') return null;
+  if (!isReviewGate(gate)) return null;
 
   const kind = REVIEW_KINDS_BY_NAME.get(kindName);
 
@@ -331,13 +344,17 @@ interface ReadLogEntry {
   readonly reason: string;
 }
 
-/** `log/` のファイルを読む順に並べる。名前の読めないファイルは警告して読み飛ばす */
+/**
+ * `log/` のファイルを読む順に並べる。名前の読めないファイルは警告して読み飛ばす。
+ * 廃止したゲート（`RETIRED_REVIEW_GATES`）のファイルは、壊れたものではないので警告せずに読み飛ばす
+ */
 function readLog(id: string, files: readonly LogFile[]): ReadLogEntry[] {
   const entries: ReadLogEntry[] = [];
 
   for (const file of files) {
     const name = parseLogFileName(file.name);
     if (name === null) {
+      if (isRetiredLogFileName(file.name)) continue;
       console.warn(`[ai-board] 判断のファイルを読み飛ばしました: ${id}/${LOG_DIR}/${file.name}`);
       continue;
     }

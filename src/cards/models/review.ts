@@ -9,14 +9,20 @@
  * （PR が merged になること）そのものであり、カード本文には現れないため。
  *
  * - `plan`   計画を読んで確かめる（計画レビューの列）
- * - `verify` 実装を動かして確かめる（動作確認の列）
  *
- * かつては `explore` ゲートもあったが、探索レビューの列とともに廃止した。
- * 既存カードに残る `explore` のエントリは規定外のゲートとして黙って無視される。
+ * かつては `explore` ゲート（探索レビューの列）と `verify` ゲート（動作確認の列）もあったが、どちらも列とともに廃止した。
+ * 実装を動かして確かめるのは、AI が PR の本文に書いた証拠を読んで PR中 で行う。
+ * 既存カードに残る `explore` / `verify` のエントリは規定外のゲートとして黙って無視される（記録は消さない）。
  */
-export const REVIEW_GATES = ['plan', 'verify'] as const;
+export const REVIEW_GATES = ['plan'] as const;
 
 export type ReviewGate = (typeof REVIEW_GATES)[number];
+
+/**
+ * 廃止したゲート。カードに残る記録（`## レビュー` のエントリ、判断のファイル、`skipGates`）を、
+ * 警告もエラーも出さずに読み飛ばすために使う。書く入口はどれも受け付けない。
+ */
+export const RETIRED_REVIEW_GATES: readonly string[] = ['explore', 'verify'];
 
 /**
  * レビューエントリの種別。

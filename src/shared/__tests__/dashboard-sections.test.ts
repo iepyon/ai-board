@@ -43,14 +43,13 @@ describe('groupBySection', () => {
       makeCard({ id: 'b', stage: 'planning' }),
       makeCard({ id: 'c', stage: 'plan-review' }),
       makeCard({ id: 'd', stage: 'impling' }),
-      makeCard({ id: 'v', stage: 'verifying' }),
       makeCard({ id: 'e', stage: 'pr' }),
       makeCard({ id: 'f', stage: 'merged' }),
     ]);
 
     expect(ids(sections.idea)).toEqual(['a']);
     expect(ids(sections.work)).toEqual(['b', 'd']);
-    expect(ids(sections.inbox)).toEqual(['c', 'v', 'e']);
+    expect(ids(sections.inbox)).toEqual(['c', 'e']);
     expect(ids(sections.merged)).toEqual(['f']);
     expect(sections.aborted).toEqual([]);
   });
@@ -127,12 +126,12 @@ describe('groupBySection', () => {
       makeCard({ id: 'new', stage: 'plan-review', latestReview: { at: '2026-09-25T00:00:00Z' } }),
       makeCard({ id: 'unknown', stage: 'plan-review' }),
       makeCard({ id: 'pr', stage: 'pr', mrState: mr({ latestCommitAt: '2026-09-21T00:00:00Z' }) }),
-      makeCard({ id: 'verify', stage: 'verifying', latestReview: { at: '2026-09-23T00:00:00Z' } }),
+      makeCard({ id: 'mid', stage: 'plan-review', latestReview: { at: '2026-09-23T00:00:00Z' } }),
       makeCard({ id: 'old', stage: 'plan-review', latestReview: { at: '2026-09-20T00:00:00Z' } }),
     ]);
 
     // 時刻の取れないカードは末尾
-    expect(ids(sections.inbox)).toEqual(['old', 'pr', 'verify', 'new', 'unknown']);
+    expect(ids(sections.inbox)).toEqual(['old', 'pr', 'mid', 'new', 'unknown']);
   });
 
   it('マージ済みはマージの新しい順に並べる', () => {
@@ -191,18 +190,6 @@ describe('waitingSince', () => {
     });
 
     expect(waitingSince(card)).toBe('2026-09-22T00:00:00Z');
-  });
-
-  it('動作確認は verify の提出の時刻', () => {
-    const card = makeCard({
-      id: 'a',
-      stage: 'verifying',
-      latestReview: { at: '2026-09-24T00:00:00Z' },
-      plan: { updatedAt: '2026-09-22T00:00:00Z' },
-      mrState: mr({ latestCommitAt: '2026-09-23T00:00:00Z' }),
-    });
-
-    expect(waitingSince(card)).toBe('2026-09-24T00:00:00Z');
   });
 
   it('PR中 は最新コミットの時刻', () => {
@@ -280,23 +267,10 @@ describe('decisionsFor', () => {
     ]);
   });
 
-  it('動作確認は verify の 承認 / 否決 に、計画から立て直させる（plan の否決）を足す', () => {
-    expect(buttons(decisionCard({ stage: 'verifying', gates: { plan: 'approved' } }))).toEqual([
-      'verify 承認 承認',
-      'verify 否決 否決して差し戻す',
-      'plan 否決 計画から立て直させる',
-      'verify 中止 中止する',
-    ]);
-  });
-
-  it('実装中で止まっていれば、実装を直させる / 計画から立て直させる / 中止', () => {
+  it('実装中で止まっていれば（PR が Draft に戻された）、計画から立て直させる / 中止', () => {
     const card = decisionCard({ stage: 'impling', hold: HOLD, gates: { plan: 'approved' } });
 
-    expect(buttons(card)).toEqual([
-      'verify 否決 実装を直させる',
-      'plan 否決 計画から立て直させる',
-      'verify 中止 中止する',
-    ]);
+    expect(buttons(card)).toEqual(['plan 否決 計画から立て直させる', 'plan 中止 中止する']);
   });
 
   it('計画提案中で plan 保留なら、計画を直させる / 中止', () => {
@@ -312,7 +286,7 @@ describe('decisionsFor', () => {
   });
 
   it('否決はどれも理由が要り、承認と中止は要らない', () => {
-    for (const stage of ['plan-review', 'verifying', 'impling'] as const) {
+    for (const stage of ['plan-review', 'impling'] as const) {
       for (const decision of decisionsFor(decisionCard({ stage, hold: HOLD }))) {
         expect(decision.reasonRequired).toBe(decision.kind === '否決');
       }
@@ -330,7 +304,7 @@ describe('decisionsFor', () => {
   });
 
   it('中止のカードには、ゲートを待つ列でも止まっていても出さない', () => {
-    for (const stage of ['plan-review', 'verifying', 'impling', 'planning'] as const) {
+    for (const stage of ['plan-review', 'impling', 'planning'] as const) {
       expect(decisionsFor(decisionCard({ stage, hold: HOLD, aborted: true }))).toEqual([]);
     }
   });
@@ -342,31 +316,13 @@ describe('decisionsFor', () => {
       skipGates: ['plan'],
     };
 
-    expect(buttons(card)).toEqual([
-      'verify 否決 実装を直させる',
-      'plan 否決 計画から立て直させる',
-      'verify 中止 中止する',
-    ]);
-  });
-
-  it('verify を飛ばすカードが Draft に戻されても、実装を直させるを出す', () => {
-    const card = {
-      ...decisionCard({ stage: 'impling', hold: HOLD, gates: { plan: 'approved' } }),
-      skipGates: ['verify'],
-    };
-
-    expect(buttons(card)).toEqual([
-      'verify 否決 実装を直させる',
-      'plan 否決 計画から立て直させる',
-      'verify 中止 中止する',
-    ]);
+    expect(buttons(card)).toEqual(['plan 否決 計画から立て直させる', 'plan 中止 中止する']);
   });
 });
 
 describe('awaitsDecision', () => {
-  it('計画レビューと動作確認のカードは判断を待っている', () => {
+  it('計画レビューのカードは判断を待っている', () => {
     expect(awaitsDecision(decisionCard({ stage: 'plan-review' }))).toBe(true);
-    expect(awaitsDecision(decisionCard({ stage: 'verifying' }))).toBe(true);
   });
 
   it('AI の列で止まっているカードは判断を待っている', () => {
@@ -379,7 +335,7 @@ describe('awaitsDecision', () => {
   });
 
   it('中止のカードはゲートを待つ列に残っていても、止まっていても含めない', () => {
-    for (const stage of ['plan-review', 'verifying', 'impling'] as const) {
+    for (const stage of ['plan-review', 'impling'] as const) {
       expect(awaitsDecision(decisionCard({ stage, hold: HOLD, aborted: true }))).toBe(false);
     }
   });

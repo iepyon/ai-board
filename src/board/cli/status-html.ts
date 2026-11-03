@@ -371,7 +371,7 @@ function renderPr(card: StatusCard | undefined): string {
 }
 
 /**
- * 待っているゲートの最新のエントリ。計画レビューと動作確認では提出の本文（AI が書いた判断してほしい点）、
+ * 待っているゲートの最新のエントリ。計画レビューでは提出の本文（AI が書いた判断してほしい点）、
  * 止まっているカードでは保留の理由になる。本文は Markdown のまま、改行を保って出す
  */
 function renderLatestReview(card: StatusCard | undefined): string {

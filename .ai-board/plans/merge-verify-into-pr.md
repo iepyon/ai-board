@@ -158,21 +158,21 @@ timeline は `## レビュー` のエントリから区間を導く（ADR 0008�
 
 ### 1. ゲートとステージから verify を外す
 
-- [ ] `src/cards/models/review.ts` の `REVIEW_GATES` を `['plan']` にし、docstring に廃止した `verify` も `explore` と同じく黙って読み飛ばすことを書く
-- [ ] `src/cards/repositories/card-files.ts` の `toLogName` のゲートの判定を `isReviewGate` に寄せ、`verify` の判断のファイルを警告なしで読み飛ばす
-- [ ] `src/cards/models/schemas/card.schema.ts` の frontmatter の `skipGates` を、規定外の値を落としてから検証する形にする。`PATCH` のスキーマは `plan` だけを受け付ける
-- [ ] `src/cards/services/review-log.ts` の `gateStates` と後ろのゲートの区切り（plan の承認より古いエントリを数えない）を、ゲートが `plan` だけになった形に直す
-- [ ] `src/shared/schemas/common.ts` の `STAGES` から `verifying` を消し、`src/board/services/stage-resolver.ts` の `RULES` から 3 番を消して docstring の表と説明を直す
-- [ ] `src/board/services/next-action.ts` から `revise-impl` / `ready` を消し、実装中は止まっていなければ常に `implement` を返す。`resolveHold` の実装中は `draftReverted` だけにし、`HOLD_REASONS.verifyHeld` を消して `draftReverted` の文から「差し戻す」を「計画から立て直させる」に直す
-- [ ] `src/cards/cli/card-cli.ts` の `submit` / `hold` の `--gate` を `plan` だけにし、使い方の文と `verify` の提出の条件を消す
-- [ ] `src/shared/loop-step.ts` を今の手と過去の手に分け（Decisions 6）、`loop-history.repository.ts` と `loop-cli.ts` を合わせる
-- [ ] 人の API の `plan 中止` が plan の承認後でも書けることを確かめ、書けなければ書けるようにする（Decisions 5）
-- [ ] `src/shared/stage-gates.ts`（`GATE_OF_STAGE` と `offersSkipVerify`）、`src/shared/stage-labels.ts`、`src/shared/review-labels.ts`、`src/board/models/board-card.ts` から verify を外す
-- [ ] `src/shared/dashboard-sections.ts` の区画と判断のボタンを直す。動作確認の列のボタンを消し、実装中の止まりのボタンを「計画から立て直させる / 中止（plan）」にする
-- [ ] `src/board/services/stage-timeline.ts` の `REVIEW_TRANSITIONS` から `verify:*` を消し、`verify 承認` の `readying` の読み替えの説明を直す（区間の種類そのものは 2 で消す）
-- [ ] `src/web/types.ts` の `Stage` / `ReviewGate` / 列の表（所有者・ゲート・`GATE_STAGES`）から verify を外し、`src/web/components/detail/SkipGateField.tsx` を「計画レビューを飛ばす」だけにする。
+- [x] `src/cards/models/review.ts` の `REVIEW_GATES` を `['plan']` にし、docstring に廃止した `verify` も `explore` と同じく黙って読み飛ばすことを書く
+- [x] `src/cards/repositories/card-files.ts` の `toLogName` のゲートの判定を `isReviewGate` に寄せ、`verify` の判断のファイルを警告なしで読み飛ばす
+- [x] `src/cards/models/schemas/card.schema.ts` の frontmatter の `skipGates` を、規定外の値を落としてから検証する形にする。`PATCH` のスキーマは `plan` だけを受け付ける
+- [x] `src/cards/services/review-log.ts` の `gateStates` と後ろのゲートの区切り（plan の承認より古いエントリを数えない）を、ゲートが `plan` だけになった形に直す
+- [x] `src/shared/schemas/common.ts` の `STAGES` から `verifying` を消し、`src/board/services/stage-resolver.ts` の `RULES` から 3 番を消して docstring の表と説明を直す
+- [x] `src/board/services/next-action.ts` から `revise-impl` / `ready` を消し、実装中は止まっていなければ常に `implement` を返す。`resolveHold` の実装中は `draftReverted` だけにし、`HOLD_REASONS.verifyHeld` を消して `draftReverted` の文から「差し戻す」を「計画から立て直させる」に直す
+- [x] `src/cards/cli/card-cli.ts` の `submit` / `hold` の `--gate` を `plan` だけにし、使い方の文と `verify` の提出の条件を消す
+- [x] `src/shared/loop-step.ts` を今の手と過去の手に分け（Decisions 6）、`loop-history.repository.ts` と `loop-cli.ts` を合わせる
+- [x] 人の API の `plan 中止` が plan の承認後でも書けることを確かめ、書けなければ書けるようにする（Decisions 5）
+- [x] `src/shared/stage-gates.ts`（`GATE_OF_STAGE` と `offersSkipVerify`）、`src/shared/stage-labels.ts`、`src/shared/review-labels.ts`、`src/board/models/board-card.ts` から verify を外す
+- [x] `src/shared/dashboard-sections.ts` の区画と判断のボタンを直す。動作確認の列のボタンを消し、実装中の止まりのボタンを「計画から立て直させる / 中止（plan）」にする
+- [x] `src/board/services/stage-timeline.ts` の `REVIEW_TRANSITIONS` から `verify:*` を消し、`verify 承認` の `readying` の読み替えの説明を直す（区間の種類そのものは 2 で消す）
+- [x] `src/web/types.ts` の `Stage` / `ReviewGate` / 列の表（所有者・ゲート・`GATE_STAGES`）から verify を外し、`src/web/components/detail/SkipGateField.tsx` を「計画レビューを飛ばす」だけにする。
       `ReviewActions.tsx` ほか `verifying` を参照する画面の部品があれば直す
-- [ ] 上の変更に合わせて、`stage-resolver` / `next-action` / `card-cli` / `card-files` / `review-log` / `card-commands` / `dashboard-sections` / `stage-gates` / `review-labels` / `loop-cli` / `loop-history` / `loop-activity` / `stage-timeline` / `status-cli` / `board.e2e` のテストを直す。
+- [x] 上の変更に合わせて、`stage-resolver` / `next-action` / `card-cli` / `card-files` / `review-log` / `card-commands` / `dashboard-sections` / `stage-gates` / `review-labels` / `loop-cli` / `loop-history` / `loop-activity` / `stage-timeline` / `status-cli` / `board.e2e` のテストを直す。
       verify のエントリと `skipGates: [verify]` を持つカードが読めてステージが変わらないこと、`--gate verify` を拒むこと、過去の手の記録が読めることのテストを足す
 
 ### 2. 使われなくなった工程の区間と語を消す

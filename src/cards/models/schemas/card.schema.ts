@@ -1,9 +1,24 @@
 import { z } from 'zod';
 import { CardIdSchema } from '../../../shared/schemas/common.js';
 import { DIVIDER_ID } from '../../../shared/card-reorder.js';
-import { HUMAN_REVIEW_KINDS, REVIEW_GATES } from '../review.js';
+import { HUMAN_REVIEW_KINDS, RETIRED_REVIEW_GATES, REVIEW_GATES } from '../review.js';
 
 const ReviewGateSchema = z.enum(REVIEW_GATES);
+
+/**
+ * frontmatter の `skipGates`。廃止したゲート（`RETIRED_REVIEW_GATES`）を落としてから検証する。
+ *
+ * 廃止したゲートの `## レビュー` のエントリは規定外として黙って無視する（`review.ts`）。
+ * `skipGates` は Zod で検証するので、落とさないとマージ済みのカードまで読めなくなる。
+ * 落とすのは廃止したものだけにし、書き損じは今までどおり検証で落とす。書く入口（`PATCH`）は受け付けない。
+ */
+const StoredSkipGatesSchema = z.preprocess(
+  (value) =>
+    Array.isArray(value)
+      ? value.filter((gate) => typeof gate !== 'string' || !RETIRED_REVIEW_GATES.includes(gate))
+      : value,
+  z.array(ReviewGateSchema)
+);
 
 // ============================================================
 // カード frontmatter のスキーマ
@@ -35,7 +50,7 @@ export const CardFrontmatterSchema = z.object({
   /** 人が探索の着手を指示した時刻 */
   startedAt: nullableField(IsoDateTime).default(null),
   /** 人が事前に見ないと宣言したゲート */
-  skipGates: z.array(ReviewGateSchema).default([]),
+  skipGates: StoredSkipGatesSchema.default([]),
   /** Git のブランチ名。PR 番号の自動解決に使う */
   branch: nullableField(z.string().min(1).max(200)).default(null),
   /** レビュー要求の識別番号（GitHub の PR number） */

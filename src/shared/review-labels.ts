@@ -1,5 +1,5 @@
-/** 判断のゲート（`plan` / `verify`）。`src/web/types.ts` の `ReviewGate` と同じ */
-export type ReviewLabelGate = 'plan' | 'verify';
+/** 判断のゲート（`plan`）。`src/web/types.ts` の `ReviewGate` と同じ */
+export type ReviewLabelGate = 'plan';
 
 /** 判断の種別。`src/web/types.ts` の `ReviewKind` と同じ */
 export type ReviewLabelKind = '提出' | '再提出' | '保留' | '承認' | '否決' | '中止';
@@ -7,7 +7,6 @@ export type ReviewLabelKind = '提出' | '再提出' | '保留' | '承認' | '�
 /** 詳細パネルの「判断の記録」で、判断の見出しに出すゲートの名前 */
 export const REVIEW_GATE_LABELS: Record<ReviewLabelGate, string> = {
   plan: '計画',
-  verify: '動作確認',
 };
 
 /**

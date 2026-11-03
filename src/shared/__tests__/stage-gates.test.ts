@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { offersSkipVerify, withSkipGate } from '../stage-gates.js';
+import { GATE_OF_STAGE, withSkipGate } from '../stage-gates.js';
 
 // ============================================================
 // 飛ばす宣言の出し入れ
@@ -7,51 +7,28 @@ import { offersSkipVerify, withSkipGate } from '../stage-gates.js';
 
 describe('withSkipGate', () => {
   it('宣言が無いところへ入れる', () => {
-    expect(withSkipGate([], 'verify', true)).toEqual(['verify']);
-  });
-
-  it('入れても他のゲートの宣言を保つ', () => {
-    expect(withSkipGate(['plan'], 'verify', true)).toEqual(['plan', 'verify']);
+    expect(withSkipGate([], 'plan', true)).toEqual(['plan']);
   });
 
   it('既に入っているものを入れても重ならない', () => {
-    expect(withSkipGate(['verify'], 'verify', true)).toEqual(['verify']);
+    expect(withSkipGate(['plan'], 'plan', true)).toEqual(['plan']);
   });
 
-  it('外しても他のゲートの宣言を保つ', () => {
-    expect(withSkipGate(['plan', 'verify'], 'verify', false)).toEqual(['plan']);
+  it('外す', () => {
+    expect(withSkipGate(['plan'], 'plan', false)).toEqual([]);
   });
 
   it('無いものを外しても変わらない', () => {
-    expect(withSkipGate(['plan'], 'verify', false)).toEqual(['plan']);
-  });
-
-  it('plan を入れても verify の宣言を保つ', () => {
-    expect(withSkipGate(['verify'], 'plan', true)).toEqual(['verify', 'plan']);
-  });
-
-  it('plan を外しても verify の宣言を保つ', () => {
-    expect(withSkipGate(['plan', 'verify'], 'plan', false)).toEqual(['verify']);
+    expect(withSkipGate([], 'plan', false)).toEqual([]);
   });
 });
 
 // ============================================================
-// 動作確認を飛ばすチェックボックスの出し分け
+// 列が待つゲート
 // ============================================================
 
-describe('offersSkipVerify', () => {
-  it.each(['idea', 'planning', 'plan-review', 'impling', 'verifying'] as const)(
-    '動作確認の列をまだ通っていない %s のカードには出す',
-    (stage) => {
-      expect(offersSkipVerify({ stage, aborted: false })).toBe(true);
-    }
-  );
-
-  it.each(['pr', 'merged'] as const)('動作確認の後にいる %s のカードには出さない', (stage) => {
-    expect(offersSkipVerify({ stage, aborted: false })).toBe(false);
-  });
-
-  it('実装中でも中止のカードには出さない', () => {
-    expect(offersSkipVerify({ stage: 'impling', aborted: true })).toBe(false);
+describe('GATE_OF_STAGE', () => {
+  it('ボタンで判断を待つ列は計画レビューだけで、plan を待つ', () => {
+    expect(GATE_OF_STAGE).toEqual({ 'plan-review': 'plan' });
   });
 });

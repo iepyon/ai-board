@@ -292,12 +292,15 @@ describe('runCardCli', () => {
     expect(await bodyOf('b')).toContain('### 2026-09-26T00:00:00.000Z plan 再提出\n\n指摘を反映');
   });
 
-  it('submit は --gate verify で動作確認への提出を追記する', async () => {
+  it('submit は廃止した --gate verify を使い方とともに 1 にし、何も追記しない', async () => {
     await seed('a', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 承認');
     await start('a');
+    const original = await bodyOf('a');
 
-    expect(await run(['submit', 'a', '--gate', 'verify', '--reason', '手順'])).toBe(0);
-    expect(await bodyOf('a')).toContain('### 2026-09-26T00:00:00.000Z verify 提出\n\n手順');
+    expect(await run(['submit', 'a', '--gate', 'verify', '--reason', '手順'])).toBe(1);
+    expect(stderr).toContain('--gate には plan を');
+    expect(stderr).toContain('使い方');
+    expect(await bodyOf('a')).toBe(original);
   });
 
   it.each([
@@ -321,49 +324,14 @@ describe('runCardCli', () => {
     }
   );
 
-  it('submit は plan を飛ばすカードで、人の verify 否決 の後の plan 再提出を 1 にする', async () => {
-    const original = [
-      '## レビュー',
-      '',
-      '### 2026-09-25T00:00:00.000Z plan 提出',
-      '',
-      '### 2026-09-25T01:00:00.000Z verify 提出',
-      '',
-      '### 2026-09-25T02:00:00.000Z verify 否決',
-      '',
-      '直して',
-    ].join('\n');
-    await seed('a', original);
+  it('submit は plan を飛ばすカードで、提出済み（承認と読まれる）の plan の再提出を 1 にする', async () => {
+    await seed('a', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 提出');
     await start('a');
     await skip('a', ['plan']);
     const before = await bodyOf('a');
 
     expect(await run(['submit', 'a', '--resubmit'])).toBe(1);
     expect(await bodyOf('a')).toBe(before);
-
-    const card = await deps.cards.cardRepository.findById('a' as CardId);
-    expect(gateStates(parseReviewLog(card?.body ?? ''), ['plan']).verify).toBe('rejected');
-  });
-
-  it('submit は plan の承認前の --gate verify を 1 にし、何も追記しない', async () => {
-    await seed('a', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 提出');
-
-    expect(await run(['submit', 'a', '--gate', 'verify'])).toBe(1);
-    expect(stderr).toContain('plan の承認後');
-    expect(await bodyOf('a')).not.toContain('verify 提出');
-  });
-
-  it('submit は skipGates に plan があれば、承認が無くても plan 提出 の後の --gate verify を受け付ける', async () => {
-    await seed('a');
-    await start('a');
-    await skip('a', ['plan']);
-
-    expect(await run(['submit', 'a', '--gate', 'verify'])).toBe(1);
-    expect(await bodyOf('a')).not.toContain('verify 提出');
-
-    expect(await run(['submit', 'a', '--gate', 'plan'])).toBe(0);
-    expect(await run(['submit', 'a', '--gate', 'verify'])).toBe(0);
-    expect(await bodyOf('a')).toContain('verify 提出');
   });
 
   it('submit は着手していないカードへの plan の提出と再提出を 1 にし、何も追記しない', async () => {
@@ -393,7 +361,7 @@ describe('runCardCli', () => {
     await seed('a');
 
     expect(await run(['submit', 'a', '--gate', 'pr'])).toBe(1);
-    expect(stderr).toContain('--gate には plan か verify');
+    expect(stderr).toContain('--gate には plan を');
     expect(stderr).toContain('使い方');
     expect(await run(['submit', 'a', '--gate'])).toBe(1);
     expect(await bodyOf('a')).toBe('');
@@ -407,17 +375,15 @@ describe('runCardCli', () => {
   it('hold は理由付きの保留を追記し、ゲートを held にする', async () => {
     await seed(
       'a',
-      '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 承認\n\n### 2026-09-25T01:00:00.000Z verify 否決\n\n検索が遅い'
+      '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 提出\n\n### 2026-09-25T01:00:00.000Z plan 否決\n\n範囲が広い'
     );
 
-    expect(await run(['hold', 'a', '--gate', 'verify', '--reason', ' 直すには大きすぎる '])).toBe(
-      0
-    );
+    expect(await run(['hold', 'a', '--gate', 'plan', '--reason', ' 直すには大きすぎる '])).toBe(0);
     expect(stdout.trim()).toBe('a');
 
     const body = (await bodyOf('a')) ?? '';
-    expect(body).toContain('### 2026-09-26T00:00:00.000Z verify 保留\n\n直すには大きすぎる');
-    expect(gateStates(parseReviewLog(body), []).verify).toBe('held');
+    expect(body).toContain('### 2026-09-26T00:00:00.000Z plan 保留\n\n直すには大きすぎる');
+    expect(gateStates(parseReviewLog(body), []).plan).toBe('held');
   });
 
   it('hold は plan の保留を plan の承認前でも追記する', async () => {
@@ -431,9 +397,10 @@ describe('runCardCli', () => {
     await seed('a');
 
     expect(await run(['hold', 'a', '--reason', 'x'])).toBe(1);
-    expect(stderr).toContain('--gate には plan か verify');
+    expect(stderr).toContain('--gate には plan を');
     expect(stderr).toContain('使い方');
     expect(await run(['hold', 'a', '--gate', 'pr', '--reason', 'x'])).toBe(1);
+    expect(await run(['hold', 'a', '--gate', 'verify', '--reason', 'x'])).toBe(1);
     expect(await bodyOf('a')).toBe('');
   });
 
@@ -447,27 +414,20 @@ describe('runCardCli', () => {
   });
 
   it('hold はそのゲートの最新の判断が否決でなければ 1 にし、何も追記しない', async () => {
-    // plan 承認済み: plan の保留は人の承認を打ち消す。verify はまだ何も無い
+    // plan 承認済み: plan の保留は人の承認を打ち消す
     await seed('a', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 承認');
     expect(await run(['hold', 'a', '--gate', 'plan', '--reason', 'x'])).toBe(1);
     expect(stderr).toContain('否決のときにしか');
-    expect(await run(['hold', 'a', '--gate', 'verify', '--reason', 'x'])).toBe(1);
 
-    // 計画レビュー中 / 動作確認中: 人を待つカードを AI の列へ落とさない
+    // 計画レビュー中: 人を待つカードを AI の列へ落とさない
     await seed('b', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 提出');
     expect(await run(['hold', 'b', '--gate', 'plan', '--reason', 'x'])).toBe(1);
-    expect(await run(['hold', 'b', '--gate', 'verify', '--reason', 'x'])).toBe(1);
-    await seed(
-      'c',
-      '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 承認\n\n### 2026-09-25T01:00:00.000Z verify 提出'
-    );
-    expect(await run(['hold', 'c', '--gate', 'verify', '--reason', 'x'])).toBe(1);
 
     // 何も書かれていないカード
     await seed('d');
     expect(await run(['hold', 'd', '--gate', 'plan', '--reason', 'x'])).toBe(1);
 
-    for (const id of ['a', 'b', 'c', 'd']) {
+    for (const id of ['a', 'b', 'd']) {
       expect(await bodyOf(id)).not.toContain('保留');
     }
   });

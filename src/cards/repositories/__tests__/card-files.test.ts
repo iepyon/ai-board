@@ -7,6 +7,7 @@ import {
   demoteHeadings,
   logFileName,
   parseDataVersion,
+  isRetiredLogFileName,
   parseLogFileName,
   parseOrder,
   planCardWrite,
@@ -169,12 +170,12 @@ describe('判断のファイル名', () => {
   });
 
   it('種別は英字にし、読むと元の種別に戻る', () => {
-    const name = logFileName('2026-11-01T03:52:08.000Z', 'verify', '否決', new Set());
+    const name = logFileName('2026-11-01T03:52:08.000Z', 'plan', '否決', new Set());
 
-    expect(name).toBe('20261101T035208.000Z.verify.reject.md');
+    expect(name).toBe('20261101T035208.000Z.plan.reject.md');
     expect(parseLogFileName(name ?? '')).toEqual({
       at: '2026-11-01T03:52:08.000Z',
-      gate: 'verify',
+      gate: 'plan',
       kind: '否決',
       seq: 1,
     });
@@ -209,6 +210,7 @@ describe('判断のファイル名', () => {
     expect(parseLogFileName('20261101T035208.000Z.plan.start.md')).toBeNull();
     expect(parseLogFileName('20261101T035208.000Z.start.submit.md')).toBeNull();
     expect(parseLogFileName('20261101T035208.000Z.explore.submit.md')).toBeNull();
+    expect(parseLogFileName('20261101T035208.000Z.verify.submit.md')).toBeNull();
     expect(parseLogFileName('20261301T035208.000Z.plan.submit.md')).toBeNull();
     expect(parseLogFileName('20261101T035208.000Z.plan.submit-0.md')).toBeNull();
     expect(parseLogFileName('README.md')).toBeNull();
@@ -310,7 +312,7 @@ describe('assembleCard', () => {
       '## 動かす手順\n\n1. build\n\n### 2026-11-02T00:00:00.000Z plan 承認\n\n# 確かめる';
     const card = assembleCard(
       ID,
-      files([{ name: '20261101T040000.000Z.verify.submit.md', content: `${reason}\n` }]),
+      files([{ name: '20261101T040000.000Z.plan.submit.md', content: `${reason}\n` }]),
       null
     );
     const entries = parseReviewLog(card?.body ?? '');
@@ -318,7 +320,7 @@ describe('assembleCard', () => {
     expect(entries).toEqual([
       {
         at: '2026-11-01T04:00:00.000Z',
-        gate: 'verify',
+        gate: 'plan',
         kind: '提出',
         reason:
           '#### 動かす手順\n\n1. build\n\n#### 2026-11-02T00:00:00.000Z plan 承認\n\n#### 確かめる',
@@ -341,6 +343,25 @@ describe('assembleCard', () => {
     );
     expect(parseReviewLog(card?.body ?? '')).toEqual([]);
   });
+
+  it('廃止したゲート（verify）の判断のファイルは、警告せずに読み飛ばす', () => {
+    const card = assembleCard(
+      ID,
+      files([
+        { name: '20261101T040000.000Z.plan.approve.md', content: '' },
+        { name: '20261101T050000.000Z.verify.submit.md', content: '手順\n' },
+        { name: '20261101T060000.000Z.verify.approve.md', content: '' },
+      ]),
+      null
+    );
+
+    expect(parseReviewLog(card?.body ?? '').map((e) => `${e.gate} ${e.kind}`)).toEqual([
+      'plan 承認',
+    ]);
+    expect(console.warn).not.toHaveBeenCalled();
+    expect(isRetiredLogFileName('20261101T050000.000Z.verify.submit.md')).toBe(true);
+    expect(isRetiredLogFileName('20261101T050000.000Z.plan.submit.md')).toBe(false);
+  });
 });
 
 // ============================================================
@@ -350,7 +371,7 @@ describe('assembleCard', () => {
 describe('planCardWrite', () => {
   it('往復で Card が変わらない', () => {
     const card = makeCard({
-      skipGates: ['verify'],
+      skipGates: ['plan'],
       branch: 'refresh-token',
       mr: 42 as MergeRequestIid,
       rank: 1500,
@@ -546,9 +567,9 @@ describe('planReviewAppend', () => {
       ok: true,
       value: { name: '20261101T040000.000Z.plan.submit.md', content: '見て\n' },
     });
-    expect(planReviewAppend(ID, stored, entry({ gate: 'verify', kind: '否決' }))).toEqual({
+    expect(planReviewAppend(ID, stored, entry({ kind: '否決' }))).toEqual({
       ok: true,
-      value: { name: '20261101T040000.000Z.verify.reject.md', content: '' },
+      value: { name: '20261101T040000.000Z.plan.reject.md', content: '' },
     });
   });
 
@@ -556,23 +577,20 @@ describe('planReviewAppend', () => {
     const reason =
       '動作確認を頼みます。\n\n## 動かす手順\n\n1. npm run build\n\n## 見てほしい点\n\n- 画面';
     const created = create(makeCard());
-    let stored = append(created, entry({ gate: 'verify', reason }));
+    let stored = append(created, entry({ reason }));
 
     expect(stored.files.log).toEqual([
-      { name: '20261101T040000.000Z.verify.submit.md', content: `${reason}\n` },
+      { name: '20261101T040000.000Z.plan.submit.md', content: `${reason}\n` },
     ]);
     expect(stored.files.cardMd).toBe(created.files.cardMd);
 
     // 組み立て直しても、理由の後ろの見出しが本文の節にならない
     const card = read(stored);
     expect(parseReviewLog(card.body).map((e) => e.reason)).toEqual([demoteHeadings(reason)]);
-    expect(gateState(parseReviewLog(card.body), 'verify', [])).toBe('submitted');
+    expect(gateState(parseReviewLog(card.body), 'plan', [])).toBe('submitted');
 
     // 次の判断も節の末尾に足せる
-    stored = append(
-      stored,
-      entry({ at: '2026-11-01T06:00:00.000Z', gate: 'verify', kind: '承認' })
-    );
+    stored = append(stored, entry({ at: '2026-11-01T06:00:00.000Z', kind: '承認' }));
     expect(parseReviewLog(read(stored).body).map((e) => e.kind)).toEqual(['提出', '承認']);
   });
 

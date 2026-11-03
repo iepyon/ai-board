@@ -39,22 +39,19 @@ export interface StageResolution {
  * |---|-------------|------------------------------------------------------|
  * | 1 | merged      | 計画が archive 済み、または PR が merged               |
  * | 2 | pr          | PR が opened かつ Draft でない                         |
- * | 3 | verifying   | plan 承認済み かつ verify ゲートが submitted           |
- * | 4 | impling     | plan 承認済み                                         |
- * | 5 | plan-review | 計画ファイルか Draft の PR があり plan ゲートが none / submitted |
- * | 6 | planning    | startedAt が非 null                                   |
- * | 7 | idea        | 既定                                                  |
+ * | 3 | impling     | plan 承認済み                                         |
+ * | 4 | plan-review | 計画ファイルか Draft の PR があり plan ゲートが none / submitted |
+ * | 5 | planning    | startedAt が非 null                                   |
+ * | 6 | idea        | 既定                                                  |
  *
  * 計画と実装は同じ 1 本の PR に載る。AI は計画をコミットした時点で Draft の PR を出し、
- * 人はその PR で計画を読んで、ボードのボタンで承認 / 否決する。実装を終えて
- * Ready にした時点で PR中 へ進む。Ready にする前に、PR を Draft のまま verify ゲートへ
- * 提出すると動作確認へ進み、人が動かして確かめる。計画ファイルはブランチにあり、ボードを動かす
- * チェックアウトからは見えないことが多いので、Draft の PR も計画の成果物として扱う。
+ * 人はその PR で計画を読んで、ボードのボタンで承認 / 否決する。実装と AI レビューを終えた AI が、
+ * 動かした証拠を PR の本文に書いて Ready にした時点で PR中 へ進み、人は証拠を見て動かし、差分を読む。
+ * 計画ファイルはブランチにあり、ボードを動かすチェックアウトからは見えないことが多いので、
+ * Draft の PR も計画の成果物として扱う。
  *
  * 否決の差し戻しは専用ルールを持たない。`gate = rejected` のとき
  * その工程のレビュー行と承認行が両方外れ、1 つ手前の列へ自然に落ちる。
- * verify も同じで、否決・承認・skip のどれでも verifying が外れて impling に落ちる。
- * 承認後に Ready にするのは AI の作業なので、AI の列で待つ。
  */
 export function resolveStage(
   card: Card,
@@ -144,17 +141,11 @@ const RULES: ReadonlyArray<(facts: Facts) => Derivation | null> = [
         }
       : null,
 
-  // 3. verifying — 実装を終えた AI が、PR を Draft のまま動かして確かめるよう頼んでいる
-  ({ gates }) =>
-    gates.plan === 'approved' && gates.verify === 'submitted'
-      ? { stage: 'verifying', reason: '実装が人の動作確認を待っている' }
-      : null,
-
-  // 4. impling
+  // 3. impling
   ({ gates }) =>
     gates.plan === 'approved' ? { stage: 'impling', reason: '計画が承認されている' } : null,
 
-  // 5. plan-review — 成果物があることを正とし、ログの欠落で人待ちを取りこぼさない
+  // 4. plan-review — 成果物があることを正とし、ログの欠落で人待ちを取りこぼさない
   ({ gates, plan, mr }) => {
     if (gates.plan !== 'none' && gates.plan !== 'submitted') return null;
 
@@ -173,14 +164,14 @@ const RULES: ReadonlyArray<(facts: Facts) => Derivation | null> = [
       : null;
   },
 
-  // 6. planning — 人が着手を指示した。ここが人の列の上限になる
+  // 5. planning — 人が着手を指示した。ここが人の列の上限になる
   ({ card }) =>
     card.startedAt !== null
       ? { stage: 'planning', reason: `${card.startedAt} に着手が指示されている` }
       : null,
 ];
 
-/** 7. idea — どのルールにも当てはまらなかったとき */
+/** 6. idea — どのルールにも当てはまらなかったとき */
 const DEFAULT_DERIVATION: Derivation = {
   stage: 'idea',
   reason: 'まだ着手が指示されていない',

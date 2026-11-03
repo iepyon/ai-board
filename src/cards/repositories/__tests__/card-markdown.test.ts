@@ -119,12 +119,17 @@ describe('parseCard', () => {
     expect(parseCard('/tmp/bad.md', raw)).toBeNull();
   });
 
-  it('廃止された explore を skipGates に宣言したカードは読み込まない', () => {
-    const raw = ['---', 'id: bad', 'title: 廃止ゲート', 'skipGates: [explore]', '---', ''].join(
-      '\n'
-    );
+  it('廃止された explore / verify を skipGates に宣言したカードは、その値を落として読み込む', () => {
+    const raw = [
+      '---',
+      'id: old',
+      'title: 廃止ゲート',
+      'skipGates: [plan, explore, verify]',
+      '---',
+      '',
+    ].join('\n');
 
-    expect(parseCard('/tmp/bad.md', raw)).toBeNull();
+    expect(parseCard('/tmp/old.md', raw)?.skipGates).toEqual(['plan']);
   });
 });
 

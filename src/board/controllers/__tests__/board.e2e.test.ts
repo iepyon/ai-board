@@ -181,7 +181,6 @@ describe('GET /api/board', () => {
       'planning',
       'plan-review',
       'impling',
-      'verifying',
       'pr',
       'merged',
     ]);
@@ -426,24 +425,11 @@ describe('GET /api/board', () => {
         end: '2026-09-06T00:00:00.000Z',
         phases: [],
       },
+      // 廃止した verify のエントリは読まないので、実装は Ready まで 1 区間で続く
       {
         kind: 'implementing',
         owner: 'ai',
         start: '2026-09-06T00:00:00.000Z',
-        end: '2026-09-07T00:00:00.000Z',
-        phases: [],
-      },
-      {
-        kind: 'verifying',
-        owner: 'human',
-        start: '2026-09-07T00:00:00.000Z',
-        end: '2026-09-08T00:00:00.000Z',
-        phases: [],
-      },
-      {
-        kind: 'readying',
-        owner: 'ai',
-        start: '2026-09-08T00:00:00.000Z',
         end: '2026-09-09T00:00:00.000Z',
         phases: [],
       },
@@ -548,12 +534,12 @@ describe('GET /api/board', () => {
     const card = response.body.cards[0];
 
     expect(card.stage).toBe('impling');
-    expect(card.gates).toEqual({ plan: 'approved', verify: 'none' });
+    expect(card.gates).toEqual({ plan: 'approved' });
     expect(card.aborted).toBe(false);
     expect(card.droppableStages).toEqual([]);
   });
 
-  it('AI が保留を書いて止まった実装中のカードに hold を載せる', async () => {
+  it('AI が保留を書いて止まった計画提案中のカードに hold を載せる', async () => {
     await writeCard(
       'held',
       [
@@ -565,13 +551,13 @@ describe('GET /api/board', () => {
         '',
         '## レビュー',
         '',
-        '### 2026-09-06T00:00:00.000Z plan 承認',
+        '### 2026-09-06T00:00:00.000Z plan 提出',
         '',
-        '### 2026-09-07T00:00:00.000Z verify 否決',
+        '### 2026-09-07T00:00:00.000Z plan 否決',
         '',
-        '### 2026-09-08T00:00:00.000Z verify 保留',
+        '### 2026-09-08T00:00:00.000Z plan 保留',
         '',
-        '直すには大きすぎる。',
+        '論点を決めてほしい。',
         '',
       ].join('\n')
     );
@@ -588,9 +574,9 @@ describe('GET /api/board', () => {
       ])
     );
 
-    expect(byId.get('held')?.stage).toBe('impling');
+    expect(byId.get('held')?.stage).toBe('planning');
     expect(byId.get('held')?.hold).toEqual({
-      reason: expect.stringContaining('AI が直しきれずに止まった') as unknown,
+      reason: expect.stringContaining('AI が計画を直しきれずに止まった') as unknown,
       since: '2026-09-08T00:00:00.000Z',
     });
     expect(byId.get('fresh')?.hold).toBeNull();
@@ -683,7 +669,7 @@ describe('GET /api/board', () => {
     expect(byId.get('fresh')).toBeNull();
   });
 
-  it('計画レビューの列では、より新しい verify のエントリがあっても plan の最新を latestReview にする', async () => {
+  it('計画レビューの列では、より新しい廃止した verify のエントリがあっても plan の最新を latestReview にする', async () => {
     await writeCard(
       'review',
       [
@@ -744,7 +730,7 @@ describe('GET /api/board', () => {
     const card = response.body.cards[0];
 
     expect(card.stage).toBe('planning');
-    expect(card.gates).toEqual({ plan: 'none', verify: 'none' });
+    expect(card.gates).toEqual({ plan: 'none' });
   });
 
   it('BoardCard に上書き関連のフィールドは現れない', async () => {
@@ -1359,7 +1345,7 @@ describe('POST /api/cards/:id/reviews', () => {
 
       await request(app)
         .post('/api/cards/awaiting/reviews')
-        .send({ gate: 'verify', kind, reason: 'x' })
+        .send({ gate: 'plan', kind, reason: 'x' })
         .expect(400);
 
       const response = await request(app).get('/api/board').expect(200);
@@ -1481,22 +1467,19 @@ describe('POST /api/cards/:id/reviews', () => {
   });
 });
 
-describe('POST /api/cards/:id/reviews（動作確認）', () => {
-  const VERIFYING_CARD = [
+describe('廃止した verify ゲート', () => {
+  const OLD_CARD = [
     '---',
-    'id: verifying',
-    'title: 動作確認待ちのカード',
+    'id: old-verify',
+    'title: 動作確認の列があった頃のカード',
     'created: 2026-09-01T00:00:00.000Z',
     'startedAt: 2026-09-05T00:00:00.000Z',
-    'branch: verifying',
-    'mr: 41',
+    'skipGates: [verify]',
     '---',
     '',
     '## レビュー',
     '',
     '### 2026-09-06T00:00:00.000Z plan 提出',
-    '',
-    '計画を読んでほしい。',
     '',
     '### 2026-09-07T00:00:00.000Z plan 承認',
     '',
@@ -1506,78 +1489,38 @@ describe('POST /api/cards/:id/reviews（動作確認）', () => {
     '',
   ].join('\n');
 
-  const DRAFT_PR: MrState = {
-    forge: 'github',
-    iid: 41 as MergeRequestIid,
-    state: 'opened',
-    draft: true,
-    sourceBranch: 'verifying',
-    title: '動作確認待ちのカード',
-    webUrl: 'https://github.com/acme/board/pull/41',
-    latestNoteAt: null,
-    noteCount: 0,
-    latestCommitAt: '2026-09-07T12:00:00.000Z',
-    mergedAt: null,
-    readyAt: null,
-    convertedToDraftAt: null,
-  };
-
-  function buildVerifyingApp(): Application {
-    return buildApp(stubMrProvider({ verifying: DRAFT_PR }));
-  }
-
   beforeEach(async () => {
-    await writeCard('verifying', VERIFYING_CARD);
+    await writeCard('old-verify', OLD_CARD);
   });
 
-  it('verify が提出されていれば、Draft の PR があっても verifying になり latestReview は verify の提出', async () => {
-    const response = await request(buildVerifyingApp()).get('/api/board').expect(200);
-    const card = response.body.cards[0];
-
-    expect(card.stage).toBe('verifying');
-    expect(card.gates).toEqual({ plan: 'approved', verify: 'submitted' });
-    expect(card.latestReview).toEqual({
-      at: '2026-09-08T00:00:00.000Z',
-      gate: 'verify',
-      kind: '提出',
-      reason: '`npm run dev` で起動して検索欄を見てほしい。',
-    });
-  });
-
-  it('verify の承認を受け付け、実装中へ戻して AI が Ready にするのを待つ', async () => {
-    const app = buildVerifyingApp();
-
-    await request(app)
-      .post('/api/cards/verifying/reviews')
-      .send({ gate: 'verify', kind: '承認' })
-      .expect(200);
-
-    const response = await request(app).get('/api/board').expect(200);
+  it('残っている verify のエントリと skipGates の verify は読み飛ばし、実装中のまま読める', async () => {
+    const response = await request(buildApp()).get('/api/board').expect(200);
     const card = response.body.cards[0];
 
     expect(card.stage).toBe('impling');
-    expect(card.gates).toEqual({ plan: 'approved', verify: 'approved' });
-    expect(card.latestReview).toMatchObject({ gate: 'verify', kind: '承認' });
+    expect(card.gates).toEqual({ plan: 'approved' });
+    expect(card.skipGates).toEqual([]);
+    expect(card.latestReview).toMatchObject({ gate: 'plan', kind: '承認' });
+    expect(card.reviews.map((entry: { gate: string }) => entry.gate)).toEqual(['plan', 'plan']);
   });
 
-  it('verify の否決を受け付け、実装中へ戻して理由を本文に残す', async () => {
-    const app = buildVerifyingApp();
+  it.each(['承認', '否決', '中止'])('verify の %s は 400 で、何も書かない', async (kind) => {
+    const app = buildApp();
 
     await request(app)
-      .post('/api/cards/verifying/reviews')
-      .send({ gate: 'verify', kind: '否決', reason: '検索欄が出ない' })
-      .expect(200);
+      .post('/api/cards/old-verify/reviews')
+      .send({ gate: 'verify', kind, reason: 'x' })
+      .expect(400);
 
     const response = await request(app).get('/api/board').expect(200);
-    const card = response.body.cards[0];
+    expect(response.body.cards[0].reviews).toHaveLength(2);
+  });
 
-    expect(card.stage).toBe('impling');
-    expect(card.gates).toEqual({ plan: 'approved', verify: 'rejected' });
-    expect(card.reviews.at(-1)).toMatchObject({
-      gate: 'verify',
-      kind: '否決',
-      reason: '検索欄が出ない',
-    });
+  it('skipGates に verify を書く PATCH は 400', async () => {
+    await request(buildApp())
+      .patch('/api/cards/old-verify')
+      .send({ skipGates: ['verify'] })
+      .expect(400);
   });
 });
 

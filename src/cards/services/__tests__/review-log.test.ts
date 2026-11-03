@@ -155,12 +155,6 @@ describe('gateState', () => {
       expect(gateState(rejected, 'plan', ['plan'])).toBe('rejected');
       expect(gateState(held, 'plan', ['plan'])).toBe('held');
     });
-
-    it('他のゲートの宣言では読み替えない', () => {
-      const submitted: ReviewEntry[] = [{ at: at(4), gate: 'plan', kind: '提出', reason: '' }];
-
-      expect(gateState(submitted, 'plan', ['verify'])).toBe('submitted');
-    });
   });
 
   it('時刻の並びが逆でも最新の時刻のものを採る', () => {
@@ -182,19 +176,19 @@ describe('gateState', () => {
 
   it('最新が 保留 なら held、その後に人が否決を書けば rejected', () => {
     const held: ReviewEntry[] = [
-      { at: '2026-09-11T04:00:00.000Z', gate: 'verify', kind: '提出', reason: '' },
-      { at: '2026-09-11T05:00:00.000Z', gate: 'verify', kind: '否決', reason: '遅い' },
-      { at: '2026-09-11T06:00:00.000Z', gate: 'verify', kind: '保留', reason: '大きすぎる' },
+      { at: '2026-09-11T04:00:00.000Z', gate: 'plan', kind: '提出', reason: '' },
+      { at: '2026-09-11T05:00:00.000Z', gate: 'plan', kind: '否決', reason: '遅い' },
+      { at: '2026-09-11T06:00:00.000Z', gate: 'plan', kind: '保留', reason: '大きすぎる' },
     ];
 
-    expect(gateState(held, 'verify', [])).toBe('held');
+    expect(gateState(held, 'plan', [])).toBe('held');
 
     const rejected: ReviewEntry[] = [
       ...held,
-      { at: '2026-09-11T07:00:00.000Z', gate: 'verify', kind: '否決', reason: '索引を足して' },
+      { at: '2026-09-11T07:00:00.000Z', gate: 'plan', kind: '否決', reason: '索引を足して' },
     ];
 
-    expect(gateState(rejected, 'verify', [])).toBe('rejected');
+    expect(gateState(rejected, 'plan', [])).toBe('rejected');
   });
 
   it('保留の見出しを解析できる', () => {
@@ -219,75 +213,35 @@ describe('gateState', () => {
 });
 
 describe('gateStates', () => {
-  it('全ゲートの状態をまとめて返す', () => {
+  it('全ゲート（plan だけ）の状態をまとめて返す', () => {
     const entries: ReviewEntry[] = [
       { at: '2026-09-11T04:00:00.000Z', gate: 'plan', kind: '承認', reason: '' },
-      { at: '2026-09-11T05:00:00.000Z', gate: 'verify', kind: '提出', reason: '' },
     ];
 
-    expect(gateStates(entries, [])).toEqual({ plan: 'approved', verify: 'submitted' });
-    expect(gateStates([], ['verify'])).toEqual({ plan: 'none', verify: 'none' });
+    expect(gateStates(entries, [])).toEqual({ plan: 'approved' });
+    expect(gateStates([], ['plan'])).toEqual({ plan: 'none' });
   });
 
-  it('後ろのゲートは、前のゲートの最新の承認より前のエントリを数えない', () => {
-    const entries: ReviewEntry[] = [
-      { at: '2026-09-11T04:00:00.000Z', gate: 'plan', kind: '承認', reason: '' },
-      { at: '2026-09-11T05:00:00.000Z', gate: 'verify', kind: '否決', reason: '遅い' },
-      { at: '2026-09-11T06:00:00.000Z', gate: 'verify', kind: '保留', reason: '大きすぎる' },
-      { at: '2026-09-11T07:00:00.000Z', gate: 'plan', kind: '否決', reason: '立て直す' },
-    ];
+  it('廃止された verify のエントリは、本文に残っていても読み飛ばす', () => {
+    const entries = parseReviewLog(
+      [
+        '## レビュー',
+        '',
+        '### 2026-09-11T04:00:00.000Z plan 承認',
+        '',
+        '### 2026-09-11T05:00:00.000Z verify 提出',
+        '',
+        '動かす手順',
+        '',
+        '### 2026-09-11T06:00:00.000Z verify 否決',
+        '',
+        '遅い',
+        '',
+      ].join('\n')
+    );
 
-    expect(gateStates(entries, [])).toEqual({ plan: 'rejected', verify: 'held' });
-
-    const reapproved: ReviewEntry[] = [
-      ...entries,
-      { at: '2026-09-11T08:00:00.000Z', gate: 'plan', kind: '再提出', reason: '' },
-      { at: '2026-09-11T09:00:00.000Z', gate: 'plan', kind: '承認', reason: '' },
-    ];
-
-    expect(gateStates(reapproved, [])).toEqual({ plan: 'approved', verify: 'none' });
-    expect(latestGateEntry(reapproved, 'verify', [])).toBeNull();
-    expect(latestGateEntry(reapproved, undefined, [])?.kind).toBe('承認');
-  });
-
-  it('承認より後に書かれた後ろのゲートのエントリは数える', () => {
-    const entries: ReviewEntry[] = [
-      { at: '2026-09-11T05:00:00.000Z', gate: 'verify', kind: '否決', reason: '前の計画' },
-      { at: '2026-09-11T06:00:00.000Z', gate: 'plan', kind: '承認', reason: '' },
-      { at: '2026-09-11T07:00:00.000Z', gate: 'verify', kind: '提出', reason: '' },
-    ];
-
-    expect(gateStates(entries, []).verify).toBe('submitted');
-  });
-
-  it('前のゲートの承認エントリが無ければ何も外さない', () => {
-    const entries: ReviewEntry[] = [
-      { at: '2026-09-11T05:00:00.000Z', gate: 'verify', kind: '提出', reason: '' },
-      { at: '2026-09-11T06:00:00.000Z', gate: 'verify', kind: '否決', reason: '' },
-    ];
-
-    expect(gateStates(entries, [])).toEqual({ plan: 'none', verify: 'rejected' });
-  });
-
-  it('plan を飛ばすカードでは、plan の 再提出 より前の verify のエントリを数えない', () => {
-    const entries: ReviewEntry[] = [
-      { at: '2026-09-11T04:00:00.000Z', gate: 'plan', kind: '提出', reason: '' },
-      { at: '2026-09-11T05:00:00.000Z', gate: 'verify', kind: '提出', reason: '' },
-      { at: '2026-09-11T06:00:00.000Z', gate: 'verify', kind: '否決', reason: '遅い' },
-      { at: '2026-09-11T07:00:00.000Z', gate: 'plan', kind: '否決', reason: '立て直す' },
-    ];
-
-    expect(gateStates(entries, ['plan'])).toEqual({ plan: 'rejected', verify: 'rejected' });
-
-    const resubmitted: ReviewEntry[] = [
-      ...entries,
-      { at: '2026-09-11T08:00:00.000Z', gate: 'plan', kind: '再提出', reason: '' },
-    ];
-
-    expect(gateStates(resubmitted, ['plan'])).toEqual({ plan: 'approved', verify: 'none' });
-    expect(latestGateEntry(resubmitted, 'verify', ['plan'])).toBeNull();
-    // 宣言がなければ 再提出 は区切りにならず、古い verify 否決 が残る
-    expect(gateStates(resubmitted, [])).toEqual({ plan: 'submitted', verify: 'rejected' });
+    expect(entries.map((entry) => entry.gate)).toEqual(['plan']);
+    expect(gateStates(entries, [])).toEqual({ plan: 'approved' });
   });
 });
 
@@ -299,15 +253,7 @@ describe('latestGateEntry', () => {
       { at: '2026-09-11T06:00:00.000Z', gate: 'plan', kind: '再提出', reason: '直した' },
     ];
 
-    expect(latestGateEntry(entries, 'plan', [])).toEqual(entries[2]);
-  });
-
-  it('宣言のあるゲートでも、提出 の種別を承認に書き換えずに返す', () => {
-    const entries: ReviewEntry[] = [
-      { at: '2026-09-11T04:00:00.000Z', gate: 'plan', kind: '提出', reason: '判断待ちの点' },
-    ];
-
-    expect(latestGateEntry(entries, 'plan', ['plan'])).toEqual(entries[0]);
+    expect(latestGateEntry(entries, 'plan')).toEqual(entries[2]);
   });
 
   it('中止のエントリは選ばない', () => {
@@ -316,22 +262,21 @@ describe('latestGateEntry', () => {
       { at: '2026-09-11T05:00:00.000Z', gate: 'plan', kind: '中止', reason: 'やめる' },
     ];
 
-    expect(latestGateEntry(entries, 'plan', [])?.kind).toBe('提出');
+    expect(latestGateEntry(entries, 'plan')?.kind).toBe('提出');
   });
 
   it('エントリが無ければ null', () => {
-    expect(latestGateEntry([], 'plan', [])).toBeNull();
+    expect(latestGateEntry([], 'plan')).toBeNull();
   });
 
   it('ゲートを省くと、ゲートを問わず最新のエントリを返す（中止は選ばない）', () => {
     const entries: ReviewEntry[] = [
-      { at: '2026-09-11T04:00:00.000Z', gate: 'plan', kind: '承認', reason: '' },
-      { at: '2026-09-11T05:00:00.000Z', gate: 'verify', kind: '提出', reason: '手順' },
+      { at: '2026-09-11T04:00:00.000Z', gate: 'plan', kind: '提出', reason: '' },
+      { at: '2026-09-11T05:00:00.000Z', gate: 'plan', kind: '承認', reason: '' },
       { at: '2026-09-11T06:00:00.000Z', gate: 'plan', kind: '中止', reason: 'やめる' },
     ];
 
-    expect(latestGateEntry(entries, undefined, [])).toEqual(entries[1]);
-    expect(latestGateEntry(entries, 'plan', [])).toEqual(entries[0]);
+    expect(latestGateEntry(entries, undefined)).toEqual(entries[1]);
   });
 });
 
