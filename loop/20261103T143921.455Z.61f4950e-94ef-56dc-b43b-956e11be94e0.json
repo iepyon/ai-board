@@ -5,8 +5,8 @@
   "step": null,
   "agent": "board-planner-loop-single-session-1439",
   "startedAt": "2026-11-03T14:39:21.455Z",
-  "finishedAt": null,
-  "result": null,
-  "tokens": null,
-  "durationMs": null
+  "finishedAt": "2026-11-03T14:46:06.672Z",
+  "result": "advanced",
+  "tokens": 140690,
+  "durationMs": 385619
 }
