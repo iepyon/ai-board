@@ -5,8 +5,8 @@
   "step": null,
   "agent": "board-worker-board-artifact-dashboard-0947",
   "startedAt": "2026-11-03T09:47:24.550Z",
-  "finishedAt": null,
-  "result": null,
+  "finishedAt": "2026-11-03T09:48:46.155Z",
+  "result": "advanced",
   "tokens": null,
   "durationMs": null
 }
