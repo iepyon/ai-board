@@ -35,3 +35,9 @@ ADR 0012 は「ループは auto モードで回す前提で、手順書のふ�
 - **ほかの手でも起きるか。** 計画の Draft の PR を出す手、動作確認を頼む手（`card submit`）、`git push --force-with-lease` など、外へ書く操作を棚卸しする
 - **止まったときの扱い。** 分類器に拒まれたことを、ほかの「止まった」（品質ゲートが通らない など）と区別して報告するか。`loop-retry-limit`（同じところで止まり続けたら上限で人に回す）と合わせて考える
 - **ADR。** 方針が変わるなら ADR 0012 を今の形に書き直す
+
+## 探索メモ
+
+2026-11-03、PR #75（`loop-single-session`）がマージされ、`board-planner` / `board-worker` のエージェント定義は消えた。計画と実装の手は、本筋のセッションが `.claude/skills/board-loop/plan.md`・`implement.md` を読んで自分で進める。共通の決まり `subagent-rules.md` は `rules.md` に改名された。残るエージェント定義は `board-reviewer` だけである。
+拒まれたのは `board-worker` のサブエージェントの中の操作だった。今は Ready にする手（`ready`・締めの段）も本筋のセッションが行うので、背景の「サブエージェントの操作は人が頼んだことが分類器から見えない」は当てはまらなくなった見込みがある。
+2026-11-03 の `loop-single-session` の `ready` は（まだ前の形の `board-worker` で）止まらずに通った。新しい形で `ready` を何度か回して止まらなければ、このカードは要らない
