@@ -196,9 +196,9 @@
 
 ### 1. 集計の純関数
 
-- [ ] `src/shared/board-metrics.ts` を足す。入力はカードの配列（`Pick` した最小の形）と `generatedAt`、出力は主な数字・工程ごとの中央値とボトルネック・日ごとのマージ数・ループの手の集計
+- [x] `src/shared/board-metrics.ts` を足す。入力はカードの配列（`Pick` した最小の形）と `generatedAt`、出力は主な数字・工程ごとの中央値とボトルネック・日ごとのマージ数・ループの手の集計
   - 中央値・区間の長さ・UTC の日付の小さな関数も同じファイルに置く。今の時刻は読まない
-- [ ] `src/shared/__tests__/board-metrics.test.ts` を書く
+- [x] `src/shared/__tests__/board-metrics.test.ts` を書く
   - マージ済みが 0 枚（数字は null、グラフの元は空）/ 今いる区間を `generatedAt` まで数える / 同じ種類の区間が 2 度ある（差し戻し）カードは足してから中央値 /
     中央値（奇数・偶数の枚数）/ ボトルネックの同点は工程の順で前 / 中止したカードを除く / 否決の枚数と延べ回数（plan と verify）/
     `durationMs` と `tokens` が null の手を平均から除き、除いた件数を返す / `implement` を段ごとに分ける / 日付の境目（UTC）
