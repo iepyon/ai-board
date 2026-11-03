@@ -26,8 +26,9 @@ argument-hint: '[判断の依頼。例: chat-decide の計画を承認]'
 ```bash
 ROOT=$(git rev-parse --show-toplevel)
 [ -d "$ROOT/node_modules" ] || (cd "$ROOT" && npm ci)
-if ! node -e 'const fs=require("fs");const [f,t]=process.argv.slice(1);process.exit(fs.existsSync(f)&&fs.statSync(f).mtimeMs/1000>=Number(t)?0:1)' \
-    "$ROOT/dist/cli.js" "$(git -C "$ROOT" log -1 --format=%ct)"; then
+# dist/cli.js が無いか、HEAD のコミットより古ければビルドする。
+# dist-check を持たない古い dist/ や dist/cli.js が無いときも 0 以外で終わるので、ビルドに倒れる
+if ! node "$ROOT/dist/cli.js" dist-check --root "$ROOT"; then
   npm --prefix "$ROOT" run build
 fi
 # 全カードの全項目は要らないので、--only で要る項目だけを出す

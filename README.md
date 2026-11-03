@@ -310,6 +310,7 @@ ai-board card branch <id> <name>           # ブランチの紐付け（--clear 
 ai-board card submit <id> [--gate <plan|verify>] [--resubmit] [--reason <text>]   # 提出 / 再提出（既定は plan）
 ai-board card hold <id> --gate <plan|verify> --reason <text>   # 保留（否決を直しきれずに止まるとき。理由は必須）
 ai-board status [--json [--only <項目,...>] | --html]   # 導出したステージ・判断待ち・次の一手（サーバ不要）
+ai-board dist-check                        # dist/ が HEAD のコミットより古いか（古ければ終了コード 1。手順書がビルドの要否に使う）
 ```
 
 CLI にはエージェントに許す操作しか無い。`startedAt`・`rank`・`skipGates` の書き換えと、
@@ -442,7 +443,8 @@ Claude Code は `deny` → `ask` → `allow` の順に照合し、どれにも�
 - **`allow`:** 品質ゲートとビルド（`npm run typecheck` / `lint` / `format` / `format:check` / `build` / `test:coverage`、`npm test`、`npm ci`、`npx vitest run`）、
   `ai-board` の `card` / `pr` / `status` / `loop`（手順書は `node "$MAIN/dist/cli.js" ...` で呼ぶので `node */dist/cli.js <サブコマンド>` の形で書く）、
   手順書が使う `git` の操作（`status` / `diff` / `log` / `show` / `fetch` / `pull --ff-only` / `add` / `commit` / `mv` / `rev-parse` / `worktree list` / `worktree add` /
-  `push origin <branch>` / `push -u origin <branch>` / `push --force-with-lease origin <branch>` / `checkout -- .` / `clean -fd`。`git -C <path> ...` の形も）、
+  `push origin <branch>` / `push -u origin <branch>` / `push --force-with-lease origin <branch>`。`git -C <path> ...` の形も）、
+  カードのワークツリーの中の取り消し（`git -C <path>/.claude/worktrees/<id> checkout -- .` / `clean -fd` の形だけ。`-C` の無い形やメインのチェックアウトでは確認が出る）、
   カードのワークツリー（`.claude/worktrees/`）の下の編集。
   `card` で書けるものは CLI が構造で絞っており（`startedAt` / `rank` / 承認 / 否決 / 中止は書けない）、`pr` に merge は無いので、サブコマンドごと許している
 - **`ask`:** `git reset --hard`、`git branch -D` / `-d`、`git worktree remove`、`ai-board migrate`。手順書の 1 手の中では使わず、使うなら人が意図して 1 回行う。

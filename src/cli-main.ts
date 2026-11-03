@@ -32,6 +32,7 @@ import { parseStatusArgs, runStatusCli, STATUS_USAGE } from './board/cli/status-
 import { isPrCommand, runPrCli } from './board/cli/pr-cli.js';
 import { runLoopCli } from './board/cli/loop-cli.js';
 import { findLiveServer } from './infrastructure/server-info.js';
+import { readMtimeMs, runDistCheckCli } from './infrastructure/dist-check-cli.js';
 import { openBrowser } from './infrastructure/open-browser.js';
 import { describePidFileError, writePidFile } from './infrastructure/pid-file.js';
 import { isErr } from './shared/result.js';
@@ -58,6 +59,7 @@ const USAGE = `使い方: ai-board [options]
        ai-board pr <command> [--root <path>]      PR の読み書き（gh api の REST。ai-board pr --help）
        ai-board loop <start|finish> [--root <path>]
                                                   ループの 1 手の記録を書く（監視役だけが使う。ai-board loop --help）
+       ai-board dist-check [--root <path>]       dist/ が HEAD のコミットより古いかを確かめる（古ければ終了コード 1）
 
 計画ファイル駆動のローカル Web ダッシュボードを起動します。
 
@@ -275,6 +277,21 @@ async function runLoop(argv: readonly string[]): Promise<number> {
   );
 }
 
+/**
+ * `dist-check` サブコマンド。`<root>/dist/cli.js` が `<root>` の HEAD のコミットより古いかを終了コードで返す。
+ *
+ * データ用ブランチは取り直さない（ビルドの要否だけを見る）。
+ */
+async function runDistCheck(argv: readonly string[]): Promise<number> {
+  const { root, rest } = extractRoot(argv);
+
+  return runDistCheckCli(
+    rest,
+    { root, runner: createCliRunner(), mtimeMs: readMtimeMs },
+    createProcessIo()
+  );
+}
+
 /** `ai-board pr` の `gh` の上限。差分やコメントの全ページは、ポーリングの既定（10 秒）では足りないことがある */
 const PR_TIMEOUT_MS = 60_000;
 
@@ -333,31 +350,22 @@ function createProcessIo(): CardCliIo {
   };
 }
 
+/** サーバを起動しないサブコマンド。名前から実行する関数を引く */
+const SUBCOMMANDS: Readonly<Record<string, (argv: readonly string[]) => Promise<number>>> = {
+  card: runCard,
+  migrate: runMigrate,
+  status: runStatus,
+  pr: runPr,
+  loop: runLoop,
+  'dist-check': runDistCheck,
+};
+
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2);
 
-  if (command === 'card') {
-    process.exitCode = await runCard(rest);
-    return;
-  }
-
-  if (command === 'migrate') {
-    process.exitCode = await runMigrate(rest);
-    return;
-  }
-
-  if (command === 'status') {
-    process.exitCode = await runStatus(rest);
-    return;
-  }
-
-  if (command === 'pr') {
-    process.exitCode = await runPr(rest);
-    return;
-  }
-
-  if (command === 'loop') {
-    process.exitCode = await runLoop(rest);
+  const subcommand = command === undefined ? undefined : SUBCOMMANDS[command];
+  if (subcommand !== undefined && Object.hasOwn(SUBCOMMANDS, command ?? '')) {
+    process.exitCode = await subcommand(rest);
     return;
   }
 
