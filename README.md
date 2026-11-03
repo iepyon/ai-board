@@ -471,10 +471,7 @@ Claude Code は `deny` → `ask` → `allow` の順に照合し、どれにも�
 照合は前方一致なので、`deny` の force push の形は `--force` の後ろを空白か行の終わりで区切って書き、`--force-with-lease` に当たらないようにしている（`src/__tests__/claude-settings.test.ts` が守る）。
 
 許可ルールは**うっかりの事故を止める保険で、境界そのものではない。** 前方一致の文字列の照合なので、`git -c x push --force`、`bash -c '...'`、環境変数を前に付けた形などで迂回できる。
-境界の本体は今どおり、カードの書き込みは `ai-board card` の CLI の構造、人の判断は `board-decide` と人の API を使わないという決まりに置く。
-人の判断の決まりは、サブエージェント（`board-*`）の中では hook でも守る。3 つの定義の frontmatter の `PreToolUse` の hook（`.claude/hooks/guard-human-api.mjs`）が、
-コマンドに人の API の道（`/api/cards`・`/api/idea-divider`）を含む Bash と、`board-decide` の Skill を拒む（hook の入力に `agent_id` が載るサブエージェントの中だけ）。
-ループの監視役と、人がチャットで頼む本筋のセッションは止めない。文字列の照合なので、わざと崩した呼び出しまでは止めない（ADR 0007）。
+境界の本体は今どおり、カードの書き込みは `ai-board card` の CLI の構造、人の判断は `board-decide` と人の API を使わないという手順書の決まりに置く。
 `main` を守るには、リポジトリの Settings → Branches で `main` にブランチ保護（直接の push と force push の禁止）を入れることを勧める。
 
 - auto モード以外（既定のモードなど）で回すと、`allow` に無い操作のたびに確認が出る。ループを止めずに回すなら auto モードを選ぶ
