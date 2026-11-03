@@ -205,9 +205,9 @@
 
 ### 2. グラフの SVG
 
-- [ ] `src/board/cli/status-charts.ts` を足す。工程ごとの滞在時間（横棒、人 / AI の色、ボトルネックの印、数字のラベル）と日ごとのマージ数（縦棒）を SVG の文字列にする純関数。
+- [x] `src/board/cli/status-charts.ts` を足す。工程ごとの滞在時間（横棒、人 / AI の色、ボトルネックの印、数字のラベル）と日ごとのマージ数（縦棒）を SVG の文字列にする純関数。
       色は CSS の変数で指し、文字はすべて `escapeHtml` を通す
-- [ ] `src/board/cli/__tests__/status-charts.test.ts` を書く。棒の数・ラベル・ボトルネックの印・データが空のときの「まだありません」・エスケープ
+- [x] `src/board/cli/__tests__/status-charts.test.ts` を書く。棒の数・ラベル・ボトルネックの印・データが空のときの「まだありません」・エスケープ
 
 ### 3. ダッシュボードのページと更新ボタン
 

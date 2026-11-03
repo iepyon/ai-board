@@ -2,6 +2,9 @@ import { groupBySection } from '../../shared/dashboard-sections.js';
 import { STAGE_LABELS } from '../../shared/stage-labels.js';
 import type { StatusCard, StatusReport, WaitingCard, WorkingCard } from './status-cli.js';
 import { describeForge, describeLoop, describeNext } from './status-describe.js';
+import { escapeHtml } from './html-text.js';
+
+export { escapeHtml };
 
 // ============================================================
 // ai-board status --html — ボードを 1 枚の自己完結の HTML にする
@@ -195,19 +198,6 @@ function renderLatestReview(card: StatusCard | undefined): string {
 
 /** リンクにしてよい URL。`javascript:` などは文字のまま残す（`markdown.ts` の `SAFE_HREF` と同じ規則） */
 const SAFE_HREF = /^https?:\/\//i;
-
-const HTML_ESCAPES: Record<string, string> = {
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  '"': '&quot;',
-  "'": '&#39;',
-};
-
-/** 本文・属性のどちらに埋め込んでも安全な形にする */
-export function escapeHtml(text: string): string {
-  return text.replace(/[&<>"']/g, (char) => HTML_ESCAPES[char] ?? char);
-}
 
 /** `2026-10-20 09:00 UTC`。解釈できない値はそのまま返す（どの環境でも同じ文字になるよう UTC で出す） */
 function formatTime(iso: string): string {
