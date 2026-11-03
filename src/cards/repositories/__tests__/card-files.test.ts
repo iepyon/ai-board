@@ -5,7 +5,6 @@ import {
   assembleCard,
   compareLogNames,
   demoteHeadings,
-  legacyCardFiles,
   logFileName,
   parseDataVersion,
   parseLogFileName,
@@ -24,32 +23,11 @@ import {
 } from '../card-files.js';
 import type { Card } from '../../models/card.js';
 import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
-import {
-  appendReviewEntry,
-  gateState,
-  parseReviewLog,
-  stripReviewSection,
-} from '../../services/review-log.js';
+import { appendReviewEntry, gateState, parseReviewLog } from '../../services/review-log.js';
 import type { ReviewEntry } from '../../models/review.js';
 
 const ID = 'refresh-token' as CardId;
 
-/** 移行前の本文の `## レビュー`。同じミリ秒の否決が 2 件あり、理由の中に h3 の行がある */
-const REVIEW_SECTION_FOR_LEGACY = [
-  '## レビュー',
-  '',
-  '### 2026-09-02T00:00:00.000Z plan 提出',
-  '',
-  '### 2026-09-03T00:00:00Z plan 否決',
-  '',
-  '理由の 1 行目',
-  '',
-  '### 手順',
-  '',
-  '### 2026-09-03T00:00:00.000Z plan 否決',
-  '',
-  '2 件目',
-].join('\n');
 const NOW = '2026-11-01T10:00:00.000Z';
 
 beforeEach(() => {
@@ -644,77 +622,6 @@ describe('planReviewAppend', () => {
     expect(planReviewAppend(ID, create(makeCard()), entry({ at }))).toEqual({
       ok: false,
       error: { type: 'InvalidLogTime', id: ID, at },
-    });
-  });
-});
-
-describe('legacyCardFiles', () => {
-  const legacyBody = [
-    '## アイデア',
-    '',
-    'トークンを更新する。',
-    '',
-    REVIEW_SECTION_FOR_LEGACY,
-  ].join('\n');
-
-  function filesOf(card: Card): CardFiles {
-    const result = legacyCardFiles(card);
-    if (!result.ok) throw new Error(`ファイルにできませんでした: ${result.error.type}`);
-    return result.value;
-  }
-
-  it('## レビュー のエントリを、元の時刻のまま 1 件 1 ファイルに分ける', () => {
-    const files = filesOf(makeCard({ body: legacyBody }));
-
-    expect(files.log.map((file) => file.name)).toEqual([
-      '20260902T000000.000Z.plan.submit.md',
-      '20260903T000000.000Z.plan.reject.md',
-      '20260903T000000.000Z.plan.reject-2.md',
-    ]);
-    expect(files.log[1]?.content).toBe('理由の 1 行目\n\n### 手順\n');
-    expect(files.cardMd).not.toContain('## レビュー');
-  });
-
-  it('startedAt から着手を 1 件書く', () => {
-    const files = filesOf(makeCard({ startedAt: '2026-09-01T12:00:00Z' }));
-
-    expect(files.log.map((file) => file.name)).toEqual(['20260901T120000.000Z.start.start.md']);
-    expect(assembleCard(ID, files, null)?.startedAt).toBe('2026-09-01T12:00:00.000Z');
-  });
-
-  it('組み立て直すと、エントリと ## レビュー を除いた本文が元と同じになる', () => {
-    const card = makeCard({ body: legacyBody, startedAt: '2026-09-01T00:00:00.000Z' });
-
-    const assembled = assembleCard(ID, filesOf(card), null);
-
-    expect(parseReviewLog(assembled?.body ?? '')).toEqual(
-      parseReviewLog(card.body).map((entry) => ({
-        ...entry,
-        // ファイル名はミリ秒までの形に揃い、理由の中の見出しは組み立てるときに下がる
-        at: new Date(entry.at).toISOString(),
-        reason: demoteHeadings(entry.reason),
-      }))
-    );
-    expect(stripReviewSection(assembled?.body ?? '')).toBe(stripReviewSection(card.body));
-  });
-
-  it('## レビュー の後ろの節は、本文の節として card.md に残る', () => {
-    const body = `${legacyBody}\n\n## 動かす手順\n\n1. 起動する`;
-
-    const assembled = assembleCard(ID, filesOf(makeCard({ body })), null);
-
-    expect(stripReviewSection(assembled?.body ?? '')).toBe(
-      '## アイデア\n\nトークンを更新する。\n\n## 動かす手順\n\n1. 起動する'
-    );
-    expect(parseReviewLog(assembled?.body ?? '')).toHaveLength(3);
-  });
-
-  it('時刻がファイル名にできなければ失敗する', () => {
-    const body = '## レビュー\n\n### +010000-01-01T00:00:00.000Z plan 提出\n';
-
-    expect(legacyCardFiles(makeCard({ body }))).toEqual({
-      ok: false,
-      error: { type: 'InvalidLogTime', id: ID, at: '+010000-01-01T00:00:00.000Z' },
     });
   });
 });

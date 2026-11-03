@@ -11,7 +11,6 @@ import {
   type AppConfig,
   type BoardPaths,
 } from './shared/config.js';
-import { readLegacyBoard } from './infrastructure/database.js';
 import { createCliRunner } from './infrastructure/cli-runner.js';
 import {
   createBoardDataStore,
@@ -19,7 +18,6 @@ import {
   createTransactionalMrWriter,
 } from './cards/composition.js';
 import { runCardCli, type CardCliIo } from './cards/cli/card-cli.js';
-import { runMigrateCli } from './cards/cli/migrate-cli.js';
 import { runInitCli } from './cards/cli/init-cli.js';
 import { describeDataStoreError, describeOfflineRead } from './cards/cli/data-store-messages.js';
 import {
@@ -56,8 +54,6 @@ const USAGE = `使い方: ai-board [options]
        ai-board status [--json [--only <項目,...>] | --html] [--root <path>]
                                                   ボードの状態と次の一手（サーバ不要）
        ai-board init [--root <path>]              空のデータ用ブランチを作る（ai-board init --help）
-       ai-board migrate [--from <db>] [--empty] [--root <path>]
-                                                  board.db をデータ用ブランチへ書き出す（ai-board migrate --help）
        ai-board pr <command> [--root <path>]      PR の読み書き（gh api の REST。ai-board pr --help）
        ai-board loop <start|finish> [--root <path>]
                                                   ループの 1 手の記録を書く（監視役だけが使う。ai-board loop --help）
@@ -177,32 +173,6 @@ async function runInit(argv: readonly string[]): Promise<number> {
         runner: createCliRunner(),
       },
       configFile: path.join(paths.sharedBoardDir, CONFIG_FILE),
-    },
-    createProcessIo()
-  );
-}
-
-/**
- * `migrate` サブコマンド。移行前の `board.db` を読み、データ用ブランチを作って push する。
- *
- * 既定の置き場所（`.ai-board/data/`）なら `root` のリポジトリからワークツリーを足して作る。
- * `AI_BOARD_DATA` なら、そのディレクトリ（`origin` を持つ空の clone）に作る。
- */
-async function runMigrate(argv: readonly string[]): Promise<number> {
-  const { root, rest } = extractRoot(argv);
-  const paths = resolvePaths(root);
-
-  return runMigrateCli(
-    rest,
-    {
-      target: {
-        dataDir: paths.dataDir,
-        ...(paths.dataSource === 'env' ? {} : { repoRoot: paths.root }),
-        runner: createCliRunner(),
-      },
-      defaultFrom: legacyDbPath(paths),
-      configFile: path.join(paths.sharedBoardDir, CONFIG_FILE),
-      readLegacy: readLegacyBoard,
     },
     createProcessIo()
   );
@@ -383,7 +353,6 @@ function createProcessIo(): CardCliIo {
 const SUBCOMMANDS: Readonly<Record<string, (argv: readonly string[]) => Promise<number>>> = {
   card: runCard,
   init: runInit,
-  migrate: runMigrate,
   status: runStatus,
   pr: runPr,
   loop: runLoop,

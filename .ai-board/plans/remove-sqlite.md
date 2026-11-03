@@ -143,11 +143,11 @@
 
 ### 2. `migrate` と SQLite の読み出しを消す
 
-- [ ] `src/cards/cli/migrate-cli.ts` と `src/cards/cli/__tests__/migrate-cli.test.ts` を消し、`src/cli-main.ts` から `migrate` のサブコマンド・使い方の行・`readLegacyBoard` の import を消す
-- [ ] `src/infrastructure/database.ts`、`src/infrastructure/__tests__/database.test.ts`、`src/infrastructure/__tests__/legacy-database-fixture.ts` を消す
-- [ ] `src/cards/repositories/card-files.ts` の `legacyCardFiles` と、`card-files.test.ts` のその節を消す（ほかで使わなくなる import も消す）
-- [ ] `src/cli.ts` の `suppressSqliteWarning()` と動的 import を消し、`import './cli-main.js';` だけにする
-- [ ] `src/infrastructure/data-store.ts` のコメントの `migrate` を `init` に直す
+- [x] `src/cards/cli/migrate-cli.ts` と `src/cards/cli/__tests__/migrate-cli.test.ts` を消し、`src/cli-main.ts` から `migrate` のサブコマンド・使い方の行・`readLegacyBoard` の import を消す
+- [x] `src/infrastructure/database.ts`、`src/infrastructure/__tests__/database.test.ts`、`src/infrastructure/__tests__/legacy-database-fixture.ts` を消す
+- [x] `src/cards/repositories/card-files.ts` の `legacyCardFiles` と、`card-files.test.ts` のその節を消す（ほかで使わなくなる import も消す）
+- [x] `src/cli.ts` の `suppressSqliteWarning()` と動的 import を消し、`import './cli-main.js';` だけにする
+- [x] `src/infrastructure/data-store.ts` のコメントの `migrate` を `init` に直す
 
 ### 3. `legacyDb` を消す
 
