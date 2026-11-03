@@ -3,7 +3,7 @@ id: loop-resume-after-decide
 title: ユーザは、承認などの判断を書いたあと、頼み直さなくてもループに続きを進めてほしい
 created: '2026-11-03T02:15:11.087Z'
 skipGates: []
-branch: null
+branch: loop-resume-after-decide
 mr: null
 ---
 
