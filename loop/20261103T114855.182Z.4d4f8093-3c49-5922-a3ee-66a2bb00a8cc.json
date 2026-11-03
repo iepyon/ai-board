@@ -1,0 +1,12 @@
+{
+  "loop": "4d4f8093-3c49-5922-a3ee-66a2bb00a8cc",
+  "cardId": "decide-guard",
+  "action": "plan",
+  "step": null,
+  "agent": "board-planner-decide-guard-1148",
+  "startedAt": "2026-11-03T11:48:55.182Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
