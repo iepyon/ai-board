@@ -143,7 +143,7 @@ describe('computeBoardMetrics', () => {
       merged('2026-11-02T00:00:00.000Z', {
         timeline: [
           segment('implementing', '2026-11-01T00:00:00.000Z', 1),
-          segment('verifying', '2026-11-01T01:00:00.000Z', 1),
+          segment('pr-review', '2026-11-01T01:00:00.000Z', 1),
           segment('implementing', '2026-11-01T02:00:00.000Z', 3),
         ],
       }),
@@ -161,7 +161,7 @@ describe('computeBoardMetrics', () => {
       cardCount: 2,
     });
     // その種類の区間が無いカードは数えない
-    expect(metrics.stages.find((stage) => stage.kind === 'verifying')?.cardCount).toBe(1);
+    expect(metrics.stages.find((stage) => stage.kind === 'pr-review')?.cardCount).toBe(1);
   });
 
   it('工程は工程の順に並べ、いちばん長い中央値の工程をボトルネックにする', () => {
@@ -187,7 +187,7 @@ describe('computeBoardMetrics', () => {
     const metrics = computeBoardMetrics([
       merged('2026-11-02T00:00:00.000Z', {
         timeline: [
-          segment('verifying', '2026-11-01T00:00:00.000Z', 4),
+          segment('pr-review', '2026-11-01T00:00:00.000Z', 4),
           segment('planning', '2026-11-01T04:00:00.000Z', 4),
         ],
       }),
@@ -202,14 +202,14 @@ describe('computeBoardMetrics', () => {
       merged('2026-11-02T00:00:00.000Z', {
         timeline: [
           segment('implementing', '2026-11-01T00:00:00.000Z', 3),
-          segment('verifying', '2026-11-01T03:00:00.000Z', 1),
+          segment('pr-review', '2026-11-01T03:00:00.000Z', 1),
         ],
       }),
       // 人 3 / 全体 4
       merged('2026-11-02T00:00:00.000Z', {
         timeline: [
           segment('implementing', '2026-11-01T00:00:00.000Z', 1),
-          segment('verifying', '2026-11-01T01:00:00.000Z', 3),
+          segment('pr-review', '2026-11-01T01:00:00.000Z', 3),
         ],
       }),
       // 区間の無いカードは数えない

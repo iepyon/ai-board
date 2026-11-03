@@ -177,9 +177,9 @@ timeline は `## レビュー` のエントリから区間を導く（ADR 0008�
 
 ### 2. 使われなくなった工程の区間と語を消す
 
-- [ ] `src/shared/timeline.ts` から `verifying` / `verify-rework` / `verify-held` の区間を消し、`src/board/cli/status-charts.ts` の区間の語を合わせる
-- [ ] `src/shared/board-metrics.ts` の否決の数え方の docstring を、plan の否決だけを数える形に直す
-- [ ] `timeline` / `timeline-phases` / `board-metrics` / `board-log` / `status-html` のテストを直す
+- [x] `src/shared/timeline.ts` から `verifying` / `verify-rework` / `verify-held` の区間を消し、`src/board/cli/status-charts.ts` の区間の語を合わせる
+- [x] `src/shared/board-metrics.ts` の否決の数え方の docstring を、plan の否決だけを数える形に直す
+- [x] `timeline` / `timeline-phases` / `board-metrics` / `board-log` / `status-html` のテストを直す
 
 ### 3. ループと判断の手順書を直す
 

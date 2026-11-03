@@ -37,7 +37,7 @@ describe('buildBoardLog', () => {
       }),
       card('b', {
         loopSteps: [step('2026-10-20T02:00:00.000Z', { action: 'plan', step: null })],
-        reviews: [review('2026-10-20T00:00:00.000Z', { kind: '否決', gate: 'verify' })],
+        reviews: [review('2026-10-20T00:00:00.000Z', { kind: '否決', gate: 'plan' })],
       }),
     ]);
 

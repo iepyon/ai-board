@@ -18,7 +18,7 @@ function phasesOf(segment: TimelineSegment, steps: readonly PhaseStep[]): unknow
 
 describe('splitAiPhases', () => {
   it('人の区間の phases は空', () => {
-    const human: TimelineSegment = { kind: 'verifying', owner: 'human', start: T(0), end: T(10) };
+    const human: TimelineSegment = { kind: 'pr-review', owner: 'human', start: T(0), end: T(10) };
     expect(phasesOf(human, [step(1, 2)])).toEqual([]);
   });
 
