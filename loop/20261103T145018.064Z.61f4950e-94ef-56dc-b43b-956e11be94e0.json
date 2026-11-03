@@ -5,8 +5,8 @@
   "step": "task",
   "agent": "board-worker-loop-single-session-1450",
   "startedAt": "2026-11-03T14:50:18.064Z",
-  "finishedAt": null,
-  "result": null,
-  "tokens": null,
-  "durationMs": null
+  "finishedAt": "2026-11-03T15:02:33.147Z",
+  "result": "advanced",
+  "tokens": 227432,
+  "durationMs": 718625
 }
