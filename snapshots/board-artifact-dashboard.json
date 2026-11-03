@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-11-03T09:52:19Z\",false,\"946ed7533a70784a6c04df3fe5fa1fe84a0eea0d\",0,0,\"2026-11-03T09:52:19Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 71,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "board-artifact-dashboard",
+    "title": "ボードの Artifact を更新ボタン付きのダッシュボードにする",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/71",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-11-03T09:48:11Z",
+    "mergedAt": "2026-11-03T09:52:19Z",
+    "readyAt": "2026-11-03T09:48:14Z",
+    "convertedToDraftAt": null
+  }
+}
