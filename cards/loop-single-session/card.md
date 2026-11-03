@@ -3,7 +3,7 @@ id: loop-single-session
 title: ユーザは、ループを本筋のセッション 1 つで回し、AI レビューだけを別の文脈に切り分けたい
 created: '2026-11-03T14:29:51.952Z'
 skipGates: []
-branch: null
+branch: loop-single-session
 mr: null
 ---
 
