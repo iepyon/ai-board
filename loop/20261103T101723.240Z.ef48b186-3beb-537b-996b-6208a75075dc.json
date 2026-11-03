@@ -5,8 +5,8 @@
   "step": "review",
   "agent": "board-reviewer-remove-sqlite-1017",
   "startedAt": "2026-11-03T10:17:23.240Z",
-  "finishedAt": null,
-  "result": null,
+  "finishedAt": "2026-11-03T10:21:02.312Z",
+  "result": "advanced",
   "tokens": null,
   "durationMs": null
 }
