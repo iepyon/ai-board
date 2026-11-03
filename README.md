@@ -424,6 +424,49 @@ ai-board loop finish --loop <id> --card <cardId> --result <advanced|held|stopped
 - 書くのは監視役だけで、サブエージェントは使わない。CLI は `loop/` だけを書き、カードには書けない
 - 記録はステージの導出にも次の一手にも使わない。`ai-board loop` が失敗しても、監視役は 1 行で知らせて手を渡し続ける
 
+### ループの許可ルール
+
+ループの監視役とサブエージェントは、1 手のあいだに git・npm・`ai-board` の CLI を何度も呼ぶ。
+許すルールが無いと、確認の応答を待つ間ループは止まって見え、確認が多すぎると人は場当たりで何でも許しがちになる。
+そこで `.claude/settings.json` の `permissions` に、ループに要る操作と、境界を壊す操作を明文化して同梱している。
+理由と退けた案は [ADR 12](docs/adr/0012-loop-permissions.md) にある。
+
+Claude Code は `deny` → `ask` → `allow` の順に照合し、どれにも当たらなければ確認を出す。これを使って 3 段に分ける。
+
+| 段      | 入れるもの                                             | 当たったとき         |
+| ------- | ------------------------------------------------------ | -------------------- |
+| `allow` | 手順書が毎手のように使い、壊しても PR とゲートで戻せる | 確認なしで走る       |
+| `ask`   | 手順書が使わないか、人が 1 回だけ行う、戻しにくい操作  | 毎回人に確かめる     |
+| `deny`  | ハーネスの境界を壊す。人もループ中には使わない         | 確認を経ずに拒まれる |
+
+- **`allow`:** 品質ゲートとビルド（`npm run typecheck` / `lint` / `format` / `format:check` / `build` / `test:coverage`、`npm test`、`npm ci`、`npx vitest run`）、
+  `ai-board` の `card` / `pr` / `status` / `loop`（手順書は `node "$MAIN/dist/cli.js" ...` で呼ぶので `node */dist/cli.js <サブコマンド>` の形で書く）、
+  手順書が使う `git` の操作（`status` / `diff` / `log` / `show` / `fetch` / `pull --ff-only` / `add` / `commit` / `mv` / `rev-parse` / `worktree list` / `worktree add` /
+  `push origin <branch>` / `push -u origin <branch>` / `push --force-with-lease origin <branch>` / `checkout -- .` / `clean -fd`。`git -C <path> ...` の形も）、
+  カードのワークツリー（`.claude/worktrees/`）の下の編集。
+  `card` で書けるものは CLI が構造で絞っており（`startedAt` / `rank` / 承認 / 否決 / 中止は書けない）、`pr` に merge は無いので、サブコマンドごと許している
+- **`ask`:** `git reset --hard`、`git branch -D` / `-d`、`git worktree remove`、`ai-board migrate`。手順書の 1 手の中では使わず、使うなら人が意図して 1 回行う。
+  `deny` にしないのは、人がチャットで頼んだ正当な操作（「Windows で使う」の取り出し直しなど）まで止めないためである
+- **`deny`:** データのワークツリーの編集とデータ用ブランチへの push、`main` への push、`--force` / `-f` / `+` の refspec での force push、
+  DB の直接操作（`sqlite3`）、メインのチェックアウトの `.claude/settings*.json` の編集
+- **どこにも書かないもの:** `gh`、`node -e`、`curl`、`git push` だけの形、`git rebase`。どれも確認が出る。
+  手順書は PR の読み書きに `ai-board pr` を使い（`ai-board` の中の `gh api` は Bash の道具を通らない）、
+  `node -e` は任意のコードを走らせられ、`curl` は人の API を叩けば人の判断を書けるからである。
+  `git push` だけの形は、上流が `origin/main` のままのブランチで `main` へ向かいうるので、手順書は `git -C "$WT" push origin <branch>` の明示の形で push する
+
+force push は `--force-with-lease` だけを `main` 以外へ許す。ブランチを `origin/main` にリベースし直したときに要るからである。
+`--force-with-lease` は、リモートのブランチが手元の知っている位置から動いていれば push を拒むので、人や別のセッションが積んだコミットを黙って消さない。
+`--force` は相手の位置を確かめないので禁じたままにし、`main` へは `--force-with-lease` でも `deny` が先に効いて通らない。
+照合は前方一致なので、`deny` の force push の形は `--force` の後ろを空白か行の終わりで区切って書き、`--force-with-lease` に当たらないようにしている（`src/__tests__/claude-settings.test.ts` が守る）。
+
+許可ルールは**うっかりの事故を止める保険で、境界そのものではない。** 前方一致の文字列の照合なので、`git -c x push --force`、`bash -c '...'`、環境変数を前に付けた形などで迂回できる。
+境界の本体は今どおり、カードの書き込みは `ai-board card` の CLI の構造、人の判断は `board-decide` と人の API を使わないという手順書の決まりに置く。
+`main` を守るには、リポジトリの Settings → Branches で `main` にブランチ保護（直接の push と force push の禁止）を入れることを勧める。
+
+- 手順書（`.claude/skills/`、`.claude/agents/`）に新しい操作を足したら、許可ルールも見直す。足し忘れても確認が出るだけで、危ない側には倒れない
+- 人ごとの設定（`~/.claude/settings.json`、`settings.local.json`）と `defaultMode` には触らない。どのモードで回すかは人が選ぶ
+- auto モードの自動許可の判定は許可ルールとは別物で、`allow` にある操作を判定が止めることはありうる
+
 ### クラウドのセッションで回す
 
 手元の Mac を動かし続けなくても、Claude Code のアプリから立ち上げたクラウドのセッションでボードを回せる。

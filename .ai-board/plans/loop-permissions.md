@@ -171,9 +171,9 @@ README に「ループの許可ルール」の節を足して、何を許し・�
 
 ### 2. ドキュメント
 
-- [ ] `README.md` の「AI ループ」の後に「ループの許可ルール」の節を足す（3 段の分け方、それぞれに入れたものと理由、force push は `--force-with-lease` だけ許す理由、迂回できる保険であること、`main` のブランチ保護を勧めること、手順書に操作を足したら見直すこと）
-- [ ] `CLAUDE.md` の書き込み境界の節の deny ルールの記述を、README の新しい節を指す 1 行に直す
-- [ ] `adr` のスキルで `docs/adr/0012-loop-permissions.md` を書き、`docs/adr/README.md` の表に足す（3 段に分けた理由、force push を `--force-with-lease` だけ許す理由、`gh` / `node -e` / `curl` を許さない理由、許可ルールを境界の本体にしない理由と捨てた代案）
+- [x] `README.md` の「AI ループ」の後に「ループの許可ルール」の節を足す（3 段の分け方、それぞれに入れたものと理由、force push は `--force-with-lease` だけ許す理由、迂回できる保険であること、`main` のブランチ保護を勧めること、手順書に操作を足したら見直すこと）
+- [x] `CLAUDE.md` の書き込み境界の節の deny ルールの記述を、README の新しい節を指す 1 行に直す
+- [x] `adr` のスキルで `docs/adr/0012-loop-permissions.md` を書き、`docs/adr/README.md` の表に足す（3 段に分けた理由、force push を `--force-with-lease` だけ許す理由、`gh` / `node -e` / `curl` を許さない理由、許可ルールを境界の本体にしない理由と捨てた代案）
 
 ### 3. 確かめる
 
