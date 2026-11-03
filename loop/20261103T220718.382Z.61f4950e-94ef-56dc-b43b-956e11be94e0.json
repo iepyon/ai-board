@@ -1,0 +1,12 @@
+{
+  "loop": "61f4950e-94ef-56dc-b43b-956e11be94e0",
+  "cardId": "loop-single-session",
+  "action": "ready",
+  "step": null,
+  "agent": "board-worker-loop-single-session-2207",
+  "startedAt": "2026-11-03T22:07:18.382Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
