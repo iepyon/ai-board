@@ -190,6 +190,21 @@ verify を飛ばすカードの `verify 提出` / `verify 再提出` も承認�
 `board-decide` のスキルが、起動を待つ間の生存確認と、`node` の `process.kill` で止めるのに使う。Windows の Git Bash の `$!` は MSYS の pid で、OS の pid とは番号が違うためである。
 Windows の `process.kill(pid, 'SIGTERM')` は強制終了になり `server.json` が残るが、上のとおり pid が生きていなければ `server` に出ない。
 
+### `status --html`（ダッシュボード）
+
+`status --html` はボードを 1 枚の自己完結の HTML（ダッシュボード）にする（`src/board/cli/status-html.ts`）。`board-dashboard` のスキルが Artifact として公開する。
+
+- 頭に集計を置く。集計は `src/shared/board-metrics.ts` の `computeBoardMetrics`（純関数。今の時刻は読まず、今いる区間は `generatedAt` までを数える。中止したカードは入れない）。
+  主な数字・工程ごとの滞在時間（マージ済みのカードごとに同じ種類の区間を足し、カードを並べた中央値。いちばん長い工程がボトルネック）・日ごとのマージ数（UTC の日付）・
+  ループの手の種類ごとの回数と平均（`durationMs` / `tokens` が null の記録は除き、除いた件数を出す）・手の結果の内訳を出す
+- グラフは `src/board/cli/status-charts.ts` がインラインの SVG の文字列として描く。外部のスクリプトを読まず、色は `:root` のトークンを class で指す
+- その下に、画面と同じ振り分け（`groupBySection`）で判断待ち・AI 作業中・アイデア・マージ済み・中止の区画を並べる。
+  PR のリンクは `PR_LINK_ATTRIBUTES`（`target="_top"`）で開き、URL を文字でも出す
+- `--session <id>`（`session_` に英数字。`--html` のときだけ）を渡すと、更新ボタンとスクリプトが入る。
+  スクリプトは `claude.use("mcp")` で `Claude Code Remote` の `send_message` を呼び、埋め込んだセッションに `REFRESH_MESSAGE` を送るだけである。
+  値は JSON にして `<` を逃がして埋め込む。`mcp` が使えない・呼べないときはボタンを隠し、チャットで頼む案内を出す。頼んで 3 分たっても読み直されなければボタンを戻す
+- `--session` が無ければスクリプトもボタンも入れない。判断のボタンはどちらでも置かない（[ADR 0015](adr/0015-dashboard-refresh-via-session.md)）
+
 ## カードの保存と通知
 
 カードの正本は、`origin` の orphan のブランチ `ai-board/data`（データ用ブランチ）にある。コードの履歴とは交わらない。

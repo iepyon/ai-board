@@ -232,5 +232,5 @@
 
 ### 5. ドキュメント
 
-- [ ] `docs/adr/0015-dashboard-refresh-via-session.md` を `adr` のスキルで書く（ボタンからセッションに頼む経路を採り、GitHub から読んでページで導出する経路・型を使う経路を退けた理由）
-- [ ] `README.md` の「ボードを見せて」と、`docs/architecture.md` の `status` の節に、ダッシュボード・`--session`・更新ボタンを書く
+- [x] `docs/adr/0015-dashboard-refresh-via-session.md` を `adr` のスキルで書く（ボタンからセッションに頼む経路を採り、GitHub から読んでページで導出する経路・型を使う経路を退けた理由）
+- [x] `README.md` の「ボードを見せて」と、`docs/architecture.md` の `status` の節に、ダッシュボード・`--session`・更新ボタンを書く
