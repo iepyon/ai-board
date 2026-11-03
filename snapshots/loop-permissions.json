@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-11-03T03:34:25Z\",false,\"d35505e6805ca2c1614ba9b8c24c517444ed4a2d\",0,0,\"2026-11-03T03:34:26Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 68,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "loop-permissions",
+    "title": "ループに要る操作の許可ルールを .claude/settings.json に同梱する",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/68",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-11-03T03:31:35Z",
+    "mergedAt": "2026-11-03T03:34:25Z",
+    "readyAt": "2026-11-03T03:29:25Z",
+    "convertedToDraftAt": null
+  }
+}
