@@ -126,22 +126,22 @@ hook は道だけを見るので、試しのサーバの `/api/cards` も拒む�
 
 ### 1. hook を作ってサブエージェントに付ける
 
-- [ ] 手元の Claude Code の版（`claude --version`）と公式の hooks / subagents のドキュメントで、
+- [x] 手元の Claude Code の版（`claude --version`）と公式の hooks / subagents のドキュメントで、
       `PreToolUse` の入力にサブエージェントの中なら `agent_id` / `agent_type` が載ること、frontmatter の `hooks` がそのサブエージェントの間だけ効くことを確かめる。
       確かめられなければ、ここで止まり、代案に切り替えずに人の判断を待つと報告する（保留を CLI が受け付けるなら `--gate plan` で書く）
-- [ ] `.claude/hooks/guard-human-api.mjs` を書く。標準入力の JSON を読み、`agent_id` があり、
+- [x] `.claude/hooks/guard-human-api.mjs` を書く。標準入力の JSON を読み、`agent_id` があり、
       Bash の `command` に `/api/cards` か `/api/idea-divider`（大文字小文字を区別しない）を含むか、Skill の `skill` が `board-decide`（`<plugin>:board-decide` も）なら、
       `permissionDecision: "deny"` の JSON を出す。それ以外と、読めない入力は何も出さずに 0 で終わる
-- [ ] `.claude/agents/board-planner.md` / `board-worker.md` / `board-reviewer.md` の frontmatter に、
+- [x] `.claude/agents/board-planner.md` / `board-worker.md` / `board-reviewer.md` の frontmatter に、
       `PreToolUse` の matcher `Bash|Skill` で上のスクリプトを呼ぶ `hooks` を足す
-- [ ] `src/__tests__/claude-hooks.test.ts` を書く。スクリプトを `node` で起こして標準入力に JSON を渡し、次を確かめる
+- [x] `src/__tests__/claude-hooks.test.ts` を書く。スクリプトを `node` で起こして標準入力に JSON を渡し、次を確かめる
   - サブエージェントの中の `curl ... /api/cards/<id>/reviews`（POST）、`PATCH /api/cards/<id>`、`/api/cards/<id>/move`、`/api/idea-divider/move`、`fetch` で叩く `node -e`、大文字の道は拒む
   - サブエージェントの中の `ai-board card submit`、`status --json`、`curl .../api/board` は通す
   - サブエージェントの中の Skill の `board-decide` は拒み、ほかのスキルは通す
   - `agent_id` の無い入力（本筋）は、同じコマンドでも通す
   - 壊れた JSON は通す
   - 3 つの定義の frontmatter（`gray-matter` で読む）に同じ hook が書かれている
-- [ ] `.claude/hooks/*.mjs` が lint / format の対象でどう扱われるかを確かめ、品質ゲートが通る形にする（対象外なら対象外のままでよい）
+- [x] `.claude/hooks/*.mjs` が lint / format の対象でどう扱われるかを確かめ、品質ゲートが通る形にする（対象外なら対象外のままでよい）
 
 ### 2. 手順書とドキュメントを今の形に書き直す
 

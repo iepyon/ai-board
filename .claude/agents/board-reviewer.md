@@ -1,6 +1,12 @@
 ---
 name: board-reviewer
 description: board-loop の監視役から、`next.step` が review の ai-board の実装中のカード 1 枚（cardId / action / MAIN）を受け取り、まっさらな文脈で自分でワークツリーに入って、カードの PR の差分と計画を読み、指摘を計画の末尾の `## AI レビュー` 節に書き足してコミットし push するサブエージェント。指摘を「直す」「見送る」「人に判断してほしい」に分けるだけで、コードは直さない。board-loop のスキルからだけ呼ぶ。
+hooks:
+  PreToolUse:
+    - matcher: 'Bash|Skill'
+      hooks:
+        - type: command
+          command: 'node "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-human-api.mjs"'
 ---
 
 # board-reviewer — 指摘を計画に書くだけのレビュー
