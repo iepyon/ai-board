@@ -10,6 +10,7 @@ ranks:
   forge-poll-budget: 9000
   gitignore-db-backup: 29000
   harness-guide: 11000
+  idea-grill: 6500
   inline-edit: 24000
   issue-store: 2000
   loop-activity: 3000
