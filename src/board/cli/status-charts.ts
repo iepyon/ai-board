@@ -22,7 +22,6 @@ export const TIMELINE_KIND_LABELS: Record<TimelineKind, string> = {
   'plan-rework': '計画の直し',
   'plan-held': '計画の保留',
   implementing: '実装中',
-  readying: 'Ready にする',
   'pr-review': 'PR中',
   'draft-returned': 'Draft に戻された後',
 };

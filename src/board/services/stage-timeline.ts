@@ -56,8 +56,8 @@ interface Trace {
   readonly time: number;
   readonly rank: number;
   readonly next: Transition;
-  /** この痕跡で PR が Ready になったか（true）、Draft に戻ったか（false）。変わらなければ undefined */
-  readonly prReady?: boolean;
+  /** PR の痕跡（Ready にした・Draft へ戻した）か。中止で閉じた後はこの痕跡では区間を開かない */
+  readonly pr?: true;
   /** マージ。ここで読むのをやめる */
   readonly stop?: boolean;
 }
@@ -66,7 +66,7 @@ interface Trace {
  * カードの痕跡から、区間の並びを時刻の順に返す純関数。
  *
  * 痕跡を 1 つの列に並べて時刻の順に読み、各痕跡が次の区間の種類を決めて、そこまでの区間を閉じる。
- * `## レビュー` は全部のエントリを読む（`currentEntries` は通さない）。
+ * `## レビュー` は全部のエントリを読む（今効いている最新だけに絞らない）。
  * 「計画から立て直させる」のように、今は効いていない古いエントリこそが区間の境目になるため。
  * 着手は飛ばす宣言によらず `planning` を始める（plan を飛ばすカードでも、着手してから AI が計画を書く）。
  *
@@ -99,10 +99,10 @@ function toTraces(traces: TimelineTraces): Trace[] {
   }
 
   if (traces.readyAt !== null) {
-    list.push({ ...trace(traces.readyAt, 3, 'pr-review'), prReady: true });
+    list.push({ ...trace(traces.readyAt, 3, 'pr-review'), pr: true });
   }
   if (traces.convertedToDraftAt !== null) {
-    list.push({ ...trace(traces.convertedToDraftAt, 4, 'draft-returned'), prReady: false });
+    list.push({ ...trace(traces.convertedToDraftAt, 4, 'draft-returned'), pr: true });
   }
   if (traces.mergedAt !== null) {
     list.push({ ...trace(traces.mergedAt, 5, CLOSE), stop: true });
@@ -157,7 +157,7 @@ interface OpenSegment {
  * 痕跡を時刻の順に読み、区間を閉じては次の区間を始める。
  *
  * 中止で閉じた後は、`## レビュー` のエントリが来て区間を始め直すまで、PR の痕跡（Ready・Draft へ戻す）では区間を開かない。
- * 中止で終わったカードに `end: null` を残さないためである。PR が Ready かどうかは、閉じている間も追い続ける。
+ * 中止で終わったカードに `end: null` を残さないためである。
  */
 function walk(traces: readonly Trace[]): TimelineSegment[] {
   const segments: TimelineSegment[] = [];
@@ -165,14 +165,11 @@ function walk(traces: readonly Trace[]): TimelineSegment[] {
   let closed = false;
 
   for (const item of traces) {
-    if (closed && item.prReady !== undefined) continue;
-
-    const next = item.next;
-
-    if (current?.kind === next) continue;
+    if (closed && item.pr === true) continue;
+    if (current?.kind === item.next) continue;
 
     if (current !== null) segments.push(toSegment(current, item.at));
-    current = next === CLOSE ? null : { kind: next, start: item.at };
+    current = item.next === CLOSE ? null : { kind: item.next, start: item.at };
     closed = current === null;
 
     if (item.stop === true) break;

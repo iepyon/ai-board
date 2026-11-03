@@ -174,7 +174,7 @@ export function gateStates(
  */
 export function latestGateEntry(
   entries: readonly ReviewEntry[],
-  gate: ReviewGate | undefined
+  gate?: ReviewGate
 ): ReviewEntry | null {
   return latestOf(
     entries.filter((entry) => (gate === undefined || entry.gate === gate) && entry.kind !== '中止')

@@ -151,7 +151,7 @@ function draftReverted(card: HoldInput): CardHold | null {
   if (mr === null || mr.convertedToDraftAt === null) return null;
 
   const convertedAt = mr.convertedToDraftAt;
-  const latest = latestGateEntry(card.entries, undefined);
+  const latest = latestGateEntry(card.entries);
   if (latest !== null && Date.parse(convertedAt) <= Date.parse(latest.at)) return null;
 
   return { reason: HOLD_REASONS.draftReverted(mr.iid), since: convertedAt };

@@ -17,11 +17,7 @@ export const GATE_OF_STAGE: Partial<Record<Stage, 'plan'>> = {
  * 宣言を書くのは人だけ（詳細パネルのチェックボックス）。CLI に入口は無い。
  * 既に入っているものを入れても、無いものを外しても値は変わらない。
  */
-export function withSkipGate<G extends 'plan'>(
-  skipGates: readonly G[],
-  gate: G,
-  skip: boolean
-): G[] {
+export function withSkipGate(skipGates: readonly 'plan'[], gate: 'plan', skip: boolean): 'plan'[] {
   const others = skipGates.filter((each) => each !== gate);
 
   return skip ? [...others, gate] : others;

@@ -7,8 +7,8 @@ import { CardIdSchema, type CardId, type MergeRequestIid } from '../../shared/sc
 import { CardFrontmatterSchema } from '../models/schemas/card.schema.js';
 import type { Card } from '../models/card.js';
 import {
+  isRetiredReviewGate,
   isReviewGate,
-  RETIRED_REVIEW_GATES,
   type ReviewEntry,
   type ReviewGate,
   type ReviewKind,
@@ -251,13 +251,6 @@ export function fromLogStamp(stamp: string): string | null {
   return !Number.isNaN(ms) && new Date(ms).toISOString() === iso ? iso : null;
 }
 
-/** 廃止したゲートの判断のファイル名か */
-export function isRetiredLogFileName(name: string): boolean {
-  const gate = LOG_NAME.exec(name)?.[2];
-
-  return gate !== undefined && RETIRED_REVIEW_GATES.includes(gate);
-}
-
 /** 判断のファイル名を読む。形が違う・ゲートと種別の組み合わせが規定外なら null */
 export function parseLogFileName(name: string): LogName | null {
   const match = LOG_NAME.exec(name);
@@ -346,7 +339,7 @@ interface ReadLogEntry {
 
 /**
  * `log/` のファイルを読む順に並べる。名前の読めないファイルは警告して読み飛ばす。
- * 廃止したゲート（`RETIRED_REVIEW_GATES`）のファイルは、壊れたものではないので警告せずに読み飛ばす
+ * 廃止したゲート（`isRetiredReviewGate`）のファイルは、壊れたものではないので警告せずに読み飛ばす
  */
 function readLog(id: string, files: readonly LogFile[]): ReadLogEntry[] {
   const entries: ReadLogEntry[] = [];
@@ -354,7 +347,9 @@ function readLog(id: string, files: readonly LogFile[]): ReadLogEntry[] {
   for (const file of files) {
     const name = parseLogFileName(file.name);
     if (name === null) {
-      if (isRetiredLogFileName(file.name)) continue;
+      // 名前の形が正しく、ゲートが廃止したものなら、壊れたファイルではないので警告しない
+      const gate = LOG_NAME.exec(file.name)?.[2];
+      if (gate !== undefined && isRetiredReviewGate(gate)) continue;
       console.warn(`[ai-board] 判断のファイルを読み飛ばしました: ${id}/${LOG_DIR}/${file.name}`);
       continue;
     }

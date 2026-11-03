@@ -359,7 +359,7 @@ GitHub の上限（5,000 回/時）の大半を使う。そこで引いた結果
 `src/board/services/stage-timeline.ts` の純関数 `resolveTimeline` が痕跡から毎回導出する（保存しない）。
 痕跡は `created`・`startedAt`・`## レビュー` の全エントリ・`readyAt`・`convertedToDraftAt`・`mergedAt` で、
 `## レビュー` は `currentEntries` を通さずに全部読む（「計画から立て直させる」のような今は効いていない古いエントリこそが区間の境目になる）。
-区間は `{ kind, owner, start, end }` で、種類（9 種類）と担当（`human` / `ai`）の一覧は `src/shared/timeline.ts` にある。
+区間は `{ kind, owner, start, end }` で、種類（8 種類）と担当（`human` / `ai`）の一覧は `src/shared/timeline.ts` にある。
 今いる区間は `end: null` で、導出は今の時刻を受け取らない（長さを出す側が `generatedAt` までを数える）。
 マージと中止は今の区間を閉じるだけで次の区間を始めない。長さ 0 の区間は落とし、隣り合う同じ種類の区間はつなぐ。
 画面にはまだ出さない。

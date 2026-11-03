@@ -137,11 +137,11 @@ describe('renderDailyMergesChart', () => {
 describe('renderStageChart のボトルネックが無いとき', () => {
   it('工程の名前は TIMELINE_KIND_LABELS から引き、印を付けない', () => {
     const svg = renderStageChart(
-      [{ kind: 'readying', owner: 'ai', medianMs: HOUR, cardCount: 1 }],
+      [{ kind: 'implementing', owner: 'ai', medianMs: HOUR, cardCount: 1 }],
       null
     );
 
-    expect(svg).toContain(`>${TIMELINE_KIND_LABELS.readying}</text>`);
+    expect(svg).toContain(`>${TIMELINE_KIND_LABELS.implementing}</text>`);
     expect(svg).not.toContain('ボトルネック');
   });
 });

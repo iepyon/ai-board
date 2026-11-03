@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { CardIdSchema } from '../../../shared/schemas/common.js';
 import { DIVIDER_ID } from '../../../shared/card-reorder.js';
-import { HUMAN_REVIEW_KINDS, RETIRED_REVIEW_GATES, REVIEW_GATES } from '../review.js';
+import { HUMAN_REVIEW_KINDS, isRetiredReviewGate, REVIEW_GATES } from '../review.js';
 
 const ReviewGateSchema = z.enum(REVIEW_GATES);
 
@@ -15,7 +15,7 @@ const ReviewGateSchema = z.enum(REVIEW_GATES);
 const StoredSkipGatesSchema = z.preprocess(
   (value) =>
     Array.isArray(value)
-      ? value.filter((gate) => typeof gate !== 'string' || !RETIRED_REVIEW_GATES.includes(gate))
+      ? value.filter((gate) => typeof gate !== 'string' || !isRetiredReviewGate(gate))
       : value,
   z.array(ReviewGateSchema)
 );

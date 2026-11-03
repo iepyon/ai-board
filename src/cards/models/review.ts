@@ -22,7 +22,7 @@ export type ReviewGate = (typeof REVIEW_GATES)[number];
  * 廃止したゲート。カードに残る記録（`## レビュー` のエントリ、判断のファイル、`skipGates`）を、
  * 警告もエラーも出さずに読み飛ばすために使う。書く入口はどれも受け付けない。
  */
-export const RETIRED_REVIEW_GATES: readonly string[] = ['explore', 'verify'];
+export const RETIRED_REVIEW_GATES = ['explore', 'verify'] as const;
 
 /**
  * レビューエントリの種別。
@@ -58,6 +58,11 @@ export type GateState = 'none' | 'submitted' | 'held' | 'approved' | 'rejected';
 
 export function isReviewGate(value: string): value is ReviewGate {
   return (REVIEW_GATES as readonly string[]).includes(value);
+}
+
+/** 廃止したゲートか。記録を読むときに、壊れた値ではなく黙って読み飛ばしてよいものかを決める */
+export function isRetiredReviewGate(value: string): boolean {
+  return (RETIRED_REVIEW_GATES as readonly string[]).includes(value);
 }
 
 export function isReviewKind(value: string): value is ReviewKind {

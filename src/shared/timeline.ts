@@ -7,10 +7,10 @@
  */
 
 /**
- * 区間の種類。カードの工程の 7 区間に、計画の保留・Draft に戻された後の 2 つを足した 9 種類。
+ * 区間の種類。カードの工程の 6 区間に、計画の保留・Draft に戻された後の 2 つを足した 8 種類。
  *
  * 並びは工程の順で、区間の並びの順ではない（差し戻しがあれば同じ種類が何度も現れる）。
- * かつては動作確認の列の 3 つ（`verifying` / `verify-rework` / `verify-held`）もあったが、列とともに廃止した。
+ * かつては動作確認の列の 3 つ（`verifying` / `verify-rework` / `verify-held`）と、その承認から始まる `readying` もあったが、列とともに廃止した。
  */
 export const TIMELINE_KINDS = [
   'idea',
@@ -19,7 +19,6 @@ export const TIMELINE_KINDS = [
   'plan-rework',
   'plan-held',
   'implementing',
-  'readying',
   'pr-review',
   'draft-returned',
 ] as const;
@@ -42,7 +41,6 @@ export const TIMELINE_OWNERS: Record<TimelineKind, TimelineOwner> = {
   'plan-rework': 'ai',
   'plan-held': 'human',
   implementing: 'ai',
-  readying: 'ai',
   'pr-review': 'human',
   'draft-returned': 'human',
 };

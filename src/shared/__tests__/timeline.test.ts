@@ -6,8 +6,8 @@ import { TIMELINE_KINDS, TIMELINE_OWNERS } from '../timeline.js';
 // ============================================================
 
 describe('TIMELINE_KINDS', () => {
-  it('9 種類で、重なりが無い', () => {
-    expect(TIMELINE_KINDS).toHaveLength(9);
+  it('8 種類で、重なりが無い', () => {
+    expect(TIMELINE_KINDS).toHaveLength(8);
     expect(new Set(TIMELINE_KINDS).size).toBe(TIMELINE_KINDS.length);
   });
 });
@@ -22,6 +22,6 @@ describe('TIMELINE_OWNERS', () => {
   it('AI が作業する区間は ai', () => {
     const ai = TIMELINE_KINDS.filter((kind) => TIMELINE_OWNERS[kind] === 'ai');
 
-    expect(ai).toEqual(['planning', 'plan-rework', 'implementing', 'readying']);
+    expect(ai).toEqual(['planning', 'plan-rework', 'implementing']);
   });
 });

@@ -7,7 +7,6 @@ import {
   demoteHeadings,
   logFileName,
   parseDataVersion,
-  isRetiredLogFileName,
   parseLogFileName,
   parseOrder,
   planCardWrite,
@@ -359,8 +358,6 @@ describe('assembleCard', () => {
       'plan 承認',
     ]);
     expect(console.warn).not.toHaveBeenCalled();
-    expect(isRetiredLogFileName('20261101T050000.000Z.verify.submit.md')).toBe(true);
-    expect(isRetiredLogFileName('20261101T050000.000Z.plan.submit.md')).toBe(false);
   });
 });
 

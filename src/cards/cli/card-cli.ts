@@ -11,7 +11,7 @@ import type {
 } from '../errors/card-errors.js';
 import { serializeCard } from '../repositories/card-markdown.js';
 import { CardWriteRefusedError } from '../repositories/file-card.repository.js';
-import { isReviewGate, type ReviewGate } from '../models/review.js';
+import { isReviewGate, REVIEW_GATES, type ReviewGate } from '../models/review.js';
 import { gateStates, parseReviewLog } from '../services/review-log.js';
 import { describeDataStoreError, describeOfflineRead } from './data-store-messages.js';
 
@@ -281,7 +281,7 @@ async function runSubmit(
 
   const gate = parseGate(args.flags.get('--gate'));
   if (gate === null) {
-    io.stderr(`--gate には plan を指定してください\n${CARD_USAGE}`);
+    io.stderr(`${GATE_ERROR}\n${CARD_USAGE}`);
     return 1;
   }
 
@@ -326,7 +326,7 @@ async function runHold(
   const gateFlag = args.flags.get('--gate');
   const gate = gateFlag === undefined ? null : parseGate(gateFlag);
   if (gate === null) {
-    io.stderr(`--gate には plan を指定してください\n${CARD_USAGE}`);
+    io.stderr(`${GATE_ERROR}\n${CARD_USAGE}`);
     return 1;
   }
 
@@ -446,6 +446,9 @@ async function gateRejected(
 }
 
 /** `--gate` の値。省略は plan。規定外の値は null */
+/** `--gate` が規定外のときの文。ゲートの一覧から作り、ゲートが変わっても書き直さずに済むようにする */
+const GATE_ERROR = `--gate には ${REVIEW_GATES.join(' か ')} を指定してください`;
+
 function parseGate(value: string | true | undefined): ReviewGate | null {
   if (value === undefined) return 'plan';
   return typeof value === 'string' && isReviewGate(value) ? value : null;

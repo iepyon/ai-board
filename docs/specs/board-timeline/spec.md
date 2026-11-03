@@ -20,19 +20,18 @@ Draft へ戻した時刻は、PR が今 open で Draft のときだけ痕跡に�
 `## レビュー` は今効いている判断だけでなく、すべてのエントリを時刻の順に読まなければならない (MUST)。
 差し戻しの前のエントリこそが区間の境目になるからである。
 
-区間の種類と担当は次の 9 種類とする。
+区間の種類と担当は次の 8 種類とする。
 
-| 種類             | 区間             | 担当 | 始まり                                                 |
-| ---------------- | ---------------- | ---- | ------------------------------------------------------ |
-| `idea`           | アイデアの滞留   | 人   | 起票                                                   |
-| `planning`       | 計画を書く       | AI   | 着手                                                   |
-| `plan-review`    | 計画レビュー     | 人   | plan 提出 / 再提出                                     |
-| `plan-rework`    | 計画の差し戻し   | AI   | plan 否決                                              |
-| `plan-held`      | 計画の保留       | 人   | plan 保留                                              |
-| `implementing`   | 実装             | AI   | plan 承認（plan を飛ばすカードは plan 提出 / 再提出）  |
-| `readying`       | Ready にする     | AI   | （今は始まらない。廃止した verify の承認が始めていた） |
-| `pr-review`      | PR レビュー      | 人   | PR を Ready にした                                     |
-| `draft-returned` | Draft に戻された | 人   | PR を Draft に戻した                                   |
+| 種類             | 区間             | 担当 | 始まり                                                |
+| ---------------- | ---------------- | ---- | ----------------------------------------------------- |
+| `idea`           | アイデアの滞留   | 人   | 起票                                                  |
+| `planning`       | 計画を書く       | AI   | 着手                                                  |
+| `plan-review`    | 計画レビュー     | 人   | plan 提出 / 再提出                                    |
+| `plan-rework`    | 計画の差し戻し   | AI   | plan 否決                                             |
+| `plan-held`      | 計画の保留       | 人   | plan 保留                                             |
+| `implementing`   | 実装             | AI   | plan 承認（plan を飛ばすカードは plan 提出 / 再提出） |
+| `pr-review`      | PR レビュー      | 人   | PR を Ready にした                                    |
+| `draft-returned` | Draft に戻された | 人   | PR を Draft に戻した                                  |
 
 着手は飛ばす宣言によらず `planning` を始める。
 飛ばす宣言のあるゲートの 提出 / 再提出 は、そのゲートの承認と同じ区間を始める（card-gate-skip と同じ読み替え）。
@@ -79,7 +78,7 @@ PR を最後に Ready にした時刻は、PR のイベントの最後の Ready 
 #### Scenario: 廃止した verify のエントリが残っている
 
 - **WHEN** plan の承認の後に verify の提出と承認が残り、その後 PR が Ready になってマージされた
-- **THEN** `verifying` と `readying` は現れず、`implementing` が Ready にした時刻まで続く
+- **THEN** 動作確認の区間は現れず、`implementing` が Ready にした時刻まで続く
 
 #### Scenario: 計画レビューを飛ばした
 
