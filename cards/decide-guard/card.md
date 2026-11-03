@@ -2,7 +2,8 @@
 id: decide-guard
 title: ユーザは、人の判断を書く口を、サブエージェントが手順書を破っても使えないようにしたい
 created: '2026-11-03T11:40:25.100Z'
-skipGates: []
+skipGates:
+  - plan
 branch: null
 mr: null
 ---
