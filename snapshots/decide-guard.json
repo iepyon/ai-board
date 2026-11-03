@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-11-03T13:19:45Z\",false,\"6fc8ef7790f0a6bce6146908357b51559523f23c\",1,0,\"2026-11-03T13:19:50Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 73,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "decide-guard",
+    "title": "サブエージェントから人の判断を書く口を hook で拒む",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/73",
+    "latestNoteAt": "2026-11-03T12:01:25Z",
+    "noteCount": 1,
+    "latestCommitAt": "2026-11-03T13:14:00Z",
+    "mergedAt": "2026-11-03T13:19:45Z",
+    "readyAt": "2026-11-03T13:14:04Z",
+    "convertedToDraftAt": null
+  }
+}
