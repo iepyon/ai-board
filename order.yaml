@@ -16,6 +16,7 @@ ranks:
   inline-edit: 448381609525.3184
   issue-store: 2000
   loop-activity: 3000
+  loop-continue-on-handback: 4750
   loop-dummy: 28000
   loop-fresh-context: 32000
   loop-impl-review: 1000
