@@ -133,13 +133,13 @@
 
 ### 1. `ai-board init` を足し、案内を `init` に向ける
 
-- [ ] `src/cards/cli/init-cli.ts` に `runInitCli(argv, deps, io)` を書く。`createDataBranch` に形の版・空の `order.yaml`・`config.yaml` の写しを書かせ、失敗の文は `migrate-cli.ts` の `describeBranchError` と同じものを持つ
-- [ ] `src/cards/cli/__tests__/init-cli.test.ts` を書く。既定の置き場所と `AI_BOARD_DATA` のそれぞれで作れて push されること、`config.yaml` を写すこと、既にあれば止まること、`--help` と不明な引数（`--empty` / `--from` を含む）
+- [x] `src/cards/cli/init-cli.ts` に `runInitCli(argv, deps, io)` を書く。`createDataBranch` に形の版・空の `order.yaml`・`config.yaml` の写しを書かせ、失敗の文は `migrate-cli.ts` の `describeBranchError` と同じものを持つ
+- [x] `src/cards/cli/__tests__/init-cli.test.ts` を書く。既定の置き場所と `AI_BOARD_DATA` のそれぞれで作れて push されること、`config.yaml` を写すこと、既にあれば止まること、`--help` と不明な引数（`--empty` / `--from` を含む）
       （`migrate-cli.test.ts` の `--empty` と `AI_BOARD_DATA` の節を土台にする）
-- [ ] `src/cli-main.ts` に `init` のサブコマンドと使い方の行を足す
-- [ ] `src/cards/cli/data-store-messages.ts` の `DataBranchMissing` の案内を `ai-board init` の 1 通りにする（この節では `legacyDb` の引数は残し、使わない）。
+- [x] `src/cli-main.ts` に `init` のサブコマンドと使い方の行を足す
+- [x] `src/cards/cli/data-store-messages.ts` の `DataBranchMissing` の案内を `ai-board init` の 1 通りにする（この節では `legacyDb` の引数は残し、使わない）。
       `src/cards/controllers/card-error-mappings.ts` の文も `ai-board init` に直す。`card-cli.test.ts` の案内の確かめを直す
-- [ ] `.claude/settings.json` の `ask` の `migrate` の 4 行を `init` に置き換え、`claude-settings.test.ts` の `migrate` の例も `init` に直す
+- [x] `.claude/settings.json` の `ask` の `migrate` の 4 行を `init` に置き換え、`claude-settings.test.ts` の `migrate` の例も `init` に直す
 
 ### 2. `migrate` と SQLite の読み出しを消す
 

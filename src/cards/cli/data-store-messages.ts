@@ -7,17 +7,16 @@ import type { DataStoreError } from '../../infrastructure/data-store.js';
 /**
  * `DataStoreError` を CLI の 1 行にする。
  *
- * データ用ブランチが無いときは、移行前の DB（`legacyDb`）があれば `ai-board migrate` を、
- * 無ければ空のデータ用ブランチを作る `ai-board migrate --empty` を案内する。
+ * データ用ブランチが無いときは、空のデータ用ブランチを作る `ai-board init` を案内する。
+ * `legacyDb` は使わない（次の変更で引数ごと消す）。
  */
-export function describeDataStoreError(error: DataStoreError, legacyDb: string | null): string {
+export function describeDataStoreError(error: DataStoreError, _legacyDb: string | null): string {
   switch (error.type) {
     case 'DataBranchMissing':
-      return legacyDb === null
-        ? `データ用ブランチ（origin の ai-board/data）がありません（${error.dataDir}）。` +
-            '空のデータ用ブランチを作るには ai-board migrate --empty を走らせてください'
-        : `データ用ブランチ（origin の ai-board/data）がありません（${error.dataDir}）。` +
-            `ai-board migrate を走らせて、${legacyDb} のカードを書き出してください`;
+      return (
+        `データ用ブランチ（origin の ai-board/data）がありません（${error.dataDir}）。` +
+        'ai-board init を走らせてください。移行前の board.db があるなら、README の「board.db からの切り替え」を見てください'
+      );
     case 'DataDirNotRepository':
       return `${error.dataDir} は git のワークツリーではありません。中身を確かめ、要らなければ消してからやり直してください`;
     case 'DataDirWrongBranch':

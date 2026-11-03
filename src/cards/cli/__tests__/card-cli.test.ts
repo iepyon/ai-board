@@ -642,25 +642,23 @@ describe('runCardCli とデータ用ブランチ', () => {
     expect((await deps.cards.cardRepository.findById('a' as CardId))?.branch).toBeNull();
   });
 
-  it.each([
-    [null, 'ai-board migrate --empty'],
-    ['/repo/.ai-board/board.db', 'ai-board migrate を走らせて、/repo/.ai-board/board.db'],
-  ])(
-    'データ用ブランチが無ければ、移行前の DB（%s）に合わせて migrate を案内する',
-    async (legacyDb, guidance) => {
+  it.each([[null], ['/repo/.ai-board/board.db']])(
+    'データ用ブランチが無ければ、移行前の DB（%s）の有無によらず init を案内する',
+    async (legacyDb) => {
       deps = cliDeps(path.join(tmp, 'none', 'data'), legacyDb);
 
       expect(await run(['list'])).toBe(1);
       expect(stderr).toContain('データ用ブランチ');
-      expect(stderr).toContain(guidance);
+      expect(stderr).toContain('ai-board init を走らせてください');
+      expect(stderr).not.toContain('migrate');
 
       stderr = '';
       expect(await run(['create', '--title', 'x'])).toBe(1);
-      expect(stderr).toContain(guidance);
+      expect(stderr).toContain('ai-board init を走らせてください');
     }
   );
 
-  it('origin にデータ用ブランチの無いリポジトリでも migrate を案内する', async () => {
+  it('origin にデータ用ブランチの無いリポジトリでも init を案内する', async () => {
     const bare = path.join(tmp, 'code.git');
     sh(['init', '--quiet', '--bare', bare]);
     const repo = path.join(tmp, 'code');
@@ -674,7 +672,7 @@ describe('runCardCli とデータ用ブランチ', () => {
     };
 
     expect(await run(['list'])).toBe(1);
-    expect(stderr).toContain('ai-board migrate --empty');
+    expect(stderr).toContain('ai-board init を走らせてください');
   });
 
   it('人がデータのワークツリーを消しても、次のコマンドが作り直して読み書きできる', async () => {

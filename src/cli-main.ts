@@ -20,6 +20,7 @@ import {
 } from './cards/composition.js';
 import { runCardCli, type CardCliIo } from './cards/cli/card-cli.js';
 import { runMigrateCli } from './cards/cli/migrate-cli.js';
+import { runInitCli } from './cards/cli/init-cli.js';
 import { describeDataStoreError, describeOfflineRead } from './cards/cli/data-store-messages.js';
 import {
   createBoardDependencies,
@@ -54,6 +55,7 @@ const USAGE = `使い方: ai-board [options]
        ai-board card <command> [--root <path>]    カードの読み書き（ai-board card --help）
        ai-board status [--json [--only <項目,...>] | --html] [--root <path>]
                                                   ボードの状態と次の一手（サーバ不要）
+       ai-board init [--root <path>]              空のデータ用ブランチを作る（ai-board init --help）
        ai-board migrate [--from <db>] [--empty] [--root <path>]
                                                   board.db をデータ用ブランチへ書き出す（ai-board migrate --help）
        ai-board pr <command> [--root <path>]      PR の読み書き（gh api の REST。ai-board pr --help）
@@ -152,6 +154,30 @@ async function runCard(argv: readonly string[]): Promise<number> {
   return runCardCli(
     rest,
     { store, cards: createFileCardDependencies(store.dataDir), legacyDb: legacyDbOf(paths) },
+    createProcessIo()
+  );
+}
+
+/**
+ * `init` サブコマンド。空のデータ用ブランチを作って push する。
+ *
+ * 既定の置き場所（`.ai-board/data/`）なら `root` のリポジトリからワークツリーを足して作る。
+ * `AI_BOARD_DATA` なら、そのディレクトリ（`origin` を持つ空の clone）に作る。
+ */
+async function runInit(argv: readonly string[]): Promise<number> {
+  const { root, rest } = extractRoot(argv);
+  const paths = resolvePaths(root);
+
+  return runInitCli(
+    rest,
+    {
+      target: {
+        dataDir: paths.dataDir,
+        ...(paths.dataSource === 'env' ? {} : { repoRoot: paths.root }),
+        runner: createCliRunner(),
+      },
+      configFile: path.join(paths.sharedBoardDir, CONFIG_FILE),
+    },
     createProcessIo()
   );
 }
@@ -356,6 +382,7 @@ function createProcessIo(): CardCliIo {
 /** サーバを起動しないサブコマンド。名前から実行する関数を引く */
 const SUBCOMMANDS: Readonly<Record<string, (argv: readonly string[]) => Promise<number>>> = {
   card: runCard,
+  init: runInit,
   migrate: runMigrate,
   status: runStatus,
   pr: runPr,
