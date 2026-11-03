@@ -21,7 +21,7 @@ ranks:
   loop-respect-human: 35000
   loop-task-batch: 2000
   loop-worker-dummy: 33000
-  merged-before-ready: 17000
+  merged-before-ready: 8921.875
   node-lts: 4000
   plan-visual: 22000
   pr-checks: 19000
