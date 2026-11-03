@@ -33,7 +33,7 @@ ranks:
   loop-worker-dummy: 33000
   merged-before-ready: 1793715935378
   node-lts: 4000
-  plan-assumptions: 5250
+  plan-assumptions: -10750
   plan-visual: 1793715933378
   pr-checks: 1793715937378
   pr-closed-unmerged: -1750
