@@ -428,37 +428,33 @@ ai-board loop finish --loop <id> --card <cardId> --result <advanced|held|stopped
 ### ループの許可ルール
 
 ループの監視役とサブエージェントは、1 手のあいだに git・npm・`ai-board` の CLI を何度も呼ぶ。
-許すルールが無いと、確認の応答を待つ間ループは止まって見え、確認が多すぎると人は場当たりで何でも許しがちになる。
-そこで `.claude/settings.json` の `permissions` に、ループに要る操作と、境界を壊す操作を明文化して同梱している。
+**ループは auto モードで回すことを前提にしている。** auto モードでは、許可ルールに当たらない操作を自動許可の分類器が判定し、
+読み取り・品質ゲート・`ai-board` の CLI・ふつうの commit や push はそのまま通す。
+そこで `.claude/settings.json` の `permissions` には、分類器に任せると困るものだけを書いて同梱している。
 理由と退けた案は [ADR 12](docs/adr/0012-loop-permissions.md) にある。
 
-Claude Code は `deny` → `ask` → `allow` の順に照合し、どれにも当たらなければ確認を出す。これを使って 3 段に分ける。
+Claude Code は `deny` → `ask` → `allow` の順に照合し、どれにも当たらなければ auto モードでは分類器が判定する（ほかのモードでは確認が出る）。
 
-| 段      | 入れるもの                                             | 当たったとき         |
-| ------- | ------------------------------------------------------ | -------------------- |
-| `allow` | 手順書が毎手のように使い、壊しても PR とゲートで戻せる | 確認なしで走る       |
-| `ask`   | 手順書が使わないか、人が 1 回だけ行う、戻しにくい操作  | 毎回人に確かめる     |
-| `deny`  | ハーネスの境界を壊す。人もループ中には使わない         | 確認を経ずに拒まれる |
+| 段      | 入れるもの                                            | 当たったとき         |
+| ------- | ----------------------------------------------------- | -------------------- |
+| `allow` | 手順書が使うのに、分類器が既定で止める操作            | 確認なしで走る       |
+| `ask`   | 手順書が使わないか、人が 1 回だけ行う、戻しにくい操作 | 毎回人に確かめる     |
+| `deny`  | ハーネスの境界を壊す。人もループ中には使わない        | 確認を経ずに拒まれる |
 
-- **`allow`:** 品質ゲートとビルド（`npm run typecheck` / `lint` / `format` / `format:check` / `build` / `test:coverage`、`npm test`、`npm ci`、`npx vitest run`、
-  監視役と `board-decide` が `dist/` の古いときに走らせる `npm --prefix <path> run build`）、
-  `ai-board` の `card` / `pr` / `status` / `loop` / `dist-check`（手順書は `node "$MAIN/dist/cli.js" ...` で呼ぶので `node */dist/cli.js <サブコマンド>` の形で書く。
-  `dist-check` は監視役が周ごとに `dist/` の古さを確かめるのに使う）、
-  手順書が使う `git` の操作（`status` / `diff` / `log` / `show` / `fetch` / `pull --ff-only` / `add` / `commit` / `mv` / `rev-parse` / `worktree list` / `worktree add` /
-  `push origin <branch>` / `push -u origin <branch>` / `push --force-with-lease origin <branch>`。`git -C <path> ...` の形も）、
-  カードのワークツリーの中の取り消し（`git -C <path>/.claude/worktrees/<id> checkout -- .` / `clean -fd` の形だけ。`-C` の無い形やメインのチェックアウトでは確認が出る）、
-  カードのワークツリー（`.claude/worktrees/`）の下の編集。
-  `card` で書けるものは CLI が構造で絞っており（`startedAt` / `rank` / 承認 / 否決 / 中止は書けない）、`pr` に merge は無いので、サブコマンドごと許している
+- **`allow`:** 分類器が既定で止める操作のうち、手順書が使うものだけを置く。広げると、分類器が止めてくれる操作まで黙って通るので最小にする
+  - `main` 以外への `git push --force-with-lease origin <branch>`（`git -C <path> ...` の形も）。ブランチを `origin/main` にリベースし直したときに要る
+  - カードのワークツリーの中の取り消し（`git -C <path>/.claude/worktrees/<id> checkout -- .` / `clean -fd` の形だけ）。
+    `board-worker` が節の変更を戻すときに使う。`-C` の無い形やメインのチェックアウトでは分類器の判定に回る
 - **`ask`:** `git reset --hard`、`git branch -D` / `-d`、`git worktree remove`、`ai-board migrate`。手順書の 1 手の中では使わず、使うなら人が意図して 1 回行う。
   `deny` にしないのは、人がチャットで頼んだ正当な操作（「Windows で使う」の取り出し直しなど）まで止めないためである
-- **`deny`:** データのワークツリーの編集とデータ用ブランチへの push、`main` への push、`--force` / `-f` / `+` の refspec での force push、
+- **`deny`:** データのワークツリーの編集とデータ用ブランチへの push、`main` への push、`--force` / `-f` / `+` の refspec での force push、`--mirror` の push、
   DB の直接操作（`sqlite3`）、メインのチェックアウトの `.claude/settings*.json` の編集
-- **どこにも書かないもの:** `gh`、`node -e`、`curl`、`git push` だけの形、`git rebase`。どれも確認が出る。
-  手順書は PR の読み書きに `ai-board pr` を使い（`ai-board` の中の `gh api` は Bash の道具を通らない）、
-  `node -e` は任意のコードを走らせられ、`curl` は人の API を叩けば人の判断を書けるからである。
-  `git push` だけの形は、上流が `origin/main` のままのブランチで `main` へ向かいうるので、手順書は `git -C "$WT" push origin <branch>` の明示の形で push する
+- **どこにも書かないもの:** 品質ゲート、`ai-board` の CLI（`card` / `pr` / `status` / `loop` / `dist-check`）、`npm --prefix <path> run build`、
+  手順書が使うふつうの `git` の操作（`status` / `diff` / `log` / `commit` / `push origin <branch>` など）、ワークツリーの下の編集。
+  auto モードの分類器がそのまま通すので、許可ルールでは重ねない。`gh`・`node -e`・`curl`・`git push` だけの形・`git rebase` も書かず、分類器の判定に任せる。
+  手順書は PR の読み書きに `ai-board pr` を使い、push は `git -C "$WT" push origin <branch>` の明示の形にそろえている
+  （`git push` だけの形は、上流が `origin/main` のままのブランチで `main` へ向かいうるため）
 
-force push は `--force-with-lease` だけを `main` 以外へ許す。ブランチを `origin/main` にリベースし直したときに要るからである。
 `--force-with-lease` は、リモートのブランチが手元の知っている位置から動いていれば push を拒むので、人や別のセッションが積んだコミットを黙って消さない。
 `--force` は相手の位置を確かめないので禁じたままにし、`main` へは `--force-with-lease` でも `deny` が先に効いて通らない。
 照合は前方一致なので、`deny` の force push の形は `--force` の後ろを空白か行の終わりで区切って書き、`--force-with-lease` に当たらないようにしている（`src/__tests__/claude-settings.test.ts` が守る）。
@@ -467,9 +463,9 @@ force push は `--force-with-lease` だけを `main` 以外へ許す。ブラン
 境界の本体は今どおり、カードの書き込みは `ai-board card` の CLI の構造、人の判断は `board-decide` と人の API を使わないという手順書の決まりに置く。
 `main` を守るには、リポジトリの Settings → Branches で `main` にブランチ保護（直接の push と force push の禁止）を入れることを勧める。
 
-- 手順書（`.claude/skills/`、`.claude/agents/`）に新しい操作を足したら、許可ルールも見直す。足し忘れても確認が出るだけで、危ない側には倒れない
+- auto モード以外（既定のモードなど）で回すと、`allow` に無い操作のたびに確認が出る。ループを止めずに回すなら auto モードを選ぶ
+- 手順書（`.claude/skills/`、`.claude/agents/`）に新しい操作を足して分類器がそれを止めるなら、その操作だけを `allow` に足す。止めないものは足さない
 - 人ごとの設定（`~/.claude/settings.json`、`settings.local.json`）と `defaultMode` には触らない。どのモードで回すかは人が選ぶ
-- auto モードの自動許可の判定は許可ルールとは別物で、`allow` にある操作を判定が止めることはありうる
 
 ### クラウドのセッションで回す
 

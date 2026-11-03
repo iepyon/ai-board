@@ -38,7 +38,7 @@ npm run typecheck && npm run lint && npm run format:check && npm test
 **このリポジトリ自身のバックログはボードのカードとして `origin` の `ai-board/data` ブランチにある。** 何に着手するかはまずここを見る。
 手元ではメインのチェックアウトの `.ai-board/data/` にデータのワークツリーとして展開され、CLI とサーバは書くたびにコミットと push をする。
 **読み書きは `ai-board card` の CLI で行い、データのワークツリーのファイルを直接書き換えない。データ用ブランチへ直接コミット・push もしない。**
-（`.claude/settings.json` の deny ルールでも止めている。何を許し・確かめ・禁じたかと理由は README の「ループの許可ルール」と ADR 0012。）
+（`.claude/settings.json` の deny ルールでも止めている。ループは auto モードで回す前提で、何を許し・確かめ・禁じたかと理由は README の「ループの許可ルール」と ADR 0012。）
 開発中は `node dist/cli.js card ...`（先に `npm run build`）。
 
 ```bash
