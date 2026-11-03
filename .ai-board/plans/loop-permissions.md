@@ -178,3 +178,17 @@ README に「ループの許可ルール」の節を足して、何を許し・�
 ### 3. 確かめる
 
 - [x] 品質ゲートと `npm run build` を通し、`## 動作確認の手順` の 1 と 3 のうち、サブエージェントの中で確かめられるもの（許されたコマンドが確認なしに走ること）を確かめる
+
+## AI レビュー
+
+- [ ] `.claude/settings.json` の `allow` の `Bash(git checkout -- .)` / `Bash(git -C * checkout -- .)` / `Bash(git clean -fd)` / `Bash(git -C * clean -fd)` は場所を問わないので、メインのチェックアウトの未コミットの変更や未追跡のファイルも確認なしに消せる。`git -C ""` は今の作業ディレクトリで動く（git の仕様。手元で確かめた）ため、`board-worker.md:110` / `:141` の `git -C "$WT" checkout -- .` は `$WT` が空になると、監視役のチェックアウト（多くはメイン）を戻してしまう。Decisions の「ワークツリーの中の取り消し」に合わせ、`Bash(git -C */.claude/worktrees/* checkout -- .)` と `Bash(git -C */.claude/worktrees/* clean -fd)` だけに絞り、`-C` の無い形と `git -C * ...` の形を外す。`src/__tests__/claude-settings.test.ts` に、`git checkout -- .`・`git -C /repo checkout -- .`・`git -C "" clean -fd` が `allow` に当たらないこと、`git -C /repo/.claude/worktrees/x checkout -- .` は `allow` のままであることを足す
+- [ ] `allow` の `Bash(git push origin *)` / `Bash(git -C * push origin *)` は `git push origin --mirror` にも当たり、`deny` のどれにも当たらないので確認なしに走る。`--mirror` は強制の上書きと、手元に無いリモートのブランチ（`main` と `ai-board/data` を含む）の削除を伴う。Decisions の「`--force` / `-f` / `+` の refspec の force push は `deny`」の趣旨に合わせ、`deny` に `Bash(git push * --mirror)` / `Bash(git push * --mirror *)` と `git * push` の同じ形を足し、`src/__tests__/claude-settings.test.ts` の deny の例に `git push origin --mirror` と `git -C /repo push --mirror origin` を足す
+
+### 見送った指摘
+
+- `.claude/settings.json` の `allow` の `Bash(node */dist/cli.js card *)` などは、`*` が空白をまたぐので `node -e '<任意のコード>' x/dist/cli.js card` のような形にも当たる。わざとそう書かないと当たらず、glob ではこれ以上絞れない。README と ADR 0012 が許可ルールは迂回できる保険だと書いているので見送る
+- `allow` の `git push origin *` は、`main` / `ai-board/data` 以外のリモートのブランチの削除（`git push origin --delete x`、`git push origin :x`）や、`-uf` のように詰めた force push の形にも当たる。手順書はこれらの形を使わず、うっかり打つ見込みも薄い。計画の Decisions の `deny` に挙げた形の外なので見送る
+
+### 人に判断してほしいこと
+
+- `.claude/skills/board-loop/SKILL.md:74` の監視役は、周ごとに `dist/` の古さを `node -e '...'` で比べ、古ければ `npm --prefix "$MAIN" run build` を走らせる。どちらも `allow` に当たらないので、`/loop 5m /board-loop` の毎周に確認が出て、What Changes の「clone してループを回すと確認が出なくなる」が満たされない（Decisions は `node -e` を許さないとしている）。手順書の比べ方を `node -e` を使わない形（`ai-board` の CLI に古さを確かめるサブコマンドを足す、毎周 `npm run build` する など）に変えるか、この 1 行に限った `allow` を足すか、許容して README に書くかは、人が決める
