@@ -4,7 +4,7 @@ title: ユーザは、ループを回すときに許可の確認で何度も止�
 created: '2026-10-31T06:52:00.967Z'
 skipGates: []
 branch: loop-permissions
-mr: null
+mr: 68
 ---
 
 ## アイデア
