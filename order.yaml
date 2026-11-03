@@ -36,7 +36,7 @@ ranks:
   plan-assumptions: 5250
   plan-visual: 1793715933378
   pr-checks: 1793715937378
-  pr-closed-unmerged: 8773.4375
+  pr-closed-unmerged: -1750
   pr-feedback-ai-turn: 20708.953857421875
   rename-mr-to-pr: 30000
   review-append-port: 2000
