@@ -5,7 +5,7 @@ created: '2026-11-03T05:14:34.727Z'
 skipGates:
   - plan
 branch: loop-continue-on-handback
-mr: null
+mr: 70
 ---
 
 ## アイデア
