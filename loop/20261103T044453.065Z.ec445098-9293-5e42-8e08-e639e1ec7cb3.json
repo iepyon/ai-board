@@ -5,8 +5,8 @@
   "step": "review",
   "agent": "board-reviewer-loop-resume-after-decide-0444",
   "startedAt": "2026-11-03T04:44:53.065Z",
-  "finishedAt": null,
-  "result": null,
-  "tokens": null,
-  "durationMs": null
+  "finishedAt": "2026-11-03T04:57:36.849Z",
+  "result": "advanced",
+  "tokens": 110292,
+  "durationMs": 117074
 }
