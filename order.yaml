@@ -32,6 +32,7 @@ ranks:
   loop-retry-limit: 1793715940378
   loop-task-batch: 2000
   loop-worker-dummy: 33000
+  merge-verify-into-pr: -12750
   merged-before-ready: 1793715935378
   node-lts: 4000
   plan-assumptions: -10750
