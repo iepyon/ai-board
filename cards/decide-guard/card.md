@@ -6,7 +6,7 @@ skipGates:
   - plan
   - verify
 branch: decide-guard
-mr: null
+mr: 73
 ---
 
 ## アイデア
