@@ -5,8 +5,8 @@
   "step": "task",
   "agent": "board-worker-decide-guard-1154",
   "startedAt": "2026-11-03T11:54:47.484Z",
-  "finishedAt": null,
-  "result": null,
-  "tokens": null,
-  "durationMs": null
+  "finishedAt": "2026-11-03T11:58:53.720Z",
+  "result": "advanced",
+  "tokens": 108544,
+  "durationMs": 233507
 }
