@@ -35,3 +35,9 @@ mr: null
 - **共通の決まりとの重複。** `subagent-rules.md`（157 行）の「タスクの数え方と節の決め方」も一緒に削れるか
 - **確かめ方。** 削った手順書で、決まった題材のカードを 1 周回し、計画の `[x]` とコミットと報告が今と同じに残ることを見る
 - ADR 0011 の書き直しが要るか
+
+## 探索メモ
+
+2026-11-03、PR #75（`loop-single-session`）がマージされ、`board-planner` / `board-worker` のエージェント定義は消えた。計画と実装の手は、本筋のセッションが `.claude/skills/board-loop/plan.md`・`implement.md` を読んで自分で進める。共通の決まり `subagent-rules.md` は `rules.md` に改名された。残るエージェント定義は `board-reviewer` だけである。
+このカードの対象は `board-worker.md` から `.claude/skills/board-loop/implement.md` に移った。PR #75 の後の /simplify（コミット 7bf347c）で、要約で節の区切りに止まる逃げ道、Bash の作業ディレクトリの注意の写し、push 後の確かめの git の呼び出しの多さは片付いた。
+残る候補は、計画の差分を `norm()` で照合するシェル、タスクの順番を直す細則、タスクの範囲の決め方、節ごとに必ず 1 コミットの決まり。あわせて、テストの例に残る古い名前（`board-worker-…` / `board-planner`。`loop-cli.test.ts`・`loop-history.repository.test.ts`・`status-cli.test.ts`・`board.e2e.test.ts`）を今の形（`board-reviewer` か null）にそろえる
