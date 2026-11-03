@@ -4,7 +4,7 @@ title: ユーザは、サブエージェントが手を終えたあと、聞き�
 created: '2026-11-03T05:14:34.727Z'
 skipGates:
   - plan
-branch: null
+branch: loop-continue-on-handback
 mr: null
 ---
 
