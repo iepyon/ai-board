@@ -5,7 +5,7 @@ created: '2026-11-03T09:56:28.829Z'
 skipGates:
   - plan
   - verify
-branch: null
+branch: remove-sqlite
 mr: null
 ---
 
