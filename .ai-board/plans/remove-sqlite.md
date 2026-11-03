@@ -151,9 +151,9 @@
 
 ### 3. `legacyDb` を消す
 
-- [ ] `describeDataStoreError` から `legacyDb` の引数を消し、`card-cli.ts` / `loop-cli.ts` の依存の `legacyDb`、`cli-main.ts` の `legacyDbOf`、`server.ts` の `legacyDbPath` の呼び出しを消す
-- [ ] `src/shared/config.ts` の `DB_FILE` / `legacyDbPath()` とその説明の文を消し、`config.test.ts` の `legacyDbPath` の確かめを消す
-- [ ] `card-cli.test.ts` / `loop-cli.test.ts` の `legacyDb` を消し、`server-info.test.ts` の `dbPath: .../board.db` が要るかを見て、要らなければ消す
+- [x] `describeDataStoreError` から `legacyDb` の引数を消し、`card-cli.ts` / `loop-cli.ts` の依存の `legacyDb`、`cli-main.ts` の `legacyDbOf`、`server.ts` の `legacyDbPath` の呼び出しを消す
+- [x] `src/shared/config.ts` の `DB_FILE` / `legacyDbPath()` とその説明の文を消し、`config.test.ts` の `legacyDbPath` の確かめを消す
+- [x] `card-cli.test.ts` / `loop-cli.test.ts` の `legacyDb` を消し、`server-info.test.ts` の `dbPath: .../board.db` が要るかを見て、要らなければ消す
 
 ### 4. 説明とドキュメントを今の形にする
 

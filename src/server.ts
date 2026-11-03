@@ -1,8 +1,7 @@
-import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as path from 'node:path';
 import type { FSWatcher } from 'chokidar';
-import { legacyDbPath, loadConfig, resolvePaths, type AppConfig } from './shared/config.js';
+import { loadConfig, resolvePaths, type AppConfig } from './shared/config.js';
 import { isErr } from './shared/result.js';
 import {
   createBoardDataStore,
@@ -67,8 +66,7 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
 
   const refreshed = await store.refresh();
   if (isErr(refreshed)) {
-    const legacyDb = fs.existsSync(legacyDbPath(paths)) ? legacyDbPath(paths) : null;
-    throw new Error(describeDataStoreError(refreshed.error, legacyDb));
+    throw new Error(describeDataStoreError(refreshed.error));
   }
   if (refreshed.value.kind === 'offline') {
     console.warn(`[ai-board] ${describeOfflineRead(refreshed.value.reason)}`);
@@ -153,7 +151,7 @@ function warnRefreshProblem(problem: RefreshProblem): void {
       console.warn(`[ai-board] ${describeOfflineRead(problem.reason)}`);
       return;
     case 'failed':
-      console.warn(`[ai-board] ${describeDataStoreError(problem.error, null)}`);
+      console.warn(`[ai-board] ${describeDataStoreError(problem.error)}`);
       return;
     case 'threw':
       console.warn('[ai-board] データ用ブランチの取り直しでエラーが発生しました:', problem.error);

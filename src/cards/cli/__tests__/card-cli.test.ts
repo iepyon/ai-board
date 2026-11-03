@@ -51,11 +51,10 @@ function cloneData(parent: string): string {
   return dir;
 }
 
-function cliDeps(dataDir: string, legacyDb: string | null = null): CardCliDependencies {
+function cliDeps(dataDir: string): CardCliDependencies {
   return {
     store: createDataStore({ dataDir, runner, lockPollMs: 10 }),
     cards: createFileCardDependencies(dataDir),
-    legacyDb,
   };
 }
 
@@ -642,21 +641,18 @@ describe('runCardCli とデータ用ブランチ', () => {
     expect((await deps.cards.cardRepository.findById('a' as CardId))?.branch).toBeNull();
   });
 
-  it.each([[null], ['/repo/.ai-board/board.db']])(
-    'データ用ブランチが無ければ、移行前の DB（%s）の有無によらず init を案内する',
-    async (legacyDb) => {
-      deps = cliDeps(path.join(tmp, 'none', 'data'), legacyDb);
+  it('データ用ブランチが無ければ、init を案内する', async () => {
+    deps = cliDeps(path.join(tmp, 'none', 'data'));
 
-      expect(await run(['list'])).toBe(1);
-      expect(stderr).toContain('データ用ブランチ');
-      expect(stderr).toContain('ai-board init を走らせてください');
-      expect(stderr).not.toContain('migrate');
+    expect(await run(['list'])).toBe(1);
+    expect(stderr).toContain('データ用ブランチ');
+    expect(stderr).toContain('ai-board init を走らせてください');
+    expect(stderr).not.toContain('migrate');
 
-      stderr = '';
-      expect(await run(['create', '--title', 'x'])).toBe(1);
-      expect(stderr).toContain('ai-board init を走らせてください');
-    }
-  );
+    stderr = '';
+    expect(await run(['create', '--title', 'x'])).toBe(1);
+    expect(stderr).toContain('ai-board init を走らせてください');
+  });
 
   it('origin にデータ用ブランチの無いリポジトリでも init を案内する', async () => {
     const bare = path.join(tmp, 'code.git');
@@ -668,7 +664,6 @@ describe('runCardCli とデータ用ブランチ', () => {
     deps = {
       store: createDataStore({ dataDir, repoRoot: repo, runner, lockPollMs: 10 }),
       cards: createFileCardDependencies(dataDir),
-      legacyDb: null,
     };
 
     expect(await run(['list'])).toBe(1);
@@ -682,7 +677,6 @@ describe('runCardCli とデータ用ブランチ', () => {
     deps = {
       store: createDataStore({ dataDir, repoRoot: repo, runner, lockPollMs: 10 }),
       cards: createFileCardDependencies(dataDir),
-      legacyDb: null,
     };
     expect(await run(['create', '--title', 'x', '--id', 'before'])).toBe(0);
 

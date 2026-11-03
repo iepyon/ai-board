@@ -5,11 +5,9 @@ import {
   BOARD_DIR,
   CONFIG_FILE,
   DATA_ENV,
-  legacyDbPath,
   loadConfig,
   resolvePaths,
   type AppConfig,
-  type BoardPaths,
 } from './shared/config.js';
 import { createCliRunner } from './infrastructure/cli-runner.js';
 import {
@@ -149,7 +147,7 @@ async function runCard(argv: readonly string[]): Promise<number> {
 
   return runCardCli(
     rest,
-    { store, cards: createFileCardDependencies(store.dataDir), legacyDb: legacyDbOf(paths) },
+    { store, cards: createFileCardDependencies(store.dataDir) },
     createProcessIo()
   );
 }
@@ -178,12 +176,6 @@ async function runInit(argv: readonly string[]): Promise<number> {
   );
 }
 
-/** 移行前の DB があればその場所。データ用ブランチが無いときに `ai-board migrate` を案内するのに使う */
-function legacyDbOf(paths: BoardPaths): string | null {
-  const dbPath = legacyDbPath(paths);
-  return fs.existsSync(dbPath) ? dbPath : null;
-}
-
 /**
  * `status` サブコマンド。サーバを起動せず、ボードと同じ組み立てでステージを導出する。
  *
@@ -209,7 +201,7 @@ async function runStatus(argv: readonly string[]): Promise<number> {
 
   const refreshed = await store.refresh();
   if (isErr(refreshed)) {
-    io.stderr(`${describeDataStoreError(refreshed.error, legacyDbOf(paths))}\n`);
+    io.stderr(`${describeDataStoreError(refreshed.error)}\n`);
     return 1;
   }
   if (refreshed.value.kind === 'offline') {
@@ -270,7 +262,6 @@ async function runLoop(argv: readonly string[]): Promise<number> {
         const parsed = CardIdSchema.safeParse(id);
         return parsed.success && (await cardRepository.findById(parsed.data as CardId)) !== null;
       },
-      legacyDb: legacyDbOf(paths),
     },
     createProcessIo()
   );
@@ -313,7 +304,7 @@ async function runPr(argv: readonly string[]): Promise<number> {
   const paths = resolvePaths(root);
   const refreshed = await createBoardDataStore(paths, runner).refresh();
   if (isErr(refreshed)) {
-    io.stderr(`${describeDataStoreError(refreshed.error, legacyDbOf(paths))}\n`);
+    io.stderr(`${describeDataStoreError(refreshed.error)}\n`);
   } else if (refreshed.value.kind === 'offline') {
     io.stderr(`${describeOfflineRead(refreshed.value.reason)}\n`);
   }

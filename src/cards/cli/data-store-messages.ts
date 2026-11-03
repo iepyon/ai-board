@@ -8,9 +8,8 @@ import type { DataStoreError } from '../../infrastructure/data-store.js';
  * `DataStoreError` を CLI の 1 行にする。
  *
  * データ用ブランチが無いときは、空のデータ用ブランチを作る `ai-board init` を案内する。
- * `legacyDb` は使わない（次の変更で引数ごと消す）。
  */
-export function describeDataStoreError(error: DataStoreError, _legacyDb: string | null): string {
+export function describeDataStoreError(error: DataStoreError): string {
   switch (error.type) {
     case 'DataBranchMissing':
       return (

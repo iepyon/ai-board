@@ -71,8 +71,6 @@ export interface CardCliDependencies {
   readonly store: Pick<DataStore, 'refresh' | 'transact'>;
   /** `store` のデータのワークツリーを読み書きするカードの依存 */
   readonly cards: CardDependencies;
-  /** 移行前の DB（`board.db`）の場所。無ければ null。データ用ブランチが無いときの案内を変える */
-  readonly legacyDb: string | null;
 }
 
 type Handler = (args: ParsedArgs, deps: CardCliDependencies, io: CardCliIo) => Promise<number>;
@@ -364,7 +362,7 @@ async function runHold(
 async function refreshForRead(deps: CardCliDependencies, io: CardCliIo): Promise<boolean> {
   const refreshed = await deps.store.refresh();
   if (isErr(refreshed)) {
-    io.stderr(`${describeDataStoreError(refreshed.error, deps.legacyDb)}\n`);
+    io.stderr(`${describeDataStoreError(refreshed.error)}\n`);
     return false;
   }
 
@@ -484,11 +482,11 @@ function report(
     return 0;
   }
 
-  io.stderr(`${describeError(result.error, deps.legacyDb)}\n`);
+  io.stderr(`${describeError(result.error)}\n`);
   return 1;
 }
 
-function describeError(error: WriteFailure | DataStoreError, legacyDb: string | null): string {
+function describeError(error: WriteFailure | DataStoreError): string {
   switch (error.type) {
     case 'CardNotFound':
       return `カードが見つかりません: ${error.id}`;
@@ -504,6 +502,6 @@ function describeError(error: WriteFailure | DataStoreError, legacyDb: string | 
       return '## レビュー のエントリが変わる差し替えはできません。提出 / 再提出は submit で追記してください';
     default:
       // 残りは DataStoreError。describeDataStoreError の switch が種別を網羅する
-      return describeDataStoreError(error, legacyDb);
+      return describeDataStoreError(error);
   }
 }

@@ -118,11 +118,11 @@ function describeBranchError(
     case 'DataDirNotRepository':
       return target.repoRoot === undefined
         ? `${error.dataDir} は git の clone ではありません。AI_BOARD_DATA には、origin を持つ空の clone を指してください`
-        : describeDataStoreError(error, null);
+        : describeDataStoreError(error);
     case 'DataStoreFetchFailed':
       return `origin に問い合わせられないため、データ用ブランチの有無を確かめられません（${error.message}）`;
     default:
-      return describeDataStoreError(error, null);
+      return describeDataStoreError(error);
   }
 }
 
