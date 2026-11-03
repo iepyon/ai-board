@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-11-03T01:44:29Z\",false,\"25eb2b5bb9c0ce158e3a1e9fd6dfd3b12c1358c6\",0,0,\"2026-11-03T01:44:36Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 67,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "windows-shell",
+    "title": "Windows の Git Bash でも、手順書を書き換えずにボードとループを回せるようにする",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/67",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-11-03T01:40:11Z",
+    "mergedAt": "2026-11-03T01:44:29Z",
+    "readyAt": "2026-11-03T01:40:14Z",
+    "convertedToDraftAt": null
+  }
+}
