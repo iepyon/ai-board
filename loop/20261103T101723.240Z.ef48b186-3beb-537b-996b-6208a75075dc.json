@@ -1,0 +1,12 @@
+{
+  "loop": "ef48b186-3beb-537b-996b-6208a75075dc",
+  "cardId": "remove-sqlite",
+  "action": "implement",
+  "step": "review",
+  "agent": "board-reviewer-remove-sqlite-1017",
+  "startedAt": "2026-11-03T10:17:23.240Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
