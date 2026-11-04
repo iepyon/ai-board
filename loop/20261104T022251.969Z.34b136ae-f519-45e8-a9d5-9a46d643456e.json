@@ -1,0 +1,12 @@
+{
+  "loop": "34b136ae-f519-45e8-a9d5-9a46d643456e",
+  "cardId": "decide-via-cli",
+  "action": "plan",
+  "step": null,
+  "agent": null,
+  "startedAt": "2026-11-04T02:22:51.969Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
