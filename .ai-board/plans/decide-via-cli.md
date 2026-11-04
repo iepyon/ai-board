@@ -163,3 +163,22 @@ ADR 0007 を書き直す。決定の「CLI に人の判断の入口を足さな�
 - [x] `README.md` と `docs/architecture.md` の、`board-decide` がサーバを起動する説明・`--pid-file`・人の判断の入口の説明を直す
 - [x] `docs/specs/card-review-authority/spec.md` の書ける主体を直す
 - [x] `docs/adr/0007-board-decide.md` を今の形に書き直す（`adr` のスキル）
+
+## AI レビュー
+
+- [ ] `src/board/cli/decide-cli.ts:126` の `parseArgs` は、知らないフラグを `true` として受け、余分な位置引数も黙って捨てる。`decide skip foo --gate plan --remov` は `--remove` の打ち間違いが無視され、飛ばす宣言を外さずに入れる（計画レビューのカードなら提出がそのまま承認扱いになり実装中へ進む）。`decide approve foo --reson "…"` は理由の空の 承認 を書いて 0 で終わる。サブコマンドごとに受けるフラグ（`approve` / `reject` / `abort` は `--reason`、`skip` は `--gate` と `--remove`、`move` / `move-divider` は `--after` と `--before`、`start` / `unstart` は無し）と位置引数の数（`move-divider` は 0、ほかは 1）を決め、外れたらボードを読む前に終了コード 1 で拒む。打ち間違えたフラグと余分な位置引数が拒まれ、何も書かないテストを `src/board/cli/__tests__/decide-cli.test.ts` に足す
+- [ ] `src/board/cli/decide-cli.ts:111` の `isDecideCommand` は `command in HANDLERS` で、`:96` の `HANDLERS[command]` も自分のプロパティかを見ないので、`constructor` / `toString` / `__proto__` がサブコマンドとして通る。`decide constructor x` は `src/cli-main.ts` の `runDecide` でデータ用ブランチの取り直しと全カードの PR の問い合わせ（PR 番号の書き戻しの push を含む）を起こしたうえで、`Object` を呼んで返したオブジェクトを終了コードにする。`src/board/cli/pr-cli.ts:81` と同じく `Object.hasOwn(HANDLERS, command)` で両方を確かめ、`constructor` が使い方を出して 1 で終わるテストを足す
+
+### 見送った指摘
+
+- `src/board/cli/decide-cli.ts:181` で、確かめたボードと書き込みの間に別の者がカードを書くと、`transact` の取り直しや push の拒否からのやり直しは `decisionsFor` を確かめ直さずに書く。計画の Risks で「画面と同じ広さの窓」として受け入れており、`## レビュー` は追記なので消えないため見送る
+- `decide move <id> --after none --before none` は `src/cards/usecases/commands/move-in-order.ts:65` で何も書かないが、`src/board/cli/decide-cli.ts:329` は「並べ替えました」と出す。画面はこの組を送らず、カードも壊れないため見送る
+- `src/cli-main.ts:285` で、データ用ブランチを取り直せない（offline）ときも警告だけで全カードの PR を問い合わせてから、書き込みで失敗する。最後は失敗を出して 1 で終わり、遅くなるだけなので見送る
+- `src/cli-main.ts:289` で、PR の状態に依らない `move` / `move-divider` / `skip` も全カードの PR を問い合わせ、書いた後にもう一度ボードを導出する。計画の Decisions が「`status` と同じ組み立て」としており、速さだけの話なので見送る
+- `src/board/cli/decide-cli.ts:114` の `parseArgs` は `src/cards/cli/card-cli.ts` の `parseCommandArgs` とほぼ同じ写しである。振る舞いを変えない重複なので見送る
+- 人の API（`POST /api/cards/:id/reviews` など）は `decisionsFor` / `droppableStages` を確かめず、出せない判断も書ける。人の API の変更は計画の Non-Goals なので見送る
+
+### 人に判断してほしいこと
+
+- `src/board/cli/decide-cli.ts:243` の `start` / `unstart` は GitHub に繋がるかを見ずに `stage` と `droppableStages` で確かめるが、どちらも PR の状態に依る（`src/board/services/stage-resolver.ts:149` のルール 4 は Draft の PR を計画の成果物として計画レビューを立てる）。GitHub に繋がらず、計画ファイルが PR のブランチにしか無いと、計画レビューのカードが計画提案中（下限はアイデア）に見え、`decide unstart` が `startedAt` を消せてしまう（後で否決されるとアイデアへ落ちる）。計画の Decisions と人が承認した (2)「繋がらないときは承認 / 否決 / 中止だけ拒む」の前提（着手は PR の状態に依らない）と食い違う。繋がらないときに `start` / `unstart` も拒むか、`unstart` だけ拒むか、今のままにするかを人が決める（直すなら README の 324 行目も直す）
+- `src/board/cli/decide-cli.ts:162` の、GitHub に繋がらないときに承認 / 否決 / 中止を拒む決まりは、`config.yaml` に `github:` が無いリポジトリ（`forge` が `disabled`）では常に当たり、チャットからは承認 / 否決 / 中止を一切書けなくなる（前の、人の API を叩く手順では書けた）。また `src/infrastructure/forge-poller.ts:110` は 1 枚のカードの PR の取得に失敗しただけで接続全体を `error` にするので、無関係な 1 枚のせいで全カードの判断が止まる。ループが同じ条件で止まる（README の 391 行目）のと揃っているとして今のままにするか、`disabled` のときは書けるようにするかを人が決める
