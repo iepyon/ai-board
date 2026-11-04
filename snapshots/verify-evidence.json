@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-11-04T07:00:53Z\",false,\"0d57a33052fb1e272152896c6306ed8136ea0638\",0,0,\"2026-11-04T07:00:53Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 78,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "verify-evidence",
+    "title": "Ready の前に AI が CI を確かめ、PR中 で読む証拠を表にそろえる",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/78",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-11-04T05:30:37Z",
+    "mergedAt": "2026-11-04T07:00:53Z",
+    "readyAt": "2026-11-04T05:30:40Z",
+    "convertedToDraftAt": null
+  }
+}
