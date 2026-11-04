@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-11-04T02:08:55Z\",false,\"e24aa7213c3d6fa19767a8fee4304abe4f446878\",0,0,\"2026-11-04T02:08:55Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 76,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "merge-verify-into-pr",
+    "title": "動作確認の列を無くし、人の確かめを PR中 の 1 回にまとめる",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/76",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-11-03T23:40:03Z",
+    "mergedAt": "2026-11-04T02:08:55Z",
+    "readyAt": "2026-11-03T23:40:07Z",
+    "convertedToDraftAt": null
+  }
+}
