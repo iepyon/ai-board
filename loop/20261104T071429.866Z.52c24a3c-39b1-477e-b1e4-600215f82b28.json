@@ -1,0 +1,12 @@
+{
+  "loop": "52c24a3c-39b1-477e-b1e4-600215f82b28",
+  "cardId": "pr-feedback-ai-turn",
+  "action": "plan",
+  "step": null,
+  "agent": null,
+  "startedAt": "2026-11-04T07:14:29.866Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
