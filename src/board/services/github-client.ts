@@ -12,6 +12,12 @@ import {
   type CliError,
   type CliRunner,
 } from '../../infrastructure/cli-runner.js';
+import {
+  summarizeChecks,
+  type ChecksSummary,
+  type RawCheckRun,
+  type RawCommitStatus,
+} from './pr-checks.js';
 import { err, isErr, ok, type Result } from '../../shared/result.js';
 
 // ============================================================
@@ -327,6 +333,10 @@ interface RawPullRequestDetail extends RawPullRequest {
   user?: { login?: string } | null;
 }
 
+interface RawCombinedStatus {
+  statuses?: RawCommitStatus[];
+}
+
 interface RawRepository {
   default_branch: string;
 }
@@ -442,6 +452,41 @@ export class GhPullRequestClient {
     });
 
     return isErr(created) ? created : ok(created.value.html_url);
+  }
+
+  /**
+   * PR の最新コミット（`head.sha`）のチェックを、`check-runs`（全件）と `status`（コンテキストごとの最新）から引いてまとめる。
+   *
+   * `check-runs` の応答は配列ではなく `{ total_count, check_runs }` なので、`--paginate` の各ページを
+   * `--jq '.check_runs[]'` で 1 件 1 行にして繋ぐ（ページを跨いでも 1 本の JSON にならないため）。
+   */
+  async checks(iid: MergeRequestIid): Promise<Result<ChecksSummary, CliError>> {
+    const pr = await this.getJson<RawPullRequestDetail>(`${this.base}/pulls/${iid}`);
+    if (isErr(pr)) return pr;
+    const sha = pr.value.head.sha;
+
+    const [runs, status] = await Promise.all([
+      this.runner.run(GH, [
+        'api',
+        '--paginate',
+        '--jq',
+        '.check_runs[]',
+        `${this.base}/commits/${sha}/check-runs?per_page=${PER_PAGE}`,
+      ]),
+      this.getJson<RawCombinedStatus>(`${this.base}/commits/${sha}/status`),
+    ]);
+    if (isErr(runs)) return runs;
+    if (isErr(status)) return status;
+
+    const checkRuns: RawCheckRun[] = [];
+    for (const line of runs.value.split('\n')) {
+      if (line.trim() === '') continue;
+      const parsed = parseJson<RawCheckRun>(GH, line);
+      if (isErr(parsed)) return parsed;
+      checkRuns.push(parsed.value);
+    }
+
+    return ok(summarizeChecks(sha, checkRuns, status.value.statuses ?? []));
   }
 
   /** PR の差分を unified diff の文字列で返す */

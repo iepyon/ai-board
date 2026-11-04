@@ -131,9 +131,9 @@ CI を持たないリポジトリでもループが止まらないよう、`none
 
 ### 2. `ai-board pr checks`
 
-- [ ] `src/board/services/github-client.ts` の `GhPullRequestClient` に、PR の `head.sha` から `check-runs`（全件）と `status` を引く口を足す
-- [ ] `src/board/cli/pr-cli.ts` に `checks <n> [--wait] [--timeout <秒>] [--json]` を足す。判定ごとの終了コード、`--wait` の間隔と猶予と上限、使い方の行
-- [ ] `src/board/cli/__tests__/pr-cli.test.ts` に、出力・終了コード・`--wait` で待って終わる場合と待ち切れない場合のテストを書く（時刻と待ちは差し替えられるようにする）
+- [x] `src/board/services/github-client.ts` の `GhPullRequestClient` に、PR の `head.sha` から `check-runs`（全件）と `status` を引く口を足す
+- [x] `src/board/cli/pr-cli.ts` に `checks <n> [--wait] [--timeout <秒>] [--json]` を足す。判定ごとの終了コード、`--wait` の間隔と猶予と上限、使い方の行
+- [x] `src/board/cli/__tests__/pr-cli.test.ts` に、出力・終了コード・`--wait` で待って終わる場合と待ち切れない場合のテストを書く（時刻と待ちは差し替えられるようにする）
 
 ### 3. 手順書
 

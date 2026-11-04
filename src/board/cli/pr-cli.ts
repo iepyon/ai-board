@@ -15,6 +15,7 @@ import {
   type PullRequestView,
 } from '../services/github-client.js';
 import type { MrLifecycleState } from '../models/mr-state.js';
+import type { CheckRow, ChecksSummary, ChecksVerdict } from '../services/pr-checks.js';
 
 // ============================================================
 // ai-board pr — 手順書の `gh pr` を置き換える CLI
@@ -27,6 +28,11 @@ import type { MrLifecycleState } from '../models/mr-state.js';
  * 本文は `--body-file` のファイルから読み、引数には載せない（`gh api --input` で渡す）。
  * カードには書かないので、書き込み境界は変わらない。
  */
+/** `checks --wait` の引き直しの間隔・上限の既定・チェックの登録を待つ猶予（秒） */
+export const CHECKS_INTERVAL_SECONDS = 15;
+export const CHECKS_TIMEOUT_SECONDS = 900;
+export const CHECKS_GRACE_SECONDS = 120;
+
 export const PR_USAGE = `使い方: ai-board pr <command> [--root <path>]
 
 Commands:
@@ -40,13 +46,31 @@ Commands:
                            PR にファイルの内容をコメントとして書く
   diff <n>                 PR の差分を unified diff で出す
   ready <n>                PR を Ready にする（gh pr ready を試し、失敗したら ccr/ready_for_review を試す）
+  checks <n> [--wait [--timeout <秒>]] [--json]
+                           PR の最新コミットのチェック（check-runs と status）をまとめて出す。
+                           終了コードは passed / none が 0、failed が 1、pending が 2。
+                           --wait は走っている間（push の直後でチェックがまだ無い間は ${CHECKS_GRACE_SECONDS} 秒まで）
+                           ${CHECKS_INTERVAL_SECONDS} 秒おきに引き直して待つ（--timeout の既定は ${CHECKS_TIMEOUT_SECONDS} 秒）
 `;
 
 export interface PrCliDependencies {
   /** `config.yaml` の GitHub の接続設定。無ければ null */
   readonly forge: ForgeConfig | null;
   readonly runner: CliRunner;
+  /** `checks --wait` が使う時計。テストで差し替える。省けば本物の時計と `setTimeout` */
+  readonly clock?: WaitClock;
 }
+
+/** `checks --wait` の待ちに使う時計 */
+export interface WaitClock {
+  readonly now: () => number;
+  readonly sleep: (ms: number) => Promise<void>;
+}
+
+const realClock: WaitClock = {
+  now: () => Date.now(),
+  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+};
 
 type PrCliIo = Pick<CardCliIo, 'stdout' | 'stderr'>;
 
@@ -60,7 +84,12 @@ interface CommandSpec {
   readonly values: readonly string[];
   /** 値を取らないフラグ */
   readonly switches: readonly string[];
-  readonly run: (args: ParsedArgs, client: GhPullRequestClient, io: PrCliIo) => Promise<number>;
+  readonly run: (
+    args: ParsedArgs,
+    client: GhPullRequestClient,
+    io: PrCliIo,
+    clock: WaitClock
+  ) => Promise<number>;
 }
 
 const COMMANDS: Readonly<Record<string, CommandSpec>> = {
@@ -74,6 +103,7 @@ const COMMANDS: Readonly<Record<string, CommandSpec>> = {
   comment: { values: ['--body-file'], switches: [], run: runComment },
   diff: { values: [], switches: [], run: runDiff },
   ready: { values: [], switches: [], run: runReady },
+  checks: { values: ['--timeout'], switches: ['--wait', '--json'], run: runChecks },
 };
 
 /** `ai-board pr` のコマンドの名前か */
@@ -107,7 +137,12 @@ export async function runPrCli(
     return 1;
   }
 
-  return spec.run(parsed, new GhPullRequestClient(deps.forge, deps.runner), io);
+  return spec.run(
+    parsed,
+    new GhPullRequestClient(deps.forge, deps.runner),
+    io,
+    deps.clock ?? realClock
+  );
 }
 
 /** 引数を位置引数とフラグに分ける。コマンドが受け付けないフラグは打ち間違いとして拒む */
@@ -285,6 +320,115 @@ async function runReady(
   const route = ready.value === 'gh' ? 'gh pr ready' : 'ccr/ready_for_review';
   io.stdout(`PR #${iid} を Ready にしました（${route}）\n`);
   return 0;
+}
+
+/** チェックの判定ごとの終了コード。passed / none は 0、failed は 1、pending（待ち切れなかったときも）は 2 */
+const CHECKS_EXIT: Readonly<Record<ChecksVerdict, number>> = {
+  passed: 0,
+  none: 0,
+  failed: 1,
+  pending: 2,
+};
+
+const OUTCOME_LABELS: Readonly<Record<CheckRow['outcome'], string>> = {
+  passed: '通った',
+  failed: '落ちた',
+  pending: '走っている',
+};
+
+/**
+ * PR の最新コミットのチェックをまとめて出す。
+ *
+ * `--wait` は、走っている間と、push の直後でチェックがまだ 1 つも無い間（猶予まで）、CLI の中で間隔を置いて引き直す。
+ * 手順書のシェルで `sleep` しないで済むようにするため（環境によって前景の `sleep` が止められる）。
+ */
+async function runChecks(
+  args: ParsedArgs,
+  client: GhPullRequestClient,
+  io: PrCliIo,
+  clock: WaitClock
+): Promise<number> {
+  const iid = requireIid(args, io);
+  if (iid === null) return 1;
+
+  const options = parseChecksOptions(args, io);
+  if (options === null) return 1;
+  const { wait, timeoutSeconds } = options;
+
+  const startedAt = clock.now();
+  for (;;) {
+    const fetched = await client.checks(iid);
+    if (isErr(fetched)) return fail(io, `PR #${iid} のチェックを読めませんでした`, fetched.error);
+
+    const summary = fetched.value;
+    const elapsed = clock.now() - startedAt;
+    const registering = summary.verdict === 'none' && elapsed < CHECKS_GRACE_SECONDS * 1000;
+    const settled = summary.verdict !== 'pending' && !registering;
+
+    if (!wait || settled) {
+      return reportChecks(iid, summary, args.flags.has('--json'), false, io);
+    }
+    if (elapsed + CHECKS_INTERVAL_SECONDS * 1000 > timeoutSeconds * 1000) {
+      // 猶予の間に上限が来たら、チェックが無いのではなく、まだ登録されていないものとして pending で終える
+      return reportChecks(
+        iid,
+        { ...summary, verdict: 'pending' },
+        args.flags.has('--json'),
+        true,
+        io
+      );
+    }
+    await clock.sleep(CHECKS_INTERVAL_SECONDS * 1000);
+  }
+}
+
+/** `--wait` と `--timeout` を読む。誤りなら理由を出して null */
+function parseChecksOptions(
+  args: ParsedArgs,
+  io: PrCliIo
+): { readonly wait: boolean; readonly timeoutSeconds: number } | null {
+  const wait = args.flags.has('--wait');
+  const timeoutFlag = args.flags.get('--timeout');
+  if (timeoutFlag !== undefined && !wait) {
+    io.stderr('--timeout は --wait と一緒に指定してください\n');
+    return null;
+  }
+
+  const timeoutSeconds =
+    typeof timeoutFlag === 'string' ? Number(timeoutFlag) : CHECKS_TIMEOUT_SECONDS;
+  if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 1) {
+    io.stderr(`--timeout は 1 以上の整数（秒）で指定してください: ${String(timeoutFlag)}\n`);
+    return null;
+  }
+
+  return { wait, timeoutSeconds };
+}
+
+function reportChecks(
+  iid: MergeRequestIid,
+  summary: ChecksSummary,
+  json: boolean,
+  timedOut: boolean,
+  io: PrCliIo
+): number {
+  if (json) {
+    io.stdout(`${JSON.stringify({ ...summary, timedOut }, null, 2)}\n`);
+    return CHECKS_EXIT[summary.verdict];
+  }
+
+  const lines = [
+    `PR #${iid} の最新コミット ${summary.sha.slice(0, 7)} のチェック: ${summary.verdict}` +
+      (timedOut ? '（待ち切れませんでした）' : ''),
+  ];
+  if (summary.rows.length === 0) lines.push('  チェックはありません');
+  for (const row of summary.rows) {
+    const source = row.source === 'status' ? '（status）' : '';
+    lines.push(
+      `  ${OUTCOME_LABELS[row.outcome]}  ${row.name}${source}  ${row.detail}${row.url === null ? '' : `  ${row.url}`}`
+    );
+  }
+  io.stdout(`${lines.join('\n')}\n`);
+  return CHECKS_EXIT[summary.verdict];
 }
 
 // ============================================================
