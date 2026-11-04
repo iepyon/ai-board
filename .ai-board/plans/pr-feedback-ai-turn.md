@@ -154,9 +154,9 @@
 
 ### 2. 区画と次の一手
 
-- [ ] `dashboard-sections.ts` の `sectionOf` と `groupBySection` を、`awaitingFix` のカードを `work` の先頭に入れる形にする。テストを足す
-- [ ] `NextActionKind` と `LOOP_CURRENT_ACTIONS` に `fix-pr` を足し、`pickNextAction` が `awaitingFix` の PR中 のカードを先に選ぶようにする。テストを足す
-- [ ] `status` の単体で、`next` が `fix-pr` になり、そのカードが `waiting` でなく `working` の先頭に出ることを確かめるテストを足す
+- [x] `dashboard-sections.ts` の `sectionOf` と `groupBySection` を、`awaitingFix` のカードを `work` の先頭に入れる形にする。テストを足す
+- [x] `NextActionKind` と `LOOP_CURRENT_ACTIONS` に `fix-pr` を足し、`pickNextAction` が `awaitingFix` の PR中 のカードを先に選ぶようにする。テストを足す
+- [x] `status` の単体で、`next` が `fix-pr` になり、そのカードが `waiting` でなく `working` の先頭に出ることを確かめるテストを足す
 
 ### 3. CLI と画面
 

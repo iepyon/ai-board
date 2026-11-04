@@ -27,7 +27,7 @@ function makeCard(overrides: Partial<SectionCard> & Pick<SectionCard, 'id'>): Se
 }
 
 function mr(overrides: Partial<NonNullable<SectionCard['mrState']>> = {}): SectionCard['mrState'] {
-  return { latestCommitAt: null, mergedAt: null, ...overrides };
+  return { latestCommitAt: null, mergedAt: null, awaitingFix: false, ...overrides };
 }
 
 const ids = (cards: readonly SectionCard[]): string[] => cards.map((card) => card.id);
@@ -52,6 +52,29 @@ describe('groupBySection', () => {
     expect(ids(sections.inbox)).toEqual(['c', 'e']);
     expect(ids(sections.merged)).toEqual(['f']);
     expect(sections.aborted).toEqual([]);
+  });
+
+  it('PR中 で人の指摘に AI が応える番のカードは、AI が進めている区画の先頭に入れる', () => {
+    const sections = groupBySection([
+      makeCard({ id: 'planning', stage: 'planning' }),
+      makeCard({ id: 'impling', stage: 'impling' }),
+      makeCard({ id: 'fix-a', stage: 'pr', mrState: mr({ awaitingFix: true }) }),
+      makeCard({ id: 'waiting-pr', stage: 'pr', mrState: mr({ awaitingFix: false }) }),
+      makeCard({ id: 'fix-b', stage: 'pr', mrState: mr({ awaitingFix: true }) }),
+    ]);
+
+    // 指摘に応えるカードどうしと、残りのカードは受け取った並び（rank の順）を保つ
+    expect(ids(sections.work)).toEqual(['fix-a', 'fix-b', 'planning', 'impling']);
+    expect(ids(sections.inbox)).toEqual(['waiting-pr']);
+  });
+
+  it('中止された PR中 のカードは、指摘があっても中止の区画へ寄せる', () => {
+    const sections = groupBySection([
+      makeCard({ id: 'x', stage: 'pr', aborted: true, mrState: mr({ awaitingFix: true }) }),
+    ]);
+
+    expect(ids(sections.aborted)).toEqual(['x']);
+    expect(sections.work).toEqual([]);
   });
 
   it('中止されたカードはステージによらず中止の区画へ寄せる', () => {

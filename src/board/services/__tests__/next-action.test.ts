@@ -17,7 +17,7 @@ import { gateStates } from '../../../cards/services/review-log.js';
 function makeCard(
   overrides: Partial<NextActionCard> & Pick<NextActionCard, 'id' | 'stage'>
 ): NextActionCard {
-  return { aborted: false, gates: gate('none'), hold: null, ...overrides };
+  return { aborted: false, gates: gate('none'), hold: null, mrState: null, ...overrides };
 }
 
 const HOLD = { reason: '止まっている', since: '2026-10-30T00:00:00.000Z' };
@@ -37,6 +37,49 @@ describe('pickNextAction', () => {
       reason: '計画が承認されている',
       step: null,
     });
+  });
+
+  it('PR中 で人の指摘に AI が応える番のカードを、実装中・計画提案中より先に fix-pr で選ぶ', () => {
+    const next = pickNextAction([
+      makeCard({ id: 'impling', stage: 'impling', gates: gate('approved') }),
+      makeCard({ id: 'planning', stage: 'planning' }),
+      makeCard({
+        id: 'pr',
+        stage: 'pr',
+        gates: gate('approved'),
+        mrState: { awaitingFix: true },
+      }),
+    ]);
+
+    expect(next).toEqual({
+      cardId: 'pr',
+      action: 'fix-pr',
+      reason: 'PR に人の指摘があり、まだ応えていない',
+      step: null,
+    });
+  });
+
+  it('人の番の PR中 のカード（指摘が無い・応えた後）は選ばない', () => {
+    const next = pickNextAction([
+      makeCard({ id: 'pr', stage: 'pr', gates: gate('approved'), mrState: { awaitingFix: false } }),
+      makeCard({ id: 'no-mr', stage: 'pr', gates: gate('approved') }),
+    ]);
+
+    expect(next).toBeNull();
+  });
+
+  it('中止した PR中 のカードは、指摘があっても選ばない', () => {
+    const next = pickNextAction([
+      makeCard({
+        id: 'pr',
+        stage: 'pr',
+        aborted: true,
+        gates: gate('approved'),
+        mrState: { awaitingFix: true },
+      }),
+    ]);
+
+    expect(next).toBeNull();
   });
 
   it('同じ列の中は受け取った順（rank の順）を保つ', () => {

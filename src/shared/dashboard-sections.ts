@@ -9,7 +9,7 @@ import { DIVIDER_ID } from './card-reorder.js';
  * ダッシュボードの区画。ステージの導出はサーバが済ませており、ここは見せ方の振り分けだけを持つ。
  *
  * - `inbox`   人の判断待ち（計画レビュー / PR中、と AI の列で止まっているカード）
- * - `work`    AI が進めている（計画提案中 / 実装中。止まっているカードを除く）
+ * - `work`    AI が進めている（計画提案中 / 実装中。止まっているカードを除く。PR中 で人の指摘に AI が応える番のカードを含む）
  * - `idea`    アイデア
  * - `merged`  マージ済み
  * - `aborted` 中止。どのステージにあってもここへ寄せる（終端であり、判断も作業も待っていない）
@@ -37,6 +37,8 @@ export interface SectionCard {
   readonly mrState: {
     readonly latestCommitAt: string | null;
     readonly mergedAt: string | null;
+    /** PR中 で、人の指摘に AI が応える番か（`awaitsPrFix`） */
+    readonly awaitingFix: boolean;
   } | null;
   /**
    * AI の列にいるが人の判断を待っているときの止まり（サーバの `resolveHold`）。
@@ -52,6 +54,7 @@ export type Sections<T> = Record<DashboardSection, T[]>;
  *
  * 受け取った並び（`rank` の順）を保つ。判断待ちとマージ済みだけは、
  * 人が片付ける順・振り返る順に並べ直す。
+ * AI が進めている区画では、PR の指摘に応えるカードを先頭に寄せる（ループもそれを先に選ぶ。マージに最も近いため）。
  */
 export function groupBySection<T extends SectionCard>(cards: readonly T[]): Sections<T> {
   const sections: Sections<T> = { inbox: [], work: [], idea: [], merged: [], aborted: [] };
@@ -63,19 +66,31 @@ export function groupBySection<T extends SectionCard>(cards: readonly T[]): Sect
   return {
     ...sections,
     inbox: sortByTime(sections.inbox, waitingSince, 'asc'),
+    work: [
+      ...sections.work.filter(isAwaitingPrFix),
+      ...sections.work.filter((card) => !isAwaitingPrFix(card)),
+    ],
     merged: sortByTime(sections.merged, mergedAt, 'desc'),
   };
 }
 
 /**
- * カードの入る区画。中止が最も強く、次に止まり、最後にステージで決める。
+ * カードの入る区画。中止が最も強く、次に止まり、次に PR の指摘、最後にステージで決める。
  * 止まっているカードはステージが AI の列のままでも、人の判断を待っているので判断待ちに出す。
+ * PR中 のカードは人の列だが、人の指摘に AI が応える番なら AI が進めている区画に出す。
+ * 件数帯の飛び先（`SECTION_OF_STAGE`）はステージだけで決め、PR中 のマスは判断待ちへ飛ぶ。
  */
 function sectionOf(card: SectionCard): DashboardSection {
   if (card.aborted) return 'aborted';
   if (card.hold !== null) return 'inbox';
+  if (isAwaitingPrFix(card)) return 'work';
 
   return SECTION_OF_STAGE[card.stage];
+}
+
+/** PR中 で、人の指摘に AI が応える番のカードか */
+export function isAwaitingPrFix(card: Pick<SectionCard, 'stage' | 'mrState'>): boolean {
+  return card.stage === 'pr' && card.mrState?.awaitingFix === true;
 }
 
 /**
