@@ -4,7 +4,7 @@ title: ユーザは、動作確認で手を動かす前に、AI が確かめた�
 created: '2026-11-03T11:40:32.464Z'
 skipGates: []
 branch: verify-evidence
-mr: null
+mr: 78
 ---
 
 ## アイデア
