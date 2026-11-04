@@ -122,7 +122,7 @@ description: board-loop を動かした本筋のセッションから、`next.st
 
 - コードを直さない。変えてよいのは `.ai-board/plans/<cardId>.md` の末尾に `## AI レビュー` 節を足すことだけ。
   外から確かめる者はいないので、コミットの前の `git status --porcelain` の確かめを省かない
-- カードに書かない（`ai-board card submit` / `hold` / `body` / `branch` を呼ばない）
+- カードに書かない（`ai-board card submit` / `hold` / `body` / `branch` と、人の判断を書く `ai-board decide` を呼ばない）
 - サブエージェントを立てない
 - PR にコメントしない。PR の本文も変えない（見送った指摘を本文へ写すのは、締めの段の本筋のセッションがする）。PR を Ready にしない
 - `## AI レビュー` 節が既にある計画に書き足さない。2 回目のレビューはしない

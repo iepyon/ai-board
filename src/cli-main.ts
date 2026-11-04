@@ -9,10 +9,12 @@ import {
   resolvePaths,
   type AppConfig,
 } from './shared/config.js';
-import { createCliRunner } from './infrastructure/cli-runner.js';
+import { createCliRunner, type CliRunner } from './infrastructure/cli-runner.js';
+import type { DataStore } from './infrastructure/data-store.js';
 import {
   createBoardDataStore,
   createFileCardDependencies,
+  createTransactionalCardDependencies,
   createTransactionalMrWriter,
 } from './cards/composition.js';
 import { runCardCli, type CardCliIo } from './cards/cli/card-cli.js';
@@ -20,6 +22,7 @@ import { runInitCli } from './cards/cli/init-cli.js';
 import { describeDataStoreError, describeOfflineRead } from './cards/cli/data-store-messages.js';
 import {
   createBoardDependencies,
+  type BoardDependencies,
   createLoopHistoryRepository,
   createBranchPlanRepository,
   createFileMrSnapshotRepository,
@@ -28,10 +31,10 @@ import {
 import { parseStatusArgs, runStatusCli, STATUS_USAGE } from './board/cli/status-cli.js';
 import { isPrCommand, runPrCli } from './board/cli/pr-cli.js';
 import { runLoopCli } from './board/cli/loop-cli.js';
+import { DECIDE_USAGE, isDecideCommand, runDecideCli } from './board/cli/decide-cli.js';
 import { findLiveServer } from './infrastructure/server-info.js';
 import { readMtimeMs, runDistCheckCli } from './infrastructure/dist-check-cli.js';
 import { openBrowser } from './infrastructure/open-browser.js';
-import { describePidFileError, writePidFile } from './infrastructure/pid-file.js';
 import { isErr } from './shared/result.js';
 import { CardIdSchema, type CardId } from './shared/schemas/common.js';
 
@@ -44,7 +47,6 @@ interface CliOptions {
   readonly port: number;
   readonly open: boolean;
   readonly pollIntervalMs: number | undefined;
-  readonly pidFile: string | undefined;
 }
 
 const USAGE = `使い方: ai-board [options]
@@ -53,6 +55,7 @@ const USAGE = `使い方: ai-board [options]
                                                   ボードの状態と次の一手（サーバ不要）
        ai-board init [--root <path>]              空のデータ用ブランチを作る（ai-board init --help）
        ai-board pr <command> [--root <path>]      PR の読み書き（gh api の REST。ai-board pr --help）
+       ai-board decide <command> [--root <path>]  人の判断を書く（人と、人が会話で頼んだ Claude だけ。ai-board decide --help）
        ai-board loop <start|finish> [--root <path>]
                                                   ループの 1 手の記録を書く（ループだけが使う。ai-board loop --help）
        ai-board dist-check [--root <path>]       dist/ が HEAD のコミットより古いかを確かめる（古ければ終了コード 1）
@@ -65,9 +68,6 @@ Options:
   --no-open       ブラウザを自動で開かない
   --poll-interval <ms>
                   レビュー要求のポーリング間隔 (既定: 60000)
-  --pid-file <path>
-                  起動したら、サーバの pid (OS の pid) をこのファイルに書く
-                  (書けなければ起動をやめ、終了コード 1 で終わる)
   -h, --help      このヘルプを表示
 `;
 
@@ -76,7 +76,6 @@ export function parseArgs(argv: readonly string[]): CliOptions | 'help' {
   let port = DEFAULT_PORT;
   let open = true;
   let pollIntervalMs: number | undefined;
-  let pidFile: string | undefined;
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -97,15 +96,12 @@ export function parseArgs(argv: readonly string[]): CliOptions | 'help' {
       case '--poll-interval':
         pollIntervalMs = takeInteger(argv, ++i, '--poll-interval', 1000, Number.MAX_SAFE_INTEGER);
         break;
-      case '--pid-file':
-        pidFile = path.resolve(takeValue(argv, ++i, '--pid-file'));
-        break;
       default:
         throw new Error(`不明なオプションです: ${String(arg)}`);
     }
   }
 
-  return { root, port, open, pollIntervalMs, pidFile };
+  return { root, port, open, pollIntervalMs };
 }
 
 /** 値を伴うオプションの引数を取り出す */
@@ -208,6 +204,34 @@ async function runStatus(argv: readonly string[]): Promise<number> {
     io.stderr(`${describeOfflineRead(refreshed.value.reason)}\n`);
   }
 
+  const { config, board } = await assembleBoard(root, store, runner);
+
+  return runStatusCli(
+    rest,
+    {
+      ...board,
+      findServer: () => findLiveServer(config.paths.dataDir),
+      // implement の段（next.step）を、カードのブランチの計画から読む。git fetch はしない
+      branchPlanRepository: createBranchPlanRepository(runner, paths.root),
+      // --html のページの、カードの詳細（GitHub 上のデータ用ブランチのカードのファイル）へのリンクに使う
+      repository:
+        config.forge === null ? null : { owner: config.forge.owner, repo: config.forge.repo },
+    },
+    io
+  );
+}
+
+/**
+ * `status` と `decide` が使う、サーバと同じ組み立てのボード。データ用ブランチは呼び出し側が取り直しておく。
+ *
+ * PR の状態はポーリングせず、`refresh()` を 1 回だけ待ってから読む。
+ * `branch` から解決した PR 番号の書き戻しも、サーバと同じくここで起きる。
+ */
+async function assembleBoard(
+  root: string,
+  store: DataStore,
+  runner: CliRunner
+): Promise<{ readonly config: AppConfig; readonly board: BoardDependencies }> {
   const config = loadConfig(root);
   const cards = createFileCardDependencies(store.dataDir);
   const { provider, poller } = await createMrStateSource(
@@ -228,17 +252,45 @@ async function runStatus(argv: readonly string[]): Promise<number> {
     createLoopHistoryRepository(store.dataDir)
   );
 
-  return runStatusCli(
+  return { config, board };
+}
+
+/**
+ * `decide` サブコマンド。人がチャットで頼んだ判断を、サーバを起動せずに書く。
+ *
+ * 書く前に `status` と同じ組み立てでボードを導出し、画面で押せる判断かを確かめる。
+ * 書き込みはサーバと同じ組み立て（`createTransactionalCardDependencies`）の usecase で、コミットして push する。
+ * 書いた後のボードは、取り直した PR の状態のまま組み立て直す（列の移りを出すため）。
+ */
+async function runDecide(argv: readonly string[]): Promise<number> {
+  const { root, rest } = extractRoot(argv);
+  const io = createProcessIo();
+
+  // 使い方の誤りや --help で、データ用ブランチの取り直しと GitHub への問い合わせを起こさない
+  const help = rest.includes('--help') || rest.includes('-h');
+  if (!isDecideCommand(rest[0]) || help) {
+    io.stderr(DECIDE_USAGE);
+    return rest.length === 0 || help ? 0 : 1;
+  }
+
+  const paths = resolvePaths(root);
+  const runner = createCliRunner();
+  const store = createBoardDataStore(paths, runner);
+
+  const refreshed = await store.refresh();
+  if (isErr(refreshed)) {
+    io.stderr(`${describeDataStoreError(refreshed.error)}\n`);
+    return 1;
+  }
+  if (refreshed.value.kind === 'offline') {
+    io.stderr(`${describeOfflineRead(refreshed.value.reason)}\n`);
+  }
+
+  const { board } = await assembleBoard(root, store, runner);
+
+  return runDecideCli(
     rest,
-    {
-      ...board,
-      findServer: () => findLiveServer(config.paths.dataDir),
-      // implement の段（next.step）を、カードのブランチの計画から読む。git fetch はしない
-      branchPlanRepository: createBranchPlanRepository(runner, paths.root),
-      // --html のページの、カードの詳細（GitHub 上のデータ用ブランチのカードのファイル）へのリンクに使う
-      repository:
-        config.forge === null ? null : { owner: config.forge.owner, repo: config.forge.repo },
-    },
+    { loadBoard: board.getBoardQuery, cards: createTransactionalCardDependencies(store) },
     io
   );
 }
@@ -347,6 +399,7 @@ const SUBCOMMANDS: Readonly<Record<string, (argv: readonly string[]) => Promise<
   status: runStatus,
   pr: runPr,
   loop: runLoop,
+  decide: runDecide,
   'dist-check': runDistCheck,
 };
 
@@ -366,17 +419,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { root, port, open, pollIntervalMs, pidFile } = parsed;
-
-  // 引数を読んだらすぐ書く。--root が無いなどで起動の前に終わったときも、起動を待つ側が
-  // pid のファイルからプロセスが終わったことに気づけるように（root の確かめや待ち受けより前）。
-  // 書けなければ起動をやめる（終了コード 1）。書けないまま動くと、起動を待つ側がサーバを止められない
-  if (pidFile !== undefined) {
-    const written = writePidFile(pidFile, process.pid);
-    if (isErr(written)) {
-      throw new Error(describePidFileError(written.error));
-    }
-  }
+  const { root, port, open, pollIntervalMs } = parsed;
 
   if (!fs.existsSync(root)) {
     throw new Error(`ディレクトリが見つかりません: ${root}`);

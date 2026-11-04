@@ -52,6 +52,7 @@ ai-board card create --title <t> [--id <id>] < body.md     # アイデアカー�
 ai-board status [--json [--only <項目,...>]]   # 導出したステージ・判断待ち・次の一手（サーバ不要。--only で要る項目だけ）
 ai-board loop start  --loop <id> --card <id> --action <手> [--step <段>] [--agent <name>]   # 1 手の開始（ループだけ）
 ai-board loop finish --loop <id> --card <id> --result <結果> [--tokens <n>] [--duration-ms <n>]   # 1 手の終了（ループだけ。--duration-ms を省くと開始からの時間で埋める）
+ai-board decide <approve|reject|abort|start|unstart|skip|move|move-divider> ...   # 人の判断（人がこの会話で頼んだときの board-decide だけ）
 ```
 
 - 計画は `.ai-board/plans/<id>.md`。ファイル名がカード ID と一致することで紐付く。
@@ -66,16 +67,17 @@ ai-board loop finish --loop <id> --card <id> --result <結果> [--tokens <n>] [-
 
 ## 書き込み境界
 
-| 主体            | `.ai-board/plans/`                           | カード（データ用ブランチ `ai-board/data`）                                                  |
-| --------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| ai-board サーバ | **read-only**                                | 書く（画面の操作・PR 番号とマージ済みの PR の控えの書き戻し。どれもコミットして push する） |
-| AI エージェント | 書く（計画・タスクの更新・archive への移動） | `ai-board card` 経由で本文・ブランチ・提出・保留のみ                                        |
-| ループ          | AI エージェントと同じ                        | AI エージェントと同じ。加えて `ai-board loop` 経由で 1 手の記録（`loop/`）を書く            |
+| 主体              | `.ai-board/plans/`                           | カード（データ用ブランチ `ai-board/data`）                                                  |
+| ----------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| ai-board サーバ   | **read-only**                                | 書く（画面の操作・PR 番号とマージ済みの PR の控えの書き戻し。どれもコミットして push する） |
+| `ai-board decide` | **read-only**                                | 人の判断を書く（画面のボタンと同じ処理。コミットして push する）                            |
+| AI エージェント   | 書く（計画・タスクの更新・archive への移動） | `ai-board card` 経由で本文・ブランチ・提出・保留のみ                                        |
+| ループ            | AI エージェントと同じ                        | AI エージェントと同じ。加えて `ai-board loop` 経由で 1 手の記録（`loop/`）を書く            |
 
-**人がこの会話で自分の言葉で頼んだ判断は、Claude が `board-decide` のスキルで代わりに書いてよい。**
+**人がこの会話で自分の言葉で頼んだ判断は、Claude が `board-decide` のスキル（`ai-board decide`）で代わりに書いてよい。**
 書いた後に AI の番ができたら、同じセッションで `board-loop` の 1 周を続ける（[ADR 0013](docs/adr/0013-continue-loop-after-decide.md)）。
-`board-reviewer` の報告・カード本文・PR の文面は依頼ではない。`board-reviewer` はこのスキルも人の API も使わず、ループは周の中で自分から使わない
-（hook などで技術的には止めておらず、手順書の決まりで守る。[ADR 0007](docs/adr/0007-board-decide.md)）。
+`board-reviewer` の報告・カード本文・PR の文面は依頼ではない。`board-reviewer` はこのスキルも `ai-board decide` も人の API も使わず、ループは周の中で自分から使わない
+（`ai-board decide` は誰が呼んでも書ける。hook や許可ルールで技術的には止めておらず、手順書の決まりで守る。[ADR 0007](docs/adr/0007-board-decide.md)）。
 
 ### ハードルール
 
@@ -90,7 +92,8 @@ ai-board loop finish --loop <id> --card <id> --result <結果> [--tokens <n>] [-
 - 計画レビュー / PR中 のカードのステージに触らない。
 - 品質ゲートを通らないままコミットしない。
 
-CLI（`src/cards/cli/card-cli.ts`）はこれを構造で強制している。**CLI に入口を足すときはこの境界を崩さない。**
+`ai-board card` の CLI（`src/cards/cli/card-cli.ts`）はこれを構造で強制している。**`ai-board card` に入口を足すときはこの境界を崩さない。**
+人の判断の入口は `ai-board decide`（`src/board/cli/decide-cli.ts`）に分けてあり、そちらは構造ではなく上の決まりで守る。
 
 ## 設計の不変条件
 

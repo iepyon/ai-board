@@ -96,8 +96,6 @@ node dist/cli.js --root /path/to/your-project
   --port <n>             待ち受けポート (既定: 5673、使用中なら自動で繰り上げ)
   --no-open              ブラウザを自動で開かない
   --poll-interval <ms>   GitHub のポーリング間隔 (既定: 60000)
-  --pid-file <path>      起動したら、サーバの pid (OS の pid) をこのファイルに書く
-                         (書けなければ起動をやめ、終了コード 1 で終わる)
   -h, --help             ヘルプを表示
 ```
 
@@ -205,7 +203,7 @@ frontmatter の `skipGates` に書いたゲートでは、AI の 提出 / 再提
   着手すると計画提案中に入り、AI が計画を書いて Draft の PR を出す。AI が `plan 提出` を書いた時点で、計画レビューを通らずに実装中へ進む。
   提出済みのカードに印を入れるとその場で実装中へ進み、実装中のカードから外すと plan ゲートが提出済みに戻って実装中から外れる
 
-宣言は人が書くもので（画面と `PATCH /api/cards/:id`。チャットからは後述の `board-decide`）、CLI には入口が無い。
+宣言は人が書くもので（画面と `PATCH /api/cards/:id`。チャットからは後述の `board-decide` が `ai-board decide skip`）、`ai-board card` には入口が無い。
 AI の `plan 提出` / `plan 再提出` は着手したカードにしか書けないので、AI が宣言を使って人の着手を飛ばすこともできない。
 また、plan ゲートが未提出か否決のときにしか書けないので、AI が計画を出し直して人の否決や保留を打ち消すこともできない。
 
@@ -295,8 +293,8 @@ ai-board status [--json [--only <項目,...>] | --html [--session <id>]]   # 導
 ai-board dist-check                        # dist/ が HEAD のコミットより古いか（古ければ終了コード 1。手順書がビルドの要否に使う）
 ```
 
-CLI にはエージェントに許す操作しか無い。`startedAt`・`rank`・`skipGates` の書き換えと、
-承認 / 否決 / 中止の追記は画面（HTTP API）からだけ行える（人がチャットで頼んだときは、後述の `board-decide` が同じ API を叩く）。
+`ai-board card` にはエージェントに許す操作しか無い。`startedAt`・`rank`・`skipGates` の書き換えと、
+承認 / 否決 / 中止の追記は、画面（HTTP API）と、人の判断を書く `ai-board decide`（後述の「チャットから判断する」）からだけ行える。
 逆に、画面（HTTP API）からは AI の種別（提出 / 再提出 / 保留）を書けない。
 `hold` は、そのゲートの最新の判断が 否決 のときにしか書けない（否決を直す手で止まるときだけ使うため）。
 承認済みのゲートに保留を書いて人の承認を打ち消したり、計画レビューで人を待つカードを AI の列へ落としたりはできない。
@@ -308,8 +306,23 @@ CLI にはエージェントに許す操作しか無い。`startedAt`・`rank`�
 
 ### チャットから判断する
 
-`.claude/skills/board-decide/SKILL.md` は、人がチャットで頼んだ判断を、Claude が画面と同じ人の API で代わりに書くスキル。
+`.claude/skills/board-decide/SKILL.md` は、人がチャットで頼んだ判断を、Claude が `ai-board decide` の CLI で代わりに書くスキル。
 「chat-decide の計画を承認して」「否決して、理由は〜」「loop-activity を一番上へ」のように頼むか、`/board-decide` で呼ぶ。
+
+```bash
+ai-board decide approve <id> [--reason <text>]     # plan を承認する
+ai-board decide reject <id> --reason <text>        # plan を否決する（理由は必須）
+ai-board decide abort <id> [--reason <text>]       # 中止する
+ai-board decide start <id> / unstart <id>          # 着手する / 着手を戻す
+ai-board decide skip <id> --gate plan [--remove]   # 計画レビューを飛ばす宣言を入れる / 外す
+ai-board decide move <id> --after <ref> --before <ref>   # アイデアの並べ替え（<ref> はカード ID・:divider・none）
+ai-board decide move-divider --after <ref> --before <ref>   # 区切り線を動かす
+```
+
+`ai-board decide` は画面のボタンと同じ処理で書き、コミットして push する。サーバは要らない。
+書く前にボードを導出し、画面で押せない判断（判断を待っていないカードの承認、計画レビューのカードの着手を戻すなど）は拒む。
+GitHub に繋がらないときは、PR の状態が引けず出せる判断や戻せる列を取り違えるので、承認 / 否決 / 中止と着手 / 着手を戻すを拒む（宣言・並べ替えは書く）。
+誰が呼んでも書けるので、人の判断の守りは「人がこの会話で自分の言葉で頼んだときだけ使う」という手順書の決まりにある（[ADR 0007](docs/adr/0007-board-decide.md)）。
 
 - できること: 承認 / 否決 / 中止、着手 / 着手を戻す、計画レビューを飛ばす、アイデアの並べ替え（区切り線の移動を含む）
 - 承認 / 否決 は、頼まれたカードと判断が 1 つに決まれば確かめずに書き、書いた中身を伝える。否決の理由は人の言葉をそのまま送る。
@@ -322,10 +335,8 @@ CLI にはエージェントに許す操作しか無い。`startedAt`・`rank`�
   着手・承認（と、待っている提出を承認と読ませる宣言）は確かめずに続け、否決は「続けて直す / 待つ」を 1 回聞く
   （`## レビュー` は追記専用なので、理由を言い直したいときの間を残す）。中止・着手を戻す・並べ替えの後は続けない。
   「書くだけ」「進めないで」と言えば続けない。`next` が判断したカードと別のカードを指すときも `next` に従い、進めたカードの名前をはっきり伝える
-- 出せる判断・アイデアの並び・サーバの URL は `ai-board status --json` から読む（`decisions` / `ideas` / `server`）。
-  書き込みはサーバを通す。サーバは起動時にデータのワークツリーの隣（既定は `.ai-board/server.json`）に自分の場所を書く。
-  サーバが動いていなければ、そのセッションの中で `ai-board --no-open` の起動から書き込み・停止までを 1 回の呼び出しで走らせる（クラウドのセッションには常駐のサーバが無い）
-- 使うのは人が頼んだときだけ。`board-reviewer` は使わず、ループも周の中では使わない
+- 出せる判断とアイデアの並びは `ai-board status --json` から読む（`decisions` / `ideas`）
+- 使うのは人が頼んだときだけ。`board-reviewer` は `ai-board decide` もこのスキルも使わず、ループも周の中では使わない
 
 ### AI ループ
 
@@ -447,7 +458,7 @@ Claude Code は `deny` → `ask` → `allow` の順に照合し、どれにも�
 照合は前方一致なので、`deny` の force push の形は `--force` の後ろを空白か行の終わりで区切って書き、`--force-with-lease` に当たらないようにしている（`src/__tests__/claude-settings.test.ts` が守る）。
 
 許可ルールは**うっかりの事故を止める保険で、境界そのものではない。** 前方一致の文字列の照合なので、`git -c x push --force`、`bash -c '...'`、環境変数を前に付けた形などで迂回できる。
-境界の本体は今どおり、カードの書き込みは `ai-board card` の CLI の構造、人の判断は `board-decide` と人の API を使わないという手順書の決まりに置く。
+境界の本体は今どおり、カードの書き込みは `ai-board card` の CLI の構造、人の判断は `board-decide`・`ai-board decide`・人の API を周の中で使わないという手順書の決まりに置く。
 `main` を守るには、リポジトリの Settings → Branches で `main` にブランチ保護（直接の push と force push の禁止）を入れることを勧める。
 
 - auto モード以外（既定のモードなど）で回すと、`allow` に無い操作のたびに確認が出る。ループを止めずに回すなら auto モードを選ぶ
@@ -474,7 +485,7 @@ Claude Code は `deny` → `ask` → `allow` の順に照合し、どれにも�
    - ボタンが使えないとき（手元のセッションで公開した、コネクタを許していない、セッションが応えない）は、チャットで頼む案内が出る。
      同じ会話で頼み直すと、同じ URL のまま新しいボードに書き直される
    - 判断のボタンは無い。判断は次のとおり会話で頼む。なぜボタンからセッションに頼む形にしたかは [ADR 0015](docs/adr/0015-dashboard-refresh-via-session.md)
-4. 判断は会話で頼む（「〜の計画を承認して」など）。`board-decide` のスキルが、そのセッションの中でサーバを起動して人の API で書き、書き終えたら止める。
+4. 判断は会話で頼む（「〜の計画を承認して」など）。`board-decide` のスキルが `ai-board decide` で書く（サーバは要らない）。
    判断で AI の番ができたら、頼み直さなくてもそのまま次の 1 手が渡る
 
 クラウドでは GitHub の GraphQL が 403 になり、`gh pr` と `gh auth status` が動かない。
@@ -494,7 +505,7 @@ Claude Code は `deny` → `ask` → `allow` の順に照合し、どれにも�
 Windows では、Windows の Claude Code が使う Git Bash（Git for Windows に同梱）で、手順書（`.claude/skills/` と `.claude/agents/`）を書き換えずに回せる。
 PowerShell や cmd は想定しない。
 
-- `jq` は要らない。手順書は `ai-board status --json --only <項目,...>` で要る項目だけを出し、人の API に送る JSON は `node -e` で組み立てる。
+- `jq` は要らない。手順書は `ai-board status --json --only <項目,...>` で要る項目だけを出し、判断は `ai-board decide` の引数で渡す。
   `sed`・`grep`・`diff`・`curl` などは Git for Windows に同梱されている
 - 改行コードは `.gitattributes`（`* text=auto eol=lf`）で LF に揃える。Git for Windows の既定（`core.autocrlf=true`）で clone しても、`npm run format:check` は落ちない。
   データのワークツリー（`.ai-board/data/`）も、`ai-board` が git に `-c core.autocrlf=false -c core.eol=lf` を付けて触るので LF のまま取り出される

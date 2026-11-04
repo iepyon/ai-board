@@ -90,6 +90,13 @@ CLI（`src/cards/cli/card-cli.ts`）には `startedAt` / `rank` / `skipGates` �
 判断の追記と本文の保存は、リポジトリ（`CardRepository`）の別の口に分かれており、判断は文字列を経由せずに値のまま書く。
 判断を偽造させないのは入口ごとの検査ではなく、この作りである。CLI と API のどちらから書いても同じに効く。
 
+人の判断の CLI（`src/board/cli/decide-cli.ts`、`ai-board decide`）は、人の API と同じ usecase を、サーバと同じ組み立て（`createTransactionalCardDependencies`）で呼ぶ。
+書く前に `status` と同じ組み立てでボードを導出し、画面で押せる判断かを確かめる。
+承認 / 否決 / 中止は `decisionsFor` にあるもの、着手 / 着手を戻すは今の列と `droppableStages`、並べ替えはアイデアの表（`ideaRows`）にあるカードだけを書く。
+GitHub に接続できないときは承認 / 否決 / 中止と着手 / 着手を戻すを拒む（`status` が `next` を `null` にするのと同じ理由。列と下限が PR の状態に依るため）。
+書いた後は、取り直した PR の状態のままボードを組み立て直し、列の移りを 1 行で出す。
+`ai-board decide` を誰が呼んでよいかは構造では分けず、手順書の決まり（人がこの会話で頼んだときだけ）で守る（ADR 0007）。
+
 - **判断は値のまま 1 件だけ足す。** `createAppendReviewCommand` は判断（時刻・gate・種別・理由）をリポジトリの `appendReview` に渡し、
   `log/` に判断のファイルを 1 つ書く（ファイル名と中身は `card-files.ts` の `planReviewAppend` が決める）。`card.md` には触らない。
   理由はファイルの中身になるだけで、見出しとして読み直さない。理由に `### <時刻> <gate> <種別>` の形の行があっても拒まず、
@@ -122,7 +129,7 @@ plan を飛ばすカードが実装中で止まっても「計画から立て直
 UI が `startedAt` を書き換えるのは「着手」「着手を戻す」のボタンだけ。列をまたぐドラッグは無く、
 ドラッグはアイデアの表の中の並べ替え（`rank`）と区切り線の移動にだけ使う。
 `skipGates` を画面から書くのは、詳細パネルのゲートの欄の「計画レビューを飛ばす」（`plan` の出し入れ）のチェックボックスだけ（`SkipGateField`）。
-`withSkipGate` で 1 つのゲートだけを出し入れする。CLI には入口を足さない。
+`withSkipGate` で 1 つのゲートだけを出し入れする。`ai-board card` には入口を足さない（人の判断の `ai-board decide skip` も `withSkipGate` を使う）。
 提出済みのカードに「計画レビューを飛ばす」を入れると、`plan 提出` が承認と読まれてその場で実装中へ進む。
 
 画面の区画（判断待ち / AI 作業中 / アイデア / マージ済み / 中止）への振り分けと並び順も `dashboard-sections.ts` の純関数にある。
@@ -164,7 +171,7 @@ PR の状態は `refresh()` を 1 回だけ待って引き、`branch` から解�
 止まっているカードの `reason` は `hold.reason` になる。
 `waiting` の各カードは、画面がボタンとして出す判断（`decisionsFor`）を `decisions` に持つ。
 `status --json` は、ほかにアイデアの表の並び（`ideas`。画面と同じ `ideaRows` の順で、区切り線も 1 行）と、
-同じデータのワークツリーを使って起動中のサーバの URL（`server`。無ければ `null`）を出す。どちらも `board-decide` のスキルが使う。
+同じデータのワークツリーを使って起動中のサーバの URL（`server`。無ければ `null`）を出す。`ideas` は `board-decide` のスキルが並べ替えの位置を選ぶのに使う。
 
 `status --json --only <項目,...>` は、出力を組み立てた後に、コンマ区切りの項目だけに絞る（`status-cli.ts` の `pickFields`）。
 項目は `<key>`（最上位の項目をそのまま）か `<key>.<field>`（最上位の配列の各要素から `<field>` だけ）で、`.` の入れ子は 1 段まで。
@@ -174,9 +181,6 @@ PR の状態は `refresh()` を 1 回だけ待って引き、`branch` から解�
 サーバは起動中の自分の場所（URL・pid・データのワークツリーのパス `dataDir`）を、データのワークツリーの親の `server.json` に書き、止まるときに消す
 （`src/infrastructure/server-info.ts`。git には載せない）。`status` はこれを読み、`dataDir` が一致し pid が生きているときだけ `server` に URL を出す。
 
-サーバを `--pid-file <path>` 付きで起動すると、待ち受けを始める前に自分の pid（OS の pid）をそのファイルに書く（`src/infrastructure/pid-file.ts`。消さない）。
-書けなければ起動をやめ、終了コード 1 で終わる。書けないまま動き続けると、スキルがサーバを止められないためである。
-`board-decide` のスキルが、起動を待つ間の生存確認と、`node` の `process.kill` で止めるのに使う。Windows の Git Bash の `$!` は MSYS の pid で、OS の pid とは番号が違うためである。
 Windows の `process.kill(pid, 'SIGTERM')` は強制終了になり `server.json` が残るが、上のとおり pid が生きていなければ `server` に出ない。
 
 ### `status --html`（ダッシュボード）
