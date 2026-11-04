@@ -3,7 +3,7 @@ id: pr-feedback-ai-turn
 title: ユーザは PR の指摘に AI が応える番になったカードを、判断待ちと区別して見たい
 created: '2026-10-23T04:52:01.188Z'
 skipGates: []
-branch: null
+branch: pr-feedback-ai-turn
 mr: null
 ---
 
