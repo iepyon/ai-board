@@ -154,8 +154,8 @@ ADR 0007 を書き直す。決定の「CLI に人の判断の入口を足さな�
 
 ### 3. 手順書を `ai-board decide` に移す
 
-- [ ] `.claude/skills/board-decide/SKILL.md` を書き直す。サーバの起動と停止・人の API の行・MSYS の注意書きを消し、`ai-board decide` の 1 行にする。理由の例外と一覧の聞き方を決まりだけに絞る
-- [ ] `.claude/skills/board-loop/SKILL.md`・`rules.md`・`.claude/agents/board-reviewer.md` の「使わない口」に `ai-board decide` を足す
+- [x] `.claude/skills/board-decide/SKILL.md` を書き直す。サーバの起動と停止・人の API の行・MSYS の注意書きを消し、`ai-board decide` の 1 行にする。理由の例外と一覧の聞き方を決まりだけに絞る
+- [x] `.claude/skills/board-loop/SKILL.md`・`rules.md`・`.claude/agents/board-reviewer.md` の「使わない口」に `ai-board decide` を足す
 
 ### 4. ドキュメント・仕様・ADR
 

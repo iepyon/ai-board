@@ -147,7 +147,8 @@ clone・bare リポジトリ・一時ファイルは `$WT` の外（スクラッ
 - `startedAt` / `rank` / `skipGates` を書かない。アイデアの表の区切り線も動かさない
 - `## レビュー` に 承認 / 否決 / 中止 を書かない（人が書く）
 - 1 手の記録（`ai-board loop`）は `SKILL.md` の手順でだけ書く。`board-reviewer` は書かない
-- 手の中で `board-decide` のスキル・共有のボードのサーバの人の API（`/api/...`）・`server.json` を使わない（人がチャットで頼んだときの扱いは `SKILL.md` のハードルール）。
+- 手の中で `board-decide` のスキル・人の判断を書く `ai-board decide`・共有のボードのサーバの人の API（`/api/...`）・`server.json` を使わない（人がチャットで頼んだときの扱いは `SKILL.md` のハードルール）。
+  `ai-board decide` は構造では止めていない。この決まりが人の判断の守りである
   `AI_BOARD_DATA` で試しの clone を指して自分で起動したサーバを試すのは構わない
 - 計画レビュー / PR中 のカードに触らない。PR をマージしない
 - 品質ゲート `cd "$WT" && npm run typecheck && npm run lint && npm run format:check && npm test` を通らないままコミットしない。
