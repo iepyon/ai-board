@@ -1,0 +1,12 @@
+{
+  "loop": "61f4950e-94ef-56dc-b43b-956e11be94e0",
+  "cardId": "decide-via-cli",
+  "action": "implement",
+  "step": "review",
+  "agent": "board-reviewer",
+  "startedAt": "2026-11-04T02:43:46.463Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
