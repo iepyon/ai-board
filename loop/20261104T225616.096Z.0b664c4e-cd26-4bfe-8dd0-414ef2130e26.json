@@ -5,8 +5,8 @@
   "step": "review",
   "agent": "board-reviewer",
   "startedAt": "2026-11-04T22:56:16.096Z",
-  "finishedAt": null,
-  "result": null,
+  "finishedAt": "2026-11-04T22:58:45.007Z",
+  "result": "advanced",
   "tokens": null,
-  "durationMs": null
+  "durationMs": 148911
 }
