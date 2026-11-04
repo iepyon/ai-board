@@ -50,7 +50,7 @@ description: board-loop を動かした本筋のセッションから、`next.st
 
 ## 3. 読む
 
-1. `ai-board card show <cardId>` のカード本文（アイデア / 背景 / 論点 / `## レビュー`）と、計画の全体（特に `## 設計` の Decisions / Non-Goals と `## タスク`）を読む
+1. `ai-board card show <cardId>` のカード本文（アイデア / 背景 / 論点 / `## レビュー`）と、計画の全体（特に `## 設計` の Decisions / 仮定 / Non-Goals と `## タスク`）を読む
 2. `$WT/REVIEW.md` を読む。何を重く見て、何を報告しないかはここに従う
 3. PR の差分を `/code-review` にかける（`cd "$WT"` で PR 番号 `<mr>` を対象にする）。
    `--fix` と `--comment` は付けない（コードを直さず、PR にも書かない）。
