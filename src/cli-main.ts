@@ -35,7 +35,6 @@ import { DECIDE_USAGE, isDecideCommand, runDecideCli } from './board/cli/decide-
 import { findLiveServer } from './infrastructure/server-info.js';
 import { readMtimeMs, runDistCheckCli } from './infrastructure/dist-check-cli.js';
 import { openBrowser } from './infrastructure/open-browser.js';
-import { describePidFileError, writePidFile } from './infrastructure/pid-file.js';
 import { isErr } from './shared/result.js';
 import { CardIdSchema, type CardId } from './shared/schemas/common.js';
 
@@ -48,7 +47,6 @@ interface CliOptions {
   readonly port: number;
   readonly open: boolean;
   readonly pollIntervalMs: number | undefined;
-  readonly pidFile: string | undefined;
 }
 
 const USAGE = `使い方: ai-board [options]
@@ -70,9 +68,6 @@ Options:
   --no-open       ブラウザを自動で開かない
   --poll-interval <ms>
                   レビュー要求のポーリング間隔 (既定: 60000)
-  --pid-file <path>
-                  起動したら、サーバの pid (OS の pid) をこのファイルに書く
-                  (書けなければ起動をやめ、終了コード 1 で終わる)
   -h, --help      このヘルプを表示
 `;
 
@@ -81,7 +76,6 @@ export function parseArgs(argv: readonly string[]): CliOptions | 'help' {
   let port = DEFAULT_PORT;
   let open = true;
   let pollIntervalMs: number | undefined;
-  let pidFile: string | undefined;
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -102,15 +96,12 @@ export function parseArgs(argv: readonly string[]): CliOptions | 'help' {
       case '--poll-interval':
         pollIntervalMs = takeInteger(argv, ++i, '--poll-interval', 1000, Number.MAX_SAFE_INTEGER);
         break;
-      case '--pid-file':
-        pidFile = path.resolve(takeValue(argv, ++i, '--pid-file'));
-        break;
       default:
         throw new Error(`不明なオプションです: ${String(arg)}`);
     }
   }
 
-  return { root, port, open, pollIntervalMs, pidFile };
+  return { root, port, open, pollIntervalMs };
 }
 
 /** 値を伴うオプションの引数を取り出す */
@@ -428,17 +419,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { root, port, open, pollIntervalMs, pidFile } = parsed;
-
-  // 引数を読んだらすぐ書く。--root が無いなどで起動の前に終わったときも、起動を待つ側が
-  // pid のファイルからプロセスが終わったことに気づけるように（root の確かめや待ち受けより前）。
-  // 書けなければ起動をやめる（終了コード 1）。書けないまま動くと、起動を待つ側がサーバを止められない
-  if (pidFile !== undefined) {
-    const written = writePidFile(pidFile, process.pid);
-    if (isErr(written)) {
-      throw new Error(describePidFileError(written.error));
-    }
-  }
+  const { root, port, open, pollIntervalMs } = parsed;
 
   if (!fs.existsSync(root)) {
     throw new Error(`ディレクトリが見つかりません: ${root}`);

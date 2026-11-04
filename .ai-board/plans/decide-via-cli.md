@@ -150,7 +150,7 @@ ADR 0007 を書き直す。決定の「CLI に人の判断の入口を足さな�
 
 ### 2. `--pid-file` を消す
 
-- [ ] `src/cli-main.ts` の `--pid-file` の解析・`USAGE`・書き込みと、`src/infrastructure/pid-file.ts` とそのテストを消す
+- [x] `src/cli-main.ts` の `--pid-file` の解析・`USAGE`・書き込みと、`src/infrastructure/pid-file.ts` とそのテストを消す
 
 ### 3. 手順書を `ai-board decide` に移す
 
