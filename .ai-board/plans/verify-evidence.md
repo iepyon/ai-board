@@ -137,9 +137,9 @@ CI を持たないリポジトリでもループが止まらないよう、`none
 
 ### 3. 手順書
 
-- [ ] `.claude/skills/board-loop/implement.md` の 2.2 を「動かす → `pr checks --wait`（赤なら直す、2 回まで）→ 表の証拠 → archive → Ready」にし、止まるときの伝え方を足す。2.1 に fix の確かめ（先に落ちることを確かめ、コミットの本文に残す）を足す
-- [ ] `.claude/skills/board-loop/implement.md` のハードルールと `rules.md` の「締めの段はコードに触らない」を、CI を通すための直しだけ許す形に直す
-- [ ] `.claude/skills/board-loop/plan.md` の動作確認の手順の書き方に、表の行（確かめたこと・コマンド・期待する結果）にできる形で書くことを足す
+- [x] `.claude/skills/board-loop/implement.md` の 2.2 を「動かす → `pr checks --wait`（赤なら直す、2 回まで）→ 表の証拠 → archive → Ready」にし、止まるときの伝え方を足す。2.1 に fix の確かめ（先に落ちることを確かめ、コミットの本文に残す）を足す
+- [x] `.claude/skills/board-loop/implement.md` のハードルールと `rules.md` の「締めの段はコードに触らない」を、CI を通すための直しだけ許す形に直す
+- [x] `.claude/skills/board-loop/plan.md` の動作確認の手順の書き方に、表の行（確かめたこと・コマンド・期待する結果）にできる形で書くことを足す
 
 ### 4. ドキュメントと ADR
 
