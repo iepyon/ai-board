@@ -180,7 +180,7 @@
 
 ## AI レビュー
 
-- [ ] `.claude/skills/board-loop/implement.md:98` の止まる条件「タスクが計画の Decisions / Non-Goals、`CLAUDE.md` のハードルールと食い違う」に `### 仮定` が無い。計画の仮定「実装の途中で仮定が誤っていると分かったときの扱いは、今の『タスクが計画の Decisions と食い違う』と同じ（止まって報告する）に含める」に対し、仮定を Decisions から分けたため、仮定と食い違っても字面では止まる条件に当たらない。この行を「計画の Decisions / 仮定 / Non-Goals」に直す
+- [x] `.claude/skills/board-loop/implement.md:98` の止まる条件「タスクが計画の Decisions / Non-Goals、`CLAUDE.md` のハードルールと食い違う」に `### 仮定` が無い。計画の仮定「実装の途中で仮定が誤っていると分かったときの扱いは、今の『タスクが計画の Decisions と食い違う』と同じ（止まって報告する）に含める」に対し、仮定を Decisions から分けたため、仮定と食い違っても字面では止まる条件に当たらない。この行を「計画の Decisions / 仮定 / Non-Goals」に直す
 
 ### 見送った指摘
 
