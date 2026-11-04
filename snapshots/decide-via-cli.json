@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-11-04T03:53:09Z\",false,\"27dde89b46e2bd11943b000a4dfe885bf560cd6e\",0,0,\"2026-11-04T03:53:14Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 77,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "decide-via-cli",
+    "title": "チャットで頼んだ人の判断を ai-board decide の CLI で書く",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/77",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-11-04T03:41:53Z",
+    "mergedAt": "2026-11-04T03:53:09Z",
+    "readyAt": "2026-11-04T03:19:14Z",
+    "convertedToDraftAt": null
+  }
+}
