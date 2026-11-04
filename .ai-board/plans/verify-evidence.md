@@ -126,8 +126,8 @@ CI を持たないリポジトリでもループが止まらないよう、`none
 
 ### 1. チェックのまとめと判定
 
-- [ ] `src/board/services/pr-checks.ts` に、`check-runs` と `status` の生の値から行（名前・出どころ・結果・URL）と全体の判定（`passed` / `failed` / `pending` / `none`）を作る純関数を書く
-- [ ] `src/board/services/__tests__/pr-checks.test.ts` に、設計の表の対応・両方が混ざる場合・チェックが無い場合のテストを書く
+- [x] `src/board/services/pr-checks.ts` に、`check-runs` と `status` の生の値から行（名前・出どころ・結果・URL）と全体の判定（`passed` / `failed` / `pending` / `none`）を作る純関数を書く
+- [x] `src/board/services/__tests__/pr-checks.test.ts` に、設計の表の対応・両方が混ざる場合・チェックが無い場合のテストを書く
 
 ### 2. `ai-board pr checks`
 
