@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-11-04T08:20:02Z\",false,\"998a2bc15290c0ec3e87bfc94837932fa7a0e8a4\",0,0,\"2026-11-04T08:20:02Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 79,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "pr-feedback-ai-turn",
+    "title": "PR の指摘に AI が応える番を、判断待ちと分けて見せ、ループに応えさせる",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/79",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-11-04T07:52:05Z",
+    "mergedAt": "2026-11-04T08:20:02Z",
+    "readyAt": "2026-11-04T07:52:09Z",
+    "convertedToDraftAt": null
+  }
+}
