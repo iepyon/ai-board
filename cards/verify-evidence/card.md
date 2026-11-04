@@ -3,7 +3,7 @@ id: verify-evidence
 title: ユーザは、動作確認で手を動かす前に、AI が確かめたテストと CI の結果を PR で見たい
 created: '2026-11-03T11:40:32.464Z'
 skipGates: []
-branch: null
+branch: verify-evidence
 mr: null
 ---
 
