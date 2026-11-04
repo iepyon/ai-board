@@ -8,8 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 カードのステージは計画ファイル・GitHub の PR・カードの実態から**導出**し、`stage` という値はどこにも保存しない。
 
 ```
-[ アイデア ] [ 計画提案中 ] [ 計画レビュー ] [ 実装中 ] [ 動作確認 ] [ PR中 ] [ マージ済み ]
-     人            AI            人 ★          AI        人 ★       人 ★        —
+[ アイデア ] [ 計画提案中 ] [ 計画レビュー ] [ 実装中 ] [ PR中 ] [ マージ済み ]
+     人            AI            人 ★          AI        人 ★        —
 ```
 
 `127.0.0.1:5673` にのみ bind するローカル専用ツールで、認証やレート制限は持たない。
@@ -46,8 +46,8 @@ ai-board card list                 # 一覧（JSON、本文なし、rank 順）
 ai-board card show <id>            # 1 枚を frontmatter 付きの Markdown で
 ai-board card body <id> < body.md  # 本文の差し替え（## レビュー のエントリは変えられない）
 ai-board card branch <id> <name>   # ブランチの紐付け（--clear で外す）
-ai-board card submit <id> [--gate <plan|verify>] [--resubmit] [--reason <text>]   # 提出 / 再提出（既定は plan）
-ai-board card hold <id> --gate <plan|verify> --reason <text>   # 保留（そのゲートの最新が否決のときだけ）
+ai-board card submit <id> [--gate plan] [--resubmit] [--reason <text>]   # 提出 / 再提出（ゲートは plan だけ）
+ai-board card hold <id> --gate plan --reason <text>   # 保留（そのゲートの最新が否決のときだけ）
 ai-board card create --title <t> [--id <id>] < body.md     # アイデアカードの起票
 ai-board status [--json [--only <項目,...>]]   # 導出したステージ・判断待ち・次の一手（サーバ不要。--only で要る項目だけ）
 ai-board loop start  --loop <id> --card <id> --action <手> [--step <段>] [--agent <name>]   # 1 手の開始（ループだけ）
@@ -82,12 +82,12 @@ ai-board loop finish --loop <id> --card <id> --result <結果> [--tokens <n>] [-
 エージェントが自分の判断で**やってはいけないこと**（`.claude/skills/board-loop/rules.md` のハードルールと同じ）:
 
 - `startedAt` を自分で打たない。これは人が着手を指示する合図。
-- `## レビュー` に書いてよいのは 提出 / 再提出 / 保留 だけ。承認 / 否決 / 中止 は人が書く（plan でも verify でも）。
-  `verify 提出` の後に、自分で動かした結果をもって承認しない。
+- `## レビュー` に書いてよいのは 提出 / 再提出 / 保留 だけ。承認 / 否決 / 中止 は人が書く。
+  締めの段で自分で動かした結果は PR の本文に証拠として書くだけで、それをもって PR をマージしない。
   保留は否決を自分では直しきれず人の判断を待つときだけ。品質ゲートを通せない・未コミットの変更が残る、では書かない。
 - `skipGates` を自分で足さない。
 - `rank` を書かない（アイデアの表の区切り線も同じ）。並び順は人が決める優先度。
-- 計画レビュー / 動作確認 / PR中 のカードのステージに触らない。
+- 計画レビュー / PR中 のカードのステージに触らない。
 - 品質ゲートを通らないままコミットしない。
 
 CLI（`src/cards/cli/card-cli.ts`）はこれを構造で強制している。**CLI に入口を足すときはこの境界を崩さない。**

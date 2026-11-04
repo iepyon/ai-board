@@ -11,7 +11,7 @@ import type {
 } from '../errors/card-errors.js';
 import { serializeCard } from '../repositories/card-markdown.js';
 import { CardWriteRefusedError } from '../repositories/file-card.repository.js';
-import { isReviewGate, type ReviewGate } from '../models/review.js';
+import { isReviewGate, REVIEW_GATES, type ReviewGate } from '../models/review.js';
 import { gateStates, parseReviewLog } from '../services/review-log.js';
 import { describeDataStoreError, describeOfflineRead } from './data-store-messages.js';
 
@@ -42,12 +42,11 @@ Commands:
   body <id>                本文を標準入力の内容に差し替える
                            （## レビュー のエントリが変わる差し替えは拒否する）
   branch <id> <name>       ブランチを紐付ける。--clear で外す
-  submit <id> [--gate <plan|verify>] [--resubmit] [--reason <text>]
+  submit <id> [--gate plan] [--resubmit] [--reason <text>]
                            ## レビュー に提出（--resubmit で再提出）を追記する
-                           （--gate はどのゲートへの提出か。既定は plan。
-                           plan は着手したカードで、plan が未提出か否決のときにだけ、
-                           verify は plan の承認後にだけ書ける）
-  hold <id> --gate <plan|verify> --reason <text>
+                           （--gate はどのゲートへの提出か。plan だけで、既定も plan。
+                           着手したカードで、plan が未提出か否決のときにだけ書ける）
+  hold <id> --gate plan --reason <text>
                            ## レビュー に保留を追記する。その手を自分では進められず
                            止まるときに、なぜ止まったか、人に何を決めてほしいかを書く
 `;
@@ -269,10 +268,8 @@ async function runBranch(
  *
  * plan の提出は、さらに plan ゲートが未提出（`none`）か否決（`rejected`）のときにだけ書ける。
  * 提出済み・承認済み・保留のカードに書けると、plan を飛ばす宣言のあるカードでは `plan 再提出` が承認と
- * 同じ区切りになり（`currentEntries`）、それより前の人の `verify 否決` を AI の 1 回の呼び出しで消せてしまう。
+ * 同じに読まれ、人の否決や保留を経ずに計画を出し直せてしまう。
  * 宣言の無いカードでも、否決を受けずに計画を出し直す手は無いので、宣言の有無で分けない。
- *
- * verify の提出は plan の通過を前提にするので、着手の条件は重ねない。
  */
 async function runSubmit(
   args: ParsedArgs,
@@ -284,7 +281,7 @@ async function runSubmit(
 
   const gate = parseGate(args.flags.get('--gate'));
   if (gate === null) {
-    io.stderr(`--gate には plan か verify を指定してください\n${CARD_USAGE}`);
+    io.stderr(`${GATE_ERROR}\n${CARD_USAGE}`);
     return 1;
   }
 
@@ -315,8 +312,8 @@ async function runSubmit(
  * 既定を置かず、理由は人が次に何をするかを決める材料なので必須にする。
  *
  * 書けるのは、そのゲートの最新の判断が 否決 のときだけにする。AI が保留を書くのは否決を直す手
- * （`revise-plan` / `revise-impl`）で止まるときだけで、それ以外で書けると、承認済みの plan に保留を書いて
- * 人の承認を打ち消したり、計画レビュー / 動作確認 で人を待つカードを AI の列へ落としたりできてしまう。
+ * （`revise-plan`）で止まるときだけで、それ以外で書けると、承認済みの plan に保留を書いて
+ * 人の承認を打ち消したり、計画レビューで人を待つカードを AI の列へ落としたりできてしまう。
  */
 async function runHold(
   args: ParsedArgs,
@@ -329,7 +326,7 @@ async function runHold(
   const gateFlag = args.flags.get('--gate');
   const gate = gateFlag === undefined ? null : parseGate(gateFlag);
   if (gate === null) {
-    io.stderr(`--gate には plan か verify を指定してください\n${CARD_USAGE}`);
+    io.stderr(`${GATE_ERROR}\n${CARD_USAGE}`);
     return 1;
   }
 
@@ -415,10 +412,7 @@ function trimNewlines(text: string): string {
 /**
  * 提出を拒む理由。書いてよければ null。カードが無ければ null を返し、見つからない旨は追記の usecase に任せる。
  *
- * - plan: 人が着手していて、plan ゲートが未提出か否決のときだけ書ける（`runSubmit` を参照）
- * - verify: plan ゲートを通過しているときだけ書ける。plan の承認前に書かれた verify 提出は、承認の後には
- *   数えられない（`gateStates` が前のゲートの承認より古いエントリを外す）。それでもログには残り、
- *   読む人を惑わせるので、書く時点で拒む
+ * plan: 人が着手していて、plan ゲートが未提出か否決のときだけ書ける（`runSubmit` を参照）
  */
 async function submitRefusal(
   id: CardId,
@@ -430,9 +424,6 @@ async function submitRefusal(
 
   const plan = gateStates(parseReviewLog(card.body), card.skipGates).plan;
 
-  if (gate === 'verify') {
-    return plan === 'approved' ? null : 'verify の提出は plan の承認後にしかできません';
-  }
   if (card.startedAt === null) {
     return 'plan の提出は着手したカードにしかできません（着手は人が指示します）';
   }
@@ -455,6 +446,9 @@ async function gateRejected(
 }
 
 /** `--gate` の値。省略は plan。規定外の値は null */
+/** `--gate` が規定外のときの文。ゲートの一覧から作り、ゲートが変わっても書き直さずに済むようにする */
+const GATE_ERROR = `--gate には ${REVIEW_GATES.join(' か ')} を指定してください`;
+
 function parseGate(value: string | true | undefined): ReviewGate | null {
   if (value === undefined) return 'plan';
   return typeof value === 'string' && isReviewGate(value) ? value : null;

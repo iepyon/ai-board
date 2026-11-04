@@ -95,7 +95,7 @@ function planApproved(): string {
   return makeBody({ entries: [{ at: T3, gate: 'plan', kind: '承認' }] });
 }
 
-/** plan を承認したあと、verify ゲートに `kinds` のエントリを順に書いた本文 */
+/** plan を承認したあと、廃止した verify ゲートに `kinds` のエントリを順に書いた本文（過去のカードの形） */
 function verifyAfterPlanApproved(...kinds: string[]): string {
   return makeBody({
     entries: [
@@ -110,7 +110,7 @@ function verifyAfterPlanApproved(...kinds: string[]): string {
 }
 
 // ============================================================
-// 7 ステージの導出
+// 6 ステージの導出
 // ============================================================
 
 describe('resolveStage — 自動導出', () => {
@@ -258,75 +258,28 @@ describe('resolveStage — 自動導出', () => {
       expected: 'impling',
     },
     {
-      name: 'plan が承認され Draft の PR で verify が提出されていれば verifying',
+      // 廃止した verify ゲートのエントリは読み飛ばす。動作確認の列はもう無い
+      name: '廃止した verify の提出が残っていても impling',
       card: makeCard({ startedAt: T1, body: verifyAfterPlanApproved('提出') }),
-      plan: null,
-      mr: makeMr({ draft: true }),
-      expected: 'verifying',
-    },
-    {
-      name: 'verify が再提出されていれば verifying',
-      card: makeCard({ startedAt: T1, body: verifyAfterPlanApproved('提出', '否決', '再提出') }),
-      plan: makePlan(),
-      mr: makeMr({ draft: true }),
-      expected: 'verifying',
-    },
-    {
-      name: 'verify が否決されたら impling へ戻る',
-      card: makeCard({ startedAt: T1, body: verifyAfterPlanApproved('提出', '否決') }),
       plan: makePlan(),
       mr: makeMr({ draft: true }),
       expected: 'impling',
     },
     {
-      // Ready にするのは AI の作業なので、承認の後は AI の列で待つ
-      name: 'verify が承認されたら impling で Ready にされるのを待つ',
+      name: '廃止した verify の承認が残っていて PR が Ready なら pr',
       card: makeCard({ startedAt: T1, body: verifyAfterPlanApproved('提出', '承認') }),
-      plan: makePlan(),
-      mr: makeMr({ draft: true }),
-      expected: 'impling',
-    },
-    {
-      name: 'verify を飛ばすと宣言していれば提出があっても impling',
-      card: makeCard({
-        startedAt: T1,
-        skipGates: ['verify'],
-        body: verifyAfterPlanApproved('提出'),
-      }),
-      plan: makePlan(),
-      mr: makeMr({ draft: true }),
-      expected: 'impling',
-    },
-    {
-      name: 'verify が提出済みでも PR が Ready なら pr',
-      card: makeCard({ startedAt: T1, body: verifyAfterPlanApproved('提出') }),
       plan: makePlan(),
       mr: makeMr({ draft: false }),
       expected: 'pr',
     },
     {
-      name: 'plan が未承認なら verify のエントリがあっても計画の列のまま',
+      name: 'plan が否決されていれば、廃止した verify の提出が後ろにあっても planning',
       card: makeCard({
         startedAt: T1,
         body: makeBody({
           entries: [
-            { at: T2, gate: 'plan', kind: '提出' },
+            { at: T2, gate: 'plan', kind: '否決' },
             { at: T3, gate: 'verify', kind: '提出' },
-          ],
-        }),
-      }),
-      plan: null,
-      mr: makeMr({ draft: true }),
-      expected: 'plan-review',
-    },
-    {
-      name: 'plan が否決されていれば verify が提出されていても planning',
-      card: makeCard({
-        startedAt: T1,
-        body: makeBody({
-          entries: [
-            { at: T2, gate: 'verify', kind: '提出' },
-            { at: T4, gate: 'plan', kind: '否決' },
           ],
         }),
       }),
@@ -440,22 +393,22 @@ describe('resolveStage — 中止', () => {
 });
 
 describe('resolveStage — ゲートの状態', () => {
-  it('gates は plan と verify の状態を載せる', () => {
+  it('gates は plan の状態を載せる', () => {
     const card = makeCard({
       startedAt: T1,
       body: makeBody({ entries: [{ at: T2, gate: 'plan', kind: '否決' }] }),
     });
 
-    expect(resolveStage(card, null, null).gates).toEqual({ plan: 'rejected', verify: 'none' });
+    expect(resolveStage(card, null, null).gates).toEqual({ plan: 'rejected' });
   });
 
-  it('verify のエントリは verify の状態にだけ効く', () => {
-    const card = makeCard({ startedAt: T1, body: verifyAfterPlanApproved('提出') });
+  it('廃止された verify のエントリはゲートに現れない', () => {
+    const card = makeCard({ startedAt: T1, body: verifyAfterPlanApproved('提出', '否決', '保留') });
 
-    expect(resolveStage(card, null, null).gates).toEqual({
-      plan: 'approved',
-      verify: 'submitted',
-    });
+    const resolved = resolveStage(card, makePlan(), makeMr({ draft: true }));
+
+    expect(resolved.gates).toEqual({ plan: 'approved' });
+    expect(resolved.stage).toBe('impling');
   });
 
   it('廃止された explore のエントリは plan の判定に混ざらない', () => {
@@ -464,16 +417,7 @@ describe('resolveStage — ゲートの状態', () => {
       body: makeBody({ entries: [{ at: T2, gate: 'explore', kind: '承認' }] }),
     });
 
-    expect(resolveStage(card, null, null).gates).toEqual({ plan: 'none', verify: 'none' });
-  });
-
-  it('verify が held なら、Draft の PR があっても 実装中 に留まる', () => {
-    const card = makeCard({ startedAt: T1, body: verifyAfterPlanApproved('提出', '否決', '保留') });
-
-    const resolved = resolveStage(card, makePlan(), makeMr({ draft: true }));
-
-    expect(resolved.gates).toEqual({ plan: 'approved', verify: 'held' });
-    expect(resolved.stage).toBe('impling');
+    expect(resolveStage(card, null, null).gates).toEqual({ plan: 'none' });
   });
 
   it('plan が held なら、計画ファイルと Draft の PR があっても 計画提案中 に留まる', () => {
@@ -490,17 +434,15 @@ describe('resolveStage — ゲートの状態', () => {
 
     const resolved = resolveStage(card, makePlan(), makeMr({ draft: true }));
 
-    expect(resolved.gates).toEqual({ plan: 'held', verify: 'none' });
+    expect(resolved.gates).toEqual({ plan: 'held' });
     expect(resolved.stage).toBe('planning');
   });
 
-  it('計画から立て直して承認し直すと、前の verify のエントリは数えない', () => {
+  it('計画から立て直させる: 承認済みの計画への否決で planning に落ち、承認し直すと impling', () => {
     const at = (minutes: number): string =>
       new Date(Date.parse(T2) + minutes * 60_000).toISOString();
     const log = [
       { at: at(0), gate: 'plan', kind: '承認' },
-      { at: at(1), gate: 'verify', kind: '否決' },
-      { at: at(2), gate: 'verify', kind: '保留' },
       { at: at(3), gate: 'plan', kind: '否決' },
       { at: at(4), gate: 'plan', kind: '再提出' },
       { at: at(5), gate: 'plan', kind: '承認' },
@@ -512,44 +454,10 @@ describe('resolveStage — ゲートの状態', () => {
         makeMr({ draft: true })
       );
 
-    expect(resolveAfter(3).stage).toBe('impling');
-    expect(resolveAfter(4).stage).toBe('planning');
-    expect(resolveAfter(5).stage).toBe('plan-review');
-
-    const reapproved = resolveAfter(6);
-    expect(reapproved.stage).toBe('impling');
-    expect(reapproved.gates).toEqual({ plan: 'approved', verify: 'none' });
-  });
-
-  it('plan を飛ばすカードで計画から立て直すと、再提出 の後は前の verify のエントリを数えない', () => {
-    const at = (minutes: number): string =>
-      new Date(Date.parse(T2) + minutes * 60_000).toISOString();
-    const log = [
-      { at: at(0), gate: 'plan', kind: '提出' },
-      { at: at(1), gate: 'verify', kind: '提出' },
-      { at: at(2), gate: 'verify', kind: '否決' },
-      { at: at(3), gate: 'plan', kind: '否決' },
-      { at: at(4), gate: 'plan', kind: '再提出' },
-    ];
-    const resolveAfter = (count: number) =>
-      resolveStage(
-        makeCard({
-          startedAt: T1,
-          skipGates: ['plan'],
-          body: makeBody({ entries: log.slice(0, count) }),
-        }),
-        makePlan(),
-        makeMr({ draft: true })
-      );
-
-    expect(resolveAfter(3).gates).toEqual({ plan: 'approved', verify: 'rejected' });
-    expect(resolveAfter(3).stage).toBe('impling');
-    expect(resolveAfter(4).gates).toEqual({ plan: 'rejected', verify: 'rejected' });
-    expect(resolveAfter(4).stage).toBe('planning');
-
-    const resubmitted = resolveAfter(5);
-    expect(resubmitted.gates).toEqual({ plan: 'approved', verify: 'none' });
-    expect(resubmitted.stage).toBe('impling');
+    expect(resolveAfter(1).stage).toBe('impling');
+    expect(resolveAfter(2).stage).toBe('planning');
+    expect(resolveAfter(3).stage).toBe('plan-review');
+    expect(resolveAfter(4).stage).toBe('impling');
   });
 });
 
@@ -568,7 +476,7 @@ describe('resolveStage — 計画レビューを飛ばす宣言', () => {
     const resolved = resolveStage(card, null, null);
 
     expect(resolved.stage).toBe('planning');
-    expect(resolved.gates).toEqual({ plan: 'none', verify: 'none' });
+    expect(resolved.gates).toEqual({ plan: 'none' });
   });
 
   it('plan 提出 があれば、計画ファイルと Draft の PR があっても計画レビューに留まらず impling', () => {

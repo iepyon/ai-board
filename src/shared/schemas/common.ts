@@ -17,21 +17,14 @@ export type MergeRequestIid = Brand<number, 'MergeRequestIid'>;
 // ============================================================
 
 /**
- * カードが取りうる 7 つのステージ。
+ * カードが取りうる 6 つのステージ。
  * 配列の順序がそのまま「進行度」を表し、UI の列順にも使う。
  *
- * `plan-review` / `verifying` / `pr` は人の判断を待つ HIL ゲート、
+ * `plan-review` / `pr` は人の判断を待つ HIL ゲート、
  * `planning` / `impling` は AI が自走する列。
+ * かつては 実装中 と PR中 の間に動作確認（`verifying`）があったが、PR中 にまとめて廃止した。
  */
-export const STAGES = [
-  'idea',
-  'planning',
-  'plan-review',
-  'impling',
-  'verifying',
-  'pr',
-  'merged',
-] as const;
+export const STAGES = ['idea', 'planning', 'plan-review', 'impling', 'pr', 'merged'] as const;
 
 export const StageSchema = z.enum(STAGES);
 

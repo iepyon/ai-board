@@ -10,19 +10,14 @@ import type { BoardCard } from '../../types.js';
 /**
  * 理由の欄に出す書き方の手がかり。AI は差し戻された先でこの理由を読む。
  *
- * 差し戻す先はボタンのゲートで変わる（verify の否決は実装、plan の否決は計画）ので、
- * 出ている否決のボタンから選ぶ。
+ * 否決はどれも plan のゲートに書き、AI は計画を直す（実装中のカードなら計画から立て直す）。
  */
 function reasonPlaceholder(decisions: readonly Decision[]): string {
   const rejects = decisions.filter((decision) => decision.kind === '否決');
 
   if (rejects.length === 0) return '中止の理由（任意）';
 
-  if (rejects.every((decision) => decision.gate === 'plan')) {
-    return '否決の理由（AI が次の周回で読み、計画を直します）';
-  }
-
-  return '否決の理由（動かして意図と違ったところ、直し方の手がかり。AI が次の周回で読み、実装か計画を直します）';
+  return '否決の理由（AI が次の周回で読み、計画を直します）';
 }
 
 interface ReviewActionsProps {

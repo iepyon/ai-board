@@ -6,7 +6,13 @@ import { ok, err, type Result } from '../../shared/result.js';
 import { CardIdSchema, type CardId, type MergeRequestIid } from '../../shared/schemas/common.js';
 import { CardFrontmatterSchema } from '../models/schemas/card.schema.js';
 import type { Card } from '../models/card.js';
-import type { ReviewEntry, ReviewGate, ReviewKind } from '../models/review.js';
+import {
+  isRetiredReviewGate,
+  isReviewGate,
+  type ReviewEntry,
+  type ReviewGate,
+  type ReviewKind,
+} from '../models/review.js';
 import {
   appendReviewEntry,
   hasReviewSection,
@@ -268,7 +274,7 @@ function toLogName(at: string, gate: string, kindName: string, seq: number): Log
       : null;
   }
 
-  if (gate !== 'plan' && gate !== 'verify') return null;
+  if (!isReviewGate(gate)) return null;
 
   const kind = REVIEW_KINDS_BY_NAME.get(kindName);
 
@@ -331,13 +337,19 @@ interface ReadLogEntry {
   readonly reason: string;
 }
 
-/** `log/` のファイルを読む順に並べる。名前の読めないファイルは警告して読み飛ばす */
+/**
+ * `log/` のファイルを読む順に並べる。名前の読めないファイルは警告して読み飛ばす。
+ * 廃止したゲート（`isRetiredReviewGate`）のファイルは、壊れたものではないので警告せずに読み飛ばす
+ */
 function readLog(id: string, files: readonly LogFile[]): ReadLogEntry[] {
   const entries: ReadLogEntry[] = [];
 
   for (const file of files) {
     const name = parseLogFileName(file.name);
     if (name === null) {
+      // 名前の形が正しく、ゲートが廃止したものなら、壊れたファイルではないので警告しない
+      const gate = LOG_NAME.exec(file.name)?.[2];
+      if (gate !== undefined && isRetiredReviewGate(gate)) continue;
       console.warn(`[ai-board] 判断のファイルを読み飛ばしました: ${id}/${LOG_DIR}/${file.name}`);
       continue;
     }

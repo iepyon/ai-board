@@ -34,7 +34,8 @@ type Transition = TimelineKind | typeof CLOSE;
  * `## レビュー` のエントリ 1 件が始める区間。(ゲート, 種別) をキーにして引く。
  *
  * 飛ばす宣言のあるゲートの 提出 / 再提出 は、引く前に 承認 に読み替える（`transitionOf`）。
- * `verify 承認` の `readying` は、その時点で PR が Ready なら `pr-review` に読み替える（`resolveNext`）。
+ * 廃止した `verify` ゲートのエントリは `parseReviewLog` が読み飛ばすので、ここには来ない。
+ * 動作確認の区間を持っていたマージ済みのカードも、実装から PR レビューへ直に続く区間として読む。
  */
 const REVIEW_TRANSITIONS = {
   'plan:提出': 'plan-review',
@@ -43,12 +44,6 @@ const REVIEW_TRANSITIONS = {
   'plan:保留': 'plan-held',
   'plan:承認': 'implementing',
   'plan:中止': CLOSE,
-  'verify:提出': 'verifying',
-  'verify:再提出': 'verifying',
-  'verify:否決': 'verify-rework',
-  'verify:保留': 'verify-held',
-  'verify:承認': 'readying',
-  'verify:中止': CLOSE,
 } as const satisfies Record<`${ReviewGate}:${ReviewKind}`, Transition>;
 
 /**
@@ -61,8 +56,8 @@ interface Trace {
   readonly time: number;
   readonly rank: number;
   readonly next: Transition;
-  /** この痕跡で PR が Ready になったか（true）、Draft に戻ったか（false）。変わらなければ undefined */
-  readonly prReady?: boolean;
+  /** PR の痕跡（Ready にした・Draft へ戻した）か。中止で閉じた後はこの痕跡では区間を開かない */
+  readonly pr?: true;
   /** マージ。ここで読むのをやめる */
   readonly stop?: boolean;
 }
@@ -71,7 +66,7 @@ interface Trace {
  * カードの痕跡から、区間の並びを時刻の順に返す純関数。
  *
  * 痕跡を 1 つの列に並べて時刻の順に読み、各痕跡が次の区間の種類を決めて、そこまでの区間を閉じる。
- * `## レビュー` は全部のエントリを読む（`currentEntries` は通さない）。
+ * `## レビュー` は全部のエントリを読む（今効いている最新だけに絞らない）。
  * 「計画から立て直させる」のように、今は効いていない古いエントリこそが区間の境目になるため。
  * 着手は飛ばす宣言によらず `planning` を始める（plan を飛ばすカードでも、着手してから AI が計画を書く）。
  *
@@ -104,10 +99,10 @@ function toTraces(traces: TimelineTraces): Trace[] {
   }
 
   if (traces.readyAt !== null) {
-    list.push({ ...trace(traces.readyAt, 3, 'pr-review'), prReady: true });
+    list.push({ ...trace(traces.readyAt, 3, 'pr-review'), pr: true });
   }
   if (traces.convertedToDraftAt !== null) {
-    list.push({ ...trace(traces.convertedToDraftAt, 4, 'draft-returned'), prReady: false });
+    list.push({ ...trace(traces.convertedToDraftAt, 4, 'draft-returned'), pr: true });
   }
   if (traces.mergedAt !== null) {
     list.push({ ...trace(traces.mergedAt, 5, CLOSE), stop: true });
@@ -126,7 +121,7 @@ function trace(at: string, rank: number, next: Transition): Trace {
  * エントリ 1 件が始める区間。
  *
  * 飛ばす宣言のあるゲートの 提出 / 再提出 は、`gateState` と同じく人の 承認 と読む。
- * plan の 提出 は `implementing` を、verify の 提出 / 再提出 は `readying` を始める。
+ * plan の 提出 / 再提出 は `implementing` を始める。
  */
 function transitionOf({ gate, kind }: ReviewEntry, skipGates: readonly ReviewGate[]): Transition {
   const passes = (kind === '提出' || kind === '再提出') && skipGates.includes(gate);
@@ -162,24 +157,19 @@ interface OpenSegment {
  * 痕跡を時刻の順に読み、区間を閉じては次の区間を始める。
  *
  * 中止で閉じた後は、`## レビュー` のエントリが来て区間を始め直すまで、PR の痕跡（Ready・Draft へ戻す）では区間を開かない。
- * 中止で終わったカードに `end: null` を残さないためである。PR が Ready かどうかは、閉じている間も追い続ける。
+ * 中止で終わったカードに `end: null` を残さないためである。
  */
 function walk(traces: readonly Trace[]): TimelineSegment[] {
   const segments: TimelineSegment[] = [];
   let current = null as OpenSegment | null;
-  let prReady = false;
   let closed = false;
 
   for (const item of traces) {
-    prReady = item.prReady ?? prReady;
-    if (closed && item.prReady !== undefined) continue;
-
-    const next = resolveNext(item.next, prReady);
-
-    if (current?.kind === next) continue;
+    if (closed && item.pr === true) continue;
+    if (current?.kind === item.next) continue;
 
     if (current !== null) segments.push(toSegment(current, item.at));
-    current = next === CLOSE ? null : { kind: next, start: item.at };
+    current = item.next === CLOSE ? null : { kind: item.next, start: item.at };
     closed = current === null;
 
     if (item.stop === true) break;
@@ -188,11 +178,6 @@ function walk(traces: readonly Trace[]): TimelineSegment[] {
   if (current !== null) segments.push(toSegment(current, null));
 
   return segments;
-}
-
-/** verify 承認の時点で PR がもう Ready なら、Ready にする区間を飛ばして PR レビューへ進む */
-function resolveNext(next: Transition, prReady: boolean): Transition {
-  return next === 'readying' && prReady ? 'pr-review' : next;
 }
 
 function toSegment(open: OpenSegment, end: string | null): TimelineSegment {

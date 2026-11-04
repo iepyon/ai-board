@@ -27,7 +27,7 @@ function card(id: string, overrides: Partial<BoardCard> = {}): BoardCard {
     stage: 'idea',
     reason: `${id} の理由`,
     aborted: false,
-    gates: { plan: 'none', verify: 'none' },
+    gates: { plan: 'none' },
     latestReview: null,
     floorStage: 'idea',
     droppableStages: [],
@@ -317,7 +317,7 @@ describe('formatStatusHtml の文字の扱い', () => {
         hold: { reason: ATTACK, since: '2026-10-21T00:00:00.000Z' },
         latestReview: {
           at: '2026-10-21T00:00:00.000Z',
-          gate: 'verify',
+          gate: 'plan',
           kind: '保留',
           reason: ATTACK,
         },
@@ -497,13 +497,11 @@ describe('formatStatusHtml のタブ', () => {
 // ============================================================
 
 describe('formatStatusHtml のログ', () => {
-  it('ループの手と判断を、新しい順の 1 本にして出す', () => {
+  it('ループの手と判断を、新しい順の 1 本にして出す（廃止した手の過去の記録も出す）', () => {
     const page = html([
       card('a', {
         stage: 'impling',
-        reviews: [
-          { at: '2026-10-21T00:00:00.000Z', gate: 'verify', kind: '否決', reason: '直して' },
-        ],
+        reviews: [{ at: '2026-10-21T00:00:00.000Z', gate: 'plan', kind: '否決', reason: '直して' }],
         loopSteps: [
           {
             loop: 'session-a',
@@ -524,9 +522,9 @@ describe('formatStatusHtml のログ', () => {
 
     expect(log).toContain('<span class="count">2</span>');
     expect(log).toContain('revise-impl · 進めた · 1 分 35 秒 · 81k トークン');
-    expect(log).toContain('<p>verify 否決</p>');
+    expect(log).toContain('<p>plan 否決</p>');
     expect(log).toContain('<summary>理由</summary><div class="review">直して</div>');
-    expect(log.indexOf('revise-impl')).toBeLessThan(log.indexOf('verify 否決'));
+    expect(log.indexOf('revise-impl')).toBeLessThan(log.indexOf('plan 否決'));
     expect(log).toContain('2026-10-22 00:00 UTC');
   });
 

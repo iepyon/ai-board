@@ -162,13 +162,24 @@ describe('start と finish', () => {
     expect(await run(...START)).toBe(0);
     now = new Date('2026-11-02T11:20:00.000Z');
     expect(
-      await run('start', '--loop', 'session-a', '--card', 'card-a', '--action', 'revise-impl')
+      await run('start', '--loop', 'session-a', '--card', 'card-a', '--action', 'revise-plan')
     ).toBe(0);
 
     expect(readLoopSteps(dataDir).map((s) => s.result)).toEqual(['interrupted', null]);
     expect(stderr).toContain('途切れた');
-    expect(originLog()[0]).toBe('loop: start card-a revise-impl');
+    expect(originLog()[0]).toBe('loop: start card-a revise-plan');
   });
+
+  it.each(['revise-impl', 'ready'])(
+    'start は廃止した手（%s）を受け付けず、何も書かない',
+    async (action) => {
+      expect(
+        await run('start', '--loop', 'session-a', '--card', 'card-a', '--action', action)
+      ).toBe(1);
+      expect(stderr).toContain('--action には plan / revise-plan / implement');
+      expect(readLoopSteps(dataDir)).toEqual([]);
+    }
+  );
 
   it('トークンと時間は省略できる。時間を省くと開始から終了までのミリ秒で埋まる', async () => {
     await run(...START);

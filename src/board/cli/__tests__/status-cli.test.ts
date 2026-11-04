@@ -277,7 +277,7 @@ describe('ai-board status --json', () => {
     await writeCard(
       'held',
       "startedAt: '2026-10-20T00:00:00.000Z'\nrank: 1\n",
-      `${review('承認')}\n### 2026-10-21T00:00:00.000Z verify 否決\n\n検索が遅い\n\n### 2026-10-22T00:00:00.000Z verify 保留\n\n直すには大きすぎる\n`
+      `${review('提出')}\n### 2026-10-21T00:00:00.000Z plan 否決\n\n範囲が広い\n\n### 2026-10-22T00:00:00.000Z plan 保留\n\n論点を決めてほしい\n`
     );
     await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\nrank: 2\n");
 
@@ -293,49 +293,34 @@ describe('ai-board status --json', () => {
       {
         id: 'held',
         title: 'held のタイトル',
-        stage: 'impling',
-        reason: HOLD_REASONS.verifyHeld,
+        stage: 'planning',
+        reason: HOLD_REASONS.planHeld,
         running: false,
         decisions: [
-          { gate: 'verify', kind: '否決', label: '実装を直させる', reasonRequired: true },
-          { gate: 'plan', kind: '否決', label: '計画から立て直させる', reasonRequired: true },
-          { gate: 'verify', kind: '中止', label: '中止する', reasonRequired: false },
+          { gate: 'plan', kind: '否決', label: '計画を直させる', reasonRequired: true },
+          { gate: 'plan', kind: '中止', label: '中止する', reasonRequired: false },
         ],
       },
     ]);
     expect(report.working.map((card) => card.id)).toEqual(['started']);
     expect(report.cards.find((card) => card.id === 'held')?.hold).toEqual({
-      reason: HOLD_REASONS.verifyHeld,
+      reason: HOLD_REASONS.planHeld,
       since: '2026-10-22T00:00:00.000Z',
     });
   });
 
-  it('動作確認を待つカードは判断待ちに出し、次の一手にしない', async () => {
+  it('廃止した verify の提出が残る実装中のカードは、判断待ちに出さずに implement を選ぶ', async () => {
     await writeCard(
-      'verifying',
+      'old-verify',
       "startedAt: '2026-10-21T00:00:00.000Z'\n",
       `${review('承認')}\n### 2026-10-22T00:00:00.000Z verify 提出\n`
     );
 
     const report = await runJson();
 
-    expect(report.next).toBeNull();
-    expect(report.waiting).toEqual([
-      {
-        id: 'verifying',
-        title: 'verifying のタイトル',
-        stage: 'verifying',
-        reason: '実装が人の動作確認を待っている',
-        running: false,
-        decisions: [
-          { gate: 'verify', kind: '承認', label: '承認', reasonRequired: false },
-          { gate: 'verify', kind: '否決', label: '否決して差し戻す', reasonRequired: true },
-          { gate: 'plan', kind: '否決', label: '計画から立て直させる', reasonRequired: true },
-          { gate: 'verify', kind: '中止', label: '中止する', reasonRequired: false },
-        ],
-      },
-    ]);
-    expect(report.working).toEqual([]);
+    expect(report.waiting).toEqual([]);
+    expect(report.next).toMatchObject({ cardId: 'old-verify', action: 'implement' });
+    expect(report.cards.find((card) => card.id === 'old-verify')?.stage).toBe('impling');
   });
 
   it('計画レビューのカードには、画面と同じ判断（承認 / 否決して差し戻す / 中止）を出す', async () => {

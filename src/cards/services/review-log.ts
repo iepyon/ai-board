@@ -1,5 +1,4 @@
 import {
-  REVIEW_GATES,
   isReviewGate,
   isReviewKind,
   type GateState,
@@ -130,15 +129,13 @@ function extractSection(body: string, heading: string): string[] | null {
  * 中止のエントリは判定から除く。中止は工程の進捗とは直交する終端の軸であり、
  * 承認済みのゲートを未通過へ巻き戻してはならない（それをするとカードを
  * 中止した瞬間にステージが前の列へ戻る）。
- *
- * 後ろのゲートは、前のゲートの最新の承認より前のエントリを数えない（`currentEntries`）。
  */
 export function gateState(
   entries: readonly ReviewEntry[],
   gate: ReviewGate,
   skipGates: readonly ReviewGate[]
 ): GateState {
-  const latest = latestGateEntry(entries, gate, skipGates);
+  const latest = latestGateEntry(entries, gate);
   if (latest === null) return 'none';
 
   switch (latest.kind) {
@@ -164,7 +161,6 @@ export function gateStates(
 ): Record<ReviewGate, GateState> {
   return {
     plan: gateState(entries, 'plan', skipGates),
-    verify: gateState(entries, 'verify', skipGates),
   };
 }
 
@@ -178,54 +174,11 @@ export function gateStates(
  */
 export function latestGateEntry(
   entries: readonly ReviewEntry[],
-  gate: ReviewGate | undefined,
-  skipGates: readonly ReviewGate[]
+  gate?: ReviewGate
 ): ReviewEntry | null {
   return latestOf(
-    currentEntries(entries, skipGates).filter(
-      (entry) => (gate === undefined || entry.gate === gate) && entry.kind !== '中止'
-    )
+    entries.filter((entry) => (gate === undefined || entry.gate === gate) && entry.kind !== '中止')
   );
-}
-
-/**
- * 今も効いているエントリ。後ろのゲート（`REVIEW_GATES` の並びで後ろ）のエントリのうち、
- * それより前のゲートの最新の承認より古いものを除く。
- * 承認には、宣言のあるゲートの 提出 / 再提出 を含める（`gateState()` と同じ読み替え）。
- *
- * 計画を承認し直したなら、前の計画に対する動作確認の判断（否決・保留）はもう効かない、という意味である。
- * これが無いと、計画から立て直したカードで古い `verify 否決` が最新のまま残り、
- * ループが `implement` ではなく `revise-impl` を選び続ける。
- * plan を飛ばす宣言のカードでは、立て直した計画の `plan 再提出` が同じ区切りになる。
- *
- * 通常の流れでは後ろのゲートのエントリはすべて前のゲートの承認より後にあるので、何も除かれない。
- * 承認と同じ時刻のエントリは残す（後に書かれたものを最新とする `latestOf` と揃える）。
- */
-function currentEntries(
-  entries: readonly ReviewEntry[],
-  skipGates: readonly ReviewGate[]
-): ReviewEntry[] {
-  const approvedAt = new Map<ReviewGate, number>();
-
-  for (const entry of entries) {
-    if (!passes(entry, skipGates)) continue;
-    const at = Date.parse(entry.at);
-    approvedAt.set(entry.gate, Math.max(at, approvedAt.get(entry.gate) ?? -Infinity));
-  }
-
-  return entries.filter((entry) => {
-    const earlier = REVIEW_GATES.slice(0, REVIEW_GATES.indexOf(entry.gate));
-    const cutoff = Math.max(...earlier.map((gate) => approvedAt.get(gate) ?? -Infinity));
-
-    return Date.parse(entry.at) >= cutoff;
-  });
-}
-
-/** ゲートを通したエントリか。承認、または宣言のあるゲートの 提出 / 再提出 */
-function passes(entry: ReviewEntry, skipGates: readonly ReviewGate[]): boolean {
-  if (entry.kind === '承認') return true;
-
-  return (entry.kind === '提出' || entry.kind === '再提出') && skipGates.includes(entry.gate);
 }
 
 /** 全エントリを通じて最新のものが 中止 か */

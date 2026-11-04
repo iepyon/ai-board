@@ -48,7 +48,7 @@ export function CardDetail({ card, onClose, onChanged }: CardDetailProps) {
       <div className="detail-body">
         {error !== null && <div className="divergence">{error}</div>}
 
-        {/* 判断を待つカード（計画レビュー / 動作確認と、止まっているカード）だけ、本文を読んですぐ押せるよう判断のボタンを先頭に置く */}
+        {/* 判断を待つカード（計画レビューと、止まっているカード）だけ、本文を読んですぐ押せるよう判断のボタンを先頭に置く */}
         <HoldNote card={card} />
         {awaitsDecision(card) && <ReviewActions card={card} saving={saving} onRun={run} />}
         <BodyEditor card={card} saving={saving} onRun={run} />

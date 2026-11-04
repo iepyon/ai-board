@@ -16,10 +16,10 @@ export type {
 export type { LoopAction, LoopImplStep, LoopResult, LoopStep } from '../shared/loop-step.js';
 export type { BoardLoop } from '../shared/loop-activity.js';
 
-export type Stage = 'idea' | 'planning' | 'plan-review' | 'impling' | 'verifying' | 'pr' | 'merged';
+export type Stage = 'idea' | 'planning' | 'plan-review' | 'impling' | 'pr' | 'merged';
 
 /** 人が判断するゲートのうち、レビューログに現れるもの */
-export type ReviewGate = 'plan' | 'verify';
+export type ReviewGate = 'plan';
 
 export type ReviewKind = '提出' | '再提出' | '保留' | '承認' | '否決' | '中止';
 
@@ -149,7 +149,6 @@ export const STAGE_OWNER: Record<Stage, 'human' | 'ai' | 'none'> = {
   planning: 'ai',
   'plan-review': 'human',
   impling: 'ai',
-  verifying: 'human',
   pr: 'human',
   merged: 'none',
 };
@@ -160,7 +159,6 @@ export const STAGE_SOURCE: Record<Stage, 'card' | 'plan' | 'forge' | 'archive'> 
   planning: 'card',
   'plan-review': 'plan',
   impling: 'plan',
-  verifying: 'plan',
   pr: 'forge',
   merged: 'archive',
 };
@@ -168,8 +166,8 @@ export const STAGE_SOURCE: Record<Stage, 'card' | 'plan' | 'forge' | 'archive'> 
 /**
  * 人の判断を待つ列。札と件数帯に ★ を付ける。
  *
- * 計画レビュー / 動作確認 はボタンで、PR中 は GitHub でマージして判断する。
+ * 計画レビューはボタンで、PR中 は GitHub でマージして判断する。
  * 止まっているカード（`hold`）は AI の列のままなので、ここには入れない。
  * どのカードにどのボタンを出すかは `decisionsFor`（`src/shared/dashboard-sections.ts`）が決める。
  */
-export const GATE_STAGES: readonly Stage[] = ['plan-review', 'verifying', 'pr'];
+export const GATE_STAGES: readonly Stage[] = ['plan-review', 'pr'];

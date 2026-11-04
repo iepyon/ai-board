@@ -10,22 +10,23 @@ import type { ImplStep } from './impl-step.js';
 /**
  * ループが 1 周で行う作業の種類。
  *
- * - `implement`   実装中で、動作確認をまだ頼んでいない。計画の状態から決まる段を進める
- *                 （タスクを倒す段から、AI レビューの後なら締めの段まで続けて進むことがある。レビューの段の前で手を終える）。
+ * - `implement`   実装中。計画の状態から決まる段を進める
+ *                 （タスクを倒す段から、AI レビューの後なら締めの段まで続けて進むことがある。レビューの段の前で手を終える。
+ *                 締めの段は、動かした証拠を PR の本文に書き、計画を archive して PR を Ready にする）。
  *                 段はここでは分けず、`status` の CLI がカードのブランチの計画を読んで `NextAction.step` に載せる
  *                 （未チェックのタスクがあれば `task` / 倒し終えて `## AI レビュー` 節が無ければ `review` /
  *                 節があるか archive 済みなら `close`。ループは段が `review` なら `board-reviewer` を立て、それ以外は自分で進める）
- * - `revise-impl` 実装中で、動作確認の最新の判断が 否決。理由を読んで直し、動作確認を頼み直す
- * - `ready`       実装中で、verify ゲートを通った（人の承認、または verify を飛ばすカードの 提出 / 再提出）。
- *                 計画を archive へ移し、PR を Ready にする
  * - `plan`        計画提案中で、まだ何も提出していない。計画を書いて Draft の PR を出し、提出する
  * - `revise-plan` 計画提案中で、最新の判断が 否決。理由を読んで計画を直し、再提出する
  *
  * タスクを倒す / AI レビューを手の種類にしないのは、段が `implement` の中の区切りだからである。
  * 手の種類に足すと、`review-log.ts` / `card-cli.ts` / `dashboard-sections.ts` にまで種類が広がる。
  * 段を読むには計画を読む必要があり、その理由と読む場所は `judgeImpling` を参照。
+ *
+ * かつては動作確認の否決を直す `revise-impl` と、動作確認の後に Ready にする `ready` があったが、
+ * 動作確認の列とともに廃止した（ループの記録に残る過去の手は `loop-step.ts` の `LOOP_PAST_ACTIONS`）。
  */
-export type NextActionKind = 'implement' | 'revise-impl' | 'ready' | 'plan' | 'revise-plan';
+export type NextActionKind = 'implement' | 'plan' | 'revise-plan';
 
 export interface NextAction {
   readonly cardId: string;
@@ -57,7 +58,7 @@ export interface NextActionCard {
   readonly id: string;
   readonly stage: Stage;
   readonly aborted: boolean;
-  readonly gates: { readonly plan: GateState; readonly verify: GateState };
+  readonly gates: { readonly plan: GateState };
   /** 人の判断を待っていれば、その止まり。`resolveHold` で導く */
   readonly hold: CardHold | null;
 }
@@ -66,9 +67,7 @@ export interface NextActionCard {
 export interface HoldInput {
   readonly stage: Stage;
   readonly aborted: boolean;
-  readonly gates: { readonly plan: GateState; readonly verify: GateState };
-  /** 飛ばす宣言。エントリを選ぶときに、宣言のあるゲートの 提出 / 再提出 を承認と読むのに使う */
-  readonly skipGates: readonly ReviewGate[];
+  readonly gates: { readonly plan: GateState };
   /** カード本文の `## レビュー` のエントリ */
   readonly entries: readonly ReviewEntry[];
   /** PR の状態のうち、Draft に戻されたことの判定に要るもの。PR が無ければ null */
@@ -82,13 +81,11 @@ export interface HoldInput {
 
 /** 止まりの理由。人が何をすればよいかを書く */
 export const HOLD_REASONS = {
-  verifyHeld:
-    'AI が直しきれずに止まった。実装を直させるか、計画から立て直させるか、中止するかを選んでください',
   planHeld:
     'AI が計画を直しきれずに止まった。否決の理由を足して直させるか、中止するかを選んでください',
   planLost: '計画を提出済みだが、計画ファイルも Draft の PR も見えない',
   draftReverted: (iid: number): string =>
-    `判断の後に PR #${iid} が Draft に戻された。GitHub で Ready に戻すか、下の判断のボタンで差し戻すか中止してください`,
+    `判断の後に PR #${iid} が Draft に戻された。GitHub で Ready に戻すか、下の判断のボタンで計画から立て直させるか中止してください`,
 } as const;
 
 /** 上の列ほど優先する。進んだカードを先に片付け、仕掛かりを増やさない */
@@ -98,7 +95,7 @@ const PRIORITY: readonly Stage[] = ['impling', 'planning'];
  * 次に進めるカードを 1 枚選ぶ。
  *
  * `cards` は `rank` の実効値の順に並んでいる前提で、同じ列の中はその順を保つ。
- * 中止のカード、止まっているカード（`hold`）、人の判断を待つ列（計画レビュー / 動作確認 / PR中）は選ばない。
+ * 中止のカード、止まっているカード（`hold`）、人の判断を待つ列（計画レビュー / PR中）は選ばない。
  * 止まっているカードを飛ばすので、1 枚が止まっても後ろのカードは進む。
  */
 export function pickNextAction(cards: readonly NextActionCard[]): NextAction | null {
@@ -118,8 +115,9 @@ export function pickNextAction(cards: readonly NextActionCard[]): NextAction | n
  * AI の列にいるカードが、人の判断を待って止まっているか。止まっていなければ null。
  *
  * - **PR が Draft に戻された**（実装中）: 人の最新の判断より後に PR が Draft に戻された。
- *   動作確認の承認や飛ばす宣言より先に見る。見ないと `ready` や `implement` が Ready にし直してしまう
- * - **verify 保留 / plan 保留**: AI が保留を書いて止まった。同じ手を渡しても AI はまた止まる
+ *   Ready にした PR を人が Draft に戻すとカードは 実装中 に落ち、計画は archive 済みなので、
+ *   見ないと `implement` の archive 済みの段が Ready にし直してしまう
+ * - **plan 保留**: AI が保留を書いて止まった。同じ手を渡しても AI はまた止まる
  * - **提出済みなのに成果物が見えない**（計画提案中で plan が提出済み）: どちらかがあれば
  *   計画レビュー に上がるはずである。作り直すと PR やブランチを二重に作りかねないので、推測で動かない。
  *   PR の状態を引けていない（`mrKnown` が偽）ときは、PR が無いのか分からないので止まりにしない
@@ -131,7 +129,7 @@ export function resolveHold(card: HoldInput): CardHold | null {
 
   switch (card.stage) {
     case 'impling':
-      return draftReverted(card) ?? heldBy(card, 'verify', HOLD_REASONS.verifyHeld);
+      return draftReverted(card);
     case 'planning':
       if (card.gates.plan === 'submitted') {
         return card.mrKnown ? since(card, 'plan', HOLD_REASONS.planLost) : null;
@@ -145,16 +143,15 @@ export function resolveHold(card: HoldInput): CardHold | null {
 /**
  * 人の最新の判断より後に PR が Draft に戻されたか。
  *
- * 作成時から Draft の PR は `convert_to_draft` を残さないので、動作確認を頼むあいだの Draft では止まらない。
- * エントリは `latestGateEntry` で選ぶので、宣言のあるゲートの 提出 / 再提出 も承認と同じ区切りになる。
- * plan を飛ばす宣言のカードなら、`plan 提出` より後に戻された時点で止まる。
+ * 作成時から Draft の PR は `convert_to_draft` を残さないので、実装を進めるあいだの Draft では止まらない。
+ * 人の最新の判断は plan の承認（plan を飛ばす宣言のカードなら `plan 提出`）で、それより後に戻された時点で止まる。
  */
 function draftReverted(card: HoldInput): CardHold | null {
   const { mr } = card;
   if (mr === null || mr.convertedToDraftAt === null) return null;
 
   const convertedAt = mr.convertedToDraftAt;
-  const latest = latestGateEntry(card.entries, undefined, card.skipGates);
+  const latest = latestGateEntry(card.entries);
   if (latest !== null && Date.parse(convertedAt) <= Date.parse(latest.at)) return null;
 
   return { reason: HOLD_REASONS.draftReverted(mr.iid), since: convertedAt };
@@ -166,7 +163,7 @@ function heldBy(card: HoldInput, gate: ReviewGate, reason: string): CardHold | n
 
 /** 止まりの起点はそのゲートの最新エントリ（保留や提出）の時刻 */
 function since(card: HoldInput, gate: ReviewGate, reason: string): CardHold | null {
-  const entry = latestGateEntry(card.entries, gate, card.skipGates);
+  const entry = latestGateEntry(card.entries, gate);
   return entry === null ? null : { reason, since: entry.at };
 }
 
@@ -184,37 +181,17 @@ function judge(card: NextActionCard): NextAction | null {
 }
 
 /**
- * 実装中のカードの手を verify ゲートの状態で分ける。
+ * 実装中のカードの手。止まっていなければ常に `implement` を返す。
  *
  * 計画のタスクの進み具合では分けない。計画ファイルは作業用のブランチにあり、
  * ボードを動かすチェックアウトからは読めないことが多いため。
- * 同じ理由で、タスクを倒す / AI レビュー / 動作確認を頼む、の段も手として分けず、どれも `implement` を返し、
+ * 同じ理由で、タスクを倒す / AI レビュー / 締め（証拠を PR の本文に書き、archive して Ready にする）、の段も手として分けず、
  * `step` は null にする。段は `status` の CLI が、`next` に選ばれた 1 枚のブランチの計画だけを `git show` で読み、
  * `resolveImplStep` で決めて `next.step` に載せる。ここ（とサーバ・ステージの導出）では読まないので、
  * この関数は純関数のままで、「計画ファイルがあれば列が立つ」という読み方とも二重にならない。
- *
- * verify の approved は、人の承認でも、verify を飛ばす宣言のカードの AI の `verify 提出 / 再提出` の
- * 読み替え（`gateState`）でも、同じく `ready` を返す。宣言のあるカードの approved は、動作確認で否決された実装を
- * `revise-impl` が直して再提出した後か、提出の後に人が宣言を入れた後に来る。どちらも AI レビューと
- * PR の本文の見送りの節を済ませているので、締めの段（見送りの節を計画から差し替え、判断してほしい点を
- * PR にコメントする）を通さずに、archive して Ready にするだけにする。
- * 締めの段を通すと、`revise-impl` が PR の本文に足した見送りが消え、計画の判断してほしい点のコメントが重なる。
  */
-function judgeImpling(card: NextActionCard): NextAction | null {
-  switch (card.gates.verify) {
-    case 'none':
-      return { cardId: card.id, action: 'implement', reason: '計画が承認されている', step: null };
-    case 'rejected':
-      return { cardId: card.id, action: 'revise-impl', reason: '動作確認で否決された', step: null };
-    case 'approved':
-      return { cardId: card.id, action: 'ready', reason: '動作確認が承認された', step: null };
-    case 'held':
-      // 止まり（`resolveHold`）として扱い、pickNextAction がここへ来る前に飛ばす
-      return null;
-    case 'submitted':
-      // 提出済みなら 動作確認 に上がっているので、ここには来ない
-      return null;
-  }
+function judgeImpling(card: NextActionCard): NextAction {
+  return { cardId: card.id, action: 'implement', reason: '計画が承認されている', step: null };
 }
 
 function judgePlanning(card: NextActionCard): NextAction | null {

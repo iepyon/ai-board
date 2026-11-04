@@ -16,7 +16,7 @@ import { splitAiPhases } from '../../services/timeline-phases.js';
 import type { LoopHistoryRepository } from '../../repositories/loop-history.repository.js';
 import type { LoopStep } from '../../../shared/loop-step.js';
 import { toBoardLoop } from '../../../shared/loop-activity.js';
-import type { ReviewEntry, ReviewGate } from '../../../cards/models/review.js';
+import type { ReviewEntry } from '../../../cards/models/review.js';
 import type { Stage } from '../../../shared/schemas/common.js';
 import { GATE_OF_STAGE } from '../../../shared/stage-gates.js';
 import {
@@ -92,10 +92,10 @@ export function createGetBoardQuery(
         entries,
         resolution,
         { floorStage, droppableStages: droppableStages(floorStage) },
-        latestReview(entries, resolution.stage, card.skipGates),
+        latestReview(entries, resolution.stage),
         toBoardCardPlan(plan),
         toBoardCardMr(mr),
-        resolveHold({ ...resolution, skipGates: card.skipGates, entries, mr, mrKnown }),
+        resolveHold({ ...resolution, entries, mr, mrKnown }),
         splitAiPhases(
           resolveTimeline({
             created: card.created,
@@ -145,12 +145,8 @@ function toBoardCardPlan(plan: PlanDoc | null): BoardCardPlan | null {
 }
 
 /** その列が待っているゲートの最新エントリ。待ちの列でなければゲートを問わず最新 */
-function latestReview(
-  entries: readonly ReviewEntry[],
-  stage: Stage,
-  skipGates: readonly ReviewGate[]
-): BoardCardReview | null {
-  const entry = latestGateEntry(entries, GATE_OF_STAGE[stage], skipGates);
+function latestReview(entries: readonly ReviewEntry[], stage: Stage): BoardCardReview | null {
+  const entry = latestGateEntry(entries, GATE_OF_STAGE[stage]);
   if (entry === null) return null;
 
   return toBoardCardReview(entry);

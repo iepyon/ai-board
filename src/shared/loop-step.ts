@@ -9,10 +9,22 @@
  */
 
 /**
- * ループが進める手。`next-action.ts` の `NextActionKind` と同じ値で、
+ * ループが今進める手。`next-action.ts` の `NextActionKind` と同じ値で、
  * 食い違えば `loop-history.repository.ts` の型の突き合わせで型エラーになる。
+ * `ai-board loop start --action` に渡せるのはこれだけ。
  */
-export const LOOP_ACTIONS = ['plan', 'revise-plan', 'implement', 'revise-impl', 'ready'] as const;
+export const LOOP_CURRENT_ACTIONS = ['plan', 'revise-plan', 'implement'] as const;
+
+export type LoopCurrentAction = (typeof LOOP_CURRENT_ACTIONS)[number];
+
+/**
+ * 廃止した手。動作確認の列とともに消えた `revise-impl`（動作確認の否決を直す）と `ready`（動作確認の後に Ready にする）。
+ * データ用ブランチの `loop/` に残る過去の記録を読むためだけに持ち、新しく書くことはできない。
+ */
+export const LOOP_PAST_ACTIONS = ['revise-impl', 'ready'] as const;
+
+/** 記録に現れうる手。今の手のあとに過去の手を並べる（集計の並びにも使う） */
+export const LOOP_ACTIONS = [...LOOP_CURRENT_ACTIONS, ...LOOP_PAST_ACTIONS] as const;
 
 export type LoopAction = (typeof LOOP_ACTIONS)[number];
 
@@ -92,8 +104,9 @@ export interface LoopStep {
 /** ループの識別子の形。ファイル名に入るので、英数字と `.` `_` `-` だけにする */
 export const LOOP_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
-export function isLoopAction(value: string): value is LoopAction {
-  return (LOOP_ACTIONS as readonly string[]).includes(value);
+/** 今の手か。`ai-board loop start` が受け付けるかの判定に使う */
+export function isLoopCurrentAction(value: string): value is LoopCurrentAction {
+  return (LOOP_CURRENT_ACTIONS as readonly string[]).includes(value);
 }
 
 export function isLoopImplStep(value: string): value is LoopImplStep {

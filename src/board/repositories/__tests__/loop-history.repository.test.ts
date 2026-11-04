@@ -115,6 +115,19 @@ describe('中身', () => {
     ).toBeNull();
   });
 
+  it('廃止した手（revise-impl / ready）の過去の記録も読める', () => {
+    const base = {
+      ...START,
+      step: null,
+      finishedAt: null,
+      result: null,
+      tokens: null,
+      durationMs: null,
+    };
+    expect(parseLoopStep({ ...base, action: 'revise-impl' })?.action).toBe('revise-impl');
+    expect(parseLoopStep({ ...base, action: 'ready' })?.action).toBe('ready');
+  });
+
   it('規定外の手・不正な識別子・負のトークンは読まない', () => {
     const base = { ...START, finishedAt: null, result: null, tokens: null, durationMs: null };
     expect(parseLoopStep({ ...base, action: 'foo' })).toBeNull();
@@ -156,7 +169,7 @@ describe('writeLoopStart', () => {
     const outcome = unwrap(
       writeLoopStart(dataDir, {
         ...START,
-        action: 'revise-impl',
+        action: 'plan',
         step: null,
         startedAt: '2026-11-02T11:20:00.000Z',
       })
@@ -169,7 +182,7 @@ describe('writeLoopStart', () => {
     });
     expect(readFile('20261102T111500.000Z.session-b.json')).toMatchObject({ result: null });
     expect(readFile('20261102T112000.000Z.session-a.json')).toMatchObject({
-      action: 'revise-impl',
+      action: 'plan',
       result: null,
     });
   });

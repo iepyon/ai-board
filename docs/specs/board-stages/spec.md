@@ -25,16 +25,16 @@ GitHub の PR）から毎回導出しなければならない (MUST)。
 - **THEN** そのような入力フィールドは API に存在しない。ほかのフィールドと一緒に送れば `stage` だけが無視され、
   `stage` だけを送れば更新するフィールドが無いとして 400 が返る
 
-### Requirement: 7 段のステージ
+### Requirement: 6 段のステージ
 
-システムは カードを次の 7 つのステージのいずれか 1 つに割り当てなければならない (MUST)。
+システムは カードを次の 6 つのステージのいずれか 1 つに割り当てなければならない (MUST)。
 並びはそのまま進行度を表す。
 
-`idea` → `planning` → `plan-review` → `impling` → `verifying` → `pr` → `merged`
+`idea` → `planning` → `plan-review` → `impling` → `pr` → `merged`
 
-このうち `plan-review` / `verifying` / `pr` は人の判断を待つゲートであり、
+このうち `plan-review` / `pr` は人の判断を待つゲートであり、
 `planning` / `impling` は AI が自走する工程である。
-`plan-review` では計画を読み、`verifying` では実装を動かして振る舞いを確かめ、`pr` ではコードの差分を読む。
+`plan-review` では計画を読み、`pr` では AI が PR の本文に書いた動作確認の結果を読み、必要なら実装を動かし、コードの差分を読む。
 
 #### Scenario: 進行度の順序
 
@@ -45,6 +45,11 @@ GitHub の PR）から毎回導出しなければならない (MUST)。
 
 - **WHEN** ボードが返すステージの一覧を見る
 - **THEN** `exploring` と `explore-review` はどこにも現れない
+
+#### Scenario: 動作確認の列は存在しない
+
+- **WHEN** ボードが返すステージの一覧を見る
+- **THEN** `verifying` はどこにも現れない
 
 ### Requirement: 最も進んだステージが勝つ
 
@@ -115,8 +120,8 @@ plan ゲートのレビュー記録が 1 件も無い場合も `plan-review` を
 システムは plan ゲートが通過済みのとき `impling` を返さなければならない (MUST)。
 
 タスクの進捗を独立したステージとして扱っては SHALL NOT。AI レビューは実装中の
-内部工程であり、人が次に見るのは動作確認か PR であってタスクの消化状況ではないためである。
-進捗はカード上の表示としてのみ示す。AI レビューは動作確認を頼む前に済ませる。
+内部工程であり、人が次に見るのは PR であってタスクの消化状況ではないためである。
+進捗はカード上の表示としてのみ示す。AI レビューは PR を Ready にする前に済ませる。
 AI レビューの指摘のうち直すものは、計画の末尾の `## AI レビュー` 節にチェックボックスで書かれ、
 タスクと同じく進捗に数えられる。レビュー済みかどうかを表す状態やステージは持たない。
 
@@ -140,63 +145,27 @@ AI レビューの指摘のうち直すものは、計画の末尾の `## AI レ
 - **WHEN** 計画が承認済みで、タスクが 0 件である
 - **THEN** ステージは `impling` になる
 
-### Requirement: 動作確認は verify の提出で立つ
+### Requirement: 廃止した verify ゲートの記録はステージに効かない
 
-システムは plan ゲートが通過済みで、かつ verify ゲートが人の判断待ちのとき
-`verifying` を返さなければならない (MUST)。
+システムは カードに残る廃止した verify ゲートの記録（提出・否決・承認・保留）と、`skipGates` に残る `verify` を、
+ステージの導出に使っては SHALL NOT。記録は消さずに残す。
 
-AI は実装を終えると、PR を Draft のまま verify ゲートへ提出する。
-Draft の PR があっても、plan ゲートが通過済みのカードを `plan-review` へ戻しては SHALL NOT。
+#### Scenario: verify の提出が残っている
 
-verify ゲートの否決・承認・事前スキップのために専用の規則を足しては SHALL NOT。
-どれでも verify ゲートは判断待ちでなくなり、カードは `impling` に落ちる。
-承認の後に PR を Ready にするのは AI の作業なので、AI の列で待つ。
-
-#### Scenario: 動作確認を頼んだ
-
-- **WHEN** 計画が承認済みで、verify ゲートの最新の記録が提出であり、PR は Draft である
-- **THEN** ステージは `verifying` になる
-
-#### Scenario: 動作確認で否決された
-
-- **WHEN** 計画が承認済みで、verify ゲートの最新の記録が否決である
-- **THEN** ステージは `impling` に戻る
-
-#### Scenario: 動作確認で承認された
-
-- **WHEN** 計画が承認済みで、verify ゲートの最新の記録が承認であり、PR は Draft のままである
-- **THEN** ステージは `impling` になり、AI が PR を Ready にするのを待つ
-
-#### Scenario: 動作確認を飛ばすと宣言している
-
-- **WHEN** 計画が承認済みで、カードが verify ゲートをスキップすると宣言し、verify の提出の記録がある
+- **WHEN** 計画が承認済みで、verify ゲートの提出の記録が残っており、PR は Draft である
 - **THEN** ステージは `impling` になる
 
-#### Scenario: 提出のあとに PR が Ready になった
+#### Scenario: verify の承認が残っていて PR が Ready になった
 
-- **WHEN** verify ゲートの最新の記録が提出で、PR が open で Draft でない
+- **WHEN** 計画が承認済みで、verify ゲートの承認の記録が残っており、PR が open で Draft でない
 - **THEN** ステージは `pr` になる
-
-#### Scenario: 計画が承認されていない
-
-- **WHEN** plan ゲートが判断待ちで、verify の提出の記録がある
-- **THEN** ステージは `verifying` にならず、計画の側の列（`plan-review` か `planning`）に留まる
-
-#### Scenario: AI が動作確認の否決を直しきれずに止まった
-
-- **WHEN** 計画が承認済みで、verify ゲートの最新の記録が保留である
-- **THEN** ステージは `impling` のままである（止まりは board-hold の仕様で示す）
-
-#### Scenario: 計画を承認し直した
-
-- **WHEN** verify の否決と保留の後に plan が否決され、再提出された計画が承認された
-- **THEN** ステージは `impling` になり、verify ゲートは未提出として扱われる
 
 ### Requirement: PR 中とマージ済みは PR と archive で決まる
 
 システムは PR が open で Draft でない（Ready の）とき `pr`、PR がマージされたか計画ファイルが archive に
 移動しているとき `merged` を返さなければならない (MUST)。
-open でも Draft の PR は `pr` を立てない。計画の成果物か、動作確認を頼むあいだの PR だからである。
+open でも Draft の PR は `pr` を立てない。計画の成果物か、実装中の PR だからである。
+AI は実装と AI レビューを終えたら、動かした証拠を PR の本文に書き、計画を archive して PR を Ready にする。
 
 #### Scenario: PR が Ready で出ている
 
@@ -205,7 +174,7 @@ open でも Draft の PR は `pr` を立てない。計画の成果物か、動�
 
 #### Scenario: PR が Draft のまま
 
-- **WHEN** 計画が承認済みで、カードに紐付いた PR が open で Draft であり、verify ゲートは未提出である
+- **WHEN** 計画が承認済みで、カードに紐付いた PR が open で Draft である
 - **THEN** ステージは `pr` にならず、`impling` になる
 
 #### Scenario: PR がマージされた

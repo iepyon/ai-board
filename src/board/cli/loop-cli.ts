@@ -1,14 +1,14 @@
 import { err, isErr } from '../../shared/result.js';
 import { CardIdSchema } from '../../shared/schemas/common.js';
 import {
-  LOOP_ACTIONS,
+  LOOP_CURRENT_ACTIONS,
   LOOP_FINISH_RESULTS,
   LOOP_ID_PATTERN,
   LOOP_IMPL_STEPS,
-  isLoopAction,
+  isLoopCurrentAction,
   isLoopFinishResult,
   isLoopImplStep,
-  type LoopAction,
+  type LoopCurrentAction,
   type LoopFinishResult,
   type LoopImplStep,
   type LoopStep,
@@ -41,7 +41,7 @@ export const LOOP_USAGE = `使い方: ai-board loop <command> [--root <path>]
 Commands:
   start  --loop <id> --card <cardId> --action <手> [--step <段>] [--agent <name>]
                            1 手の開始を書く。同じループの終わっていない記録は「途切れた」で閉じる
-                           （--action は ${LOOP_ACTIONS.join(' / ')}。
+                           （--action は ${LOOP_CURRENT_ACTIONS.join(' / ')}。
                            --step は ${LOOP_IMPL_STEPS.join(' / ')} で、implement のときだけ）
   finish --loop <id> --card <cardId> --result <結果> [--tokens <n>] [--duration-ms <n>]
                            そのループの終わっていない記録に、終了・結果・トークン・時間を埋める
@@ -108,8 +108,8 @@ async function runStart(
   if (typeof common === 'string') return fail(io, common);
 
   const action = flags.get('--action');
-  if (action === undefined || !isLoopAction(action)) {
-    return fail(io, `--action には ${LOOP_ACTIONS.join(' / ')} のどれかを指定してください`);
+  if (action === undefined || !isLoopCurrentAction(action)) {
+    return fail(io, `--action には ${LOOP_CURRENT_ACTIONS.join(' / ')} のどれかを指定してください`);
   }
 
   const parsedStep = parseStep(flags.get('--step'), action);
@@ -236,7 +236,7 @@ function parseCommon(
 /** `--step` の値。段の値も文字列なので、誤りは `error` で分けて返す */
 function parseStep(
   value: string | undefined,
-  action: LoopAction
+  action: LoopCurrentAction
 ): { readonly step: LoopImplStep | null } | { readonly error: string } {
   if (value === undefined) return { step: null };
   if (action !== 'implement')

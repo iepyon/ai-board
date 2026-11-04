@@ -8,7 +8,7 @@ import {
   LOOP_ID_PATTERN,
   LOOP_IMPL_STEPS,
   LOOP_RESULTS,
-  type LoopAction,
+  type LoopCurrentAction,
   type LoopFinishResult,
   type LoopImplStep,
   type LoopStep,
@@ -51,10 +51,11 @@ export interface LoopHistoryRepository {
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 
 /**
- * `LoopAction` と `NextActionKind`、`LoopImplStep` と `ImplStep` が食い違えば、ここで型エラーになる。
+ * `LoopCurrentAction`（今の手）と `NextActionKind`、`LoopImplStep` と `ImplStep` が食い違えば、ここで型エラーになる。
+ * 過去の手（`LOOP_PAST_ACTIONS`）は記録を読むためだけにあり、次の一手とは突き合わせない。
  * `src/shared/` は web からも読むのでボードの型を import できず、値の一覧を 2 か所に持つための縛り
  */
-export const LOOP_VOCABULARY_IN_SYNC: Same<LoopAction, NextActionKind> &
+export const LOOP_VOCABULARY_IN_SYNC: Same<LoopCurrentAction, NextActionKind> &
   Same<LoopImplStep, ImplStep> = true;
 
 // ------------------------------------------------------------
@@ -232,7 +233,7 @@ export type LoopWriteError =
 export interface LoopStartInput {
   readonly loop: string;
   readonly cardId: string;
-  readonly action: LoopAction;
+  readonly action: LoopCurrentAction;
   readonly step: LoopImplStep | null;
   readonly agent: string | null;
   readonly startedAt: string;

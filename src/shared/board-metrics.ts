@@ -51,7 +51,7 @@ export interface MetricsSummary {
   readonly leadTimeMaxMs: number | null;
   /** マージ済みのカード 1 枚あたりの、人の区間の割合の中央値 */
   readonly humanShareMedian: number | null;
-  /** 否決が 1 回以上あるカードの枚数（plan と verify の両方） */
+  /** 否決が 1 回以上あるカードの枚数（plan の否決。廃止した verify のエントリは読み飛ばすので数えない） */
   readonly rejectedCardCount: number;
   /** 否決の延べ回数 */
   readonly rejectionCount: number;
