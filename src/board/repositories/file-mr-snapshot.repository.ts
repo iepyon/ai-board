@@ -33,6 +33,8 @@ const MrStateSchema = z.object({
   webUrl: z.string(),
   latestNoteAt: z.string().nullable(),
   noteCount: z.number().int().nonnegative(),
+  // 足す前の控えは null で読む。開いている PR は指紋の版を上げたので引き直され、マージ済みの PR では使わない
+  latestAiNoteAt: z.string().nullable().default(null),
   latestCommitAt: z.string().nullable(),
   mergedAt: z.string().nullable(),
   // .optional() にしない。readyAt を持たない古い控えを外し、引き直させる（マージ済みの PR もこれで 1 度だけ引き直す）

@@ -242,6 +242,7 @@ function isSameMrState(a: MrState | undefined, b: MrState): boolean {
     a.latestNoteAt === b.latestNoteAt &&
     a.latestCommitAt === b.latestCommitAt &&
     a.noteCount === b.noteCount &&
+    a.latestAiNoteAt === b.latestAiNoteAt &&
     a.readyAt === b.readyAt &&
     a.convertedToDraftAt === b.convertedToDraftAt
   );

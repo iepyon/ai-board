@@ -148,9 +148,9 @@
 
 ### 1. AI のコメントを見分けて、指摘に応える番を判定する
 
-- [ ] `github-client.ts` にフッターの定数を置き、フッター付きのコメントを人のコメントから外して `latestAiNoteAt` を取る（`RawComment` に `body` を足す）。テストを足す
-- [ ] `MrState` に `latestAiNoteAt` を足し、PR の状態の控え（`file-mr-snapshot.repository.ts`）は欠けた古い控えを `null` で読む。`forge-poller.ts` の比べ方にも足す
-- [ ] `src/shared/pr-feedback.ts` に `awaitsPrFix` を書き、`BoardCardMr` / `src/web/types.ts` に `awaitingFix` を足して `get-board.query.ts` で埋める。テストを足す
+- [x] `github-client.ts` にフッターの定数を置き、フッター付きのコメントを人のコメントから外して `latestAiNoteAt` を取る（`RawComment` に `body` を足す）。テストを足す
+- [x] `MrState` に `latestAiNoteAt` を足し、PR の状態の控え（`file-mr-snapshot.repository.ts`）は欠けた古い控えを `null` で読む。`forge-poller.ts` の比べ方にも足す
+- [x] `src/shared/pr-feedback.ts` に `awaitsPrFix` を書き、`BoardCardMr` / `src/web/types.ts` に `awaitingFix` を足して `get-board.query.ts` で埋める。テストを足す
 
 ### 2. 区画と次の一手
 

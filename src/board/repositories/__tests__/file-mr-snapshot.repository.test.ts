@@ -11,6 +11,7 @@ import {
 } from '../../../infrastructure/data-store.js';
 import {
   FileMrSnapshotRepository,
+  parseMrSnapshot,
   MR_SNAPSHOT_CACHE_FILE,
   SNAPSHOTS_DIR,
 } from '../file-mr-snapshot.repository.js';
@@ -76,6 +77,7 @@ function makeSnapshot(overrides: Partial<MrSnapshot['mr']> = {}): MrSnapshot {
       webUrl: 'https://github.com/acme/board/pull/42',
       latestNoteAt: '2026-09-04T10:00:00Z',
       noteCount: 3,
+      latestAiNoteAt: null,
       latestCommitAt: null,
       mergedAt: null,
       readyAt: null,
@@ -309,5 +311,16 @@ describe('FileMrSnapshotRepository の読めない控え', () => {
     await repository.save(id, makeSnapshot());
 
     expect(await repository.findAll()).toEqual(new Map([[id, makeSnapshot()]]));
+  });
+});
+
+describe('parseMrSnapshot', () => {
+  it('latestAiNoteAt を持たない古い控えは null で読む', () => {
+    const { latestAiNoteAt: _dropped, ...old } = makeSnapshot().mr;
+
+    const parsed = parseMrSnapshot({ fingerprint: '[1,"open"]', mr: old });
+
+    expect(parsed?.mr.latestAiNoteAt).toBeNull();
+    expect(parsed?.mr.noteCount).toBe(3);
   });
 });

@@ -26,8 +26,13 @@ export interface MrState {
    * コメントが 1 件も無ければ null。
    */
   readonly latestNoteAt: string | null;
-  /** 人が書いたコメントの件数 */
+  /** 人が書いたコメントの件数。AI が人のアカウントで書いたコメント（`latestAiNoteAt`）は数えない */
   readonly noteCount: number;
+  /**
+   * AI が人のアカウントで書いた最新のコメント（本文に Claude Code のフッターを含む）の作成日時。無ければ null。
+   * 指摘に AI が返信で応えたかの判定（`awaitsPrFix`）に使う
+   */
+  readonly latestAiNoteAt: string | null;
   /** PR の最新コミットの committed_date */
   readonly latestCommitAt: string | null;
   /** マージされた日時。マージされていなければ null */
