@@ -12,6 +12,12 @@ import {
   type CliError,
   type CliRunner,
 } from '../../infrastructure/cli-runner.js';
+import {
+  summarizeChecks,
+  type ChecksSummary,
+  type RawCheckRun,
+  type RawCommitStatus,
+} from './pr-checks.js';
 import { err, isErr, ok, type Result } from '../../shared/result.js';
 
 // ============================================================
@@ -280,6 +286,12 @@ function commitDate(commit: RawCommit | null): string | null {
 // PR の読み書き — `ai-board pr` が使う
 // ============================================================
 
+/** `ai-board pr checks` が引いたもの。`summary` は、指定したコミットがまだ PR の head でなければ null */
+export interface PullRequestChecks {
+  readonly headSha: string;
+  readonly summary: ChecksSummary | null;
+}
+
 /** `ai-board pr view` に出す PR の項目 */
 export interface PullRequestView {
   readonly number: number;
@@ -444,6 +456,51 @@ export class GhPullRequestClient {
     return isErr(created) ? created : ok(created.value.html_url);
   }
 
+  /**
+   * PR のチェックを、`check-runs` と `status` から全件引いてまとめる。
+   *
+   * 見るコミットは `sha`（省けば PR の `head.sha`）。push の直後は GitHub がまだ PR の head を動かしていないことがあるので、
+   * `sha` を指定して PR の head がそれと違えば、チェックを引かずに `summary: null` を返す（呼び出し側は走っているとして待つ）。
+   * どちらの応答も配列ではなく `{ ..., check_runs }` / `{ ..., statuses }` なので、`--paginate` の各ページを
+   * `--jq` で 1 件 1 行にして繋ぐ（ページを跨いでも 1 本の JSON にならないため）。
+   */
+  async checks(
+    iid: MergeRequestIid,
+    sha: string | null = null
+  ): Promise<Result<PullRequestChecks, CliError>> {
+    const pr = await this.getJson<RawPullRequestDetail>(`${this.base}/pulls/${iid}`);
+    if (isErr(pr)) return pr;
+    const headSha = pr.value.head.sha;
+    if (sha !== null && sha !== headSha) return ok({ headSha, summary: null });
+
+    const [runs, status] = await Promise.all([
+      this.getJsonLines<RawCheckRun>(`commits/${headSha}/check-runs`, '.check_runs[]'),
+      this.getJsonLines<RawCommitStatus>(`commits/${headSha}/status`, '.statuses[]'),
+    ]);
+    if (isErr(runs)) return runs;
+
+    const statusResult = readableStatuses(status);
+    if (isErr(statusResult)) return statusResult;
+    const { statuses, statusUnreadable } = statusResult.value;
+
+    return ok({
+      headSha,
+      summary: summarizeChecks(headSha, runs.value, statuses, statusUnreadable),
+    });
+  }
+
+  /** 全ページを `--jq <filter>` で 1 件 1 行にして引き、読む */
+  private async getJsonLines<T>(endpoint: string, filter: string): Promise<Result<T[], CliError>> {
+    const result = await this.runner.run(GH, [
+      'api',
+      '--paginate',
+      '--jq',
+      filter,
+      `${this.base}/${endpoint}?per_page=${PER_PAGE}`,
+    ]);
+    return isErr(result) ? result : parseJsonLines<T>(result.value);
+  }
+
   /** PR の差分を unified diff の文字列で返す */
   async diff(iid: MergeRequestIid): Promise<Result<string, CliError>> {
     return this.runner.run(GH, ['api', '-H', DIFF_ACCEPT, `${this.base}/pulls/${iid}`]);
@@ -514,6 +571,35 @@ export class GhPullRequestClient {
       await fs.rm(dir, { recursive: true, force: true });
     }
   }
+}
+
+/** `gh api --jq` が 1 件 1 行で出した JSON を読む */
+function parseJsonLines<T>(text: string): Result<T[], CliError> {
+  const items: T[] = [];
+  for (const line of text.split('\n')) {
+    if (line.trim() === '') continue;
+    const parsed = parseJson<T>(GH, line);
+    if (isErr(parsed)) return parsed;
+    items.push(parsed.value);
+  }
+  return ok(items);
+}
+
+/**
+ * `status` の応答から一覧を取り出す。権限で読めない（403）・見つからない（404）ときは空にして理由を返し、
+ * `check-runs` だけで判定させる（クラウドのセッションの GitHub App は Commit Status API を読めないことがある）。ほかの失敗はそのまま返す
+ */
+function readableStatuses(
+  status: Result<RawCommitStatus[], CliError>
+): Result<
+  { readonly statuses: readonly RawCommitStatus[]; readonly statusUnreadable: string | null },
+  CliError
+> {
+  if (!isErr(status)) return ok({ statuses: status.value, statusUnreadable: null });
+
+  const http = status.error.type === 'Failed' ? status.error.httpStatus : null;
+  if (http === 403 || http === 404) return ok({ statuses: [], statusUnreadable: `HTTP ${http}` });
+  return status;
 }
 
 function toComment(raw: RawCommentDetail): PullRequestComment {

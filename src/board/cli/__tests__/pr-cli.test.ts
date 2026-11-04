@@ -467,3 +467,293 @@ describe('ai-board pr の引数と設定', () => {
     expect(isPrCommand(undefined)).toBe(false);
   });
 });
+
+describe('ai-board pr checks', () => {
+  const SHA = 'abcdef1234567890';
+  const pr = { number: 78, head: { ref: 'b', sha: SHA }, base: { ref: 'main' } };
+
+  /** `check-runs` は `--jq` で 1 件 1 行になるので、行で返す */
+  function lines(runs: readonly unknown[]): Result<string, CliError> {
+    return ok(runs.map((r) => JSON.stringify(r)).join('\n') + (runs.length > 0 ? '\n' : ''));
+  }
+
+  const success = { name: 'test (24)', status: 'completed', conclusion: 'success', html_url: 'u1' };
+  const running = { name: 'test (22)', status: 'in_progress', conclusion: null, html_url: 'u2' };
+  const failure = { name: 'test (22)', status: 'completed', conclusion: 'failure', html_url: 'u3' };
+
+  /** 呼ばれるたびに次の check-runs の組を返す（最後の組を使い回す） */
+  function responder(
+    sequence: readonly (readonly unknown[])[],
+    statuses: readonly unknown[] = []
+  ): Responder {
+    let index = 0;
+    return (args) => {
+      const endpoint = args[args.length - 1] ?? '';
+      if (endpoint.endsWith('/pulls/78')) return json(pr);
+      if (endpoint.includes('/check-runs')) {
+        const runs = sequence[Math.min(index, sequence.length - 1)] ?? [];
+        index += 1;
+        return lines(runs);
+      }
+      if (endpoint.includes(`/commits/${SHA}/status`)) return lines(statuses);
+      return failed(404);
+    };
+  }
+
+  /** 進めた時間だけ now が進む偽の時計 */
+  function fakeClock(): {
+    now: () => number;
+    sleep: (ms: number) => Promise<void>;
+    slept: number[];
+  } {
+    let t = 0;
+    const slept: number[] = [];
+    return {
+      now: () => t,
+      sleep: async (ms) => {
+        slept.push(ms);
+        t += ms;
+      },
+      slept,
+    };
+  }
+
+  it('check-runs と status をまとめて出し、全部通っていれば 0 で終わる', async () => {
+    const { runner, calls } = fakeRunner(
+      responder([[success]], [{ context: 'ext', state: 'success', target_url: 'u9' }])
+    );
+
+    expect(await runPrCli(['checks', '78'], { forge, runner }, io)).toBe(0);
+    expect(stdout).toContain('PR #78 の最新コミット abcdef1 のチェック: passed');
+    expect(stdout).toContain('通った  test (24)  success  u1');
+    expect(stdout).toContain('通った  ext（status）  success  u9');
+
+    const runsCall = calls.find((c) => c.args.some((a) => a.includes('/check-runs')));
+    expect(runsCall?.args).toEqual([
+      'api',
+      '--paginate',
+      '--jq',
+      '.check_runs[]',
+      `repos/iepyon/ai-board/commits/${SHA}/check-runs?per_page=100`,
+    ]);
+  });
+
+  it('落ちたものがあれば 1、走っているものがあれば 2 で終わる（--wait なしでは待たない）', async () => {
+    expect(
+      await runPrCli(
+        ['checks', '78'],
+        { forge, runner: fakeRunner(responder([[success, failure]])).runner },
+        io
+      )
+    ).toBe(1);
+    expect(stdout).toContain('落ちた  test (22)  failure  u3');
+
+    const clock = fakeClock();
+    expect(
+      await runPrCli(
+        ['checks', '78'],
+        { forge, runner: fakeRunner(responder([[running]])).runner, clock },
+        io
+      )
+    ).toBe(2);
+    expect(clock.slept).toEqual([]);
+  });
+
+  it('チェックが無ければ none で 0 で終わる', async () => {
+    expect(
+      await runPrCli(['checks', '78'], { forge, runner: fakeRunner(responder([[]])).runner }, io)
+    ).toBe(0);
+    expect(stdout).toContain('チェックはありません');
+  });
+
+  it('--json は行と判定を JSON で出す', async () => {
+    expect(
+      await runPrCli(
+        ['checks', '78', '--json'],
+        { forge, runner: fakeRunner(responder([[success]])).runner },
+        io
+      )
+    ).toBe(0);
+    const parsed = JSON.parse(stdout) as {
+      sha: string;
+      verdict: string;
+      timedOut: boolean;
+      rows: unknown[];
+    };
+    expect(parsed).toMatchObject({ sha: SHA, verdict: 'passed', timedOut: false });
+    expect(parsed.rows).toHaveLength(1);
+  });
+
+  it('--wait は走っている間 15 秒おきに引き直し、終わったら結果で終わる', async () => {
+    const clock = fakeClock();
+    const { runner } = fakeRunner(responder([[running], [running], [success]]));
+
+    expect(await runPrCli(['checks', '78', '--wait'], { forge, runner, clock }, io)).toBe(0);
+    expect(clock.slept).toEqual([15_000, 15_000]);
+    expect(stdout).toContain('passed');
+  });
+
+  it('--wait は push の直後でチェックが無い間は猶予まで待ち、現れたら待ち続ける', async () => {
+    const clock = fakeClock();
+    const { runner } = fakeRunner(responder([[], [], [running], [failure]]));
+
+    expect(await runPrCli(['checks', '78', '--wait'], { forge, runner, clock }, io)).toBe(1);
+    expect(clock.slept).toHaveLength(3);
+  });
+
+  it('--wait で猶予を過ぎてもチェックが無ければ none で 0 で終わる', async () => {
+    const clock = fakeClock();
+    const { runner } = fakeRunner(responder([[]]));
+
+    expect(await runPrCli(['checks', '78', '--wait'], { forge, runner, clock }, io)).toBe(0);
+    expect(clock.now()).toBeGreaterThanOrEqual(120_000);
+    expect(stdout).toContain(': none');
+  });
+
+  it('--wait で上限まで走り続けたら、待ち切れなかったとして 2 で終わる', async () => {
+    const clock = fakeClock();
+    const { runner } = fakeRunner(responder([[running]]));
+
+    expect(
+      await runPrCli(['checks', '78', '--wait', '--timeout', '40'], { forge, runner, clock }, io)
+    ).toBe(2);
+    expect(clock.slept).toEqual([15_000, 15_000]);
+    expect(stdout).toContain('（待ち切れませんでした）');
+  });
+
+  it('--timeout の誤りと、--wait なしの --timeout を拒む', async () => {
+    const { runner, calls } = fakeRunner(responder([[success]]));
+
+    expect(await runPrCli(['checks', '78', '--timeout', '30'], { forge, runner }, io)).toBe(1);
+    expect(stderr).toContain('--timeout は --wait と一緒に');
+    expect(
+      await runPrCli(['checks', '78', '--wait', '--timeout', '0'], { forge, runner }, io)
+    ).toBe(1);
+    expect(
+      await runPrCli(['checks', '78', '--wait', '--timeout', 'x'], { forge, runner }, io)
+    ).toBe(1);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('PR やチェックを読めなければ、落ちた（1）と見分けられる 3 で終わる', async () => {
+    const { runner } = fakeRunner(() => failed(404));
+
+    expect(await runPrCli(['checks', '999'], { forge, runner }, io)).toBe(3);
+    expect(stderr).toContain('PR #999 のチェックを読めませんでした');
+
+    const broken = fakeRunner((args) =>
+      (args[args.length - 1] ?? '').endsWith('/pulls/78') ? json(pr) : failed(502)
+    );
+    expect(await runPrCli(['checks', '78'], { forge, runner: broken.runner }, io)).toBe(3);
+  });
+
+  it('status は check-runs と同じく全件を 1 件 1 行で引く', async () => {
+    const { runner, calls } = fakeRunner(responder([[success]]));
+
+    expect(await runPrCli(['checks', '78'], { forge, runner }, io)).toBe(0);
+    const statusCall = calls.find((c) => c.args.some((a) => a.includes('/status')));
+    expect(statusCall?.args).toEqual([
+      'api',
+      '--paginate',
+      '--jq',
+      '.statuses[]',
+      `repos/iepyon/ai-board/commits/${SHA}/status?per_page=100`,
+    ]);
+  });
+
+  it('--sha は PR の head がそのコミットになるまで走っているとして待ち、そのコミットのチェックを見る', async () => {
+    const NEW = '9999999aaaaaaa';
+    let prCalls = 0;
+    const { runner, calls } = fakeRunner((args) => {
+      const endpoint = args[args.length - 1] ?? '';
+      if (endpoint.endsWith('/pulls/78')) {
+        prCalls += 1;
+        // 最初の 2 回は push が PR に映っておらず、head は前のコミットのまま
+        return json({ ...pr, head: { ref: 'b', sha: prCalls <= 2 ? SHA : NEW } });
+      }
+      if (endpoint.includes(`/commits/${SHA}/`)) return lines([success]);
+      if (endpoint.includes(`/commits/${NEW}/check-runs`)) return lines([failure]);
+      if (endpoint.includes(`/commits/${NEW}/status`)) return lines([]);
+      return failed(404);
+    });
+    const clock = fakeClock();
+
+    expect(
+      await runPrCli(['checks', '78', '--wait', '--sha', NEW], { forge, runner, clock }, io)
+    ).toBe(1);
+    expect(clock.slept).toEqual([15_000, 15_000]);
+    expect(calls.some((c) => c.args.some((a) => a.includes(`/commits/${SHA}/`)))).toBe(false);
+    expect(stdout).toContain('落ちた  test (22)');
+  });
+
+  it('--sha のコミットにチェックがまだ無い間の猶予は、head がそのコミットになった時から数える', async () => {
+    const NEW = '9999999aaaaaaa';
+    let prCalls = 0;
+    const { runner } = fakeRunner((args) => {
+      const endpoint = args[args.length - 1] ?? '';
+      if (endpoint.endsWith('/pulls/78')) {
+        prCalls += 1;
+        // 9 回（120 秒ぶん）は head が前のコミットのまま
+        return json({ ...pr, head: { ref: 'b', sha: prCalls <= 9 ? SHA : NEW } });
+      }
+      // head が動いた後、2 回目まではチェックがまだ登録されていない
+      if (endpoint.includes('/check-runs')) return lines(prCalls <= 11 ? [] : [success]);
+      return lines([]);
+    });
+    const clock = fakeClock();
+
+    expect(
+      await runPrCli(['checks', '78', '--wait', '--sha', NEW], { forge, runner, clock }, io)
+    ).toBe(0);
+    expect(stdout).toContain(': passed');
+    expect(clock.slept).toHaveLength(11);
+  });
+});
+
+describe('ai-board pr checks で status を権限で読めないとき', () => {
+  const SHA = 'abcdef1234567890';
+
+  it('check-runs だけで判定し、status を読めなかったことを出す。ほかの失敗は止める', async () => {
+    const respond =
+      (statusResult: Result<string, CliError>): Responder =>
+      (args) => {
+        const endpoint = args[args.length - 1] ?? '';
+        if (endpoint.endsWith('/pulls/78'))
+          return json({ number: 78, head: { ref: 'b', sha: SHA } });
+        if (endpoint.includes('/check-runs')) {
+          return ok(
+            `${JSON.stringify({ name: 't', status: 'completed', conclusion: 'success' })}\n`
+          );
+        }
+        return statusResult;
+      };
+
+    expect(
+      await runPrCli(
+        ['checks', '78'],
+        { forge, runner: fakeRunner(respond(failed(403))).runner },
+        io
+      )
+    ).toBe(0);
+    expect(stdout).toContain('status（Commit Status API）は読めませんでした（HTTP 403）');
+
+    stdout = '';
+    expect(
+      await runPrCli(
+        ['checks', '78', '--json'],
+        { forge, runner: fakeRunner(respond(failed(403))).runner },
+        io
+      )
+    ).toBe(0);
+    expect(JSON.parse(stdout)).toMatchObject({ verdict: 'passed', statusUnreadable: 'HTTP 403' });
+
+    expect(
+      await runPrCli(
+        ['checks', '78'],
+        { forge, runner: fakeRunner(respond(failed(500))).runner },
+        io
+      )
+    ).toBe(3);
+    expect(stderr).toContain('チェックを読めませんでした');
+  });
+});
