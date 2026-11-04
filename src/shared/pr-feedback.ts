@@ -35,3 +35,19 @@ export function awaitsPrFix(mr: PrFeedbackInput): boolean {
     return Number.isNaN(ms) || noteMs > ms;
   });
 }
+
+/**
+ * 人の最新の指摘の後に、AI が返信したか（直すものが無いと判断して返信で応えた）。
+ * 判断待ちの区画の PR中 のカードの文言に使う。どちらかが無いか、時刻が読めなければ偽
+ */
+export function aiRepliedAfterNote(
+  mr: Pick<PrFeedbackInput, 'latestNoteAt' | 'latestAiNoteAt'>
+): boolean {
+  if (mr.latestNoteAt === null || mr.latestAiNoteAt === null) return false;
+
+  const noteMs = Date.parse(mr.latestNoteAt);
+  const aiMs = Date.parse(mr.latestAiNoteAt);
+  if (Number.isNaN(noteMs) || Number.isNaN(aiMs)) return false;
+
+  return aiMs > noteMs;
+}

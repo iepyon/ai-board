@@ -3,6 +3,7 @@ import { ReviewActions } from '../detail/ReviewActions.js';
 import { HoldNote } from '../detail/HoldNote.js';
 import { useAction } from '../../hooks/useAction.js';
 import { waitingSince } from '../../../shared/dashboard-sections.js';
+import { aiRepliedAfterNote } from '../../../shared/pr-feedback.js';
 import { formatAgo, formatDateTime } from '../../format.js';
 import { CardTitle, SectionHead, StagePill } from './parts.js';
 import { sectionAnchor } from './PipelineStrip.js';
@@ -205,11 +206,7 @@ function describePr(card: BoardCard): string {
   }
 
   // 指摘の後に AI が返信した（直すものが無いと判断した）。AI の番の間は AI が進めている区画に出るので、ここには来ない
-  if (
-    mr.latestNoteAt !== null &&
-    mr.latestAiNoteAt !== null &&
-    Date.parse(mr.latestAiNoteAt) > Date.parse(mr.latestNoteAt)
-  ) {
+  if (aiRepliedAfterNote(mr) && mr.latestAiNoteAt !== null) {
     return `AI が指摘に返信しました（${formatAgo(mr.latestAiNoteAt)}）。PR で返信を読んでください。`;
   }
 

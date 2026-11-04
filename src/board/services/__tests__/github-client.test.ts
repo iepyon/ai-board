@@ -572,6 +572,18 @@ describe('Claude Code のフッター', () => {
     expect(isAiComment({})).toBe(false);
   });
 
+  it('AI の返信を引用した人の返信は、AI のコメントと読まない', () => {
+    const quoted = `> 直すものはありません\n>\n> ---\n> ${CLAUDE_CODE_FOOTER}\n\nいや、直してください`;
+    expect(isAiComment({ body: quoted })).toBe(false);
+    // 引用の返信の末尾が引用の行でも、引用は AI のコメントではない
+    expect(isAiComment({ body: `了解です\n\n> ${CLAUDE_CODE_FOOTER}` })).toBe(false);
+  });
+
+  it('引用の中にだけフッターがある本文には、フッターを足す', () => {
+    const quoted = `> ${CLAUDE_CODE_FOOTER}\n\n返信です`;
+    expect(withClaudeCodeFooter(quoted)).toBe(`${quoted}\n\n---\n${CLAUDE_CODE_FOOTER}\n`);
+  });
+
   it('フッターの無い本文には区切りの線とともに足す', () => {
     expect(withClaudeCodeFooter('直すものはありません\n')).toBe(
       `直すものはありません\n\n---\n${CLAUDE_CODE_FOOTER}\n`
