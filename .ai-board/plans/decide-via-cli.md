@@ -166,8 +166,8 @@ ADR 0007 を書き直す。決定の「CLI に人の判断の入口を足さな�
 
 ## AI レビュー
 
-- [ ] `src/board/cli/decide-cli.ts:126` の `parseArgs` は、知らないフラグを `true` として受け、余分な位置引数も黙って捨てる。`decide skip foo --gate plan --remov` は `--remove` の打ち間違いが無視され、飛ばす宣言を外さずに入れる（計画レビューのカードなら提出がそのまま承認扱いになり実装中へ進む）。`decide approve foo --reson "…"` は理由の空の 承認 を書いて 0 で終わる。サブコマンドごとに受けるフラグ（`approve` / `reject` / `abort` は `--reason`、`skip` は `--gate` と `--remove`、`move` / `move-divider` は `--after` と `--before`、`start` / `unstart` は無し）と位置引数の数（`move-divider` は 0、ほかは 1）を決め、外れたらボードを読む前に終了コード 1 で拒む。打ち間違えたフラグと余分な位置引数が拒まれ、何も書かないテストを `src/board/cli/__tests__/decide-cli.test.ts` に足す
-- [ ] `src/board/cli/decide-cli.ts:111` の `isDecideCommand` は `command in HANDLERS` で、`:96` の `HANDLERS[command]` も自分のプロパティかを見ないので、`constructor` / `toString` / `__proto__` がサブコマンドとして通る。`decide constructor x` は `src/cli-main.ts` の `runDecide` でデータ用ブランチの取り直しと全カードの PR の問い合わせ（PR 番号の書き戻しの push を含む）を起こしたうえで、`Object` を呼んで返したオブジェクトを終了コードにする。`src/board/cli/pr-cli.ts:81` と同じく `Object.hasOwn(HANDLERS, command)` で両方を確かめ、`constructor` が使い方を出して 1 で終わるテストを足す
+- [x] `src/board/cli/decide-cli.ts:126` の `parseArgs` は、知らないフラグを `true` として受け、余分な位置引数も黙って捨てる。`decide skip foo --gate plan --remov` は `--remove` の打ち間違いが無視され、飛ばす宣言を外さずに入れる（計画レビューのカードなら提出がそのまま承認扱いになり実装中へ進む）。`decide approve foo --reson "…"` は理由の空の 承認 を書いて 0 で終わる。サブコマンドごとに受けるフラグ（`approve` / `reject` / `abort` は `--reason`、`skip` は `--gate` と `--remove`、`move` / `move-divider` は `--after` と `--before`、`start` / `unstart` は無し）と位置引数の数（`move-divider` は 0、ほかは 1）を決め、外れたらボードを読む前に終了コード 1 で拒む。打ち間違えたフラグと余分な位置引数が拒まれ、何も書かないテストを `src/board/cli/__tests__/decide-cli.test.ts` に足す
+- [x] `src/board/cli/decide-cli.ts:111` の `isDecideCommand` は `command in HANDLERS` で、`:96` の `HANDLERS[command]` も自分のプロパティかを見ないので、`constructor` / `toString` / `__proto__` がサブコマンドとして通る。`decide constructor x` は `src/cli-main.ts` の `runDecide` でデータ用ブランチの取り直しと全カードの PR の問い合わせ（PR 番号の書き戻しの push を含む）を起こしたうえで、`Object` を呼んで返したオブジェクトを終了コードにする。`src/board/cli/pr-cli.ts:81` と同じく `Object.hasOwn(HANDLERS, command)` で両方を確かめ、`constructor` が使い方を出して 1 で終わるテストを足す
 
 ### 見送った指摘
 

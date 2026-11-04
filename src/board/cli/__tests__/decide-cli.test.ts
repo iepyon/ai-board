@@ -115,6 +115,33 @@ describe('ai-board decide', () => {
     expect(stderr).toContain('使い方: ai-board decide');
   });
 
+  it('constructor などのプロトタイプのプロパティはサブコマンドとして通さない', async () => {
+    expect(await run(['constructor', 'a'])).toBe(1);
+    expect(stderr).toContain('使い方: ai-board decide');
+  });
+
+  it('打ち間違えたフラグと余分な位置引数は、ボードを読む前に拒んで何も書かない', async () => {
+    await writeCard('a', IDEA('2026-11-01T00:00:00.000Z'));
+    await writeCard('b', STARTED, review('提出'));
+    await writePlan('b');
+
+    expect(await run(['skip', 'a', '--gate', 'plan', '--remov'])).toBe(1);
+    expect(stderr).toContain('知らないオプションです: --remov');
+    expect((await readCard('a')).skipGates).toEqual([]);
+
+    expect(await run(['approve', 'b', '--reson', 'よい'])).toBe(1);
+    expect(stderr).toContain('知らないオプションです: --reson');
+
+    expect(await run(['start', 'a', 'b'])).toBe(1);
+    expect(stderr).toContain('余分な引数があります: b');
+    expect((await readCard('a')).startedAt).toBeNull();
+
+    expect(await run(['move-divider', 'a', '--after', 'none', '--before', 'none'])).toBe(1);
+    expect(stderr).toContain('余分な引数があります: a');
+
+    expect(parseReviewLog((await readCard('b')).body)).toHaveLength(1);
+  });
+
   describe('承認 / 否決 / 中止', () => {
     it('計画レビューのカードを承認すると、plan 承認 を書いて列の移りを出す', async () => {
       await writeCard('a', STARTED, review('提出'));

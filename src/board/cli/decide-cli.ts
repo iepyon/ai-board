@@ -75,16 +75,32 @@ type Handler = (args: ParsedArgs, deps: DecideCliDependencies, io: DecideCliIo) 
 
 const VALUE_FLAGS = new Set(['--reason', '--gate', '--after', '--before']);
 
-const HANDLERS: Readonly<Record<string, Handler>> = {
-  approve: (args, deps, io) => runReview('承認', args, deps, io),
-  reject: (args, deps, io) => runReview('否決', args, deps, io),
-  abort: (args, deps, io) => runReview('中止', args, deps, io),
-  start: runStart,
-  unstart: runUnstart,
-  skip: runSkip,
-  move: runMove,
-  'move-divider': runMoveDivider,
+/**
+ * サブコマンドごとの、実行する関数・受けるフラグ・位置引数の数。
+ * 外れた引数は、ボードを読む前に拒む。打ち間違えたフラグ（`--remov`、`--reson`）を黙って捨てると、
+ * 宣言を外すつもりで入れる、理由の無い判断を書く、といった頼んだものと違う判断になるため。
+ */
+interface Command {
+  readonly run: Handler;
+  readonly flags: readonly string[];
+  readonly positionals: number;
+}
+
+const COMMANDS: Readonly<Record<string, Command>> = {
+  approve: { run: (a, d, io) => runReview('承認', a, d, io), flags: ['--reason'], positionals: 1 },
+  reject: { run: (a, d, io) => runReview('否決', a, d, io), flags: ['--reason'], positionals: 1 },
+  abort: { run: (a, d, io) => runReview('中止', a, d, io), flags: ['--reason'], positionals: 1 },
+  start: { run: runStart, flags: [], positionals: 1 },
+  unstart: { run: runUnstart, flags: [], positionals: 1 },
+  skip: { run: runSkip, flags: ['--gate', '--remove'], positionals: 1 },
+  move: { run: runMove, flags: ['--after', '--before'], positionals: 1 },
+  'move-divider': { run: runMoveDivider, flags: ['--after', '--before'], positionals: 0 },
 };
+
+/** 規定のサブコマンドを引く。`constructor` などのプロトタイプのプロパティは通さない */
+function lookupCommand(command: string | undefined): Command | undefined {
+  return command !== undefined && Object.hasOwn(COMMANDS, command) ? COMMANDS[command] : undefined;
+}
 
 /** `ai-board decide <command>` を実行し、終了コードを返す */
 export async function runDecideCli(
@@ -93,25 +109,25 @@ export async function runDecideCli(
   io: DecideCliIo
 ): Promise<number> {
   const [command, ...rest] = argv;
-  const handler = command === undefined ? undefined : HANDLERS[command];
+  const spec = lookupCommand(command);
 
-  if (handler === undefined) {
+  if (spec === undefined) {
     io.stderr(DECIDE_USAGE);
     return command === undefined || command === '--help' || command === '-h' ? 0 : 1;
   }
 
-  const parsed = parseArgs(rest);
+  const parsed = parseArgs(rest, spec);
   if (typeof parsed === 'string') return fail(io, parsed);
 
-  return handler(parsed, deps, io);
+  return spec.run(parsed, deps, io);
 }
 
 /** 規定のサブコマンドか。呼び出し側は、そうでなければデータ用ブランチと PR の取り直しを起こさずに使い方を出す */
 export function isDecideCommand(command: string | undefined): boolean {
-  return command !== undefined && command in HANDLERS;
+  return lookupCommand(command) !== undefined;
 }
 
-function parseArgs(argv: readonly string[]): ParsedArgs | string {
+function parseArgs(argv: readonly string[], spec: Command): ParsedArgs | string {
   const positionals: string[] = [];
   const flags = new Map<string, string | true>();
 
@@ -121,6 +137,10 @@ function parseArgs(argv: readonly string[]): ParsedArgs | string {
     if (!arg.startsWith('--')) {
       positionals.push(arg);
       continue;
+    }
+
+    if (!spec.flags.includes(arg)) {
+      return `知らないオプションです: ${arg}（このコマンドが受けるのは ${spec.flags.length === 0 ? 'なし' : spec.flags.join(' / ')}）`;
     }
 
     if (!VALUE_FLAGS.has(arg)) {
@@ -134,6 +154,10 @@ function parseArgs(argv: readonly string[]): ParsedArgs | string {
     }
     flags.set(arg, value);
     i += 1;
+  }
+
+  if (positionals.length > spec.positionals) {
+    return `余分な引数があります: ${positionals.slice(spec.positionals).join(' ')}`;
   }
 
   return { positionals, flags };
