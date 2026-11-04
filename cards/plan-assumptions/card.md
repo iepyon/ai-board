@@ -3,7 +3,7 @@ id: plan-assumptions
 title: ユーザは、計画で AI が決めた仮定と人に判断してほしいことを分けて読み、探索メモの答えが漏れていないか確かめたい
 created: '2026-11-03T11:40:27.835Z'
 skipGates: []
-branch: null
+branch: plan-assumptions
 mr: null
 ---
 
