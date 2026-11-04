@@ -159,7 +159,7 @@ ADR 0007 を書き直す。決定の「CLI に人の判断の入口を足さな�
 
 ### 4. ドキュメント・仕様・ADR
 
-- [ ] `CLAUDE.md` の CLI の一覧・書き込み境界・ハードルールの「CLI は構造で強制している」の段落を直す
-- [ ] `README.md` と `docs/architecture.md` の、`board-decide` がサーバを起動する説明・`--pid-file`・人の判断の入口の説明を直す
-- [ ] `docs/specs/card-review-authority/spec.md` の書ける主体を直す
-- [ ] `docs/adr/0007-board-decide.md` を今の形に書き直す（`adr` のスキル）
+- [x] `CLAUDE.md` の CLI の一覧・書き込み境界・ハードルールの「CLI は構造で強制している」の段落を直す
+- [x] `README.md` と `docs/architecture.md` の、`board-decide` がサーバを起動する説明・`--pid-file`・人の判断の入口の説明を直す
+- [x] `docs/specs/card-review-authority/spec.md` の書ける主体を直す
+- [x] `docs/adr/0007-board-decide.md` を今の形に書き直す（`adr` のスキル）

@@ -15,7 +15,7 @@ ai-board の**今も効いている**設計判断を、なぜそう決めたか�
 | 4    | [計画は `.ai-board/plans/<id>.md` に置き、Draft の PR で読む](0004-plans-in-draft-pr.md)                                            | 2026-09-27 |
 | 5    | [動作確認を独立した列に置かず、AI の証拠を PR の本文に書いて PR中 で確かめる](0005-verify-in-pr.md)                                 | 2026-10-30 |
 | 6    | [AI が書ける判断は 提出 / 再提出 / 保留 だけにし、止まりを導出する](0006-ai-review-entries-and-hold.md)                             | 2026-10-30 |
-| 7    | [人がこの会話で頼んだ判断は、Claude が `board-decide` で書く](0007-board-decide.md)                                                 | 2026-10-31 |
+| 7    | [人がこの会話で頼んだ判断は、Claude が `board-decide` で `ai-board decide` を呼んで書く](0007-board-decide.md)                                                 | 2026-10-31 |
 | 8    | [工程にいた時間は痕跡から導出し、ループの 1 手だけを記録する](0008-derive-timeline.md)                                              | 2026-10-31 |
 | 9    | [飛ばす宣言のあるゲートは、AI の提出を承認と読む](0009-skip-gates.md)                                                               | 2026-11-01 |
 | 10   | [カードは git のデータ用ブランチに置き、ワークツリーで共有する](0010-cards-on-data-branch.md)                                       | 2026-11-01 |

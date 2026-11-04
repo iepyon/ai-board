@@ -2,6 +2,7 @@ import { isErr, type Result } from '../../shared/result.js';
 import { CardIdSchema, type CardId, type Stage } from '../../shared/schemas/common.js';
 import { DIVIDER_ID } from '../../shared/card-reorder.js';
 import { STAGE_LABELS } from '../../shared/stage-labels.js';
+import { withSkipGate } from '../../shared/stage-gates.js';
 import { decisionsFor, groupBySection, ideaRows } from '../../shared/dashboard-sections.js';
 import { REVIEW_GATES, isReviewGate, type ReviewGate } from '../../cards/models/review.js';
 import type { CardDependencies } from '../../cards/composition.js';
@@ -280,8 +281,8 @@ async function runSkip(
     return fail(io, `${id} は中止されているので、飛ばす宣言を変えられません`);
   }
 
-  const rest = card.skipGates.filter((g) => g !== gate);
-  const skipGates = remove ? rest : [...rest, gate];
+  // 画面のチェックボックスと同じく、1 つのゲートだけを出し入れする
+  const skipGates = withSkipGate(card.skipGates, gate, !remove);
 
   const result = await deps.cards.updateCardMetaCommand({ id, patch: { skipGates } });
 
