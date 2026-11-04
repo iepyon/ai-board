@@ -160,8 +160,8 @@
 
 ### 3. CLI と画面
 
-- [ ] `ai-board pr comment` が、本文にフッターが無ければ末尾に足す。テストを足す
-- [ ] `WorkSection.tsx` で PR中 のカードに「PR の指摘に応える」と PR へのリンクを出し、`InboxSection.tsx` の `describePr` に AI が返信した場合の文言を足す
+- [x] `ai-board pr comment` が、本文にフッターが無ければ末尾に足す。テストを足す
+- [x] `WorkSection.tsx` で PR中 のカードに「PR の指摘に応える」と PR へのリンクを出し、`InboxSection.tsx` の `describePr` に AI が返信した場合の文言を足す
 
 ### 4. ループの手順書とドキュメント
 

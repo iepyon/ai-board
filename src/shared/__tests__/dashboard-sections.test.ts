@@ -377,6 +377,17 @@ describe('awaitsDecision', () => {
 describe('isStale', () => {
   const now = new Date('2026-09-26T00:00:00Z');
 
+  it('PR の指摘に応えるカードは、計画が古くても動きなしと読まない', () => {
+    const card = makeCard({
+      id: 'fixing',
+      stage: 'pr',
+      plan: { updatedAt: '2026-01-01T00:00:00Z' },
+      mrState: mr({ awaitingFix: true }),
+    });
+
+    expect(isStale(card, new Date('2026-11-04T00:00:00Z'))).toBe(false);
+  });
+
   it('計画ファイルの更新から 3 日たっていれば true', () => {
     const card = makeCard({
       id: 'a',

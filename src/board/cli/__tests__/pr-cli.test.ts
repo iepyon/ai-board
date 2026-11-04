@@ -6,6 +6,7 @@ import type { CliError, CliRunner } from '../../../infrastructure/cli-runner.js'
 import type { ForgeConfig } from '../../../shared/config.js';
 import { err, ok, type Result } from '../../../shared/result.js';
 import { isPrCommand, runPrCli } from '../pr-cli.js';
+import { CLAUDE_CODE_FOOTER } from '../../services/github-client.js';
 
 // ============================================================
 // 偽の gh
@@ -354,7 +355,20 @@ describe('ai-board pr comment', () => {
       'POST',
       'repos/iepyon/ai-board/issues/7/comments',
     ]);
-    expect(calls[0]?.input).toEqual({ body: '判断してほしい点\n' });
+    expect(calls[0]?.input).toEqual({
+      body: `判断してほしい点\n\n---\n${CLAUDE_CODE_FOOTER}\n`,
+    });
+  });
+
+  it('Claude Code のフッターが既にある本文は、そのまま送る', async () => {
+    const body = `直すものはありません\n\n---\n${CLAUDE_CODE_FOOTER}\n`;
+    const file = await bodyFile(body);
+    const { runner, calls } = fakeRunner(() => json({ html_url: `${pr.html_url}#issuecomment-9` }));
+
+    const code = await runPrCli(['comment', '7', '--body-file', file], { forge, runner }, io);
+
+    expect(code).toBe(0);
+    expect(calls[0]?.input).toEqual({ body });
   });
 });
 

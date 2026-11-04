@@ -225,6 +225,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * 実装中は計画ファイルの更新時刻、計画提案中は（計画がまだ無いので）着手の時刻を見る。
  */
 export function isStale(card: SectionCard, now: Date, days: number = STALE_DAYS): boolean {
+  // PR の指摘に応えるカードの計画は archive 済みで更新されない。指摘を受けたばかりなので、動きなしと読まない
+  if (isAwaitingPrFix(card)) return false;
+
   const since = card.plan?.updatedAt ?? card.startedAt;
   if (since === null) return false;
 

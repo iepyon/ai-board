@@ -204,6 +204,15 @@ function describePr(card: BoardCard): string {
     return `再レビュー待ち。指摘のあとに修正コミットが push されました${at}。`;
   }
 
+  // 指摘の後に AI が返信した（直すものが無いと判断した）。AI の番の間は AI が進めている区画に出るので、ここには来ない
+  if (
+    mr.latestNoteAt !== null &&
+    mr.latestAiNoteAt !== null &&
+    Date.parse(mr.latestAiNoteAt) > Date.parse(mr.latestNoteAt)
+  ) {
+    return `AI が指摘に返信しました（${formatAgo(mr.latestAiNoteAt)}）。PR で返信を読んでください。`;
+  }
+
   return mr.noteCount === 0
     ? 'まだレビューされていません。'
     : 'レビューの指摘に対する修正を待っています。';
