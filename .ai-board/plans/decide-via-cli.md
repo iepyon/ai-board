@@ -143,10 +143,10 @@ ADR 0007 を書き直す。決定の「CLI に人の判断の入口を足さな�
 
 ### 1. `ai-board decide` の CLI
 
-- [ ] `src/board/cli/decide-cli.ts` に、引数の解析・使い方・サブコマンド（`approve` / `reject` / `abort` / `start` / `unstart` / `skip` / `move` / `move-divider`）を書く。依存（ボードの導出、カードの書き込みの usecase、`forge` の状態）は引数で受ける
-- [ ] 書く前の確かめ（設計の表）と、書いた後の列の移りの 1 行を書く
-- [ ] `src/cli-main.ts` に `decide` の振り分けを足し、`status` と同じ組み立てでボードを、`createTransactionalCardDependencies` で書き込みを渡す。`USAGE` に `decide` の行を足す
-- [ ] `src/board/cli/__tests__/decide-cli.test.ts` に、各サブコマンドの書ける / 拒む場合、`reject` の理由の必須、`forge` が繋がらないときの承認の拒否、書いた後の 1 行のテストを書く
+- [x] `src/board/cli/decide-cli.ts` に、引数の解析・使い方・サブコマンド（`approve` / `reject` / `abort` / `start` / `unstart` / `skip` / `move` / `move-divider`）を書く。依存（ボードの導出、カードの書き込みの usecase、`forge` の状態）は引数で受ける
+- [x] 書く前の確かめ（設計の表）と、書いた後の列の移りの 1 行を書く
+- [x] `src/cli-main.ts` に `decide` の振り分けを足し、`status` と同じ組み立てでボードを、`createTransactionalCardDependencies` で書き込みを渡す。`USAGE` に `decide` の行を足す
+- [x] `src/board/cli/__tests__/decide-cli.test.ts` に、各サブコマンドの書ける / 拒む場合、`reject` の理由の必須、`forge` が繋がらないときの承認の拒否、書いた後の 1 行のテストを書く
 
 ### 2. `--pid-file` を消す
 
