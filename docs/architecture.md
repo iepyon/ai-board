@@ -93,7 +93,7 @@ CLI（`src/cards/cli/card-cli.ts`）には `startedAt` / `rank` / `skipGates` �
 人の判断の CLI（`src/board/cli/decide-cli.ts`、`ai-board decide`）は、人の API と同じ usecase を、サーバと同じ組み立て（`createTransactionalCardDependencies`）で呼ぶ。
 書く前に `status` と同じ組み立てでボードを導出し、画面で押せる判断かを確かめる。
 承認 / 否決 / 中止は `decisionsFor` にあるもの、着手 / 着手を戻すは今の列と `droppableStages`、並べ替えはアイデアの表（`ideaRows`）にあるカードだけを書く。
-GitHub に接続できないときは承認 / 否決 / 中止を拒む（`status` が `next` を `null` にするのと同じ理由）。
+GitHub に接続できないときは承認 / 否決 / 中止と着手 / 着手を戻すを拒む（`status` が `next` を `null` にするのと同じ理由。列と下限が PR の状態に依るため）。
 書いた後は、取り直した PR の状態のままボードを組み立て直し、列の移りを 1 行で出す。
 `ai-board decide` を誰が呼んでよいかは構造では分けず、手順書の決まり（人がこの会話で頼んだときだけ）で守る（ADR 0007）。
 

@@ -182,13 +182,7 @@ async function runReview(
   const board = await loadBoard(deps, io);
   if (board === null) return 1;
 
-  // PR の状態が引けないと計画レビューのカードが手前の列に落ちて見え、出せる判断を取り違える
-  if (board.forge.status !== 'connected') {
-    return fail(
-      io,
-      `GitHub に繋がらないので、承認 / 否決 / 中止は書けません（GitHub: ${describeForge(board.forge)}）`
-    );
-  }
+  if (refuseWithoutForge(board, '承認 / 否決 / 中止', io)) return 1;
 
   const card = findCard(board, id, io);
   if (card === null) return 1;
@@ -260,6 +254,8 @@ async function runStartedAt(
 
   const board = await loadBoard(deps, io);
   if (board === null) return 1;
+  // 列と下限は PR の状態に依る（Draft の PR だけが計画の成果物のときなど）
+  if (refuseWithoutForge(board, '着手 / 着手を戻す', io)) return 1;
 
   const card = findCard(board, id, io);
   if (card === null) return 1;
@@ -425,6 +421,19 @@ async function loadBoard(deps: DecideCliDependencies, io: DecideCliIo): Promise<
     return null;
   }
   return result.value;
+}
+
+/**
+ * GitHub に繋がらなければ拒んで true を返す。PR の状態が引けないと、計画レビューのカードが手前の列に落ちて見え、
+ * 出せる判断や戻せる列を取り違える（`status` が `next` を `null` にするのと同じ理由）。
+ * 飛ばす宣言と並べ替えは列に依らないので、ここを通さない。
+ */
+function refuseWithoutForge(board: Board, what: string, io: DecideCliIo): boolean {
+  if (board.forge.status === 'connected') return false;
+  io.stderr(
+    `GitHub に繋がらないので、${what}は書けません（GitHub: ${describeForge(board.forge)}）\n`
+  );
+  return true;
 }
 
 function findCard(board: Board, id: CardId, io: DecideCliIo): BoardCard | null {

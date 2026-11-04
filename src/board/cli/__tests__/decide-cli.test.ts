@@ -253,6 +253,23 @@ describe('ai-board decide', () => {
     });
   });
 
+  it('GitHub に繋がらないときは着手 / 着手を戻すを拒み、飛ばす宣言と並べ替えは書く', async () => {
+    await writeCard('a', IDEA('2026-11-01T00:00:00.000Z'));
+    await writeCard('b', IDEA('2026-11-02T00:00:00.000Z'));
+    await writeCard('c', STARTED);
+    const offline = stubProvider({ status: 'disabled', kind: null, reason: null });
+
+    expect(await run(['start', 'a'], offline)).toBe(1);
+    expect(stderr).toContain('GitHub に繋がらないので、着手 / 着手を戻すは書けません');
+    expect((await readCard('a')).startedAt).toBeNull();
+
+    expect(await run(['unstart', 'c'], offline)).toBe(1);
+    expect((await readCard('c')).startedAt).not.toBeNull();
+
+    expect(await run(['skip', 'a', '--gate', 'plan'], offline)).toBe(0);
+    expect(await run(['move', 'b', '--after', 'none', '--before', 'a'], offline)).toBe(0);
+  });
+
   describe('飛ばす宣言', () => {
     it('plan を入れて外せる', async () => {
       await writeCard('a', IDEA('2026-11-01T00:00:00.000Z'));
