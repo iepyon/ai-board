@@ -4,7 +4,7 @@ title: ユーザは、チャットで頼んだ判断を CLI で書けるよう�
 created: '2026-11-03T14:35:08.592Z'
 skipGates: []
 branch: decide-via-cli
-mr: null
+mr: 77
 ---
 
 ## アイデア
