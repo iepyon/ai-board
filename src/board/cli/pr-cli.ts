@@ -11,6 +11,7 @@ import {
 import { toMergeRequestIid } from '../services/forge-client.js';
 import {
   GhPullRequestClient,
+  type PullRequestChecks,
   type PullRequestComment,
   type PullRequestView,
 } from '../services/github-client.js';
@@ -355,50 +356,74 @@ async function runChecks(
   clock: WaitClock
 ): Promise<number> {
   const iid = requireIid(args, io);
-  if (iid === null) return 1;
+  const options = iid === null ? null : parseChecksOptions(args, io);
+  if (iid === null || options === null) return 1;
 
-  const options = parseChecksOptions(args, io);
-  if (options === null) return 1;
-  const { wait, timeoutSeconds, sha } = options;
   const json = args.flags.has('--json');
-
-  const startedAt = clock.now();
-  // チェックの登録を待つ猶予は、見るコミットが PR の head になった時から数える
-  let watchingSince: number | null = null;
+  const wait = { ...options, startedAt: clock.now(), watchingSince: null as number | null };
   for (;;) {
-    const fetched = await client.checks(iid, sha);
+    const fetched = await client.checks(iid, options.sha);
     if (isErr(fetched)) {
       io.stderr(`PR #${iid} のチェックを読めませんでした（${describePrError(fetched.error)}）\n`);
       return CHECKS_UNREADABLE_EXIT;
     }
 
     const now = clock.now();
-    const { summary } = fetched.value;
-    if (summary !== null) watchingSince ??= now;
-    const registering =
-      summary?.verdict === 'none' &&
-      watchingSince !== null &&
-      now - watchingSince < CHECKS_GRACE_SECONDS * 1000;
-    const settled = summary !== null && summary.verdict !== 'pending' && !registering;
+    // チェックの登録を待つ猶予は、見るコミットが PR の head になった時から数える
+    if (fetched.value.summary !== null) wait.watchingSince ??= now;
 
-    if (summary !== null && (!wait || settled)) {
-      return reportChecks(iid, summary, json, false, io);
-    }
-    if (!wait || now - startedAt + CHECKS_INTERVAL_SECONDS * 1000 > timeoutSeconds * 1000) {
-      // 猶予の間や head が動く前に上限が来たら、チェックが無いのではなく、まだ見られていないものとして pending で終える
-      return reportChecks(
-        iid,
-        pendingSummary(summary, sha ?? fetched.value.headSha),
-        json,
-        wait,
-        io,
-        {
-          headSha: fetched.value.headSha,
-        }
-      );
+    const step = nextCheckStep(fetched.value, wait, now);
+    if (step.kind === 'report') {
+      return reportChecks(iid, step.summary, json, step.timedOut, io, fetched.value.headSha);
     }
     await clock.sleep(CHECKS_INTERVAL_SECONDS * 1000);
   }
+}
+
+type CheckStep =
+  | { readonly kind: 'report'; readonly summary: ChecksSummary; readonly timedOut: boolean }
+  | { readonly kind: 'sleep' };
+
+/**
+ * 引いた結果から、出して終えるか、もう 1 回待つかを決める。
+ *
+ * - 待たない（`--wait` なし）なら、今の結果を出す。見るコミットがまだ head でなければ走っているとして出す
+ * - 待ち終えてよい（`isSettled`）なら出す
+ * - もう 1 回待つと上限を超えるなら、走っているとして出す（猶予の間や head が動く前でも、チェックが無いとは言わない）
+ */
+function nextCheckStep(
+  fetched: PullRequestChecks,
+  wait: {
+    readonly wait: boolean;
+    readonly timeoutSeconds: number;
+    readonly sha: string | null;
+    readonly startedAt: number;
+    readonly watchingSince: number | null;
+  },
+  now: number
+): CheckStep {
+  const { summary } = fetched;
+  if (summary !== null && (!wait.wait || isSettled(summary, wait.watchingSince, now))) {
+    return { kind: 'report', summary, timedOut: false };
+  }
+
+  const exceeded =
+    now - wait.startedAt + CHECKS_INTERVAL_SECONDS * 1000 > wait.timeoutSeconds * 1000;
+  if (!wait.wait || exceeded) {
+    const sha = wait.sha ?? fetched.headSha;
+    return { kind: 'report', summary: pendingSummary(summary, sha), timedOut: wait.wait };
+  }
+  return { kind: 'sleep' };
+}
+
+/**
+ * 待ち終えてよいか。走っておらず、チェックが無いなら登録を待つ猶予
+ * （見るコミットが head になってから `CHECKS_GRACE_SECONDS`）を過ぎている
+ */
+function isSettled(summary: ChecksSummary, watchingSince: number | null, now: number): boolean {
+  if (summary.verdict === 'pending') return false;
+  if (summary.verdict !== 'none') return true;
+  return watchingSince !== null && now - watchingSince >= CHECKS_GRACE_SECONDS * 1000;
 }
 
 /** まだ見られていない（head が動いていない・チェックの登録待ち）ときの、走っているとしてのまとめ */
@@ -442,7 +467,7 @@ function reportChecks(
   json: boolean,
   timedOut: boolean,
   io: PrCliIo,
-  stale: { readonly headSha: string } | null = null
+  headSha: string = summary.sha
 ): number {
   if (json) {
     io.stdout(`${JSON.stringify({ ...summary, timedOut }, null, 2)}\n`);
@@ -453,8 +478,8 @@ function reportChecks(
     `PR #${iid} の最新コミット ${summary.sha.slice(0, 7)} のチェック: ${summary.verdict}` +
       (timedOut ? '（待ち切れませんでした）' : ''),
   ];
-  if (stale !== null && stale.headSha !== summary.sha) {
-    lines.push(`  PR の head はまだ ${stale.headSha.slice(0, 7)} で、このコミットになっていません`);
+  if (headSha !== summary.sha) {
+    lines.push(`  PR の head はまだ ${headSha.slice(0, 7)} で、このコミットになっていません`);
   } else if (summary.rows.length === 0) {
     lines.push(timedOut ? '  チェックはまだ登録されていません' : '  チェックはありません');
   }
