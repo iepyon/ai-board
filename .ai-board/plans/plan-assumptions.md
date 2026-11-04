@@ -177,3 +177,16 @@
 - [x] `implement.md` の実装の前に読む節（Decisions / Non-Goals）に `### 仮定` を足す
 - [x] `README.md` に計画の構成を説明する箇所があれば、新しい節を足す（無ければ触らない）
 - [x] 品質ゲート（`npm run typecheck && npm run lint && npm run format:check && npm test`）を通す。表の整形は `npm run format` で揃える
+
+## AI レビュー
+
+- [ ] `.claude/skills/board-loop/implement.md:98` の止まる条件「タスクが計画の Decisions / Non-Goals、`CLAUDE.md` のハードルールと食い違う」に `### 仮定` が無い。計画の仮定「実装の途中で仮定が誤っていると分かったときの扱いは、今の『タスクが計画の Decisions と食い違う』と同じ（止まって報告する）に含める」に対し、仮定を Decisions から分けたため、仮定と食い違っても字面では止まる条件に当たらない。この行を「計画の Decisions / 仮定 / Non-Goals」に直す
+
+### 見送った指摘
+
+- `.claude/skills/board-loop/plan.md` の `revise-plan` の 2 は、「計画を直してコミット → push。」の後に、否決の理由を対応の表に足す・`## 人に判断してほしいこと` を読み直す・足りない節を足す、が続く。文の順では push の後の作業にも読めるが、どれも「計画を直す」の中身で、コミットの前に行うと読める。振る舞いに関わらない書き方なので見送る
+- `.claude/agents/board-reviewer.md:53` と `.claude/skills/board-loop/fix-pr.md:24` は、計画の `## 設計` のうち Decisions / Non-Goals だけを読むと書いており、`### 仮定` を読まない。`board-reviewer` は計画の Non-Goals で変えないとしており、`fix-pr.md` も計画の Impact の外なので、この PR では見送る
+
+### 人に判断してほしいこと
+
+- `.claude/skills/board-loop/plan.md` の `revise-plan` の 3 は、再提出の `--reason` を今どおり「直した点」としている。計画の What Changes「`card submit --reason` は、この節（`## 人に判断してほしいこと`）と同じ中身になる」は初回の提出だけを指すのか、再提出でも直した後に残った判断してほしい点を `--reason` に含めるのかが決まっていない。再提出の理由に残った判断も含めるかは人が決める
