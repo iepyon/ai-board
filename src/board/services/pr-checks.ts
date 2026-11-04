@@ -32,6 +32,12 @@ export interface ChecksSummary {
   readonly sha: string;
   readonly verdict: ChecksVerdict;
   readonly rows: readonly CheckRow[];
+  /**
+   * `status` を権限で読めなかったときの理由。読めたら null。
+   * クラウドのセッションの GitHub App は Commit Status API を読めない（HTTP 403）ことがある。
+   * そのときは `check-runs` だけで判定し、外部の CI の結果が入っていないことを出す
+   */
+  readonly statusUnreadable: string | null;
 }
 
 /** `check-runs` の 1 件のうち、使う項目 */
@@ -82,7 +88,8 @@ export function checksVerdict(rows: readonly CheckRow[]): ChecksVerdict {
 export function summarizeChecks(
   sha: string,
   checkRuns: readonly RawCheckRun[],
-  statuses: readonly RawCommitStatus[]
+  statuses: readonly RawCommitStatus[],
+  statusUnreadable: string | null = null
 ): ChecksSummary {
   const byName = (a: CheckRow, b: CheckRow): number => a.name.localeCompare(b.name);
 
@@ -107,5 +114,5 @@ export function summarizeChecks(
     .sort(byName);
 
   const rows = [...runRows, ...statusRows];
-  return { sha, verdict: checksVerdict(rows), rows };
+  return { sha, verdict: checksVerdict(rows), rows, statusUnreadable };
 }

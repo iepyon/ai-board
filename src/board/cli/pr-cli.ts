@@ -421,6 +421,11 @@ function reportChecks(
       (timedOut ? '（待ち切れませんでした）' : ''),
   ];
   if (summary.rows.length === 0) lines.push('  チェックはありません');
+  if (summary.statusUnreadable !== null) {
+    lines.push(
+      `  status（Commit Status API）は読めませんでした（${summary.statusUnreadable}）。外部の CI の結果は入っていません`
+    );
+  }
   for (const row of summary.rows) {
     const source = row.source === 'status' ? '（status）' : '';
     lines.push(

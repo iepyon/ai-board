@@ -476,17 +476,15 @@ export class GhPullRequestClient {
       this.getJson<RawCombinedStatus>(`${this.base}/commits/${sha}/status`),
     ]);
     if (isErr(runs)) return runs;
-    if (isErr(status)) return status;
 
-    const checkRuns: RawCheckRun[] = [];
-    for (const line of runs.value.split('\n')) {
-      if (line.trim() === '') continue;
-      const parsed = parseJson<RawCheckRun>(GH, line);
-      if (isErr(parsed)) return parsed;
-      checkRuns.push(parsed.value);
-    }
+    const checkRuns = parseJsonLines<RawCheckRun>(runs.value);
+    if (isErr(checkRuns)) return checkRuns;
 
-    return ok(summarizeChecks(sha, checkRuns, status.value.statuses ?? []));
+    const statusResult = readableStatuses(status);
+    if (isErr(statusResult)) return statusResult;
+    const { statuses, statusUnreadable } = statusResult.value;
+
+    return ok(summarizeChecks(sha, checkRuns.value, statuses, statusUnreadable));
   }
 
   /** PR の差分を unified diff の文字列で返す */
@@ -559,6 +557,35 @@ export class GhPullRequestClient {
       await fs.rm(dir, { recursive: true, force: true });
     }
   }
+}
+
+/** `gh api --jq` が 1 件 1 行で出した JSON を読む */
+function parseJsonLines<T>(text: string): Result<T[], CliError> {
+  const items: T[] = [];
+  for (const line of text.split('\n')) {
+    if (line.trim() === '') continue;
+    const parsed = parseJson<T>(GH, line);
+    if (isErr(parsed)) return parsed;
+    items.push(parsed.value);
+  }
+  return ok(items);
+}
+
+/**
+ * `status` の応答から一覧を取り出す。権限で読めない（403）・見つからない（404）ときは空にして理由を返し、
+ * `check-runs` だけで判定させる（クラウドのセッションの GitHub App は Commit Status API を読めないことがある）。ほかの失敗はそのまま返す
+ */
+function readableStatuses(
+  status: Result<RawCombinedStatus, CliError>
+): Result<
+  { readonly statuses: readonly RawCommitStatus[]; readonly statusUnreadable: string | null },
+  CliError
+> {
+  if (!isErr(status)) return ok({ statuses: status.value.statuses ?? [], statusUnreadable: null });
+
+  const http = status.error.type === 'Failed' ? status.error.httpStatus : null;
+  if (http === 403 || http === 404) return ok({ statuses: [], statusUnreadable: `HTTP ${http}` });
+  return status;
 }
 
 function toComment(raw: RawCommentDetail): PullRequestComment {

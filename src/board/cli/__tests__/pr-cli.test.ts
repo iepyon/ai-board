@@ -642,3 +642,51 @@ describe('ai-board pr checks', () => {
     expect(stderr).toContain('PR #999 のチェックを読めませんでした');
   });
 });
+
+describe('ai-board pr checks で status を権限で読めないとき', () => {
+  const SHA = 'abcdef1234567890';
+
+  it('check-runs だけで判定し、status を読めなかったことを出す。ほかの失敗は止める', async () => {
+    const respond =
+      (statusResult: Result<string, CliError>): Responder =>
+      (args) => {
+        const endpoint = args[args.length - 1] ?? '';
+        if (endpoint.endsWith('/pulls/78'))
+          return json({ number: 78, head: { ref: 'b', sha: SHA } });
+        if (endpoint.includes('/check-runs')) {
+          return ok(
+            `${JSON.stringify({ name: 't', status: 'completed', conclusion: 'success' })}\n`
+          );
+        }
+        return statusResult;
+      };
+
+    expect(
+      await runPrCli(
+        ['checks', '78'],
+        { forge, runner: fakeRunner(respond(failed(403))).runner },
+        io
+      )
+    ).toBe(0);
+    expect(stdout).toContain('status（Commit Status API）は読めませんでした（HTTP 403）');
+
+    stdout = '';
+    expect(
+      await runPrCli(
+        ['checks', '78', '--json'],
+        { forge, runner: fakeRunner(respond(failed(403))).runner },
+        io
+      )
+    ).toBe(0);
+    expect(JSON.parse(stdout)).toMatchObject({ verdict: 'passed', statusUnreadable: 'HTTP 403' });
+
+    expect(
+      await runPrCli(
+        ['checks', '78'],
+        { forge, runner: fakeRunner(respond(failed(500))).runner },
+        io
+      )
+    ).toBe(1);
+    expect(stderr).toContain('チェックを読めませんでした');
+  });
+});
