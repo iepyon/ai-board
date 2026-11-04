@@ -165,6 +165,6 @@
 
 ### 4. ループの手順書とドキュメント
 
-- [ ] `.claude/skills/board-loop/fix-pr.md` を書き、`SKILL.md` の表と `rules.md` のハードルール・呼び名を `fix-pr` の手に合わせる
-- [ ] `CLAUDE.md` のハードルール、`README.md`（判断待ちの区画・止まり・ループの節と、`pr-feedback-ai-turn` を指す 1 行）、`docs/architecture.md` を今の形に直す
-- [ ] `adr` のスキルで `docs/adr/0016-pr-feedback-ai-turn.md` を書き、ADR 0011 に PR中 の手を 1 行足す
+- [x] `.claude/skills/board-loop/fix-pr.md` を書き、`SKILL.md` の表と `rules.md` のハードルール・呼び名を `fix-pr` の手に合わせる
+- [x] `CLAUDE.md` のハードルール、`README.md`（判断待ちの区画・止まり・ループの節と、`pr-feedback-ai-turn` を指す 1 行）、`docs/architecture.md` を今の形に直す
+- [x] `adr` のスキルで `docs/adr/0016-pr-feedback-ai-turn.md` を書き、ADR 0011 に PR中 の手を 1 行足す
