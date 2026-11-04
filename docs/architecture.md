@@ -331,6 +331,18 @@ GitHub の上限（5,000 回/時）の大半を使う。そこで引いた結果
 番号をそのまま引くと列は正しく埋まったままリンクだけが別の PR を指す。そのため出どころを確かめられない番号は
 移行前の DB のマイグレーション（v2・v3）で消し、`branch` から解決し直させていた。
 
+
+### `ai-board pr checks`（Ready の前の CI の確かめ）
+
+締めの段のループが、PR を Ready にする前に CI を確かめるのに使う（`src/board/cli/pr-cli.ts`、判定は `src/board/services/pr-checks.ts` の純関数）。
+ポーリングとボードの表示には使わない（ステージの導出にも使わない）。
+
+- PR の `head.sha` から、`commits/{sha}/check-runs` を `--paginate --jq '.check_runs[]'` で全件（1 件 1 行）と、`commits/{sha}/status`（コンテキストごとの最新）を引き、突き合わせずに 1 つの表にする
+- 1 本ごとの結果: `check-runs` は `status` が `completed` でなければ走っている、`success` / `neutral` / `skipped` は通った、ほか（知らない値も）は落ちた。`status` は `pending` が走っている、`success` が通った、ほかは落ちた
+- 全体の判定: 落ちたものがあれば `failed`、無くて走っているものがあれば `pending`、行が無ければ `none`、ほかは `passed`。終了コードは `passed` / `none` が 0、`failed` が 1、`pending` が 2
+- `--wait` は CLI の中で 15 秒おきに引き直し、走っている間と、push の直後でチェックがまだ無い間（120 秒まで）待つ。上限（`--timeout`、既定 900 秒）まで終わらなければ `pending` の 2 で終わる
+- `status` が HTTP 403 / 404 のとき（クラウドのセッションの GitHub App は Commit Status API を読めない）は、`check-runs` だけで判定し、`statusUnreadable` に理由を出す。ほかの失敗は止める
+
 ## API
 
 | メソッド | パス                     | 用途                                                    |

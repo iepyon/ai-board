@@ -143,6 +143,6 @@ CI を持たないリポジトリでもループが止まらないよう、`none
 
 ### 4. ドキュメントと ADR
 
-- [ ] `README.md` の PR中 で読む証拠と締めの段の説明、`ai-board pr` の一覧に `checks` を足す
-- [ ] `docs/architecture.md` に `pr checks` の取得と判定を書く
-- [ ] `docs/adr/0005-verify-in-pr.md` の決定と結果に、Ready の前に CI を確かめること・証拠を表にすることを足す（`adr` のスキル）
+- [x] `README.md` の PR中 で読む証拠と締めの段の説明、`ai-board pr` の一覧に `checks` を足す
+- [x] `docs/architecture.md` に `pr checks` の取得と判定を書く
+- [x] `docs/adr/0005-verify-in-pr.md` の決定と結果に、Ready の前に CI を確かめること・証拠を表にすることを足す（`adr` のスキル）
