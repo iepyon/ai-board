@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
-import { GhForgeClient, toLifecycleState } from '../github-client.js';
+import {
+  CLAUDE_CODE_FOOTER,
+  GhForgeClient,
+  isAiComment,
+  toLifecycleState,
+  withClaudeCodeFooter,
+} from '../github-client.js';
 import type { ForgeConfig } from '../../../shared/config.js';
 import type { MergeRequestIid } from '../../../shared/schemas/common.js';
 import type { CliRunner } from '../../../infrastructure/cli-runner.js';
@@ -149,6 +155,45 @@ describe('GhForgeClient', () => {
 
     expect(pr?.noteCount).toBe(1);
     expect(pr?.latestNoteAt).toBe('2026-09-04T10:00:00.000Z');
+  });
+
+  it('Claude Code のフッター付きのコメントは人の指摘に数えず、latestAiNoteAt に取る', async () => {
+    const { runner } = stubRunner({
+      'issues/7/comments': [
+        { created_at: '2026-09-04T10:00:00.000Z', user: { type: 'User' }, body: '直して' },
+        {
+          created_at: '2026-09-04T12:00:00.000Z',
+          user: { type: 'User' },
+          body: `直すものはありません\n\n---\n${CLAUDE_CODE_FOOTER}\n`,
+        },
+      ],
+      'pulls/7/comments': [
+        {
+          created_at: '2026-09-04T11:00:00.000Z',
+          user: { type: 'User' },
+          body: `補足\n${CLAUDE_CODE_FOOTER}`,
+        },
+      ],
+      'pulls/7': openPr,
+    });
+
+    const pr = (await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid))?.mr;
+
+    expect(pr?.noteCount).toBe(1);
+    expect(pr?.latestNoteAt).toBe('2026-09-04T10:00:00.000Z');
+    expect(pr?.latestAiNoteAt).toBe('2026-09-04T12:00:00.000Z');
+  });
+
+  it('フッター付きのコメントが無ければ latestAiNoteAt は null', async () => {
+    const { runner } = stubRunner({
+      'issues/7/comments': [{ created_at: '2026-09-04T10:00:00.000Z', body: '直して' }],
+      'pulls/7': openPr,
+    });
+
+    const pr = (await new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid))?.mr;
+
+    expect(pr?.noteCount).toBe(1);
+    expect(pr?.latestAiNoteAt).toBeNull();
   });
 
   it('コメントは全ページ取る', async () => {
@@ -516,5 +561,37 @@ describe('GhForgeClient.checkAuth', () => {
     };
 
     expect(await new GhForgeClient(config, runner).checkAuth()).toContain('見つからない');
+  });
+});
+
+describe('Claude Code のフッター', () => {
+  it('フッターを含む本文だけを AI のコメントとする', () => {
+    expect(isAiComment({ body: `了解\n\n---\n${CLAUDE_CODE_FOOTER}` })).toBe(true);
+    expect(isAiComment({ body: '直してください' })).toBe(false);
+    expect(isAiComment({ body: null })).toBe(false);
+    expect(isAiComment({})).toBe(false);
+  });
+
+  it('AI の返信を引用した人の返信は、AI のコメントと読まない', () => {
+    const quoted = `> 直すものはありません\n>\n> ---\n> ${CLAUDE_CODE_FOOTER}\n\nいや、直してください`;
+    expect(isAiComment({ body: quoted })).toBe(false);
+    // 引用の返信の末尾が引用の行でも、引用は AI のコメントではない
+    expect(isAiComment({ body: `了解です\n\n> ${CLAUDE_CODE_FOOTER}` })).toBe(false);
+  });
+
+  it('引用の中にだけフッターがある本文には、フッターを足す', () => {
+    const quoted = `> ${CLAUDE_CODE_FOOTER}\n\n返信です`;
+    expect(withClaudeCodeFooter(quoted)).toBe(`${quoted}\n\n---\n${CLAUDE_CODE_FOOTER}\n`);
+  });
+
+  it('フッターの無い本文には区切りの線とともに足す', () => {
+    expect(withClaudeCodeFooter('直すものはありません\n')).toBe(
+      `直すものはありません\n\n---\n${CLAUDE_CODE_FOOTER}\n`
+    );
+  });
+
+  it('フッターのある本文はそのまま返す', () => {
+    const body = `直すものはありません\n\n---\n${CLAUDE_CODE_FOOTER}\n`;
+    expect(withClaudeCodeFooter(body)).toBe(body);
   });
 });

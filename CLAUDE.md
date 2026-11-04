@@ -21,7 +21,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 実装の細部（ディレクトリ・ゲートの状態・判断のボタン・`status`・GitHub の取得・API・timeline）: `docs/architecture.md`
 - 仕様: `docs/specs/*/spec.md`、PR レビューだけに効く指示: `REVIEW.md`
 - 設計判断の理由と捨てた代案: `docs/adr/`（ADR。不変条件を外したくなったら先に読む。書くときは `adr` のスキル）
-- ループの手順: `.claude/skills/board-loop/SKILL.md`（手ごとの手順は隣の `plan.md` / `implement.md`、共通の決まりは `rules.md`）、AI レビューのサブエージェント: `.claude/agents/board-reviewer.md`
+- ループの手順: `.claude/skills/board-loop/SKILL.md`（手ごとの手順は隣の `plan.md` / `implement.md` / `fix-pr.md`、共通の決まりは `rules.md`）、AI レビューのサブエージェント: `.claude/agents/board-reviewer.md`
 
 ## 品質ゲート
 
@@ -89,7 +89,7 @@ ai-board decide <approve|reject|abort|start|unstart|skip|move|move-divider> ... 
   保留は否決を自分では直しきれず人の判断を待つときだけ。品質ゲートを通せない・未コミットの変更が残る、では書かない。
 - `skipGates` を自分で足さない。
 - `rank` を書かない（アイデアの表の区切り線も同じ）。並び順は人が決める優先度。
-- 計画レビュー / PR中 のカードのステージに触らない。
+- 計画レビュー / PR中 のカードのステージに触らない。PR中 のカードでは、人の指摘に応える `fix-pr` の手でだけ、Ready のまま修正を push するか理由を 1 件返信する（[ADR 0016](docs/adr/0016-pr-feedback-ai-turn.md)）。
 - 品質ゲートを通らないままコミットしない。
 
 `ai-board card` の CLI（`src/cards/cli/card-cli.ts`）はこれを構造で強制している。**`ai-board card` に入口を足すときはこの境界を崩さない。**

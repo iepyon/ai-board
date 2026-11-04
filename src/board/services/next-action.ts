@@ -18,6 +18,8 @@ import type { ImplStep } from './impl-step.js';
  *                 節があるか archive 済みなら `close`。ループは段が `review` なら `board-reviewer` を立て、それ以外は自分で進める）
  * - `plan`        計画提案中で、まだ何も提出していない。計画を書いて Draft の PR を出し、提出する
  * - `revise-plan` 計画提案中で、最新の判断が 否決。理由を読んで計画を直し、再提出する
+ * - `fix-pr`      PR中 で、人の指摘に AI が応える番（`awaitsPrFix`）。PR を Ready のまま修正を push するか、
+ *                 直すものが無い理由を 1 件返信する。どちらでも人の番（判断待ち）に戻る
  *
  * タスクを倒す / AI レビューを手の種類にしないのは、段が `implement` の中の区切りだからである。
  * 手の種類に足すと、`review-log.ts` / `card-cli.ts` / `dashboard-sections.ts` にまで種類が広がる。
@@ -26,7 +28,7 @@ import type { ImplStep } from './impl-step.js';
  * かつては動作確認の否決を直す `revise-impl` と、動作確認の後に Ready にする `ready` があったが、
  * 動作確認の列とともに廃止した（ループの記録に残る過去の手は `loop-step.ts` の `LOOP_PAST_ACTIONS`）。
  */
-export type NextActionKind = 'implement' | 'plan' | 'revise-plan';
+export type NextActionKind = 'implement' | 'plan' | 'revise-plan' | 'fix-pr';
 
 export interface NextAction {
   readonly cardId: string;
@@ -61,6 +63,8 @@ export interface NextActionCard {
   readonly gates: { readonly plan: GateState };
   /** 人の判断を待っていれば、その止まり。`resolveHold` で導く */
   readonly hold: CardHold | null;
+  /** PR の状態のうち、人の指摘に AI が応える番か（`awaitsPrFix`）。PR が無ければ null */
+  readonly mrState: { readonly awaitingFix: boolean } | null;
 }
 
 /** 止まりの判定に要るもの */
@@ -88,14 +92,18 @@ export const HOLD_REASONS = {
     `判断の後に PR #${iid} が Draft に戻された。GitHub で Ready に戻すか、下の判断のボタンで計画から立て直させるか中止してください`,
 } as const;
 
-/** 上の列ほど優先する。進んだカードを先に片付け、仕掛かりを増やさない */
-const PRIORITY: readonly Stage[] = ['impling', 'planning'];
+/**
+ * 上の列ほど優先する。進んだカードを先に片付け、仕掛かりを増やさない。
+ * PR中 は人の列だが、人の指摘に AI が応える番のカードだけを選ぶ（マージに最も近いので最優先）
+ */
+const PRIORITY: readonly Stage[] = ['pr', 'impling', 'planning'];
 
 /**
  * 次に進めるカードを 1 枚選ぶ。
  *
  * `cards` は `rank` の実効値の順に並んでいる前提で、同じ列の中はその順を保つ。
  * 中止のカード、止まっているカード（`hold`）、人の判断を待つ列（計画レビュー / PR中）は選ばない。
+ * ただし PR中 のカードのうち、人の指摘に AI が応える番のものは `fix-pr` で選ぶ。
  * 止まっているカードを飛ばすので、1 枚が止まっても後ろのカードは進む。
  */
 export function pickNextAction(cards: readonly NextActionCard[]): NextAction | null {
@@ -171,6 +179,15 @@ function judge(card: NextActionCard): NextAction | null {
   if (card.aborted) return null;
 
   switch (card.stage) {
+    case 'pr':
+      return card.mrState?.awaitingFix === true
+        ? {
+            cardId: card.id,
+            action: 'fix-pr',
+            reason: 'PR に人の指摘があり、まだ応えていない',
+            step: null,
+          }
+        : null;
     case 'impling':
       return judgeImpling(card);
     case 'planning':

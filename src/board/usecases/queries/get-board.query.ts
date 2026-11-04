@@ -19,6 +19,7 @@ import { toBoardLoop } from '../../../shared/loop-activity.js';
 import type { ReviewEntry } from '../../../cards/models/review.js';
 import type { Stage } from '../../../shared/schemas/common.js';
 import { GATE_OF_STAGE } from '../../../shared/stage-gates.js';
+import { awaitsPrFix } from '../../../shared/pr-feedback.js';
 import {
   toBoardCard,
   toBoardCardReview,
@@ -164,8 +165,10 @@ function toBoardCardMr(mr: MrState | null): BoardCardMr | null {
     webUrl: mr.webUrl,
     noteCount: mr.noteCount,
     latestNoteAt: mr.latestNoteAt,
+    latestAiNoteAt: mr.latestAiNoteAt,
     latestCommitAt: mr.latestCommitAt,
     resubmitted: hasFixAfterReview(mr),
+    awaitingFix: awaitsPrFix(mr),
     mergedAt: mr.mergedAt,
     readyAt: mr.readyAt,
     convertedToDraftAt: mr.convertedToDraftAt,

@@ -1,8 +1,8 @@
 # ボードのループの共通の決まり
 
-ループの手を進めるとき（`board-loop` のスキルで、本筋のセッションが `plan.md` / `implement.md` の手順を自分で行うとき）と、
+ループの手を進めるとき（`board-loop` のスキルで、本筋のセッションが `plan.md` / `implement.md` / `fix-pr.md` の手順を自分で行うとき）と、
 レビューの段で立つ `board-reviewer` のサブエージェントが、始める前に読む。
-手順書（`plan.md` / `implement.md` / `.claude/agents/board-reviewer.md`）は、このファイルの節を見出しの名前で指す。
+手順書（`plan.md` / `implement.md` / `fix-pr.md` / `.claude/agents/board-reviewer.md`）は、このファイルの節を見出しの名前で指す。
 節の見出しを変えるときは、`rules.md` で grep して参照する側も直す。
 
 ## 呼び名
@@ -83,7 +83,7 @@ push は、各手順書で「push」とだけ書いたところも、`git -C "$W
 
 ## 指摘の分け方
 
-`board-reviewer` が使う。
+`board-reviewer` が使う。`fix-pr`（`fix-pr.md`）でも、PR の人の指摘を直すか決めるときに「直す / 見送る」を使う。
 
 指摘はうのみにしない。挙動についての指摘は、差分とソースを読んで本当に起きるかを確かめてから採る。確かめられなかったものは採らない。
 採った指摘を、次の 3 つのどれかに分ける。
@@ -150,7 +150,7 @@ clone・bare リポジトリ・一時ファイルは `$WT` の外（スクラッ
 - 手の中で `board-decide` のスキル・人の判断を書く `ai-board decide`・共有のボードのサーバの人の API（`/api/...`）・`server.json` を使わない（人がチャットで頼んだときの扱いは `SKILL.md` のハードルール）。
   `ai-board decide` は構造では止めていない。この決まりが人の判断の守りである
   `AI_BOARD_DATA` で試しの clone を指して自分で起動したサーバを試すのは構わない
-- 計画レビュー / PR中 のカードに触らない。PR をマージしない
+- 計画レビューのカードに触らない。PR中 のカードには `fix-pr` の手（`fix-pr.md`）でだけ触り、修正の push と返信 1 件のほかはしない。PR をマージしない
 - 品質ゲート `cd "$WT" && npm run typecheck && npm run lint && npm run format:check && npm test` を通らないままコミットしない。
   計画ファイルだけの変更でも走らせる（ブランチが既に壊れていれば、そこへ積まずに気づける）
 - カード ID・ブランチ名・PR 番号を推測で作らない。見つからなければ止まって報告する

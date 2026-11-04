@@ -13,7 +13,7 @@
  * 食い違えば `loop-history.repository.ts` の型の突き合わせで型エラーになる。
  * `ai-board loop start --action` に渡せるのはこれだけ。
  */
-export const LOOP_CURRENT_ACTIONS = ['plan', 'revise-plan', 'implement'] as const;
+export const LOOP_CURRENT_ACTIONS = ['plan', 'revise-plan', 'implement', 'fix-pr'] as const;
 
 export type LoopCurrentAction = (typeof LOOP_CURRENT_ACTIONS)[number];
 

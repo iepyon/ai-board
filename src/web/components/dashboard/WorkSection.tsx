@@ -1,4 +1,4 @@
-import { isStale, STALE_DAYS } from '../../../shared/dashboard-sections.js';
+import { isAwaitingPrFix, isStale, STALE_DAYS } from '../../../shared/dashboard-sections.js';
 import { formatAgo, formatDateTime } from '../../format.js';
 import { CardTitle, Progress, SectionHead, StagePill } from './parts.js';
 import { sectionAnchor } from './PipelineStrip.js';
@@ -53,6 +53,8 @@ interface WorkItemProps {
 }
 
 function WorkItem({ card, now, onSelect, onUnstart }: WorkItemProps) {
+  if (isAwaitingPrFix(card)) return <PrFixItem card={card} now={now} onSelect={onSelect} />;
+
   const tasks = card.plan?.tasks;
 
   return (
@@ -86,6 +88,49 @@ function WorkItem({ card, now, onSelect, onUnstart }: WorkItemProps) {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * PR中 で、人の指摘に AI が応える番のカード。計画は archive 済みなので進捗は出さず、
+ * 指摘を受けた時刻と PR へのリンクを出す。AI が修正を push するか返信すると、判断待ちの区画へ戻る
+ */
+function PrFixItem({
+  card,
+  now,
+  onSelect,
+}: {
+  card: BoardCard;
+  now: Date;
+  onSelect: (card: BoardCard) => void;
+}) {
+  const mr = card.mrState;
+
+  return (
+    <div className="work-item">
+      <div className="meta">
+        <StagePill stage={card.stage} />
+        <span className="tag">{card.id}</span>
+      </div>
+
+      <h3>
+        <CardTitle card={card} onSelect={onSelect} />
+      </h3>
+
+      <div className="meta num">
+        <span>PR の指摘に応える</span>
+        {mr?.latestNoteAt != null && (
+          <span title={formatDateTime(mr.latestNoteAt)}>
+            指摘 {formatAgo(mr.latestNoteAt, now)}
+          </span>
+        )}
+        {mr !== null && (
+          <a href={mr.webUrl} target="_blank" rel="noreferrer">
+            PR #{mr.iid} ↗
+          </a>
+        )}
+      </div>
     </div>
   );
 }

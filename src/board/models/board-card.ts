@@ -32,9 +32,13 @@ export interface BoardCardMr {
   readonly webUrl: string;
   readonly noteCount: number;
   readonly latestNoteAt: string | null;
+  /** AI が人のアカウントで書いた最新のコメントの時刻（Claude Code のフッター付き） */
+  readonly latestAiNoteAt: string | null;
   readonly latestCommitAt: string | null;
   /** レビュー指摘のあとに修正コミットが push されたか＝再レビュー待ち */
   readonly resubmitted: boolean;
+  /** 人の指摘に AI が応える番か（`awaitsPrFix`）。PR中 のカードを AI の区画へ移し、ループが `fix-pr` で応える */
+  readonly awaitingFix: boolean;
   /** マージされた日時。マージされていなければ null */
   readonly mergedAt: string | null;
   /**

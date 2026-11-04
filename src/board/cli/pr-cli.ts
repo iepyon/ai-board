@@ -14,6 +14,7 @@ import {
   type PullRequestChecks,
   type PullRequestComment,
   type PullRequestView,
+  withClaudeCodeFooter,
 } from '../services/github-client.js';
 import type { MrLifecycleState } from '../models/mr-state.js';
 import type { CheckRow, ChecksSummary, ChecksVerdict } from '../services/pr-checks.js';
@@ -44,7 +45,8 @@ Commands:
                            --body は本文だけをそのまま出す（edit で書き戻す本文を作るとき）
   edit <n> --body-file <f> PR の本文をファイルの内容に差し替える
   comment <n> --body-file <f>
-                           PR にファイルの内容をコメントとして書く
+                           PR にファイルの内容をコメントとして書く。Claude Code のフッターが無ければ末尾に足す
+                           （フッターの付いたコメントは AI の返信と読み、人の指摘に数えない）
   diff <n>                 PR の差分を unified diff で出す
   ready <n>                PR を Ready にする（gh pr ready を試し、失敗したら ccr/ready_for_review を試す）
   checks <n> [--sha <sha>] [--wait [--timeout <秒>]] [--json]
@@ -279,7 +281,8 @@ async function runComment(
   const body = await readBodyFile(args, io);
   if (body === null) return 1;
 
-  const created = await client.comment(iid, body);
+  // AI が人のアカウントで書くので、フッターで人の指摘と見分ける（`isAiComment`）
+  const created = await client.comment(iid, withClaudeCodeFooter(body));
   if (isErr(created)) return fail(io, `PR #${iid} にコメントを書けませんでした`, created.error);
 
   io.stdout(`${created.value}\n`);

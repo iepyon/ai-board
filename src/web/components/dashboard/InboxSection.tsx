@@ -3,6 +3,7 @@ import { ReviewActions } from '../detail/ReviewActions.js';
 import { HoldNote } from '../detail/HoldNote.js';
 import { useAction } from '../../hooks/useAction.js';
 import { waitingSince } from '../../../shared/dashboard-sections.js';
+import { aiRepliedAfterNote } from '../../../shared/pr-feedback.js';
 import { formatAgo, formatDateTime } from '../../format.js';
 import { CardTitle, SectionHead, StagePill } from './parts.js';
 import { sectionAnchor } from './PipelineStrip.js';
@@ -202,6 +203,11 @@ function describePr(card: BoardCard): string {
   if (mr.resubmitted) {
     const at = mr.latestCommitAt === null ? '' : `（${formatAgo(mr.latestCommitAt)}）`;
     return `再レビュー待ち。指摘のあとに修正コミットが push されました${at}。`;
+  }
+
+  // 指摘の後に AI が返信した（直すものが無いと判断した）。AI の番の間は AI が進めている区画に出るので、ここには来ない
+  if (aiRepliedAfterNote(mr) && mr.latestAiNoteAt !== null) {
+    return `AI が指摘に返信しました（${formatAgo(mr.latestAiNoteAt)}）。PR で返信を読んでください。`;
   }
 
   return mr.noteCount === 0

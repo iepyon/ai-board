@@ -9,7 +9,8 @@ import { isErr } from '../../../shared/result.js';
 import { createBoardDependencies, createLoopHistoryRepository } from '../../composition.js';
 import { writeLoopFinish, writeLoopStart } from '../../repositories/loop-history.repository.js';
 import type { MrStateProvider } from '../../services/mr-state-provider.js';
-import type { ForgeConnection } from '../../models/mr-state.js';
+import type { ForgeConnection, MrState } from '../../models/mr-state.js';
+import type { MergeRequestIid } from '../../../shared/schemas/common.js';
 import { HOLD_REASONS } from '../../services/next-action.js';
 import type { ServerLocation } from '../../../infrastructure/server-info.js';
 import type { BranchPlanRepository } from '../../repositories/branch-plan.repository.js';
@@ -147,6 +148,53 @@ describe('ai-board status --json', () => {
     ]);
     expect(report.cards.map((card) => card.id).sort()).toEqual(['idea', 'reviewing', 'started']);
     expect(report.forge).toEqual({ status: 'connected', kind: 'github' });
+  });
+
+  it('PR中 で人の指摘に AI が応える番のカードは、next の fix-pr になり、waiting でなく working の先頭に出る', async () => {
+    await writeCard('impling', "startedAt: '2026-10-21T00:00:00.000Z'\n", review('承認'));
+    await writeCard('fixing', "startedAt: '2026-10-19T00:00:00.000Z'\nmr: 12\n", review('承認'));
+    await writeCard(
+      'waiting-pr',
+      "startedAt: '2026-10-19T00:00:00.000Z'\nmr: 13\n",
+      review('承認')
+    );
+
+    const pr = (iid: number, latestNoteAt: string | null): MrState => ({
+      forge: 'github',
+      iid: iid as MergeRequestIid,
+      state: 'opened',
+      draft: false,
+      sourceBranch: `branch-${iid}`,
+      title: `PR ${iid}`,
+      webUrl: `https://github.com/acme/board/pull/${iid}`,
+      latestNoteAt,
+      noteCount: latestNoteAt === null ? 0 : 1,
+      latestAiNoteAt: null,
+      latestCommitAt: '2026-10-21T00:00:00.000Z',
+      mergedAt: null,
+      readyAt: '2026-10-21T00:00:00.000Z',
+      convertedToDraftAt: null,
+    });
+    const states: Record<string, MrState> = {
+      fixing: pr(12, '2026-10-22T00:00:00.000Z'),
+      'waiting-pr': pr(13, null),
+    };
+    const provider: MrStateProvider = {
+      get: (cardId) => states[cardId] ?? null,
+      connection: () => ({ status: 'connected', kind: 'github' }),
+      synced: () => true,
+    };
+
+    const report = await runJson(provider);
+
+    expect(report.next).toEqual({
+      cardId: 'fixing',
+      action: 'fix-pr',
+      reason: 'PR に人の指摘があり、まだ応えていない',
+      step: null,
+    });
+    expect(report.waiting.map((card) => card.id)).toEqual(['waiting-pr']);
+    expect(report.working.map((card) => card.id)).toEqual(['fixing', 'impling']);
   });
 
   it('カードの本文は出さない', async () => {
