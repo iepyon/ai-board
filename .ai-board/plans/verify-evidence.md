@@ -146,3 +146,20 @@ CI を持たないリポジトリでもループが止まらないよう、`none
 - [x] `README.md` の PR中 で読む証拠と締めの段の説明、`ai-board pr` の一覧に `checks` を足す
 - [x] `docs/architecture.md` に `pr checks` の取得と判定を書く
 - [x] `docs/adr/0005-verify-in-pr.md` の決定と結果に、Ready の前に CI を確かめること・証拠を表にすることを足す（`adr` のスキル）
+
+## AI レビュー
+
+- [ ] `src/board/services/github-client.ts:466` の `checks()` は、見るコミットを毎回 `pulls/{n}` の `head.sha` から取る。push の直後は GitHub がまだ PR の head を動かしておらず、前のコミットの済んだ結果（`passed`）で `--wait` が即座に 0 を返し、新しいコミットの CI を見ないまま Ready になりうる（締めの段は `fix:` の push の直後に `--wait` を走らせる）。`pr checks` に `--sha <sha>` を足し、指定されたらそのコミットの `check-runs` / `status` を引く（PR の `head.sha` と違う間は `pending` として待ち、猶予の 120 秒もそのコミットを見始めた時から数える）。`implement.md` の 2.2 の 2 は `--sha "$(git -C "$WT" rev-parse HEAD)"` を付けて呼ぶ形にし、`pr-cli.test.ts` に head が古い間は待つテストを足す
+- [ ] `src/board/cli/pr-cli.ts:361` の `runChecks()` は、PR やチェックを読めなかったとき（gh の失敗、HTTP 502、`check-runs` の 403 など）も `fail()` で終了コード 1 を返し、`failed` の 1 と見分けがつかない。`implement.md` の 2.2 の 2 は 1 を「CI が落ちた、直す」と読むので、落ちたチェックが無いまま直しの手に入り、2 回の直しを使い切りうる。読めなかったときは別の終了コード（例: 3）にし、`pr-cli.ts` の使い方の行・`CHECKS_EXIT` の docstring・`docs/architecture.md`・`implement.md`（3 なら直さずに `止まった`）に書く。`pr-cli.test.ts` の「PR が読めなければ理由を出して 1 で終わる」をその終了コードに直す
+- [ ] `src/board/services/github-client.ts:476` は `commits/{sha}/status` を `per_page` も `--paginate` も付けずに引くので、`statuses` は既定の 1 ページ目（30 件）だけになり、31 件目以降の落ちたコンテキストを見落として `passed` を返す（REVIEW.md の Important「1 ページ目だけを見て最新を決めるもの」）。`check-runs` と同じく `?per_page=100` と `--paginate --jq '.statuses[]'` で全件を 1 件 1 行で引き、403 / 404 を `statusUnreadable` にする扱いは保つ。`github-client` のテスト（無ければ `pr-cli.test.ts` の runner の差し替え）で、引数に `--paginate` が入ることを確かめる
+- [ ] `.claude/skills/board-loop/implement.md:183` の「直すのは 2 回まで」は 1 つの手の中でしか数えていない。`止まった` は次の周から `next` を外れない（`SKILL.md` で外れるのは `保留して止まった` だけ）ので、間隔運転の周ごとに締めの段がやり直され、AI レビューを経ない `fix:` のコミットが周ごとに 2 つずつ積み上がる（計画の Decisions「2 回直しても通らなければ止まる」と食い違う）。CI の直しのコミットの本文に `CI を通すための直し` の行を書くと決め、直す前に `git -C "$WT" log origin/main..HEAD` でその行を数え、既に 2 つあれば直さずに `止まった` で終えると 2.2 の 2 とハードルールに書く
+
+### 見送った指摘
+
+- `src/board/cli/pr-cli.ts:365` の猶予の 120 秒は `--wait` を始めた時から数えるので、待っている間にほかの誰かが push すると、新しいコミットのチェックが登録される前に `none` の 0 で終わりうる。ループの中で push するのはループ自身で、`--wait` の間には push しない。`--sha` を足す直す指摘で、見るコミットを決めてから猶予を数える形になるので、別には直さない
+- `.claude/skills/board-loop/implement.md:186` の締めの段の CI の直しには、2.1 の「直す前に落ちることを確かめる」がかからない。計画の Decisions で fix の確かめの対象を AI レビューの直す指摘と計画で fix と書いたタスクに決めており、CI の直しはその外にある。CI の直しは表の行と `fix:` のコミットに残り、人が PR中 で差分を読む
+- `docs/architecture.md:335` の `ai-board pr checks` の節が、GitHub の取得と DB のマイグレーションの経緯の間に置かれ、前に空行が 2 つある。振る舞いに関わらない置き場所と整形の話なので見送る
+
+### 人に判断してほしいこと
+
+- `src/board/services/pr-checks.ts:81` と `src/board/services/github-client.ts:587`: Commit Status API が 403 / 404 で読めず、`check-runs` も 0 件のとき、判定は `none` で終了コード 0 になり、締めの段は Ready に進む。外部の CI だけを持つリポジトリをクラウドで扱うと、赤い外部の CI を見ないまま Ready になる。計画の Decisions「チェックが 1 つも無いリポジトリでは Ready にしてよい」は CI を持たないリポジトリを想定しており、「読めなかった」の場合は決めていない。この組み合わせを `pending` / 別の終了コードとして止めるか（クラウドで CI の無いリポジトリでも止まる）、今のまま表に `走らせていない` と書いて Ready にするかは人が決める
