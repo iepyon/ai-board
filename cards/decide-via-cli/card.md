@@ -3,7 +3,7 @@ id: decide-via-cli
 title: ユーザは、チャットで頼んだ判断を CLI で書けるようにして、サーバを起動して書く手順を無くしたい
 created: '2026-11-03T14:35:08.592Z'
 skipGates: []
-branch: null
+branch: decide-via-cli
 mr: null
 ---
 
