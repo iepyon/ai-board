@@ -46,9 +46,10 @@ Commands:
                            PR にファイルの内容をコメントとして書く
   diff <n>                 PR の差分を unified diff で出す
   ready <n>                PR を Ready にする（gh pr ready を試し、失敗したら ccr/ready_for_review を試す）
-  checks <n> [--wait [--timeout <秒>]] [--json]
-                           PR の最新コミットのチェック（check-runs と status）をまとめて出す。
-                           終了コードは passed / none が 0、failed が 1、pending が 2。
+  checks <n> [--sha <sha>] [--wait [--timeout <秒>]] [--json]
+                           PR の最新コミット（--sha ならそのコミット）のチェック（check-runs と status）をまとめて出す。
+                           --sha のコミットがまだ PR の head でなければ、走っているとして扱う。
+                           終了コードは passed / none が 0、failed が 1、pending が 2、読めなかったら 3。
                            --wait は走っている間（push の直後でチェックがまだ無い間は ${CHECKS_GRACE_SECONDS} 秒まで）
                            ${CHECKS_INTERVAL_SECONDS} 秒おきに引き直して待つ（--timeout の既定は ${CHECKS_TIMEOUT_SECONDS} 秒）
 `;
@@ -103,7 +104,7 @@ const COMMANDS: Readonly<Record<string, CommandSpec>> = {
   comment: { values: ['--body-file'], switches: [], run: runComment },
   diff: { values: [], switches: [], run: runDiff },
   ready: { values: [], switches: [], run: runReady },
-  checks: { values: ['--timeout'], switches: ['--wait', '--json'], run: runChecks },
+  checks: { values: ['--timeout', '--sha'], switches: ['--wait', '--json'], run: runChecks },
 };
 
 /** `ai-board pr` のコマンドの名前か */
@@ -322,13 +323,18 @@ async function runReady(
   return 0;
 }
 
-/** チェックの判定ごとの終了コード。passed / none は 0、failed は 1、pending（待ち切れなかったときも）は 2 */
+/**
+ * チェックの判定ごとの終了コード。passed / none は 0、failed は 1、pending（待ち切れなかったときも）は 2。
+ * PR やチェックを読めなかったときは `CHECKS_UNREADABLE_EXIT`（3）。締めの段は 1 を「CI が落ちた、直す」と読むので、読めなかったことと分ける
+ */
 const CHECKS_EXIT: Readonly<Record<ChecksVerdict, number>> = {
   passed: 0,
   none: 0,
   failed: 1,
   pending: 2,
 };
+
+const CHECKS_UNREADABLE_EXIT = 3;
 
 const OUTCOME_LABELS: Readonly<Record<CheckRow['outcome'], string>> = {
   passed: '通った',
@@ -353,40 +359,60 @@ async function runChecks(
 
   const options = parseChecksOptions(args, io);
   if (options === null) return 1;
-  const { wait, timeoutSeconds } = options;
+  const { wait, timeoutSeconds, sha } = options;
+  const json = args.flags.has('--json');
 
   const startedAt = clock.now();
+  // チェックの登録を待つ猶予は、見るコミットが PR の head になった時から数える
+  let watchingSince: number | null = null;
   for (;;) {
-    const fetched = await client.checks(iid);
-    if (isErr(fetched)) return fail(io, `PR #${iid} のチェックを読めませんでした`, fetched.error);
-
-    const summary = fetched.value;
-    const elapsed = clock.now() - startedAt;
-    const registering = summary.verdict === 'none' && elapsed < CHECKS_GRACE_SECONDS * 1000;
-    const settled = summary.verdict !== 'pending' && !registering;
-
-    if (!wait || settled) {
-      return reportChecks(iid, summary, args.flags.has('--json'), false, io);
+    const fetched = await client.checks(iid, sha);
+    if (isErr(fetched)) {
+      io.stderr(`PR #${iid} のチェックを読めませんでした（${describePrError(fetched.error)}）\n`);
+      return CHECKS_UNREADABLE_EXIT;
     }
-    if (elapsed + CHECKS_INTERVAL_SECONDS * 1000 > timeoutSeconds * 1000) {
-      // 猶予の間に上限が来たら、チェックが無いのではなく、まだ登録されていないものとして pending で終える
+
+    const now = clock.now();
+    const { summary } = fetched.value;
+    if (summary !== null) watchingSince ??= now;
+    const registering =
+      summary?.verdict === 'none' &&
+      watchingSince !== null &&
+      now - watchingSince < CHECKS_GRACE_SECONDS * 1000;
+    const settled = summary !== null && summary.verdict !== 'pending' && !registering;
+
+    if (summary !== null && (!wait || settled)) {
+      return reportChecks(iid, summary, json, false, io);
+    }
+    if (!wait || now - startedAt + CHECKS_INTERVAL_SECONDS * 1000 > timeoutSeconds * 1000) {
+      // 猶予の間や head が動く前に上限が来たら、チェックが無いのではなく、まだ見られていないものとして pending で終える
       return reportChecks(
         iid,
-        { ...summary, verdict: 'pending' },
-        args.flags.has('--json'),
-        true,
-        io
+        pendingSummary(summary, sha ?? fetched.value.headSha),
+        json,
+        wait,
+        io,
+        {
+          headSha: fetched.value.headSha,
+        }
       );
     }
     await clock.sleep(CHECKS_INTERVAL_SECONDS * 1000);
   }
 }
 
+/** まだ見られていない（head が動いていない・チェックの登録待ち）ときの、走っているとしてのまとめ */
+function pendingSummary(summary: ChecksSummary | null, sha: string): ChecksSummary {
+  return summary === null
+    ? { sha, verdict: 'pending', rows: [], statusUnreadable: null }
+    : { ...summary, verdict: 'pending' };
+}
+
 /** `--wait` と `--timeout` を読む。誤りなら理由を出して null */
 function parseChecksOptions(
   args: ParsedArgs,
   io: PrCliIo
-): { readonly wait: boolean; readonly timeoutSeconds: number } | null {
+): { readonly wait: boolean; readonly timeoutSeconds: number; readonly sha: string | null } | null {
   const wait = args.flags.has('--wait');
   const timeoutFlag = args.flags.get('--timeout');
   if (timeoutFlag !== undefined && !wait) {
@@ -401,7 +427,13 @@ function parseChecksOptions(
     return null;
   }
 
-  return { wait, timeoutSeconds };
+  const shaFlag = args.flags.get('--sha');
+  if (typeof shaFlag === 'string' && !/^[0-9a-f]{7,40}$/.test(shaFlag)) {
+    io.stderr(`--sha にはコミットのハッシュ（16 進）を指定してください: ${shaFlag}\n`);
+    return null;
+  }
+
+  return { wait, timeoutSeconds, sha: typeof shaFlag === 'string' ? shaFlag : null };
 }
 
 function reportChecks(
@@ -409,7 +441,8 @@ function reportChecks(
   summary: ChecksSummary,
   json: boolean,
   timedOut: boolean,
-  io: PrCliIo
+  io: PrCliIo,
+  stale: { readonly headSha: string } | null = null
 ): number {
   if (json) {
     io.stdout(`${JSON.stringify({ ...summary, timedOut }, null, 2)}\n`);
@@ -420,7 +453,11 @@ function reportChecks(
     `PR #${iid} の最新コミット ${summary.sha.slice(0, 7)} のチェック: ${summary.verdict}` +
       (timedOut ? '（待ち切れませんでした）' : ''),
   ];
-  if (summary.rows.length === 0) lines.push('  チェックはありません');
+  if (stale !== null && stale.headSha !== summary.sha) {
+    lines.push(`  PR の head はまだ ${stale.headSha.slice(0, 7)} で、このコミットになっていません`);
+  } else if (summary.rows.length === 0) {
+    lines.push(timedOut ? '  チェックはまだ登録されていません' : '  チェックはありません');
+  }
   if (summary.statusUnreadable !== null) {
     lines.push(
       `  status（Commit Status API）は読めませんでした（${summary.statusUnreadable}）。外部の CI の結果は入っていません`

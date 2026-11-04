@@ -495,7 +495,7 @@ describe('ai-board pr checks', () => {
         index += 1;
         return lines(runs);
       }
-      if (endpoint.endsWith(`/commits/${SHA}/status`)) return json({ statuses });
+      if (endpoint.includes(`/commits/${SHA}/status`)) return lines(statuses);
       return failed(404);
     };
   }
@@ -635,11 +635,78 @@ describe('ai-board pr checks', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('PR が読めなければ理由を出して 1 で終わる', async () => {
+  it('PR やチェックを読めなければ、落ちた（1）と見分けられる 3 で終わる', async () => {
     const { runner } = fakeRunner(() => failed(404));
 
-    expect(await runPrCli(['checks', '999'], { forge, runner }, io)).toBe(1);
+    expect(await runPrCli(['checks', '999'], { forge, runner }, io)).toBe(3);
     expect(stderr).toContain('PR #999 のチェックを読めませんでした');
+
+    const broken = fakeRunner((args) =>
+      (args[args.length - 1] ?? '').endsWith('/pulls/78') ? json(pr) : failed(502)
+    );
+    expect(await runPrCli(['checks', '78'], { forge, runner: broken.runner }, io)).toBe(3);
+  });
+
+  it('status は check-runs と同じく全件を 1 件 1 行で引く', async () => {
+    const { runner, calls } = fakeRunner(responder([[success]]));
+
+    expect(await runPrCli(['checks', '78'], { forge, runner }, io)).toBe(0);
+    const statusCall = calls.find((c) => c.args.some((a) => a.includes('/status')));
+    expect(statusCall?.args).toEqual([
+      'api',
+      '--paginate',
+      '--jq',
+      '.statuses[]',
+      `repos/iepyon/ai-board/commits/${SHA}/status?per_page=100`,
+    ]);
+  });
+
+  it('--sha は PR の head がそのコミットになるまで走っているとして待ち、そのコミットのチェックを見る', async () => {
+    const NEW = '9999999aaaaaaa';
+    let prCalls = 0;
+    const { runner, calls } = fakeRunner((args) => {
+      const endpoint = args[args.length - 1] ?? '';
+      if (endpoint.endsWith('/pulls/78')) {
+        prCalls += 1;
+        // 最初の 2 回は push が PR に映っておらず、head は前のコミットのまま
+        return json({ ...pr, head: { ref: 'b', sha: prCalls <= 2 ? SHA : NEW } });
+      }
+      if (endpoint.includes(`/commits/${SHA}/`)) return lines([success]);
+      if (endpoint.includes(`/commits/${NEW}/check-runs`)) return lines([failure]);
+      if (endpoint.includes(`/commits/${NEW}/status`)) return lines([]);
+      return failed(404);
+    });
+    const clock = fakeClock();
+
+    expect(
+      await runPrCli(['checks', '78', '--wait', '--sha', NEW], { forge, runner, clock }, io)
+    ).toBe(1);
+    expect(clock.slept).toEqual([15_000, 15_000]);
+    expect(calls.some((c) => c.args.some((a) => a.includes(`/commits/${SHA}/`)))).toBe(false);
+    expect(stdout).toContain('落ちた  test (22)');
+  });
+
+  it('--sha のコミットにチェックがまだ無い間の猶予は、head がそのコミットになった時から数える', async () => {
+    const NEW = '9999999aaaaaaa';
+    let prCalls = 0;
+    const { runner } = fakeRunner((args) => {
+      const endpoint = args[args.length - 1] ?? '';
+      if (endpoint.endsWith('/pulls/78')) {
+        prCalls += 1;
+        // 9 回（120 秒ぶん）は head が前のコミットのまま
+        return json({ ...pr, head: { ref: 'b', sha: prCalls <= 9 ? SHA : NEW } });
+      }
+      // head が動いた後、2 回目まではチェックがまだ登録されていない
+      if (endpoint.includes('/check-runs')) return lines(prCalls <= 11 ? [] : [success]);
+      return lines([]);
+    });
+    const clock = fakeClock();
+
+    expect(
+      await runPrCli(['checks', '78', '--wait', '--sha', NEW], { forge, runner, clock }, io)
+    ).toBe(0);
+    expect(stdout).toContain(': passed');
+    expect(clock.slept).toHaveLength(11);
   });
 });
 
@@ -686,7 +753,7 @@ describe('ai-board pr checks で status を権限で読めないとき', () => {
         { forge, runner: fakeRunner(respond(failed(500))).runner },
         io
       )
-    ).toBe(1);
+    ).toBe(3);
     expect(stderr).toContain('チェックを読めませんでした');
   });
 });

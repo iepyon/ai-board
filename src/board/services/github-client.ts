@@ -286,6 +286,12 @@ function commitDate(commit: RawCommit | null): string | null {
 // PR の読み書き — `ai-board pr` が使う
 // ============================================================
 
+/** `ai-board pr checks` が引いたもの。`summary` は、指定したコミットがまだ PR の head でなければ null */
+export interface PullRequestChecks {
+  readonly headSha: string;
+  readonly summary: ChecksSummary | null;
+}
+
 /** `ai-board pr view` に出す PR の項目 */
 export interface PullRequestView {
   readonly number: number;
@@ -331,10 +337,6 @@ interface RawPullRequestDetail extends RawPullRequest {
   base: { ref: string };
   body?: string | null;
   user?: { login?: string } | null;
-}
-
-interface RawCombinedStatus {
-  statuses?: RawCommitStatus[];
 }
 
 interface RawRepository {
@@ -455,36 +457,48 @@ export class GhPullRequestClient {
   }
 
   /**
-   * PR の最新コミット（`head.sha`）のチェックを、`check-runs`（全件）と `status`（コンテキストごとの最新）から引いてまとめる。
+   * PR のチェックを、`check-runs` と `status` から全件引いてまとめる。
    *
-   * `check-runs` の応答は配列ではなく `{ total_count, check_runs }` なので、`--paginate` の各ページを
-   * `--jq '.check_runs[]'` で 1 件 1 行にして繋ぐ（ページを跨いでも 1 本の JSON にならないため）。
+   * 見るコミットは `sha`（省けば PR の `head.sha`）。push の直後は GitHub がまだ PR の head を動かしていないことがあるので、
+   * `sha` を指定して PR の head がそれと違えば、チェックを引かずに `summary: null` を返す（呼び出し側は走っているとして待つ）。
+   * どちらの応答も配列ではなく `{ ..., check_runs }` / `{ ..., statuses }` なので、`--paginate` の各ページを
+   * `--jq` で 1 件 1 行にして繋ぐ（ページを跨いでも 1 本の JSON にならないため）。
    */
-  async checks(iid: MergeRequestIid): Promise<Result<ChecksSummary, CliError>> {
+  async checks(
+    iid: MergeRequestIid,
+    sha: string | null = null
+  ): Promise<Result<PullRequestChecks, CliError>> {
     const pr = await this.getJson<RawPullRequestDetail>(`${this.base}/pulls/${iid}`);
     if (isErr(pr)) return pr;
-    const sha = pr.value.head.sha;
+    const headSha = pr.value.head.sha;
+    if (sha !== null && sha !== headSha) return ok({ headSha, summary: null });
 
     const [runs, status] = await Promise.all([
-      this.runner.run(GH, [
-        'api',
-        '--paginate',
-        '--jq',
-        '.check_runs[]',
-        `${this.base}/commits/${sha}/check-runs?per_page=${PER_PAGE}`,
-      ]),
-      this.getJson<RawCombinedStatus>(`${this.base}/commits/${sha}/status`),
+      this.getJsonLines<RawCheckRun>(`commits/${headSha}/check-runs`, '.check_runs[]'),
+      this.getJsonLines<RawCommitStatus>(`commits/${headSha}/status`, '.statuses[]'),
     ]);
     if (isErr(runs)) return runs;
-
-    const checkRuns = parseJsonLines<RawCheckRun>(runs.value);
-    if (isErr(checkRuns)) return checkRuns;
 
     const statusResult = readableStatuses(status);
     if (isErr(statusResult)) return statusResult;
     const { statuses, statusUnreadable } = statusResult.value;
 
-    return ok(summarizeChecks(sha, checkRuns.value, statuses, statusUnreadable));
+    return ok({
+      headSha,
+      summary: summarizeChecks(headSha, runs.value, statuses, statusUnreadable),
+    });
+  }
+
+  /** 全ページを `--jq <filter>` で 1 件 1 行にして引き、読む */
+  private async getJsonLines<T>(endpoint: string, filter: string): Promise<Result<T[], CliError>> {
+    const result = await this.runner.run(GH, [
+      'api',
+      '--paginate',
+      '--jq',
+      filter,
+      `${this.base}/${endpoint}?per_page=${PER_PAGE}`,
+    ]);
+    return isErr(result) ? result : parseJsonLines<T>(result.value);
   }
 
   /** PR の差分を unified diff の文字列で返す */
@@ -576,12 +590,12 @@ function parseJsonLines<T>(text: string): Result<T[], CliError> {
  * `check-runs` だけで判定させる（クラウドのセッションの GitHub App は Commit Status API を読めないことがある）。ほかの失敗はそのまま返す
  */
 function readableStatuses(
-  status: Result<RawCombinedStatus, CliError>
+  status: Result<RawCommitStatus[], CliError>
 ): Result<
   { readonly statuses: readonly RawCommitStatus[]; readonly statusUnreadable: string | null },
   CliError
 > {
-  if (!isErr(status)) return ok({ statuses: status.value.statuses ?? [], statusUnreadable: null });
+  if (!isErr(status)) return ok({ statuses: status.value, statusUnreadable: null });
 
   const http = status.error.type === 'Failed' ? status.error.httpStatus : null;
   if (http === 403 || http === 404) return ok({ statuses: [], statusUnreadable: `HTTP ${http}` });
