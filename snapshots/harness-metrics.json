@@ -1,0 +1,19 @@
+{
+  "fingerprint": "[3,\"closed\",\"2026-11-05T03:48:18Z\",false,\"908044866b16229c88153cde59148181a9ee91a7\",0,0,\"2026-11-05T03:48:18Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 82,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "harness-metrics",
+    "title": "ループの 1 手の記録に手順書の版とトークンを残し、版ごとの成績をダッシュボードで比べる",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/82",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestAiNoteAt": null,
+    "latestCommitAt": "2026-11-05T03:26:08Z",
+    "mergedAt": "2026-11-05T03:48:18Z",
+    "readyAt": "2026-11-05T03:21:04Z",
+    "convertedToDraftAt": null
+  }
+}
