@@ -120,10 +120,10 @@
 
 ### 3. ドキュメントと仕様
 
-- [ ] `README.md` から画面・サーバの起動・詳細パネル・判断のボタンの説明を消し、ボードを `ai-board status`・ダッシュボード・チャットで扱う形に書き直す
-- [ ] `docs/architecture.md` から画面・HTTP API・SSE・ファイル監視・取り直し・ポーリングの節を消し、GitHub の取得を CLI の 1 回の `refresh()` の形に書き直す
-- [ ] `CLAUDE.md` の冒頭（ローカル Web ダッシュボード・`127.0.0.1:5673`）、書き込み境界の表の「ai-board サーバ」の行、`src/shared/` の決まり、テストの e2e と `src/web/` の記述を直す
-- [ ] `REVIEW.md` と `docs/specs/*/spec.md` の画面の記述を、`ai-board status` とダッシュボードの言葉に置き換える
+- [x] `README.md` から画面・サーバの起動・詳細パネル・判断のボタンの説明を消し、ボードを `ai-board status`・ダッシュボード・チャットで扱う形に書き直す
+- [x] `docs/architecture.md` から画面・HTTP API・SSE・ファイル監視・取り直し・ポーリングの節を消し、GitHub の取得を CLI の 1 回の `refresh()` の形に書き直す
+- [x] `CLAUDE.md` の冒頭（ローカル Web ダッシュボード・`127.0.0.1:5673`）、書き込み境界の表の「ai-board サーバ」の行、`src/shared/` の決まり、テストの e2e と `src/web/` の記述を直す
+- [x] `REVIEW.md` と `docs/specs/*/spec.md` の画面の記述を、`ai-board status` とダッシュボードの言葉に置き換える
 
 ### 4. ADR
 

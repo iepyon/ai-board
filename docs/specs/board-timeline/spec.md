@@ -85,7 +85,7 @@ PR を最後に Ready にした時刻は、PR のイベントの最後の Ready 
 - **WHEN** plan ゲートをスキップすると宣言したカードが着手され、plan の提出が記録された
 - **THEN** 区間は `idea` → `planning` → `implementing` と並び、`plan-review` は現れない
 
-#### Scenario: 着手のボタンを押さずに進めた
+#### Scenario: 着手を書かずに進めた
 
 - **WHEN** 着手時刻が無い、または最初の `## レビュー` のエントリより後にあるカードを見る
 - **THEN** 着手時刻は無いものとして扱われ、`idea` が最初のエントリまで続き、`planning` は現れない
