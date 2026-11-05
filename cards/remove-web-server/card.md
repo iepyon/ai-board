@@ -3,7 +3,7 @@ id: remove-web-server
 title: ユーザは、画面とサーバをいったん外し、ボードを CLI とチャットとダッシュボードだけで扱いたい
 created: '2026-11-05T14:49:28.254Z'
 skipGates: []
-branch: null
+branch: remove-web-server
 mr: null
 ---
 
