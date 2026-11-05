@@ -3,7 +3,7 @@ id: forge-card-error
 title: ユーザは、1 枚の PR が GitHub から引けないだけで、ボードとループ全体を止めてほしくない
 created: '2026-11-03T02:32:40.777Z'
 skipGates: []
-branch: null
+branch: forge-card-error
 mr: null
 ---
 
