@@ -35,3 +35,18 @@ CLAUDE.md の品質ゲートは「typecheck → lint → test」で、テスト�
   CLAUDE.md は「`typecheck` は tsc を 2 回走らせる」と書いているので、どちらにしても書き換える
 - **テストで緩めている lint との関係。** ESLint はテストの `no-explicit-any` を緩めている。型検査を入れても `any` は通るので、そのままでよいか
 - **CI。** `.github/workflows/ci.yml` は `npm run typecheck` を呼んでいるので、`typecheck` に入れれば CI にも乗る
+
+## 探索メモ
+
+2026-11-05 に、今の main（`6efffb6`）でテストまで含めて `tsc` をかけ、人に聞いた。
+
+1. **今は 40 件落ちる**（カードの 7 件は 2026-10-23 の数）。内訳は次のとおり
+   - `forge-poller.test.ts` 27 件。ほとんどが `vi.fn()` を `onUpdate`（`() => void`）に渡すところの型（`Mock<Procedure | Constructable>`）
+   - `board.e2e.test.ts` 5 件・`composition.test.ts` 1 件・`status-html.test.ts` 1 件・`stage-resolver.test.ts` 3 件: 本体に足した項目（`latestAiNoteAt` など）がテストの値に無い・形が今の型と合わない
+   - `card-commands.test.ts` 2 件: 廃止したゲート（`explore` / `verify`）を渡している
+   - `cli-runner.test.ts` 1 件: `CliError` の `httpStatus` が無い
+2. **`src/shared/` のテストは、もう型検査に入っている。** `tsconfig.web.json` の `include` が `src/shared/**/*.ts` を丸ごと含むため（`forge-card-error` で `kind` を足したときに落ちて気付いた）
+3. **40 件を全部直してゲートに入れる**（人に聞いた、2026-11-05）。`@ts-expect-error` で黙らせて先送りはしない
+4. **走らせ方は `tsc` を 3 本目に足す**（人に聞いた、2026-11-05）。`tsconfig.test.json` を足して `npm run typecheck` から呼ぶ。vitest の `typecheck` は使わない
+5. **テスト用の値を作る関数（`makeMr` / `makeCard` など、9 ファイル）は共通にまとめない**（人に聞いた、2026-11-05）。このカードは型を合わせるだけにし、差分を小さく保つ
+6. **ESLint のテストの緩め（`no-explicit-any` と関数の行数の上限）はそのまま**（人に聞いた、2026-11-05）
