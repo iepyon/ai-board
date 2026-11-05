@@ -276,13 +276,16 @@ describe('ai-board decide', () => {
     await writePlan('b');
 
     expect(await run(['approve', 'b'], FAILING_B)).toBe(1);
-    expect(stderr).toContain('GitHub から PR の状態を引けないので、承認 / 否決 / 中止は書けません');
+    expect(stderr).toContain(
+      'b に 承認 は書けません（今の列: 計画レビュー。出せる判断はありません。PR の状態を引けない'
+    );
     expect(stderr).toContain('HTTP 422');
     expect(parseReviewLog((await readCard('b')).body)).toHaveLength(1);
 
     stderr = '';
     expect(await run(['unstart', 'b'], FAILING_B)).toBe(1);
-    expect(stderr).toContain('GitHub から PR の状態を引けないので、着手 / 着手を戻すは書けません');
+    expect(stderr).toContain('b は着手を戻すできません');
+    expect(stderr).toContain('PR の状態を引けない');
     expect((await readCard('b')).startedAt).not.toBeNull();
 
     expect(await run(['unstart', 'a'], FAILING_B)).toBe(0);

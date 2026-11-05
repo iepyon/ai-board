@@ -72,19 +72,22 @@ export function failureScope(error: CliError): ForgeFailureScope {
 export class ForgeRequestError extends Error {
   readonly endpoint: string;
   readonly httpStatus: number | null;
+  /** 問い合わせ先に続ける述語（`が HTTP 422 で失敗した` など）。呼び出し側が問い合わせ先と組み合わせて文を作る */
+  readonly failure: string;
   readonly scope: ForgeFailureScope;
 
   constructor(endpoint: string, error: CliError) {
     const pathOnly = stripQuery(endpoint);
     const httpStatus = error.type === 'Failed' ? error.httpStatus : null;
-    super(
+    const failure =
       httpStatus === null
-        ? `${pathOnly} が失敗した（${describeCliError(error)}）`
-        : `${pathOnly} が HTTP ${httpStatus} で失敗した`
-    );
+        ? `が失敗した（${describeCliError(error)}）`
+        : `が HTTP ${httpStatus} で失敗した`;
+    super(`${pathOnly} ${failure}`);
     this.name = 'ForgeRequestError';
     this.endpoint = pathOnly;
     this.httpStatus = httpStatus;
+    this.failure = failure;
     this.scope = failureScope(error);
   }
 }

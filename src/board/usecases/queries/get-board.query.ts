@@ -93,7 +93,8 @@ export function createGetBoardQuery(
         card,
         entries,
         resolution,
-        { floorStage, droppableStages: droppableStages(floorStage) },
+        // PR の状態を引けないカードは列が控えに依るので、どの列へも動かさせない（画面と `ai-board decide` の両方が従う）
+        { floorStage, droppableStages: mrFailure === null ? droppableStages(floorStage) : [] },
         latestReview(entries, resolution.stage),
         toBoardCardPlan(plan),
         toBoardCardMr(mr),
@@ -101,8 +102,7 @@ export function createGetBoardQuery(
           ...resolution,
           entries,
           mr,
-          // 引けなかったカードの控えは古いことがあるので、PR が見えないことを根拠にしない
-          mrKnown: mrKnown && mrFailure === null,
+          mrKnown,
           mrFailure,
         }),
         splitAiPhases(

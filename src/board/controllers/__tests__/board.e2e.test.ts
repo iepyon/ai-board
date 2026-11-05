@@ -663,10 +663,15 @@ describe('GET /api/board', () => {
       .get('/api/board')
       .expect(200);
     const byId = new Map(
-      (response.body.cards as { id: string; hold: unknown }[]).map((card) => [card.id, card])
+      (response.body.cards as { id: string; hold: unknown; droppableStages: string[] }[]).map(
+        (card) => [card.id, card]
+      )
     );
 
     expect(response.body.forge).toEqual({ status: 'connected', kind: 'github' });
+    // 列が控えに依るので、画面からもどの列へも動かさせない
+    expect(byId.get('failing')?.droppableStages).toEqual([]);
+    expect(byId.get('healthy')?.droppableStages).not.toEqual([]);
     expect(byId.get('failing')?.hold).toEqual({
       kind: 'forge',
       reason: expect.stringContaining('HTTP 422') as unknown,

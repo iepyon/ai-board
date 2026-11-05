@@ -277,10 +277,7 @@ function describeTarget(card: Card): string {
 
 /** `ForgeRequestError` は問い合わせ先を括弧に入れて添える（例: `（pulls/68）が HTTP 422 で失敗した`） */
 function describeError(error: unknown): string {
-  if (error instanceof ForgeRequestError) {
-    const rest = error.message.slice(error.endpoint.length);
-    return `（${error.endpoint}）${rest.trimStart()}`;
-  }
+  if (error instanceof ForgeRequestError) return `（${error.endpoint}）${error.failure}`;
   return `に失敗した（${error instanceof Error ? error.message : String(error)}）`;
 }
 

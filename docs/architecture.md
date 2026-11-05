@@ -72,7 +72,8 @@ AI の列（計画提案中 / 実装中）にいても、人の判断を待っ�
 
 - （`forge`）そのカードの PR だけを直近の取得で引けなかった（`MrStateProvider.failure`）。アイデア / マージ済み と中止のカードを除く、どの列でも立ち、ほかの止まりより先に見る。
   列は前に引けた控えで決まるが、控えは古いことがあり、人の指摘や Draft への戻しを見落として進めかねない。
-  `decisionsFor` は空を返し（押せる判断を決められない）、`ai-board decide` はそのカードの承認 / 否決 / 中止・着手 / 着手を戻すを拒む。次の取得で引ければ外れる
+  `decisionsFor` は空を返し（押せる判断を決められない）、`droppableStages` も空にする（`get-board.query.ts`）。
+  画面はボタンも列の移しも出さず、`ai-board decide` は同じ値を読んでそのカードの承認 / 否決 / 中止・着手 / 着手を戻すを拒む。次の取得で引ければ外れる
 
 - 実装中で、人の最新の判断より後に PR が Draft に戻された（`mrState.convertedToDraftAt`）。
   AI が Ready にした PR を人が Draft に戻すとカードは実装中に落ち、計画は archive 済みなので、見ないと `implement` の archive 済みの段が Ready にし直してしまう

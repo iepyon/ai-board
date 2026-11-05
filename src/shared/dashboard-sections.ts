@@ -26,6 +26,14 @@ export const SECTION_OF_STAGE: Record<Stage, Exclude<DashboardSection, 'aborted'
   merged: 'merged',
 };
 
+/**
+ * 止まりが何を待っているか。
+ *
+ * - `decision`: 人の判断（判断のボタンか GitHub の操作）で解く
+ * - `forge`: そのカードの PR の状態を引けない。時間が経てば解けることが多く、判断のボタンは出さない
+ */
+export type CardHoldKind = 'decision' | 'forge';
+
 /** 振り分けと並べ替えに要るフィールドだけ。サーバの BoardCard と web の型の両方が満たす */
 export interface SectionCard {
   readonly id: string;
@@ -46,7 +54,7 @@ export interface SectionCard {
    */
   /** 止まり。`kind` が `forge`（PR の状態を引けない）なら判断のボタンを出さない */
   readonly hold: {
-    readonly kind: 'decision' | 'forge';
+    readonly kind: CardHoldKind;
     readonly reason: string;
     readonly since: string;
   } | null;

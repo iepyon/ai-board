@@ -186,7 +186,6 @@ async function runReview(
 
   const card = findCard(board, id, io);
   if (card === null) return 1;
-  if (refuseWithoutCardPr(card, '承認 / 否決 / 中止', io)) return 1;
 
   const decisions = decisionsFor(card);
   const decision = decisions.find((d) => d.kind === kind);
@@ -260,13 +259,13 @@ async function runStartedAt(
 
   const card = findCard(board, id, io);
   if (card === null) return 1;
-  if (refuseWithoutCardPr(card, '着手 / 着手を戻す', io)) return 1;
 
   if (card.stage !== move.from || !card.droppableStages.includes(move.to)) {
     return fail(
       io,
       `${id} は${move.label}できません（今の列: ${STAGE_LABELS[card.stage]}。` +
-        `${STAGE_LABELS[move.from]}にあり、${STAGE_LABELS[move.to]}へ入れられるカードだけ）`
+        `${STAGE_LABELS[move.from]}にあり、${STAGE_LABELS[move.to]}へ入れられるカードだけ）` +
+        forgeHoldNote(card)
     );
   }
 
@@ -438,16 +437,6 @@ function refuseWithoutForge(board: Board, what: string, io: DecideCliIo): boolea
   return true;
 }
 
-/**
- * そのカードの PR の状態だけを引けていなければ（`hold.kind` が `forge`）拒んで true を返す。
- * 列が前に引けた控えに依るので、`refuseWithoutForge` と同じ理由で判断と列の移しを書かない
- */
-function refuseWithoutCardPr(card: BoardCard, what: string, io: DecideCliIo): boolean {
-  if (card.hold?.kind !== 'forge') return false;
-  io.stderr(`GitHub から PR の状態を引けないので、${what}は書けません（${card.hold.reason}）\n`);
-  return true;
-}
-
 function findCard(board: Board, id: CardId, io: DecideCliIo): BoardCard | null {
   const card = board.cards.find((c) => c.id === id);
   if (card === undefined) {
@@ -467,10 +456,18 @@ function requireCardId(args: ParsedArgs, io: DecideCliIo): CardId | null {
 }
 
 /** 書けなかったときに、今の列と出せる判断を添える */
+/**
+ * PR の状態を引けない止まりなら、その理由を添える。
+ * そのカードは出せる判断も入れられる列も無い（`decisionsFor` / `droppableStages`）ので、拒んだ理由がそれだと分かるようにする
+ */
+function forgeHoldNote(card: BoardCard): string {
+  return card.hold?.kind === 'forge' ? `。${card.hold.reason}` : '';
+}
+
 function describeChoices(card: BoardCard): string {
   const stage = `今の列: ${STAGE_LABELS[card.stage]}${card.aborted ? '（中止済み）' : ''}`;
   const decisions = decisionsFor(card);
-  if (decisions.length === 0) return `${stage}。出せる判断はありません`;
+  if (decisions.length === 0) return `${stage}。出せる判断はありません${forgeHoldNote(card)}`;
   return `${stage}。出せる判断: ${decisions.map((d) => `${d.gate} ${d.kind}`).join(' / ')}`;
 }
 

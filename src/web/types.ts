@@ -1,6 +1,7 @@
 import type { PhasedTimelineSegment } from '../shared/timeline.js';
 import type { LoopStep } from '../shared/loop-step.js';
 import type { BoardLoop } from '../shared/loop-activity.js';
+import type { CardHoldKind } from '../shared/dashboard-sections.js';
 
 // ============================================================
 // API レスポンスの型（サーバの BoardCard と対応）
@@ -111,7 +112,7 @@ export interface BoardCard {
 /** AI の列にいるが人の判断を待っているカードの止まり（サーバの `resolveHold`） */
 export interface CardHold {
   /** 何を待っているか。`decision` は人の判断、`forge` は PR の状態を引けない（判断のボタンは出さない） */
-  kind: 'decision' | 'forge';
+  kind: CardHoldKind;
   /** 人が何をすればよいか */
   reason: string;
   /** 人を待ち始めた時刻 */
