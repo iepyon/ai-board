@@ -4,7 +4,6 @@
   "description": "計画ファイル駆動の開発を CLI で進めるボード",
   "license": "MIT",
   "type": "module",
-  "main": "dist/index.js",
   "bin": {
     "ai-board": "dist/cli.js"
   },

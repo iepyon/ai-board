@@ -153,8 +153,8 @@
 
 ## AI レビュー
 
-- [ ] `package.json:7` の `"main": "dist/index.js"` が、この PR で消した `src/index.ts` の出力を指したまま残っている。`build` が `tsc` だけになり、新しく clone してビルドすると `dist/index.js` は作られず、パッケージの入口が存在しないファイルを指す。`main` を消す（入口は `bin` の `dist/cli.js` だけにする）
-- [ ] `CLAUDE.md:74` の書き込み境界の表で、`ai-board decide` の行が「人の判断を書く」だけになっている。実際は `runDecide`（`src/cli-main.ts:222`）も `status` と同じ `assembleBoard`（`src/cli-main.ts:163-177`）を通り、`createTransactionalMrWriter` で `branch` から解決した PR 番号を書き戻してコミット・push する。`ai-board decide` の行に「PR 番号とマージ済みの PR の控えの書き戻し（`status` と同じ）」を足し、`ai-board status` の行だけが書き戻すように読めないようにする
+- [x] `package.json:7` の `"main": "dist/index.js"` が、この PR で消した `src/index.ts` の出力を指したまま残っている。`build` が `tsc` だけになり、新しく clone してビルドすると `dist/index.js` は作られず、パッケージの入口が存在しないファイルを指す。`main` を消す（入口は `bin` の `dist/cli.js` だけにする）
+- [x] `CLAUDE.md:74` の書き込み境界の表で、`ai-board decide` の行が「人の判断を書く」だけになっている。実際は `runDecide`（`src/cli-main.ts:222`）も `status` と同じ `assembleBoard`（`src/cli-main.ts:163-177`）を通り、`createTransactionalMrWriter` で `branch` から解決した PR 番号を書き戻してコミット・push する。`ai-board decide` の行に「PR 番号とマージ済みの PR の控えの書き戻し（`status` と同じ）」を足し、`ai-board status` の行だけが書き戻すように読めないようにする
 
 ### 見送った指摘
 
