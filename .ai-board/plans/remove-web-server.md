@@ -23,6 +23,7 @@
 - `ai-board`（引数なし）はサーバを起動せず、使い方を出して終わる。`--port` / `--no-open` / `--poll-interval` を消す
 - `ai-board status` から「サーバ:」の行と `server` の項目を消す
 - 消した結果どこからも使われなくなった usecase・純関数・型を消す
+- バックエンドの API のサンプルとして、`GET /api/board` と `POST /api/cards/:id/reviews` の 2 つだけを `ai-board serve` で残す。GitHub には問い合わせず、PR の状態は控えを読む（人の依頼、実装中に追加）
 - 依存（express・chokidar・react・vite・supertest など）と npm のスクリプト（`dev` / `dev:web`）を外す
 - README・`docs/architecture.md`・`CLAUDE.md`・`REVIEW.md`・仕様・ADR・手順書から画面とサーバの記述を消し、画面とサーバを外した判断を ADR に残す
 
@@ -39,6 +40,9 @@
 ### Decisions
 
 - **画面とサーバはまとめて消す。** 画面が無ければ HTTP API・SSE・ファイル監視・取り直し・定期のポーリングを使う者がいない。片方だけ残すと、使われないコードを保守することになる
+- **ただし API のサンプルを 2 つだけ残す（人の依頼、実装中に追加）。** 読む口 `GET /api/board`（`status --json` と同じ形に、控えを取った時刻を足す）と、書く口 `POST /api/cards/:id/reviews`（`decisionsFor` で出せる判断かを確かめてから 承認 / 否決 / 中止 を書く）。
+  `ai-board serve [--port <n>]` で `127.0.0.1` にだけ bind して起動する。SSE・ファイル監視・取り直し・定期のポーリングは戻さない。
+  GitHub には問い合わせず、PR の状態は `ai-board status` が最後に書いた控え（`cache/` とデータ用ブランチの `snapshots/`）を読む
 - **サーバが担っていた書き込みは、もう `status` が担っている。** `assembleBoard`（`src/cli-main.ts`）は `refresh()` を 1 回待ち、ブランチから解決した PR 番号を `createTransactionalMrWriter` で書き戻し、PR の状態の控えを保存する。移し替えは要らない
 - **`ForgePoller` は残し、定期実行だけを外す。** `refresh()`・控え・カードごとの失敗の扱いは `status` / `decide` / `pr` が使う。`start` / `stop` / `intervalMs` / `DEFAULT_POLL_INTERVAL_MS` を消す
 - **`ai-board`（引数なし）は使い方を出して 1 で終わる。** `--help` は 0 で終わる。使い方には `card` / `init` / `status` / `pr` / `loop` / `decide` / `dist-check` を並べる
@@ -84,6 +88,7 @@
 | 2   | 消す前に画面を使わずに回して困る操作を確かめる段は、取らない（人の判断）                   | 退けた代案                         |                    |
 | 3   | `forge-poll-budget` は、サーバのポーリングが無くなると狙いの大半が無くなる。扱いは人が決める | Why                                |                    |
 | 4   | 人と決めた（2026-11-05）: `forge-poll-budget` は中止した                                   | Non-Goals（問い合わせの回数の削減） |                    |
+| 5   | 人と決めた（2026-11-05、実装中にチャットで）: バックエンドの API のサンプルとして 2 つだけ残す。読む 1 つと書く 1 つ、PR の状態は控えを読むだけ、`ai-board serve` で起動 | What Changes / Decisions / タスク 6 |                    |
 
 ## 動作確認の手順
 
@@ -98,7 +103,9 @@
 | ダッシュボードの HTML を作れる                       | `node dist/cli.js status --html > board.html`                    | 終了コード 0 で HTML が出る                                                         |
 | カードの起票と判断が今どおり書ける                   | `card create --title t --id a1` の後に `decide start a1`         | `a1: 着手 を書きました（アイデア → 計画提案中）`                                    |
 | ビルドが画面を作らない                               | `npm run build && ls dist`                                       | `dist/web` が無い                                                                   |
-| 消した依存が残っていない                             | `grep -rn "express\|react\|chokidar\|supertest\|vite" package.json src` | 何も出ない（`vitest` を除く）                                                       |
+| 消した依存が残っていない                             | `grep -rn "react\|chokidar\|vite" package.json src` | 何も出ない（`vitest` を除く）                                                       |
+| `serve` が 2 つの API だけを返す                     | `ai-board serve --port 5799` の後に `curl 127.0.0.1:5799/api/board` | `status --json` と同じ形の JSON に `snapshotTakenAt` が付く。ほかのパス（`/api/events` など）は 404 |
+| `serve` の書く口が出せる判断だけを書く               | アイデアのカードに `POST /api/cards/<id>/reviews` で `{"gate":"plan","kind":"承認"}` | 409 で拒まれる。`{"kind":"中止"}` なら 201 で書ける |
 
 ## タスク
 
@@ -136,6 +143,13 @@
 - [x] `.claude/skills/board-loop/plan.md` と `implement.md` の「見る画面」「画面の見た目」の例を、CLI で確かめられないものの例に置き換える
 - [x] `.claude/skills/board-decide/SKILL.md` と `.claude/skills/board-dashboard/SKILL.md` から画面のボタンとサーバの記述を消す
 - [x] `.claude/HARNESS_VERSIONS.md` に v2 を足し、画面とサーバを外して手順書から記述を消したことを書く
+
+### 6. API のサンプルを 2 つ残す（人の依頼、実装中に追加）
+
+- [x] PR の状態を控えだけから返す `MrStateProvider` を足し、テストを書く
+- [x] Express の `createApp` に `GET /api/board` と `POST /api/cards/:id/reviews` だけを置き、supertest の e2e を書く
+- [x] `ai-board serve [--port <n>]` で `127.0.0.1` に bind して起動する入口を足し、`package.json` に express と supertest を戻す
+- [x] README・`docs/architecture.md`・`CLAUDE.md`（書き込み境界の表）・ADR 0017 に、残した 2 つの API と `serve` を書く
 
 ## AI レビュー
 

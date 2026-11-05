@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      人            AI            人 ★          AI        人 ★        —
 ```
 
-画面と常駐するサーバはいったん外した（[ADR 0017](docs/adr/0017-remove-web-and-server.md)）。手元で動かす CLI だけで、認証やレート制限は持たない。
+画面と常駐するサーバはいったん外した（[ADR 0017](docs/adr/0017-remove-web-and-server.md)）。API の見本として `ai-board serve` の 2 つだけが `127.0.0.1` に bind する。認証やレート制限は持たない。
 成果物（計画・カード・コミット・ドキュメント）は日本語で書く。
 
 ### 読む場所
@@ -68,12 +68,13 @@ ai-board decide <approve|reject|abort|start|unstart|skip|move|move-divider> ... 
 
 ## 書き込み境界
 
-| 主体              | `.ai-board/plans/`                           | カード（データ用ブランチ `ai-board/data`）                                       |
-| ----------------- | -------------------------------------------- | -------------------------------------------------------------------------------- |
-| `ai-board status` | **read-only**                                | PR 番号とマージ済みの PR の控えを書き戻す（コミットして push する）              |
-| `ai-board decide` | **read-only**                                | 人の判断を書く（コミットして push する）                                         |
-| AI エージェント   | 書く（計画・タスクの更新・archive への移動） | `ai-board card` 経由で本文・ブランチ・提出・保留のみ                             |
-| ループ            | AI エージェントと同じ                        | AI エージェントと同じ。加えて `ai-board loop` 経由で 1 手の記録（`loop/`）を書く |
+| 主体              | `.ai-board/plans/`                           | カード（データ用ブランチ `ai-board/data`）                                             |
+| ----------------- | -------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `ai-board status` | **read-only**                                | PR 番号とマージ済みの PR の控えを書き戻す（コミットして push する）                    |
+| `ai-board decide` | **read-only**                                | 人の判断を書く（コミットして push する）                                               |
+| `ai-board serve`  | **read-only**                                | API のサンプルの `POST /api/cards/:id/reviews` で人の判断を書く（`decide` と同じ検査） |
+| AI エージェント   | 書く（計画・タスクの更新・archive への移動） | `ai-board card` 経由で本文・ブランチ・提出・保留のみ                                   |
+| ループ            | AI エージェントと同じ                        | AI エージェントと同じ。加えて `ai-board loop` 経由で 1 手の記録（`loop/`）を書く       |
 
 **人がこの会話で自分の言葉で頼んだ判断は、Claude が `board-decide` のスキル（`ai-board decide`）で代わりに書いてよい。**
 書いた後に AI の番ができたら、同じセッションで `board-loop` の 1 周を続ける（[ADR 0013](docs/adr/0013-continue-loop-after-decide.md)）。
