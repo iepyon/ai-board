@@ -1,0 +1,12 @@
+{
+  "loop": "5ccb4264-1ea7-5f98-9716-0af3b13a9f11",
+  "cardId": "training-seed",
+  "action": "revise-plan",
+  "step": null,
+  "agent": null,
+  "startedAt": "2026-11-05T01:23:35.271Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
