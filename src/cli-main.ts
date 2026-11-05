@@ -34,6 +34,8 @@ import { isPrCommand, runPrCli } from './board/cli/pr-cli.js';
 import { runLoopCli } from './board/cli/loop-cli.js';
 import { DECIDE_USAGE, isDecideCommand, runDecideCli } from './board/cli/decide-cli.js';
 import { findLiveServer } from './infrastructure/server-info.js';
+import { readHarnessVersion } from './infrastructure/harness-version.js';
+import { readSessionTokens } from './infrastructure/session-usage.js';
 import { readMtimeMs, runDistCheckCli } from './infrastructure/dist-check-cli.js';
 import { openBrowser } from './infrastructure/open-browser.js';
 import { err, isErr, ok, type Result } from './shared/result.js';
@@ -315,6 +317,8 @@ async function runLoop(argv: readonly string[]): Promise<number> {
         const parsed = CardIdSchema.safeParse(id);
         return parsed.success && (await cardRepository.findById(parsed.data as CardId)) !== null;
       },
+      harnessVersion: () => readHarnessVersion(root),
+      countTokens: (loop, from, to) => readSessionTokens(loop, from, to),
     },
     createProcessIo()
   );

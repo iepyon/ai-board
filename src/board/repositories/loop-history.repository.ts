@@ -130,6 +130,8 @@ const LoopStepSchema = z
     action: z.enum(LOOP_ACTIONS),
     step: z.enum(LOOP_IMPL_STEPS).nullable(),
     agent: z.string().min(1).max(200).nullable(),
+    // 変更履歴が無かったころの記録には項目が無い。無ければ「版なし」（null）として読む
+    harness: z.string().min(1).max(64).nullable().default(null),
     startedAt: TimeSchema,
     finishedAt: TimeSchema.nullable(),
     result: z.enum(LOOP_RESULTS).nullable(),
@@ -236,6 +238,8 @@ export interface LoopStartInput {
   readonly action: LoopCurrentAction;
   readonly step: LoopImplStep | null;
   readonly agent: string | null;
+  /** 手順書の版。読めなければ null */
+  readonly harness: string | null;
   readonly startedAt: string;
 }
 
@@ -281,6 +285,7 @@ export function writeLoopStart(
     action: input.action,
     step: input.step,
     agent: input.agent,
+    harness: input.harness,
     startedAt,
     finishedAt: null,
     result: null,
@@ -298,6 +303,11 @@ export interface LoopFinishInput {
   readonly cardId: string;
   readonly result: LoopFinishResult;
   readonly tokens: number | null;
+  /**
+   * `tokens` が null のときに、手の開始から終了までのトークンを数える。数えられなければ null。
+   * 手の始まりの時刻を持っているのは記録だけなので、窓はここで決める
+   */
+  readonly countTokens?: (from: string, to: string) => number | null;
   readonly durationMs: number | null;
   readonly finishedAt: string;
 }
@@ -306,6 +316,7 @@ export interface LoopFinishInput {
  * 終了を書く。そのループの終わっていない記録を 1 つ選び、終了・結果・トークン・時間を埋める。
  *
  * 時間（`durationMs`）が渡されなければ、記録の開始から終了までのミリ秒で埋める（0 未満なら 0）。
+ * トークンが渡されなければ、`countTokens` で同じ窓のトークンを数えて埋める。
  * 手の始まりの時刻を持っているのは記録だけなので、本筋のセッションに時間を測らせない。
  *
  * 終わっていない記録が無い、または `cardId` が食い違えば拒む。
@@ -337,7 +348,7 @@ export function writeLoopFinish(
     ...target.step,
     finishedAt,
     result: input.result,
-    tokens: input.tokens,
+    tokens: input.tokens ?? input.countTokens?.(target.step.startedAt, finishedAt) ?? null,
     durationMs:
       input.durationMs ?? segmentMs({ start: target.step.startedAt, end: finishedAt }, finishedAt),
   };

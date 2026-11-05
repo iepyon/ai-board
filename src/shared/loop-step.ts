@@ -92,7 +92,15 @@ export interface LoopStep {
   /** 終えた時刻。`interrupted` で閉じた記録は、閉じた時刻（次の手を始めた時刻）にする */
   readonly finishedAt: string | null;
   readonly result: LoopResult | null;
-  /** 使ったトークン。レビューの段で `board-reviewer` の結果に載っていたときだけ写す。取れなければ null */
+  /**
+   * 手順書の版（`.claude/HARNESS_VERSIONS.md` の先頭の版、例: `v1`）。手の開始のときに読む。
+   * 変更履歴が無かったころの記録と、読めなかったときは null（「版なし」）
+   */
+  readonly harness: string | null;
+  /**
+   * 使ったトークン。`finish` で渡されなければ、CLI が Claude Code の会話の記録から手の開始から終了までを数えて埋める
+   * （`src/infrastructure/session-usage.ts`）。取れなければ null
+   */
   readonly tokens: number | null;
   /**
    * 手の始まりから終わりまでの時間。`finish` で渡されなければ、CLI が開始から終了までのミリ秒で埋める。

@@ -6,9 +6,12 @@
   既定: 手の開始から終了までに書かれた assistant のメッセージ（同じ `message.id` は 1 回）の `input_tokens + cache_creation_input_tokens + cache_read_input_tokens + output_tokens` を足す（使った量の総和）。
   キャッシュの読み出しが大半を占め、1 手で数十万〜数百万になる。`board-reviewer` の結果に載る数（`subagent_tokens`、例: 79,962）とは意味が違う（同じ手を数え直すと 353,028）ので、レビューの段も記録から数え直し、`--tokens` を写す決まりはやめる。
   出力だけ（`output_tokens`）にする、キャッシュの読み出しを除く、なども選べる
+  - → 回答（2026-11-05、plan 承認）: 理由なしで承認（既定のまま進む）
 - **`bottleneck-chart` と `status-html-catchup` をこのカードに含めるか。** カードの論点では「含める」としていたが、2026-11-05 に見せ方は「版ごとの数字を並べるだけ」と決まった。
   既定: 含めない。どちらもアイデアの列に残し、このカードは版の記録と版ごとの表に絞る
+  - → 回答（2026-11-05、plan 承認）: 理由なしで承認（既定のまま進む）
 - **React の画面にも出すか。** 既定: 出さない。ダッシュボード（`status --html`）の「振り返り」にだけ出す（研修用のリポジトリでは画面を削る予定のため）
+  - → 回答（2026-11-05、plan 承認）: 理由なしで承認（既定のまま進む）
 
 ## 提案
 
@@ -153,12 +156,12 @@
 
 ### 1. 記録に版とトークンを残す
 
-- [ ] `loop-step.ts` の `LoopStep` に `harness: string | null` を足し、`loop-history.repository.ts` のスキーマで無い項目を null として読む。記録を作る箇所とテストの値を合わせる
-- [ ] `src/infrastructure/harness-version.ts` に、`.claude/HARNESS_VERSIONS.md` の先頭の `## v<番号>` を読む関数を足す（無い・読めなければ null）。テストを足す
-- [ ] `src/infrastructure/session-usage.ts` に、会話の記録を探して窓の中のトークンを数える関数を足す（数える部分は純関数）。テストを足す
-- [ ] `loop-cli.ts` の start で版を、finish で `--tokens` が無いときのトークンを埋める（依存は `cli-main.ts` から渡す）。テストを足す
-- [ ] `.claude/HARNESS_VERSIONS.md` を作る（`v1`、この PR の日付、今の手順書の要点を数行）
-- [ ] 品質ゲートを通す
+- [x] `loop-step.ts` の `LoopStep` に `harness: string | null` を足し、`loop-history.repository.ts` のスキーマで無い項目を null として読む。記録を作る箇所とテストの値を合わせる
+- [x] `src/infrastructure/harness-version.ts` に、`.claude/HARNESS_VERSIONS.md` の先頭の `## v<番号>` を読む関数を足す（無い・読めなければ null）。テストを足す
+- [x] `src/infrastructure/session-usage.ts` に、会話の記録を探して窓の中のトークンを数える関数を足す（数える部分は純関数）。テストを足す
+- [x] `loop-cli.ts` の start で版を、finish で `--tokens` が無いときのトークンを埋める（依存は `cli-main.ts` から渡す）。テストを足す
+- [x] `.claude/HARNESS_VERSIONS.md` を作る（`v1`、この PR の日付、今の手順書の要点を数行）
+- [x] 品質ゲートを通す
 
 ### 2. 版ごとの集計と止まり続けている回数
 

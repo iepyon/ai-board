@@ -31,6 +31,7 @@ function step(overrides: Partial<LoopStep> = {}): LoopStep {
     action: 'plan',
     step: null,
     agent: null,
+    harness: null,
     startedAt: '2026-11-02T01:00:00.000Z',
     finishedAt: '2026-11-02T02:00:00.000Z',
     result: 'stopped',

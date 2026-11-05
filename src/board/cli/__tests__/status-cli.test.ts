@@ -258,6 +258,7 @@ describe('ai-board status --json', () => {
       action: 'plan',
       step: null,
       agent: 'board-planner',
+      harness: null,
       startedAt: '2026-10-19T18:00:00.000Z',
     });
     writeLoopFinish(dataDir, {
@@ -274,6 +275,7 @@ describe('ai-board status --json', () => {
       action: 'plan',
       step: null,
       agent: null,
+      harness: null,
       startedAt: '2026-10-22T23:30:00.000Z',
     });
 
@@ -581,6 +583,7 @@ describe('ai-board status', () => {
       action: 'implement',
       step: 'task',
       agent: null,
+      harness: null,
       startedAt: '2026-10-22T23:48:00.000Z',
     });
 
