@@ -26,7 +26,7 @@ ranks:
   loop-fresh-context: 32000
   loop-impl-review: 1000
   loop-permissions: 5000
-  loop-ready-permission: 3250
+  loop-ready-permission: 1793765357520
   loop-respect-human: 35000
   loop-resume-after-decide: 5000
   loop-retry-limit: 1793715940378
