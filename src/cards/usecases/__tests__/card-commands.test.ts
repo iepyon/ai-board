@@ -334,7 +334,7 @@ describe('appendReviewCommand', () => {
   it('本文の ## レビュー にエントリを足す', async () => {
     const result = await createAppendReviewCommand(repository)({
       id: 'reviewed' as CardId,
-      gate: 'explore',
+      gate: 'plan',
       kind: '否決',
       reason: 'まだ浅い',
       at: new Date('2026-09-06T00:00:00.000Z'),
@@ -343,7 +343,7 @@ describe('appendReviewCommand', () => {
     expect(result.ok).toBe(true);
 
     const saved = await repository.findById('reviewed' as CardId);
-    expect(saved?.body).toContain('### 2026-09-06T00:00:00.000Z explore 否決');
+    expect(saved?.body).toContain('### 2026-09-06T00:00:00.000Z plan 否決');
     expect(saved?.body).toContain('まだ浅い');
   });
 
@@ -387,7 +387,7 @@ describe('appendReviewCommand', () => {
   it('理由の ## の節は書ける', async () => {
     const result = await createAppendReviewCommand(repository)({
       id: 'reviewed' as CardId,
-      gate: 'verify',
+      gate: 'plan',
       kind: '否決',
       reason: '## 直してほしいこと\n\n表示が崩れる',
       at: new Date('2026-09-06T00:00:00.000Z'),
@@ -396,7 +396,7 @@ describe('appendReviewCommand', () => {
     expect(result.ok).toBe(true);
 
     const saved = await repository.findById('reviewed' as CardId);
-    expect(saved?.body).toContain('### 2026-09-06T00:00:00.000Z verify 否決');
+    expect(saved?.body).toContain('### 2026-09-06T00:00:00.000Z plan 否決');
     expect(saved?.body).toContain('表示が崩れる');
   });
 

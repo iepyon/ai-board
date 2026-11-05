@@ -49,6 +49,7 @@ function makeMr(): MrState {
     webUrl: 'https://github.com/acme/board/pull/42',
     latestNoteAt: null,
     noteCount: 0,
+    latestAiNoteAt: null,
     latestCommitAt: null,
     mergedAt: null,
     readyAt: null,

@@ -113,11 +113,11 @@
 
 ### 1. テストの型エラーを直す
 
-- [ ] `forge-poller.test.ts` の `vi.fn()` に型引数を付け、`makeCard` などテスト用の値を今の型に合わせる
-- [ ] `board.e2e.test.ts`・`composition.test.ts`・`status-html.test.ts`・`stage-resolver.test.ts`・`cli-runner.test.ts` のテスト用の値に、足りない項目を足し、形を今の型に合わせる
-- [ ] `card-commands.test.ts` の廃止したゲート（`explore` / `verify`）を `plan` に置き換え、期待する本文を合わせる
-- [ ] テストまで含めた `tsc`（`tsconfig.test.json` の形の設定）で 0 件になり、`npm test` の件数が直す前と同じであることを確かめる
-- [ ] 品質ゲートを通す
+- [x] `forge-poller.test.ts` の `vi.fn()` に型引数を付け、`makeCard` などテスト用の値を今の型に合わせる
+- [x] `board.e2e.test.ts`・`composition.test.ts`・`status-html.test.ts`・`stage-resolver.test.ts`・`cli-runner.test.ts` のテスト用の値に、足りない項目を足し、形を今の型に合わせる
+- [x] `card-commands.test.ts` の廃止したゲート（`explore` / `verify`）を `plan` に置き換え、期待する本文を合わせる
+- [x] テストまで含めた `tsc`（`tsconfig.test.json` の形の設定）で 0 件になり、`npm test` の件数が直す前と同じであることを確かめる
+- [x] 品質ゲートを通す
 
 ### 2. 型検査に入れる
 
