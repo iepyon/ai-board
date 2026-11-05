@@ -82,6 +82,7 @@ export function createGetBoardQuery(
     const boardCards: BoardCard[] = cards.map((card) => {
       const plan = planState.get(card.id) ?? null;
       const mr = mrProvider.get(card.id);
+      const mrFailure = mrProvider.failure(card.id);
 
       const resolution = resolveStage(card, plan, mr);
       const floorStage = resolveFloorStage(card, plan, mr);
@@ -92,11 +93,18 @@ export function createGetBoardQuery(
         card,
         entries,
         resolution,
-        { floorStage, droppableStages: droppableStages(floorStage) },
+        // PR の状態を引けないカードは列が控えに依るので、どの列へも動かさせない（画面と `ai-board decide` の両方が従う）
+        { floorStage, droppableStages: mrFailure === null ? droppableStages(floorStage) : [] },
         latestReview(entries, resolution.stage),
         toBoardCardPlan(plan),
         toBoardCardMr(mr),
-        resolveHold({ ...resolution, entries, mr, mrKnown }),
+        resolveHold({
+          ...resolution,
+          entries,
+          mr,
+          mrKnown,
+          mrFailure,
+        }),
         splitAiPhases(
           resolveTimeline({
             created: card.created,

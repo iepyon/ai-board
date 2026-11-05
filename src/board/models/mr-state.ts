@@ -67,6 +67,19 @@ export interface MrSnapshot {
   readonly fingerprint: string;
 }
 
+/**
+ * 1 枚のカードの PR を引けなかったこと（`scope: 'card'` の失敗）。
+ *
+ * 接続はまるごと止めず、そのカードだけを止まりにする（`resolveHold`）。
+ * 失敗が続くあいだは `since` を最初の時刻のまま保ち、引けたら消える。どこにも保存しない
+ */
+export interface ForgeCardFailure {
+  /** 人が読む 1 行（例: `PR #68 の取得（pulls/68）が HTTP 422 で失敗した`） */
+  readonly message: string;
+  /** 失敗し始めた時刻 */
+  readonly since: string;
+}
+
 /** 取得先の種類 */
 export const FORGE_KINDS = ['github'] as const;
 

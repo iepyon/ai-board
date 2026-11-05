@@ -1,6 +1,6 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { ok, err, isErr, type Result } from '../shared/result.js';
+import { ok, err, type Result } from '../shared/result.js';
 
 // ============================================================
 // 外部 CLI の実行
@@ -192,18 +192,4 @@ export function describeCliError(error: CliError): string {
     case 'InvalidJson':
       return `${error.command} の${error.message}`;
   }
-}
-
-/**
- * CLI の結果を値へ開く。404 は「存在しない」として null、それ以外の失敗は例外。
- *
- * 取得先の実装が共有するため、どちらか一方のクライアントではなくここに置く。
- */
-export function unwrap<T>(result: Result<T, CliError>): T | null {
-  if (isErr(result)) {
-    if (isNotFound(result.error)) return null;
-    throw new Error(describeCliError(result.error));
-  }
-
-  return result.value;
 }

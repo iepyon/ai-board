@@ -20,7 +20,11 @@ function makeCard(
   return { aborted: false, gates: gate('none'), hold: null, mrState: null, ...overrides };
 }
 
-const HOLD = { reason: '止まっている', since: '2026-10-30T00:00:00.000Z' };
+const HOLD = {
+  kind: 'decision' as const,
+  reason: '止まっている',
+  since: '2026-10-30T00:00:00.000Z',
+};
 
 const gate = (plan: GateState): NextActionCard['gates'] => ({ plan });
 
@@ -191,6 +195,7 @@ function holdInput(
     entries,
     mr: null,
     mrKnown: true,
+    mrFailure: null,
     ...rest,
   };
 }
@@ -212,19 +217,74 @@ describe('resolveHold', () => {
       ])
     );
 
-    expect(hold).toEqual({ reason: HOLD_REASONS.planHeld, since: entry(2, 'plan', '保留').at });
+    expect(hold).toEqual({
+      kind: 'decision',
+      reason: HOLD_REASONS.planHeld,
+      since: entry(2, 'plan', '保留').at,
+    });
   });
 
   it('提出済みなのに計画提案中にいるカードは、提出の時刻から止まる', () => {
     const hold = resolveHold(holdInput('planning', [entry(0, 'plan', '提出')]));
 
-    expect(hold).toEqual({ reason: HOLD_REASONS.planLost, since: T0 });
+    expect(hold).toEqual({ kind: 'decision', reason: HOLD_REASONS.planLost, since: T0 });
   });
 
   it('PR の状態を引けていなければ、提出済みの計画提案中のカードを止まりにしない', () => {
     const hold = resolveHold(holdInput('planning', [entry(0, 'plan', '提出')], { mrKnown: false }));
 
     expect(hold).toBeNull();
+  });
+
+  describe('PR の状態を引けないカード', () => {
+    const failure = {
+      message: 'PR #68 の取得（pulls/68）が HTTP 422 で失敗した',
+      since: '2026-11-05T00:00:00.000Z',
+    };
+
+    it.each(['planning', 'plan-review', 'impling', 'pr'] as const)(
+      '%s のカードは、失敗した時刻から PR の状態を引けない止まりになる',
+      (stage) => {
+        const hold = resolveHold(holdInput(stage, approvedPlan, { mrFailure: failure }));
+
+        expect(hold).toEqual({
+          kind: 'forge',
+          reason: HOLD_REASONS.forgeFailed(failure.message),
+          since: failure.since,
+        });
+        expect(hold?.reason).toContain('HTTP 422');
+      }
+    );
+
+    it('ほかの止まりより先に見る', () => {
+      const hold = resolveHold(
+        holdInput('impling', approvedPlan, {
+          mr: draftMr('2026-10-20T01:00:00Z'),
+          mrFailure: failure,
+        })
+      );
+
+      expect(hold?.kind).toBe('forge');
+    });
+
+    it('中止・アイデア・マージ済みのカードは止まりにしない', () => {
+      expect(
+        resolveHold(holdInput('impling', approvedPlan, { aborted: true, mrFailure: failure }))
+      ).toBeNull();
+      expect(resolveHold(holdInput('idea', [], { mrFailure: failure }))).toBeNull();
+      expect(resolveHold(holdInput('merged', approvedPlan, { mrFailure: failure }))).toBeNull();
+    });
+
+    it('止まったカードは選ばず、後ろのカードへ進む', () => {
+      const hold = resolveHold(holdInput('impling', approvedPlan, { mrFailure: failure }));
+
+      expect(
+        pickNextAction([
+          makeCard({ id: 'a', stage: 'impling', hold }),
+          makeCard({ id: 'b', stage: 'planning' }),
+        ])?.cardId
+      ).toBe('b');
+    });
   });
 
   it('手を出してよい計画提案中・実装中のカードは止まらない', () => {
@@ -248,7 +308,11 @@ describe('resolveHold', () => {
     const input = holdInput('impling', approvedPlan, { mr: draftMr(convertedAt) });
     const hold = resolveHold(input);
 
-    expect(hold).toEqual({ reason: HOLD_REASONS.draftReverted(38), since: convertedAt });
+    expect(hold).toEqual({
+      kind: 'decision',
+      reason: HOLD_REASONS.draftReverted(38),
+      since: convertedAt,
+    });
     expect(hold?.reason).toContain('PR #38');
     expect(
       pickNextAction([makeCard({ id: 'a', stage: 'impling', gates: input.gates, hold })])

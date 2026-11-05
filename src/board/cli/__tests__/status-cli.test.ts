@@ -80,7 +80,12 @@ function review(kind: string): string {
 function stubProvider(
   connection: ForgeConnection = { status: 'connected', kind: 'github' }
 ): MrStateProvider {
-  return { get: () => null, connection: () => connection, synced: () => true };
+  return {
+    get: () => null,
+    connection: () => connection,
+    synced: () => true,
+    failure: () => null,
+  };
 }
 
 async function run(
@@ -183,6 +188,7 @@ describe('ai-board status --json', () => {
       get: (cardId) => states[cardId] ?? null,
       connection: () => ({ status: 'connected', kind: 'github' }),
       synced: () => true,
+      failure: () => null,
     };
 
     const report = await runJson(provider);
@@ -354,9 +360,44 @@ describe('ai-board status --json', () => {
     ]);
     expect(report.working.map((card) => card.id)).toEqual(['started']);
     expect(report.cards.find((card) => card.id === 'held')?.hold).toEqual({
+      kind: 'decision',
       reason: HOLD_REASONS.planHeld,
       since: '2026-10-22T00:00:00.000Z',
     });
+  });
+
+  it('1 枚の PR だけを引けないときは、そのカードを判断待ちに出し、ボタンを出さずに後ろのカードを選ぶ', async () => {
+    await writeCard('failing', "startedAt: '2026-10-20T00:00:00.000Z'\nrank: 1\nbranch: failing\n");
+    await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\nrank: 2\n");
+    const provider: MrStateProvider = {
+      get: () => null,
+      connection: () => ({ status: 'connected', kind: 'github' }),
+      synced: () => true,
+      failure: (cardId) =>
+        cardId === 'failing'
+          ? {
+              message: 'ブランチ failing の PR の解決（pulls）が HTTP 422 で失敗した',
+              since: '2026-10-23T00:00:00.000Z',
+            }
+          : null,
+    };
+
+    const report = await runJson(provider);
+
+    expect(report.forge.status).toBe('connected');
+    expect(report.next?.cardId).toBe('started');
+    expect(report.waiting).toEqual([
+      {
+        id: 'failing',
+        title: 'failing のタイトル',
+        stage: 'planning',
+        reason: HOLD_REASONS.forgeFailed(
+          'ブランチ failing の PR の解決（pulls）が HTTP 422 で失敗した'
+        ),
+        running: false,
+        decisions: [],
+      },
+    ]);
   });
 
   it('廃止した verify の提出が残る実装中のカードは、判断待ちに出さずに implement を選ぶ', async () => {

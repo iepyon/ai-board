@@ -237,7 +237,11 @@ describe('formatStatusHtml の判断待ち', () => {
     const page = html([
       card('held', {
         stage: 'impling',
-        hold: { reason: 'AI が保留した。判断してほしい', since: '2026-10-21T00:00:00.000Z' },
+        hold: {
+          kind: 'decision' as const,
+          reason: 'AI が保留した。判断してほしい',
+          since: '2026-10-21T00:00:00.000Z',
+        },
       }),
     ]);
     const waiting = section(page, '判断待ち');
@@ -315,7 +319,7 @@ describe('formatStatusHtml の文字の扱い', () => {
       card('held', {
         title: ATTACK,
         stage: 'impling',
-        hold: { reason: ATTACK, since: '2026-10-21T00:00:00.000Z' },
+        hold: { kind: 'decision' as const, reason: ATTACK, since: '2026-10-21T00:00:00.000Z' },
         latestReview: {
           at: '2026-10-21T00:00:00.000Z',
           gate: 'plan',

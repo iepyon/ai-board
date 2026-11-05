@@ -14,7 +14,7 @@ import {
 import { createBoardDependencies, createLoopHistoryRepository } from '../../composition.js';
 import { writeLoopFinish, writeLoopStart } from '../../repositories/loop-history.repository.js';
 import type { MrStateProvider } from '../../services/mr-state-provider.js';
-import type { MrState } from '../../models/mr-state.js';
+import type { ForgeCardFailure, MrState } from '../../models/mr-state.js';
 import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
 import { createCliRunner } from '../../../infrastructure/cli-runner.js';
 import {
@@ -145,11 +145,15 @@ function originLog(): string[] {
   return git(origin, 'log', '--format=%s', DATA_BRANCH).split('\n');
 }
 
-function stubMrProvider(states: Record<string, MrState> = {}): MrStateProvider {
+function stubMrProvider(
+  states: Record<string, MrState> = {},
+  failures: Record<string, ForgeCardFailure> = {}
+): MrStateProvider {
   return {
     get: (cardId) => states[cardId] ?? null,
     connection: () => ({ status: 'connected', kind: 'github' }),
     synced: () => true,
+    failure: (cardId) => failures[cardId] ?? null,
   };
 }
 
@@ -577,6 +581,7 @@ describe('GET /api/board', () => {
 
     expect(byId.get('held')?.stage).toBe('planning');
     expect(byId.get('held')?.hold).toEqual({
+      kind: 'decision',
       reason: expect.stringContaining('AI が計画を直しきれずに止まった') as unknown,
       since: '2026-09-08T00:00:00.000Z',
     });
@@ -626,9 +631,53 @@ describe('GET /api/board', () => {
 
     expect(card.stage).toBe('impling');
     expect(card.hold).toEqual({
+      kind: 'decision',
       reason: expect.stringContaining('PR #38 が Draft に戻された') as unknown,
       since: '2026-09-08T00:00:00Z',
     });
+  });
+
+  it('PR の状態を引けなかったカードだけに、PR の状態を引けない止まりを載せる', async () => {
+    await writeCard(
+      'failing',
+      '---\nid: failing\ntitle: 引けない\nstartedAt: 2026-09-05T00:00:00.000Z\nbranch: failing\n---\n'
+    );
+    await writeCard(
+      'healthy',
+      '---\nid: healthy\ntitle: 引ける\nstartedAt: 2026-09-05T00:00:00.000Z\n---\n'
+    );
+
+    const response = await request(
+      buildApp(
+        stubMrProvider(
+          {},
+          {
+            failing: {
+              message: 'ブランチ failing の PR の解決（pulls）が HTTP 422 で失敗した',
+              since: '2026-09-08T00:00:00.000Z',
+            },
+          }
+        )
+      )
+    )
+      .get('/api/board')
+      .expect(200);
+    const byId = new Map(
+      (response.body.cards as { id: string; hold: unknown; droppableStages: string[] }[]).map(
+        (card) => [card.id, card]
+      )
+    );
+
+    expect(response.body.forge).toEqual({ status: 'connected', kind: 'github' });
+    // 列が控えに依るので、画面からもどの列へも動かさせない
+    expect(byId.get('failing')?.droppableStages).toEqual([]);
+    expect(byId.get('healthy')?.droppableStages).not.toEqual([]);
+    expect(byId.get('failing')?.hold).toEqual({
+      kind: 'forge',
+      reason: expect.stringContaining('HTTP 422') as unknown,
+      since: '2026-09-08T00:00:00.000Z',
+    });
+    expect(byId.get('healthy')?.hold).toBeNull();
   });
 
   it('待ちの列でなければゲートを問わず最新のエントリを latestReview として返す（中止は除く）', async () => {

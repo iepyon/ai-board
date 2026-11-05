@@ -1,10 +1,15 @@
 import type { CardRepository } from '../cards/repositories/card.repository.js';
 import type { Card } from '../cards/models/card.js';
 import type { CardId } from '../shared/schemas/common.js';
-import type { ForgeClient } from '../board/services/forge-client.js';
+import { ForgeRequestError, type ForgeClient } from '../board/services/forge-client.js';
 import type { MrStateProvider } from '../board/services/mr-state-provider.js';
 import type { MrSnapshotRepository } from '../board/repositories/mr-snapshot.repository.js';
-import type { ForgeConnection, MrSnapshot, MrState } from '../board/models/mr-state.js';
+import type {
+  ForgeCardFailure,
+  ForgeConnection,
+  MrSnapshot,
+  MrState,
+} from '../board/models/mr-state.js';
 
 // ============================================================
 // レビュー要求のポーリング
@@ -37,6 +42,8 @@ export interface ForgePollerOptions {
  *
  * PR 一覧の全件取得はページングで取りこぼすため使わない。
  * 取得先がダウンしていてもボードは落とさず、接続状態だけを error にする。
+ * 1 枚の PR だけに効く失敗（`ForgeRequestError` の `scope` が `card`）では接続を止めず、
+ * そのカードの失敗（`failure`）として持つ。前に引けた控えは消さずに `get` で返す。
  *
  * キャッシュは控え（`MrSnapshotRepository`）にも書き、最初の `refresh` で読み戻す。
  * `ai-board status` は呼ばれるたびに新しいプロセスで 1 度だけ `refresh` するので、
@@ -44,6 +51,7 @@ export interface ForgePollerOptions {
  */
 export class ForgePoller implements MrStateProvider {
   private readonly cache = new Map<CardId, MrSnapshot>();
+  private readonly failures = new Map<CardId, ForgeCardFailure>();
   private connectionState: ForgeConnection;
   private timer: NodeJS.Timeout | null = null;
   private running = false;
@@ -61,6 +69,10 @@ export class ForgePoller implements MrStateProvider {
 
   get(cardId: string): MrState | null {
     return this.cache.get(cardId as CardId)?.mr ?? null;
+  }
+
+  failure(cardId: string): ForgeCardFailure | null {
+    return this.failures.get(cardId as CardId) ?? null;
   }
 
   connection(): ForgeConnection {
@@ -108,13 +120,12 @@ export class ForgePoller implements MrStateProvider {
 
       let changed = await this.forgetUntracked(targets);
       let firstError: string | null = null;
+      const now = new Date().toISOString();
 
       for (const card of targets) {
-        try {
-          changed = (await this.refreshCard(card)) || changed;
-        } catch (error) {
-          firstError ??= error instanceof Error ? error.message : String(error);
-        }
+        const outcome = await this.refreshTracked(card, now);
+        changed = outcome.changed || changed;
+        firstError ??= outcome.globalError;
       }
 
       this.refreshed = true;
@@ -135,6 +146,38 @@ export class ForgePoller implements MrStateProvider {
     } finally {
       this.running = false;
     }
+  }
+
+  /**
+   * カード 1 枚を引き直し、失敗を振り分ける。
+   * そのカードだけの失敗は `failures` に持ち、全体に効く失敗は `globalError` に返す（接続を error にする）
+   */
+  private async refreshTracked(
+    card: Card,
+    now: string
+  ): Promise<{ readonly changed: boolean; readonly globalError: string | null }> {
+    try {
+      const changed = await this.refreshCard(card);
+      return { changed: this.failures.delete(card.id) || changed, globalError: null };
+    } catch (error) {
+      const message = `${describeTarget(card)}${describeError(error)}`;
+
+      if (error instanceof ForgeRequestError && error.scope === 'card') {
+        return { changed: this.recordFailure(card.id, message, now), globalError: null };
+      }
+      return { changed: false, globalError: `${card.id}: ${message}` };
+    }
+  }
+
+  /**
+   * カードの失敗を持つ。失敗が続くあいだは最初の時刻を保つ。中身が変わったら true
+   */
+  private recordFailure(cardId: CardId, message: string, now: string): boolean {
+    const previous = this.failures.get(cardId);
+    if (previous?.message === message) return false;
+
+    this.failures.set(cardId, { message, since: previous?.since ?? now });
+    return true;
   }
 
   /** 控えをキャッシュへ読み戻す。プロセスごとに 1 度だけ */
@@ -161,6 +204,10 @@ export class ForgePoller implements MrStateProvider {
       this.cache.delete(cardId);
       await this.snapshotRepository.delete(cardId);
       changed = true;
+    }
+
+    for (const cardId of [...this.failures.keys()]) {
+      if (!tracked.has(cardId)) changed = this.failures.delete(cardId) || changed;
     }
 
     return changed;
@@ -220,6 +267,18 @@ export class ForgePoller implements MrStateProvider {
 
     return null;
   }
+}
+
+/** 何を引こうとしたか。番号が分かっていれば番号、無ければブランチ */
+function describeTarget(card: Card): string {
+  if (card.mr !== null) return `PR #${card.mr} の取得`;
+  return `ブランチ ${card.branch ?? ''} の PR の解決`;
+}
+
+/** `ForgeRequestError` は問い合わせ先を括弧に入れて添える（例: `（pulls/68）が HTTP 422 で失敗した`） */
+function describeError(error: unknown): string {
+  if (error instanceof ForgeRequestError) return `（${error.endpoint}）${error.failure}`;
+  return `に失敗した（${error instanceof Error ? error.message : String(error)}）`;
 }
 
 /**

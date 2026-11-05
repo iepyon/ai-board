@@ -9,7 +9,7 @@ import { isErr } from '../../../shared/result.js';
 import type { CardId } from '../../../shared/schemas/common.js';
 import { createBoardDependencies } from '../../composition.js';
 import type { MrStateProvider } from '../../services/mr-state-provider.js';
-import type { ForgeConnection } from '../../models/mr-state.js';
+import type { ForgeCardFailure, ForgeConnection } from '../../models/mr-state.js';
 import { runDecideCli, type DecideCliDependencies } from '../decide-cli.js';
 
 // ============================================================
@@ -73,10 +73,27 @@ function review(kind: string): string {
 }
 
 function stubProvider(
-  connection: ForgeConnection = { status: 'connected', kind: 'github' }
+  connection: ForgeConnection = { status: 'connected', kind: 'github' },
+  failures: Record<string, ForgeCardFailure> = {}
 ): MrStateProvider {
-  return { get: () => null, connection: () => connection, synced: () => true };
+  return {
+    get: () => null,
+    connection: () => connection,
+    synced: () => true,
+    failure: (cardId) => failures[cardId] ?? null,
+  };
 }
+
+/** カード `b` の PR だけを引けない取得先 */
+const FAILING_B = stubProvider(
+  { status: 'connected', kind: 'github' },
+  {
+    b: {
+      message: 'ブランチ b の PR の解決（pulls）が HTTP 422 で失敗した',
+      since: '2026-11-03T00:00:00.000Z',
+    },
+  }
+);
 
 async function run(argv: readonly string[], provider = stubProvider()): Promise<number> {
   const cards = createFileCardDependencies(dataDir);
@@ -251,6 +268,28 @@ describe('ai-board decide', () => {
       expect(await run(['start', 'a'])).toBe(1);
       expect(stderr).toContain('今の列: 計画提案中');
     });
+  });
+
+  it('PR の状態を引けないカードには、判断と着手を戻すを書かない。ほかのカードには書ける', async () => {
+    await writeCard('a', STARTED);
+    await writeCard('b', STARTED, review('提出'));
+    await writePlan('b');
+
+    expect(await run(['approve', 'b'], FAILING_B)).toBe(1);
+    expect(stderr).toContain(
+      'b に 承認 は書けません（今の列: 計画レビュー。出せる判断はありません。PR の状態を引けない'
+    );
+    expect(stderr).toContain('HTTP 422');
+    expect(parseReviewLog((await readCard('b')).body)).toHaveLength(1);
+
+    stderr = '';
+    expect(await run(['unstart', 'b'], FAILING_B)).toBe(1);
+    expect(stderr).toContain('b は着手を戻すできません');
+    expect(stderr).toContain('PR の状態を引けない');
+    expect((await readCard('b')).startedAt).not.toBeNull();
+
+    expect(await run(['unstart', 'a'], FAILING_B)).toBe(0);
+    expect((await readCard('a')).startedAt).toBeNull();
   });
 
   it('GitHub に繋がらないときは着手 / 着手を戻すを拒み、飛ばす宣言と並べ替えは書く', async () => {

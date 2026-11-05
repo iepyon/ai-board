@@ -264,7 +264,8 @@ async function runStartedAt(
     return fail(
       io,
       `${id} は${move.label}できません（今の列: ${STAGE_LABELS[card.stage]}。` +
-        `${STAGE_LABELS[move.from]}にあり、${STAGE_LABELS[move.to]}へ入れられるカードだけ）`
+        `${STAGE_LABELS[move.from]}にあり、${STAGE_LABELS[move.to]}へ入れられるカードだけ）` +
+        forgeHoldNote(card)
     );
   }
 
@@ -455,10 +456,18 @@ function requireCardId(args: ParsedArgs, io: DecideCliIo): CardId | null {
 }
 
 /** 書けなかったときに、今の列と出せる判断を添える */
+/**
+ * PR の状態を引けない止まりなら、その理由を添える。
+ * そのカードは出せる判断も入れられる列も無い（`decisionsFor` / `droppableStages`）ので、拒んだ理由がそれだと分かるようにする
+ */
+function forgeHoldNote(card: BoardCard): string {
+  return card.hold?.kind === 'forge' ? `。${card.hold.reason}` : '';
+}
+
 function describeChoices(card: BoardCard): string {
   const stage = `今の列: ${STAGE_LABELS[card.stage]}${card.aborted ? '（中止済み）' : ''}`;
   const decisions = decisionsFor(card);
-  if (decisions.length === 0) return `${stage}。出せる判断はありません`;
+  if (decisions.length === 0) return `${stage}。出せる判断はありません${forgeHoldNote(card)}`;
   return `${stage}。出せる判断: ${decisions.map((d) => `${d.gate} ${d.kind}`).join(' / ')}`;
 }
 

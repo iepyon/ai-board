@@ -1,4 +1,4 @@
-import type { ForgeConnection, ForgeKind, MrState } from '../models/mr-state.js';
+import type { ForgeCardFailure, ForgeConnection, ForgeKind, MrState } from '../models/mr-state.js';
 
 // ============================================================
 // PR の状態の供給元
@@ -17,6 +17,11 @@ export interface MrStateProvider {
    * 「PR が見えない」ことを根拠にする判定（`resolveHold` の planLost）は、これが真のときだけ行う
    */
   synced(): boolean;
+  /**
+   * そのカードの PR を、直近の取得で引けなかったか（全体ではなくそのカードだけの失敗）。引けていれば null。
+   * 引けなかったカードの `get` は、前に引けた控えを返す
+   */
+  failure(cardId: string): ForgeCardFailure | null;
 }
 
 /** 取得先が未設定のときの実装。ボードはカードと計画ファイルだけで動く */
@@ -24,6 +29,7 @@ export const disabledMrStateProvider: MrStateProvider = {
   get: () => null,
   connection: () => ({ status: 'disabled', kind: null, reason: null }),
   synced: () => false,
+  failure: () => null,
 };
 
 /**
@@ -35,5 +41,6 @@ export function unavailableMrStateProvider(kind: ForgeKind, reason: string): MrS
     get: () => null,
     connection: () => ({ status: 'disabled', kind, reason }),
     synced: () => false,
+    failure: () => null,
   };
 }
