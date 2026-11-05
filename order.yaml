@@ -34,7 +34,7 @@ ranks:
   loop-task-batch: 2000
   loop-worker-dummy: 33000
   merge-verify-into-pr: -12750
-  merged-before-ready: 1793715935378
+  merged-before-ready: -7875
   node-lts: 4000
   plan-assumptions: -10750
   plan-visual: 1793715933378
