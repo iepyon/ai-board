@@ -7,6 +7,7 @@ import {
   type LoopResult,
   type LoopStep,
 } from './loop-step.js';
+import { byStartedAt, isStuck, sameMove } from './loop-streak.js';
 import type { Stage } from './schemas/common.js';
 import {
   TIMELINE_KINDS,
@@ -37,7 +38,7 @@ export interface MetricsCard {
   readonly timeline: readonly TimelineSegment[];
   readonly loopSteps: readonly Pick<
     LoopStep,
-    'action' | 'step' | 'result' | 'tokens' | 'durationMs'
+    'action' | 'step' | 'result' | 'tokens' | 'durationMs' | 'harness' | 'startedAt'
   >[];
 }
 
@@ -97,6 +98,40 @@ export interface LoopResultCount {
   readonly count: number;
 }
 
+/**
+ * 手順書の版 1 つの成績。`harness` が null の行は「版なし」（変更履歴より前の記録と、1 手の記録の無いカード）。
+ *
+ * 1 手の数字は、記録ごとにその記録の版で分ける。カードの数字は、カードを最初の 1 手の記録の版に入れる。
+ * 時間はミリ秒。数える値が無ければ null。
+ */
+export interface HarnessVersionMetrics {
+  readonly harness: string | null;
+  /** 1 手の記録の数（終わっていないものを含む） */
+  readonly stepCount: number;
+  /** 1 手の時間の中央値 */
+  readonly durationMedianMs: number | null;
+  /** 1 手のトークンの中央値（取れた記録だけ） */
+  readonly tokensMedian: number | null;
+  /** トークンが取れた記録の数 */
+  readonly tokensCount: number;
+  /** 終わった記録の数（止まった割合の分母） */
+  readonly finishedCount: number;
+  /** 進めなかった（`advanced` 以外で終わった）記録の数 */
+  readonly stuckCount: number;
+  /** やり直しの回数。同じカード・同じ手・同じ段が、進めなかった手の直後にもう一度選ばれた回数 */
+  readonly retryCount: number;
+  /** この版に入れた、着手したカードの数（否決率の分母） */
+  readonly cardCount: number;
+  /** 否決が 1 回以上あるカードの数 */
+  readonly rejectedCardCount: number;
+  /** 否決の延べ回数 */
+  readonly rejectionCount: number;
+  /** マージ済みのカードの、着手の後の人の区間（計画レビュー・保留・PR中・Draft に戻された間）の合計の中央値 */
+  readonly humanWaitMedianMs: number | null;
+  /** 人を待った時間を数えたマージ済みのカードの数 */
+  readonly humanWaitCardCount: number;
+}
+
 export interface BoardMetrics {
   readonly summary: MetricsSummary;
   /** 工程ごとの滞在時間。`TIMELINE_KINDS` の順で、数えたカードの無い工程は入れない */
@@ -109,6 +144,8 @@ export interface BoardMetrics {
   readonly loopActions: readonly LoopActionMetrics[];
   /** `LOOP_RESULTS` の順に `running` を足したもの。0 件の結果は入れない */
   readonly loopResults: readonly LoopResultCount[];
+  /** 手順書の版ごと。版番号の大きい順で、最後に「版なし」。記録もカードも無い版は入れない */
+  readonly harnessVersions: readonly HarnessVersionMetrics[];
 }
 
 const REJECTED_KIND = '否決';
@@ -136,6 +173,7 @@ export function computeBoardMetrics(cards: readonly MetricsCard[]): BoardMetrics
     dailyMerges: countDailyMerges(merged),
     loopActions: loopActionMetrics(live),
     loopResults: loopResultCounts(live),
+    harnessVersions: harnessVersionMetrics(live),
   };
 }
 
@@ -321,6 +359,120 @@ function loopResultCounts(live: readonly MetricsCard[]): readonly LoopResultCoun
       count: steps.filter((step) => (step.result ?? 'running') === result).length,
     }))
     .filter((entry) => entry.count > 0);
+}
+
+// ============================================================
+// 手順書の版ごと
+// ============================================================
+
+type Harness = string | null;
+
+interface VersionBucket {
+  readonly steps: LoopStepInput[];
+  retryCount: number;
+  readonly cards: MetricsCard[];
+}
+
+function harnessVersionMetrics(live: readonly MetricsCard[]): readonly HarnessVersionMetrics[] {
+  const buckets = new Map<Harness, VersionBucket>();
+  const bucket = (harness: Harness): VersionBucket => {
+    let found = buckets.get(harness);
+    if (found === undefined) {
+      found = { steps: [], retryCount: 0, cards: [] };
+      buckets.set(harness, found);
+    }
+    return found;
+  };
+
+  for (const card of live) {
+    const ordered = byStartedAt(card.loopSteps);
+
+    ordered.forEach((step, index) => {
+      const target = bucket(harnessOf(step));
+      target.steps.push(step);
+
+      const previous = index === 0 ? undefined : ordered[index - 1];
+      if (previous !== undefined && isStuck(previous) && sameMove(previous, step)) {
+        target.retryCount += 1;
+      }
+    });
+
+    if (card.startedAt !== null) {
+      const first = ordered[0];
+      bucket(first === undefined ? null : harnessOf(first)).cards.push(card);
+    }
+  }
+
+  return [...buckets.entries()]
+    .sort(([a], [b]) => compareHarness(a, b))
+    .map(([harness, { steps, retryCount, cards }]) => {
+      const durations = steps.flatMap((step) =>
+        step.durationMs === null ? [] : [step.durationMs]
+      );
+      const tokens = steps.flatMap((step) => (step.tokens === null ? [] : [step.tokens]));
+      const rejections = cards.map(
+        (card) => card.reviews.filter((review) => review.kind === REJECTED_KIND).length
+      );
+      const waits = cards
+        .filter((card) => card.stage === 'merged')
+        .map((card) => humanWaitMs(card))
+        .filter((value): value is number => value !== null);
+
+      return {
+        harness,
+        stepCount: steps.length,
+        durationMedianMs: median(durations),
+        tokensMedian: median(tokens),
+        tokensCount: tokens.length,
+        finishedCount: steps.filter((step) => step.result !== null).length,
+        stuckCount: steps.filter((step) => isStuck(step)).length,
+        retryCount,
+        cardCount: cards.length,
+        rejectedCardCount: rejections.filter((count) => count > 0).length,
+        rejectionCount: rejections.reduce((sum, count) => sum + count, 0),
+        humanWaitMedianMs: median(waits),
+        humanWaitCardCount: waits.length,
+      };
+    });
+}
+
+/** 記録の版。項目の無い古い記録（`undefined`）も版なしにそろえる */
+function harnessOf(step: LoopStepInput): Harness {
+  return step.harness ?? null;
+}
+
+/** 版番号の大きい順。版なしは最後。番号の読めない版は名前の順で番号のある版の後ろ */
+function compareHarness(a: Harness, b: Harness): number {
+  if (a === b) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+
+  const na = versionNumber(a);
+  const nb = versionNumber(b);
+  if (na !== null && nb !== null) return nb - na;
+  if (na !== null) return -1;
+  if (nb !== null) return 1;
+  return a < b ? -1 : 1;
+}
+
+function versionNumber(harness: string): number | null {
+  const match = /^v(\d+)$/.exec(harness);
+  return match === null ? null : Number(match[1]);
+}
+
+/**
+ * マージ済みのカードの、人を待った区間の合計。閉じる時刻が無ければ null。
+ *
+ * 着手の後の人の区間（計画レビュー・保留・PR中・Draft に戻された間）を足す。
+ * アイデアの区間も人の番だが、着手の前の待ちなので手順書の成績には入れない
+ */
+function humanWaitMs(card: MetricsCard): number | null {
+  const end = mergedEndOf(card);
+  if (end === null) return null;
+
+  return card.timeline
+    .filter((segment) => segment.owner === 'human' && segment.kind !== 'idea')
+    .reduce((sum, segment) => sum + segmentMs(segment, end), 0);
 }
 
 // ============================================================

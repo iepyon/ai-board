@@ -165,9 +165,9 @@
 
 ### 2. 版ごとの集計と止まり続けている回数
 
-- [ ] `src/shared/loop-streak.ts` に、カードの記録から止まり続けている回数を数える純関数を足す。テストを足す
-- [ ] `board-metrics.ts` に `harnessVersions` を足す（Decisions「版ごとの集計」）。`MetricsCard.loopSteps` に `harness`・`cardId` など要る項目を足す。テストを足す
-- [ ] 品質ゲートを通す
+- [x] `src/shared/loop-streak.ts` に、カードの記録から止まり続けている回数を数える純関数を足す。テストを足す
+- [x] `board-metrics.ts` に `harnessVersions` を足す（Decisions「版ごとの集計」）。`MetricsCard.loopSteps` に `harness`・`cardId` など要る項目を足す。テストを足す
+- [x] 品質ゲートを通す
 
 ### 3. 見せ方と手順書
 
