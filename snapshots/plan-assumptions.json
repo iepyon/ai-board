@@ -1,0 +1,19 @@
+{
+  "fingerprint": "[3,\"closed\",\"2026-11-05T00:43:25Z\",false,\"8c09b586ab7745c0f83bbafa4dec178e8624e2c1\",0,0,\"2026-11-05T00:43:30Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 80,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "plan-assumptions",
+    "title": "計画で、AI が決めた仮定と人に判断してほしいことを分け、探索メモとの対応を残す",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/80",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestAiNoteAt": null,
+    "latestCommitAt": "2026-11-04T23:43:28Z",
+    "mergedAt": "2026-11-05T00:43:25Z",
+    "readyAt": "2026-11-04T23:03:52Z",
+    "convertedToDraftAt": null
+  }
+}
