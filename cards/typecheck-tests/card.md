@@ -3,7 +3,7 @@ id: typecheck-tests
 title: AIエージェントは、テスト用の値が本体の型とずれたら、品質ゲートで気付きたい
 created: '2026-10-23T06:19:17.968Z'
 skipGates: []
-branch: null
+branch: typecheck-tests
 mr: null
 ---
 
