@@ -300,6 +300,7 @@ CLI はデータ用ブランチを取り直してから読み書きするので�
 ai-board card list                         # 一覧（JSON、本文なし、rank 順）
 ai-board card show <id>                    # 1 枚を Markdown で
 ai-board card create --title <t> [--id <id>] < body.md
+ai-board card seed --from <dir>            # <dir> の *.md のうち、まだ無いカードだけを起票（研修の題材の取り込み。既にある ID は飛ばす）
 ai-board card body <id> < body.md          # 本文の差し替え
 ai-board card branch <id> <name>           # ブランチの紐付け（--clear で外す）
 ai-board card submit <id> [--gate plan] [--resubmit] [--reason <text>]   # 提出 / 再提出（ゲートは plan だけ）

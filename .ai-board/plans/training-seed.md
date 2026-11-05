@@ -128,10 +128,10 @@
 
 ### 1. `card seed`
 
-- [ ] `src/cards/cli/seed-cards.ts` に、ディレクトリの中身（ファイル名と中身の組）からカードの候補を作る純関数を足す（`parseCard` を使う。読めないファイルを理由付きで返す）
-- [ ] `CardCliIo` に `readMarkdownDir` を足し、`src/cli-main.ts` で `node:fs` を使って渡す
-- [ ] `card-cli.ts` に `seed --from <dir>` を足す（全部読んでから 1 枚ずつ `createCardCommand`、`DuplicateCardId` は飛ばす）。`CARD_USAGE` に足す
-- [ ] `seed-cards.test.ts` と `card-cli.test.ts` に、読み取りの各場合（`id` の省略・食い違い・`title` 無し・ファイルが無い・余分な frontmatter を読まない）と、
+- [x] `src/cards/cli/seed-cards.ts` に、ディレクトリの中身（ファイル名と中身の組）からカードの候補を作る純関数を足す（`parseCard` を使う。読めないファイルを理由付きで返す）
+- [x] `CardCliIo` に `readMarkdownDir` を足し、`src/cli-main.ts` で `node:fs` を使って渡す
+- [x] `card-cli.ts` に `seed --from <dir>` を足す（全部読んでから 1 枚ずつ `createCardCommand`、`DuplicateCardId` は飛ばす）。`CARD_USAGE` に足す
+- [x] `seed-cards.test.ts` と `card-cli.test.ts` に、読み取りの各場合（`id` の省略・食い違い・`title` 無し・ファイルが無い・余分な frontmatter を読まない）と、
       起票・飛ばし・途中の失敗・`## レビュー` に判断のある本文を拒むことのテストを足す
-- [ ] `README.md` と `CLAUDE.md` の CLI の一覧に `card seed` を足す
-- [ ] 品質ゲートを通す
+- [x] `README.md` と `CLAUDE.md` の CLI の一覧に `card seed` を足す
+- [x] 品質ゲートを通す
