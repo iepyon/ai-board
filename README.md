@@ -802,8 +802,8 @@ npm run dev:web       # Vite dev サーバ（/api を 5673 へプロキシ）
 ```
 
 CI（`.github/workflows/ci.yml`）は PR と main への push で typecheck / lint / format:check /
-test:coverage / build を走らせる。Windows の行（Git Bash）では、テストを除いた typecheck / lint / format:check / build と、
-ビルドした CLI の起動を走らせる。PR のレビューだけに効く指示は `REVIEW.md` にある。
+test:coverage / build を走らせる。Windows の行（Git Bash）では、typecheck（テストの型検査も含む）/ lint / format:check / build と、
+ビルドした CLI の起動を走らせる（テストの実行だけは走らせない）。PR のレビューだけに効く指示は `REVIEW.md` にある。
 
 `typecheck` は、出力に使う `tsconfig.json`（テストを除く）、画面の `tsconfig.web.json`（`src/web/` と `src/shared/`）、
 テストまで含めた `tsconfig.test.json` の 3 つで `tsc` を走らせる。vitest は型を見ずにテストを走らせるので、

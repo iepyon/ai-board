@@ -127,7 +127,7 @@
 
 ## AI レビュー
 
-- [ ] `README.md:805` の CI の段落は、Windows の行が「テストを除いた typecheck」を走らせると書いたままだが、この PR で `npm run typecheck` が `tsconfig.test.json` も走らせるようになり、Windows の行もテストを型検査する（計画の仮定「Windows の CI の行もテストの型検査を走らせる」、`.github/workflows/ci.yml:58`）。すぐ下に足した段落とも食い違う。「テストを除いた typecheck」を「typecheck（テストも含む）」のように、Windows の行で走らないのはテストの実行だけだと分かる書き方に直す
+- [x] `README.md:805` の CI の段落は、Windows の行が「テストを除いた typecheck」を走らせると書いたままだが、この PR で `npm run typecheck` が `tsconfig.test.json` も走らせるようになり、Windows の行もテストを型検査する（計画の仮定「Windows の CI の行もテストの型検査を走らせる」、`.github/workflows/ci.yml:58`）。すぐ下に足した段落とも食い違う。「テストを除いた typecheck」を「typecheck（テストも含む）」のように、Windows の行で走らないのはテストの実行だけだと分かる書き方に直す
 
 ### 見送った指摘
 
