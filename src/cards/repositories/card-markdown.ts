@@ -67,9 +67,13 @@ export function parseCard(filePath: string, raw: string): Card | null {
     branch: frontmatter.branch,
     mr: frontmatter.mr as MergeRequestIid | null,
     rank: frontmatter.rank,
-    // 前後の改行は正規化する。これで読み書きを往復しても本文が育たない
-    body: parsed.content.replace(/^\n+/, '').replace(/\n+$/, ''),
+    body: normalizeBody(parsed.content),
   };
+}
+
+/** 本文の前後の改行を落とす。これで読み書きを往復しても本文が育たない */
+export function normalizeBody(content: string): string {
+  return content.replace(/^\n+/, '').replace(/\n+$/, '');
 }
 
 /**

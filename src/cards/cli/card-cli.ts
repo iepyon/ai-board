@@ -14,6 +14,7 @@ import { CardWriteRefusedError } from '../repositories/file-card.repository.js';
 import { isReviewGate, REVIEW_GATES, type ReviewGate } from '../models/review.js';
 import { gateStates, parseReviewLog } from '../services/review-log.js';
 import { describeDataStoreError, describeOfflineRead } from './data-store-messages.js';
+import { readSeedCards, type SeedFile } from './seed-cards.js';
 
 // ============================================================
 // ai-board card — エージェントがカードに書くための CLI
@@ -39,6 +40,9 @@ Commands:
   show <id>                カードを Markdown（frontmatter + 本文）で出す
   create --title <t> [--id <id>]
                            アイデアカードを作る。本文は標準入力から読む（任意）
+  seed --from <dir>        <dir> の *.md（show と同じ形）のうち、まだ無いカードだけを
+                           アイデアカードとして作る。既にある ID は飛ばす。読むのは id・title・本文だけ。
+                           1 つでも読めないファイルがあれば 1 枚も作らない
   body <id>                本文を標準入力の内容に差し替える
                            （## レビュー のエントリが変わる差し替えは拒否する）
   branch <id> <name>       ブランチを紐付ける。--clear で外す
@@ -56,6 +60,11 @@ export interface CardCliIo {
   readonly stderr: (text: string) => void;
   /** 標準入力を最後まで読む。端末から起動されて入力が無ければ null */
   readonly readStdin: () => Promise<string | null>;
+  /**
+   * ディレクトリの直下の `*.md` を読む（`seed` が使う。下の階層は読まない）。相対パスは作業ディレクトリから解決する。
+   * 読めなければ理由の文を返す
+   */
+  readonly readMarkdownDir: (dir: string) => Promise<Result<readonly SeedFile[], string>>;
   readonly now: () => Date;
 }
 
@@ -90,6 +99,7 @@ const HANDLERS: Readonly<Record<string, Handler>> = {
   list: runList,
   show: runShow,
   create: runCreate,
+  seed: runSeed,
   body: runBody,
   branch: runBranch,
   submit: runSubmit,
@@ -212,6 +222,71 @@ async function runCreate(
         createdAt,
       })
   );
+}
+
+/**
+ * 題材のカードの一式を起票する。
+ *
+ * 先に全部読み、1 つでも読めないファイルがあれば 1 枚も書かない（チームで 1 つの fork を共有するので、
+ * 一部だけ起票されると誰が何を直すかが分かりにくい）。
+ * 起票は 1 枚ずつ `card create` と同じ口で行い、1 枚 1 コミットにする。既にある ID は失敗にせず飛ばすので、
+ * 何度走らせても重複しない。途中で失敗したら止まり、それまでに起票した分は残る（次に走らせれば続きから起票される）。
+ * `rank`・`startedAt`・`## レビュー` は書かない。本文の `## レビュー` に判断があれば起票の口が拒む。
+ */
+async function runSeed(
+  args: ParsedArgs,
+  deps: CardCliDependencies,
+  io: CardCliIo
+): Promise<number> {
+  const from = args.flags.get('--from');
+  if (typeof from !== 'string') {
+    io.stderr('--from に題材のディレクトリを指定してください\n');
+    return 1;
+  }
+
+  const files = await io.readMarkdownDir(from);
+  if (isErr(files)) {
+    io.stderr(`${from} を読めません: ${files.error}\n`);
+    return 1;
+  }
+
+  const read = readSeedCards(files.value);
+  if (isErr(read)) {
+    const lines = read.error.map((problem) => `${problem.file}: ${problem.reason}`);
+    io.stderr(`${lines.join('\n')}\n読めないファイルがあるので、1 枚も起票しませんでした\n`);
+    return 1;
+  }
+  if (read.value.length === 0) {
+    io.stderr(`${from} に *.md がありません\n`);
+    return 1;
+  }
+
+  // 既にある ID は、書き込み（fetch・ロック・push）を経ずに飛ばす。取り直しは頭の 1 回だけにする
+  if (!(await refreshForRead(deps, io))) return 1;
+  const existing = new Set((await deps.cards.cardRepository.findAll()).map((card) => card.id));
+
+  for (const card of read.value) {
+    if (existing.has(card.id)) {
+      io.stdout(`${card.id}: 既にあるので飛ばしました\n`);
+      continue;
+    }
+
+    const createdAt = io.now();
+    const result = await transactCard(deps, `data: ${card.id} を作る`, () =>
+      deps.cards.createCardCommand({ title: card.title, id: card.id, body: card.body, createdAt })
+    );
+
+    if (result.ok) {
+      io.stdout(`${card.id}: 起票しました\n`);
+    } else if (result.error.type === 'DuplicateCardId') {
+      // 頭の取り直しの後に、ほかの人が同じ ID を起票していた
+      io.stdout(`${card.id}: 既にあるので飛ばしました\n`);
+    } else {
+      io.stderr(`${card.file}: ${describeError(result.error)}\n`);
+      return 1;
+    }
+  }
+  return 0;
 }
 
 async function runBody(
@@ -382,7 +457,16 @@ async function write(
   message: CommitMessage<Card>,
   op: () => Promise<Result<Card, WriteFailure>>
 ): Promise<number> {
-  const result = await deps.store.transact<Card, WriteFailure>(message, async () => {
+  return report(await transactCard(deps, message, op), deps, io);
+}
+
+/** `op` を書き込みの 1 操作の中で走らせる。リポジトリの拒否は `CardWriteRefused` の Err にする */
+function transactCard(
+  deps: CardCliDependencies,
+  message: CommitMessage<Card>,
+  op: () => Promise<Result<Card, WriteFailure>>
+): Promise<Result<Card, WriteFailure | DataStoreError>> {
+  return deps.store.transact<Card, WriteFailure>(message, async () => {
     try {
       return await op();
     } catch (error) {
@@ -392,8 +476,6 @@ async function write(
       throw error;
     }
   });
-
-  return report(result, deps, io);
 }
 
 function refused(message: string): Result<never, Refused> {

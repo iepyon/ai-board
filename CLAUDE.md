@@ -49,6 +49,7 @@ ai-board card branch <id> <name>   # ブランチの紐付け（--clear で外�
 ai-board card submit <id> [--gate plan] [--resubmit] [--reason <text>]   # 提出 / 再提出（ゲートは plan だけ）
 ai-board card hold <id> --gate plan --reason <text>   # 保留（そのゲートの最新が否決のときだけ）
 ai-board card create --title <t> [--id <id>] < body.md     # アイデアカードの起票
+ai-board card seed --from <dir>    # <dir> の *.md のうち、まだ無いカードだけを起票（既にある ID は飛ばす。1 つでも読めなければ何もしない）
 ai-board status [--json [--only <項目,...>]]   # 導出したステージ・判断待ち・次の一手（サーバ不要。--only で要る項目だけ）
 ai-board loop start  --loop <id> --card <id> --action <手> [--step <段>] [--agent <name>]   # 1 手の開始（ループだけ）
 ai-board loop finish --loop <id> --card <id> --result <結果> [--tokens <n>] [--duration-ms <n>]   # 1 手の終了（ループだけ。--duration-ms を省くと開始からの時間で埋める）

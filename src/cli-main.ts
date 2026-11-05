@@ -18,6 +18,7 @@ import {
   createTransactionalMrWriter,
 } from './cards/composition.js';
 import { runCardCli, type CardCliIo } from './cards/cli/card-cli.js';
+import type { SeedFile } from './cards/cli/seed-cards.js';
 import { runInitCli } from './cards/cli/init-cli.js';
 import { describeDataStoreError, describeOfflineRead } from './cards/cli/data-store-messages.js';
 import {
@@ -35,7 +36,7 @@ import { DECIDE_USAGE, isDecideCommand, runDecideCli } from './board/cli/decide-
 import { findLiveServer } from './infrastructure/server-info.js';
 import { readMtimeMs, runDistCheckCli } from './infrastructure/dist-check-cli.js';
 import { openBrowser } from './infrastructure/open-browser.js';
-import { isErr } from './shared/result.js';
+import { err, isErr, ok, type Result } from './shared/result.js';
 import { CardIdSchema, type CardId } from './shared/schemas/common.js';
 
 // ============================================================
@@ -388,8 +389,29 @@ function createProcessIo(): CardCliIo {
       }
       return Buffer.concat(chunks).toString('utf-8');
     },
+    readMarkdownDir,
     now: () => new Date(),
   };
+}
+
+/** ディレクトリの直下の `*.md`（下の階層は読まない）を読む。相対パスは作業ディレクトリから解決する */
+async function readMarkdownDir(dir: string): Promise<Result<readonly SeedFile[], string>> {
+  try {
+    const root = path.resolve(dir);
+    const entries = await fs.promises.readdir(root, { withFileTypes: true });
+    const files = entries.filter((entry) => entry.isFile() && entry.name.endsWith('.md'));
+
+    return ok(
+      await Promise.all(
+        files.map(async (entry) => ({
+          name: entry.name,
+          content: await fs.promises.readFile(path.join(root, entry.name), 'utf-8'),
+        }))
+      )
+    );
+  } catch (error) {
+    return err(error instanceof Error ? error.message : String(error));
+  }
 }
 
 /** サーバを起動しないサブコマンド。名前から実行する関数を引く */

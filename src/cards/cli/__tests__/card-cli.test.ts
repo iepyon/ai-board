@@ -13,7 +13,8 @@ import {
   type CardCliIo,
 } from '../card-cli.js';
 import type { CardId } from '../../../shared/schemas/common.js';
-import { isErr, ok, type Result } from '../../../shared/result.js';
+import { err, isErr, ok, type Result } from '../../../shared/result.js';
+import type { SeedFile } from '../seed-cards.js';
 import type { ReviewGate } from '../../models/review.js';
 import { REVIEW_HEADING, gateStates, parseReviewLog } from '../../services/review-log.js';
 import { demoteHeadings } from '../../repositories/card-files.js';
@@ -27,6 +28,8 @@ let origin: string;
 let deps: CardCliDependencies;
 let stdout: string;
 let stderr: string;
+/** `seed` が読むディレクトリの中身。テストごとに差し替える */
+let seedFiles: Result<readonly SeedFile[], string>;
 
 const runner = createCliRunner({ timeoutMs: 30_000 });
 
@@ -89,6 +92,7 @@ beforeEach(() => {
   deps = cliDeps(cloneData(path.join(tmp, 'a')));
   stdout = '';
   stderr = '';
+  seedFiles = ok([]);
 });
 
 afterEach(() => {
@@ -106,6 +110,7 @@ function io(stdin: string | null = null, now: Date = NOW): CardCliIo {
       stderr += text;
     },
     readStdin: () => Promise.resolve(stdin),
+    readMarkdownDir: () => Promise.resolve(seedFiles),
     now: () => now,
   };
 }
@@ -683,6 +688,95 @@ describe('runCardCli とデータ用ブランチ', () => {
     expect(await run(['show'])).toBe(1);
     expect(await run(['submit', 'a', '--gate', 'pr'])).toBe(1);
     expect(stderr).not.toContain('データ用ブランチ');
+  });
+});
+
+describe('runCardCli seed', () => {
+  function seedFile(name: string, frontmatter: string, body = '## アイデア\n題材'): SeedFile {
+    return { name, content: `---\n${frontmatter}\n---\n\n${body}\n` };
+  }
+
+  const A = seedFile('a.md', 'id: a\ntitle: 題材 A');
+  const B = seedFile('b.md', 'title: 題材 B');
+
+  it('まだ無いカードを 1 枚 1 コミットで起票し、rank・着手・判断を書かない', async () => {
+    seedFiles = ok([
+      B,
+      { ...A, content: A.content.replace('title:', 'rank: 5\nstartedAt: 2026-01-01\ntitle:') },
+    ]);
+
+    expect(await run(['seed', '--from', 'cards'])).toBe(0);
+    expect(stdout).toBe('a: 起票しました\nb: 起票しました\n');
+    expect(originLog().slice(0, 2)).toEqual(['data: b を作る', 'data: a を作る']);
+
+    const a = await deps.cards.cardRepository.findById('a' as CardId);
+    expect(a).toMatchObject({
+      title: '題材 A',
+      body: '## アイデア\n題材',
+      rank: null,
+      startedAt: null,
+      created: NOW.toISOString(),
+    });
+    expect(parseReviewLog(a?.body ?? '')).toEqual([]);
+  });
+
+  it('既にある ID は飛ばし、2 回目はコミットしない', async () => {
+    await seed('a', '## アイデア\n前からある');
+    seedFiles = ok([A, B]);
+
+    expect(await run(['seed', '--from', 'cards'])).toBe(0);
+    expect(stdout).toBe('a: 既にあるので飛ばしました\nb: 起票しました\n');
+    expect((await deps.cards.cardRepository.findById('a' as CardId))?.body).toBe(
+      '## アイデア\n前からある'
+    );
+
+    const commits = originLog().length;
+    stdout = '';
+    expect(await run(['seed', '--from', 'cards'])).toBe(0);
+    expect(stdout).toBe('a: 既にあるので飛ばしました\nb: 既にあるので飛ばしました\n');
+    expect(originLog()).toHaveLength(commits);
+  });
+
+  it('1 つでも読めないファイルがあれば、理由を全部出して 1 枚も起票しない', async () => {
+    seedFiles = ok([A, seedFile('c.md', 'id: c'), seedFile('d.md', 'id: other\ntitle: D')]);
+    const commits = originLog().length;
+
+    expect(await run(['seed', '--from', 'cards'])).toBe(1);
+    expect(stderr).toContain('c.md: title がありません');
+    expect(stderr).toContain('d.md: frontmatter の id (other) がファイル名 (d) と一致しません');
+    expect(stderr).toContain('1 枚も起票しませんでした');
+    expect(originLog()).toHaveLength(commits);
+    expect(await deps.cards.cardRepository.findById('a' as CardId)).toBeNull();
+  });
+
+  it('本文の ## レビュー に判断がある題材は起票の口が拒み、そこで止まる', async () => {
+    const approved = seedFile(
+      'b.md',
+      'title: 題材 B',
+      `## アイデア\n題材\n\n${REVIEW_HEADING}\n\n### 2026-01-01T00:00:00.000Z plan 承認\n\nよい`
+    );
+    seedFiles = ok([A, approved, seedFile('c.md', 'title: 題材 C')]);
+
+    expect(await run(['seed', '--from', 'cards'])).toBe(1);
+    expect(stdout).toBe('a: 起票しました\n');
+    expect(stderr).toContain('b.md:');
+    expect(await deps.cards.cardRepository.findById('b' as CardId)).toBeNull();
+    expect(await deps.cards.cardRepository.findById('c' as CardId)).toBeNull();
+  });
+
+  it('--from が無い、ディレクトリを読めない、*.md が無いときは 1', async () => {
+    expect(await run(['seed'])).toBe(1);
+    expect(stderr).toContain('--from');
+
+    stderr = '';
+    seedFiles = err('ENOENT');
+    expect(await run(['seed', '--from', 'nowhere'])).toBe(1);
+    expect(stderr).toContain('nowhere を読めません: ENOENT');
+
+    stderr = '';
+    seedFiles = ok([]);
+    expect(await run(['seed', '--from', 'cards'])).toBe(1);
+    expect(stderr).toContain('*.md がありません');
   });
 });
 
