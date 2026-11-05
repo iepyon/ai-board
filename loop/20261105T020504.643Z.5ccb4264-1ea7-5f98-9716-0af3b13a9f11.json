@@ -5,8 +5,8 @@
   "step": null,
   "agent": null,
   "startedAt": "2026-11-05T02:05:04.643Z",
-  "finishedAt": null,
-  "result": null,
+  "finishedAt": "2026-11-05T02:08:10.052Z",
+  "result": "advanced",
   "tokens": null,
-  "durationMs": null
+  "durationMs": 185409
 }
