@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { DIVIDER_ID } from '../card-reorder.js';
 import {
-  awaitsDecision,
   decisionsFor,
   groupBySection,
   ideaRows,
@@ -365,44 +364,6 @@ describe('decisionsFor', () => {
     expect(buttons(card)).toEqual(['plan 否決 計画から立て直させる', 'plan 中止 中止する']);
   });
 });
-
-describe('awaitsDecision', () => {
-  it('計画レビューのカードは判断を待っている', () => {
-    expect(awaitsDecision(decisionCard({ stage: 'plan-review' }))).toBe(true);
-  });
-
-  it('AI の列で止まっているカードは判断を待っている', () => {
-    expect(awaitsDecision(decisionCard({ stage: 'impling', hold: HOLD }))).toBe(true);
-    expect(awaitsDecision(decisionCard({ stage: 'planning', hold: HOLD }))).toBe(true);
-  });
-
-  it('PR中 のカードは GitHub で判断するので含めない', () => {
-    expect(awaitsDecision(decisionCard({ stage: 'pr' }))).toBe(false);
-  });
-
-  it('アイデアは 中止 を出せても判断を待っていないので含めない', () => {
-    const card = decisionCard({ stage: 'idea' });
-
-    expect(decisionsFor(card)).not.toEqual([]);
-    expect(awaitsDecision(card)).toBe(false);
-  });
-
-  it('中止のカードはゲートを待つ列に残っていても、止まっていても含めない', () => {
-    for (const stage of ['plan-review', 'impling'] as const) {
-      expect(awaitsDecision(decisionCard({ stage, hold: HOLD, aborted: true }))).toBe(false);
-    }
-  });
-
-  it('止まっていない AI の列とアイデアのカードは含めない', () => {
-    for (const stage of ['idea', 'planning', 'impling', 'merged'] as const) {
-      expect(awaitsDecision(decisionCard({ stage }))).toBe(false);
-    }
-  });
-});
-
-// ============================================================
-// 動きなし
-// ============================================================
 
 describe('isStale', () => {
   const now = new Date('2026-09-26T00:00:00Z');
