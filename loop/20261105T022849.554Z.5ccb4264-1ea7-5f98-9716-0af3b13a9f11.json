@@ -1,0 +1,12 @@
+{
+  "loop": "5ccb4264-1ea7-5f98-9716-0af3b13a9f11",
+  "cardId": "harness-metrics",
+  "action": "implement",
+  "step": "review",
+  "agent": "board-reviewer",
+  "startedAt": "2026-11-05T02:28:49.554Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
