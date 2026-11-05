@@ -23,7 +23,7 @@
     "lint:fix": "eslint src --fix",
     "format": "prettier --write src",
     "format:check": "prettier --check src",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.web.json"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.test.json"
   },
   "dependencies": {
     "chokidar": "^4.0.3",

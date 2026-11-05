@@ -794,7 +794,7 @@ src/
 npm test              # vitest（unit + supertest による API e2e）
 npm run test:coverage # カバレッジ（閾値 80%）
 npm run lint
-npm run typecheck
+npm run typecheck     # tsc を 3 回（本体・画面と src/shared・テスト）
 npm run format:check  # Prettier（崩れていたら npm run format）
 npm run build
 npm run dev           # サーバのみ（tsx watch）
@@ -804,6 +804,10 @@ npm run dev:web       # Vite dev サーバ（/api を 5673 へプロキシ）
 CI（`.github/workflows/ci.yml`）は PR と main への push で typecheck / lint / format:check /
 test:coverage / build を走らせる。Windows の行（Git Bash）では、テストを除いた typecheck / lint / format:check / build と、
 ビルドした CLI の起動を走らせる。PR のレビューだけに効く指示は `REVIEW.md` にある。
+
+`typecheck` は、出力に使う `tsconfig.json`（テストを除く）、画面の `tsconfig.web.json`（`src/web/` と `src/shared/`）、
+テストまで含めた `tsconfig.test.json` の 3 つで `tsc` を走らせる。vitest は型を見ずにテストを走らせるので、
+テスト用の値が本体の型とずれたら（本体に項目を足したのにテストの値に無い、など）ここで落ちる。
 
 ### Claude Code のプレビュー
 

@@ -121,6 +121,6 @@
 
 ### 2. 型検査に入れる
 
-- [ ] `tsconfig.test.json` を足し、`package.json` の `typecheck` から 3 本目として呼ぶ
-- [ ] `README.md` の品質ゲートの節に、テストも型検査に入ることを書く
-- [ ] 品質ゲートを通す
+- [x] `tsconfig.test.json` を足し、`package.json` の `typecheck` から 3 本目として呼ぶ
+- [x] `README.md` の品質ゲートの節に、テストも型検査に入ることを書く
+- [x] 品質ゲートを通す
