@@ -176,3 +176,15 @@
 - [x] `SKILL.md` の `--tokens` を写す決まりを、CLI が会話の記録から埋める形に書き直す。`plan.md` に「手順書（`.claude/`）を変える計画では、`HARNESS_VERSIONS.md` の版を上げるタスクを提案し、上げるかは人が計画レビューで決める」を足す
 - [x] `README.md` のループの記録と振り返りの説明、`docs/adr/0014-loop-step-record.md` のトークンの取り方を今の形に書き直す
 - [x] 品質ゲートを通す
+
+## AI レビュー
+
+### 見送った指摘
+
+- `src/board/cli/status-cli.ts:405` の `formatStatus` は、次の一手のカードの記録だけを見て `止まった ×N` を付け、次の一手の手・段が止まり続けている手と同じかは見ない。人が計画のタスクを手で倒すなどして次の一手が別の段に移ると、まだ失敗していない手の横に印が出る。表示だけで次の手を選ぶのには使わず、その手を 1 回進めれば消えるので見送る
+- `src/board/repositories/loop-history.repository.ts:134` の `harness` は形の版を上げずに足したので、古い版の CLI が `finish` や「途切れた」で記録を書き直すと `harness` が落ち、その記録は「版なし」に移る。新旧の CLI が同じループの記録を書く間だけのことで、計画の仮定「形の版は上げない」で受け入れた範囲なので見送る
+- `src/infrastructure/harness-version.ts:16` の版の見出しは桁数を限らないが、記録のスキーマは `harness` を 64 文字までにしている（`loop-history.repository.ts:134`）。`## v` に 64 桁以上の数字を書くと `serializeLoopStep` の `parse` が例外を投げ、`loop start` が失敗する。人が書く版番号でそこまで長くなることは無く、起きればすぐ気づけるので見送る
+- `src/infrastructure/session-usage.ts:145` の `readSessionTokens` は、セッションとサブエージェントの JSONL を全部読み込んでから窓で絞り、それをデータのロックを持った `transact` の中で行う（push のやり直しのたびに読み直す）。長い `/loop` のセッションでは `finish` が遅くなりうるが、振る舞いは変わらない効率の話なので見送る
+- `src/shared/loop-streak.ts:24` の `isStuck` は `advanced` 以外をすべて「止まった」とするので、`interrupted`（`finish` を書けずに途切れた手）も `止まった ×N`・止まった割合・やり直しに入る。計画の What Changes が止まった割合に `interrupted` を含めると決めているので見送る
+- `src/board/repositories/loop-history.repository.ts:351` のトークンは、セッション全体（本体と全サブエージェントの記録）の手の窓の中を数えるので、同じ時間に会話で人の判断を書いたなど手の外の仕事も入る。計画の Decisions「トークン」のとおりで、Risks にも書いてあるので見送る
+- `src/board/cli/status-html.ts:421` の `renderHarnessVersions` は、空の時間を「—」にする `duration` とトークンの書式を、同じファイルの `renderStats` / `renderLoopActions` と重ねて持っている。振る舞いを変えない重複なので見送る
