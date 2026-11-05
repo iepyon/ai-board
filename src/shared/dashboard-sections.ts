@@ -187,8 +187,9 @@ const abort = (gate: DecisionGate): Decision => ({
 const replan = reject('plan', '計画から立て直させる');
 
 /**
- * 詳細パネルに出す判断のボタン。判断を待っていなければ空。
+ * 詳細パネルに出す判断のボタン。出せる判断が無ければ空。
  *
+ * - **アイデア**: 中止 だけ（要らなくなったアイデアを中止の区画へ片付ける。判断を待っているのではない）
  * - **計画レビュー**: 承認 / 否決して差し戻す / 中止
  * - **実装中で止まっている**（判断の後に PR が Draft に戻された）: 計画から立て直させる / 中止
  * - **計画提案中で止まっている**: AI の plan 保留なら 計画を直させる / 中止。
@@ -207,6 +208,8 @@ export function decisionsFor(card: DecisionCard): Decision[] {
   if (card.hold?.kind === 'forge') return [];
 
   switch (card.stage) {
+    case 'idea':
+      return [abort('plan')];
     case 'plan-review':
       return [approve('plan'), reject('plan', '否決して差し戻す'), abort('plan')];
     case 'impling':
@@ -222,12 +225,13 @@ export function decisionsFor(card: DecisionCard): Decision[] {
 }
 
 /**
- * 詳細パネルで、判断のボタンを本文より前に出すか。出すボタン（`decisionsFor`）が 1 つでもあれば出す。
+ * 詳細パネルで、判断のボタンを本文より前に出すか。アイデアでなく、出すボタン（`decisionsFor`）が 1 つでもあれば出す。
  *
  * ゲートを待つ列（計画レビュー）のカードと、AI の列で止まっているカードが当たる。
+ * アイデアの 中止 は人の判断を待っているのではないので含めない（詳細パネルでは本文の後ろに出す）。
  */
 export function awaitsDecision(card: DecisionCard): boolean {
-  return decisionsFor(card).length > 0;
+  return card.stage !== 'idea' && decisionsFor(card).length > 0;
 }
 
 /** 「動きなし」とみなすまでの日数 */

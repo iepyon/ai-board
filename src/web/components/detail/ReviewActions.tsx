@@ -40,7 +40,7 @@ export function ReviewActions({ card, saving, onRun }: ReviewActionsProps) {
 
   const decisions = decisionsFor(card);
 
-  // 判断を待っていなければ何も出さない（呼び出し側は `awaitsDecision` のカードにだけ使う）
+  // 出せる判断が無ければ何も出さない（呼び出し側は `awaitsDecision` で本文の前か後ろかを決めて置く）
   if (decisions.length === 0) return null;
 
   const submit = (decision: Decision): void => {

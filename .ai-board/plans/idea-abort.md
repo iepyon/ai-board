@@ -3,7 +3,9 @@
 ## 人に判断してほしいこと
 
 - **まとめて中止する口を作るか。** 区切り線より下（後で）の 21 枚を片付けたいのが始まりだが、この計画では `ai-board decide abort <id>` を 1 枚ずつ呼ぶ形のままにし、複数の ID を受ける口は足さない（既定: 足さない。チャットで頼めば board-decide が 1 枚ずつ呼ぶ）
+  - → 回答（2026-11-05、plan 承認）: 理由なしで承認（既定のまま進む）
 - **中止したアイデアを戻す口を作るか。** 戻す口は作らない（既定: 作らない。間違えたら同じ内容でカードを起票し直す）。`## レビュー` は追記専用で、中止を打ち消す人のエントリの種類が今は無いため
+  - → 回答（2026-11-05、plan 承認）: 理由なしで承認（既定のまま進む）
 
 ## 提案
 
@@ -89,11 +91,11 @@ GitHub に繋がらない試しのデータでは `decide abort` が拒まれる
 
 ### 1. 中止の判断をアイデアに出す
 
-- [ ] `src/shared/dashboard-sections.ts` の `decisionsFor` で `idea` に `abort('plan')` を返し、docstring の列の一覧にアイデアを足す
-- [ ] 同じファイルの `awaitsDecision` をアイデアを除く形に変え、docstring を直す
-- [ ] `src/shared/__tests__/dashboard-sections.test.ts` に、アイデアに 中止 だけが出ること、中止したアイデアには出ないこと、アイデアは `awaitsDecision` でないことを足す
-- [ ] `src/web/components/CardDetail.tsx` で、`awaitsDecision` でないカードの `ReviewActions` を `ReviewLog` の後ろに置く
-- [ ] `src/board/cli/__tests__/decide-cli.test.ts` に、アイデアのカードへの `abort` が 中止 を書くことを足す
+- [x] `src/shared/dashboard-sections.ts` の `decisionsFor` で `idea` に `abort('plan')` を返し、docstring の列の一覧にアイデアを足す
+- [x] 同じファイルの `awaitsDecision` をアイデアを除く形に変え、docstring を直す
+- [x] `src/shared/__tests__/dashboard-sections.test.ts` に、アイデアに 中止 だけが出ること、中止したアイデアには出ないこと、アイデアは `awaitsDecision` でないことを足す
+- [x] `src/web/components/CardDetail.tsx` で、`awaitsDecision` でないカードの `ReviewActions` を `ReviewLog` の後ろに置く
+- [x] `src/board/cli/__tests__/decide-cli.test.ts` に、アイデアのカードへの `abort` が 中止 を書くことを足す
 
 ### 2. ドキュメント
 
