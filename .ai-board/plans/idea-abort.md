@@ -99,6 +99,6 @@ GitHub に繋がらない試しのデータでは `decide abort` が拒まれる
 
 ### 2. ドキュメント
 
-- [ ] `README.md` の判断のボタンの表に「アイデア | 中止（本文の後ろ）」を足し、詳細パネルの説明を合わせる
-- [ ] `docs/architecture.md` の「判断のボタンと画面の区画」を今の形に直す
-- [ ] `docs/specs/card-abort/spec.md` に「アイデアを中止する」のシナリオを足す
+- [x] `README.md` の判断のボタンの表に「アイデア | 中止（本文の後ろ）」を足し、詳細パネルの説明を合わせる
+- [x] `docs/architecture.md` の「判断のボタンと画面の区画」を今の形に直す
+- [x] `docs/specs/card-abort/spec.md` に「アイデアを中止する」のシナリオを足す
