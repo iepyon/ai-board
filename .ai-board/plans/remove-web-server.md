@@ -3,7 +3,9 @@
 ## 人に判断してほしいこと
 
 - **手順書の版を上げるか。** `rules.md`・`board-decide`・`board-dashboard` などから画面とサーバの記述を消すので、`.claude/HARNESS_VERSIONS.md` に v2 を足す（既定: 上げる）
+  - → 回答（2026-11-05、plan 承認）: 理由なしで承認（既定のまま進む）
 - **`ai-board status` の出力から「サーバ:」の行と JSON の `server` を消してよいか。** `--only server` を渡している呼び出し元は使い方の誤りで拒まれるようになる（既定: 消す。手順書と ai-board 自身は `server` を読んでいない）
+  - → 回答（2026-11-05、plan 承認）: 理由なしで承認（既定のまま進む）
 
 ## 提案
 
@@ -102,13 +104,13 @@
 
 ### 1. 画面とサーバのコードを消す
 
-- [ ] `src/web/`、`vite.config.ts`、`tsconfig.web.json` を消し、`tsconfig*.json`・`eslint.config.js`・`vitest.config.ts` から `src/web` と `tsx` / `jsx` の記述を外す
-- [ ] `src/server.ts`、`src/app.ts`、`src/index.ts`、`src/board/controllers/`、`src/cards/controllers/`、`src/shared/controllers/`、`src/shared/middleware/` を、そのテストと一緒に消す
-- [ ] `src/infrastructure/` の `sse.ts`・`watch.ts`・`data-refresher.ts`・`open-browser.ts`・`server-info.ts` を、そのテストと一緒に消す
-- [ ] `ForgePoller` から `start` / `stop` / `intervalMs` / `DEFAULT_POLL_INTERVAL_MS` を消し、`forge-poller.test.ts` の定期実行のテストを外す
-- [ ] `src/cli-main.ts` で、引数なしの起動を「使い方を出して 1 で終わる」に変え、`--port` / `--no-open` / `--poll-interval` とサーバの起動を消す
-- [ ] `status` から `server` の項目と「サーバ:」の行を消し、`status-cli` のテストを合わせる
-- [ ] `package.json` から express・chokidar・react・react-dom・vite・@vitejs/plugin-react・supertest・tsx とその型を外し、`dev` / `dev:web` を消し、`build` を `tsc` だけに、`typecheck` から `tsconfig.web.json` を外し、`description` を直す。`package-lock.json` を `npm install` で作り直す
+- [x] `src/web/`、`vite.config.ts`、`tsconfig.web.json` を消し、`tsconfig*.json`・`eslint.config.js`・`vitest.config.ts` から `src/web` と `tsx` / `jsx` の記述を外す
+- [x] `src/server.ts`、`src/app.ts`、`src/index.ts`、`src/board/controllers/`、`src/cards/controllers/`、`src/shared/controllers/`、`src/shared/middleware/` を、そのテストと一緒に消す
+- [x] `src/infrastructure/` の `sse.ts`・`watch.ts`・`data-refresher.ts`・`open-browser.ts`・`server-info.ts` を、そのテストと一緒に消す
+- [x] `ForgePoller` から `start` / `stop` / `intervalMs` / `DEFAULT_POLL_INTERVAL_MS` を消し、`forge-poller.test.ts` の定期実行のテストを外す
+- [x] `src/cli-main.ts` で、引数なしの起動を「使い方を出して 1 で終わる」に変え、`--port` / `--no-open` / `--poll-interval` とサーバの起動を消す
+- [x] `status` から `server` の項目と「サーバ:」の行を消し、`status-cli` のテストを合わせる
+- [x] `package.json` から express・chokidar・react・react-dom・vite・@vitejs/plugin-react・supertest・tsx とその型を外し、`dev` / `dev:web` を消し、`build` を `tsc` だけに、`typecheck` から `tsconfig.web.json` を外し、`description` を直す。`package-lock.json` を `npm install` で作り直す
 
 ### 2. 使われなくなったコードを消す
 

@@ -1,14 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { startServer, DEFAULT_PORT } from './server.js';
-import {
-  BOARD_DIR,
-  CONFIG_FILE,
-  DATA_ENV,
-  loadConfig,
-  resolvePaths,
-  type AppConfig,
-} from './shared/config.js';
+import { CONFIG_FILE, loadConfig, resolvePaths, type AppConfig } from './shared/config.js';
 import { createCliRunner, type CliRunner } from './infrastructure/cli-runner.js';
 import type { DataStore } from './infrastructure/data-store.js';
 import {
@@ -33,11 +25,9 @@ import { parseStatusArgs, runStatusCli, STATUS_USAGE } from './board/cli/status-
 import { isPrCommand, runPrCli } from './board/cli/pr-cli.js';
 import { runLoopCli } from './board/cli/loop-cli.js';
 import { DECIDE_USAGE, isDecideCommand, runDecideCli } from './board/cli/decide-cli.js';
-import { findLiveServer } from './infrastructure/server-info.js';
 import { readHarnessVersion } from './infrastructure/harness-version.js';
 import { readSessionTokens } from './infrastructure/session-usage.js';
 import { readMtimeMs, runDistCheckCli } from './infrastructure/dist-check-cli.js';
-import { openBrowser } from './infrastructure/open-browser.js';
 import { err, isErr, ok, type Result } from './shared/result.js';
 import { CardIdSchema, type CardId } from './shared/schemas/common.js';
 
@@ -45,67 +35,24 @@ import { CardIdSchema, type CardId } from './shared/schemas/common.js';
 // ai-board CLI
 // ============================================================
 
-interface CliOptions {
-  readonly root: string;
-  readonly port: number;
-  readonly open: boolean;
-  readonly pollIntervalMs: number | undefined;
-}
+const USAGE = `使い方: ai-board <command> [--root <path>]
 
-const USAGE = `使い方: ai-board [options]
-       ai-board card <command> [--root <path>]    カードの読み書き（ai-board card --help）
-       ai-board status [--json [--only <項目,...>] | --html] [--root <path>]
-                                                  ボードの状態と次の一手（サーバ不要）
-       ai-board init [--root <path>]              空のデータ用ブランチを作る（ai-board init --help）
-       ai-board pr <command> [--root <path>]      PR の読み書き（gh api の REST。ai-board pr --help）
-       ai-board decide <command> [--root <path>]  人の判断を書く（人と、人が会話で頼んだ Claude だけ。ai-board decide --help）
-       ai-board loop <start|finish> [--root <path>]
-                                                  ループの 1 手の記録を書く（ループだけが使う。ai-board loop --help）
-       ai-board dist-check [--root <path>]       dist/ が HEAD のコミットより古いかを確かめる（古ければ終了コード 1）
+計画ファイル駆動の開発のボードを、CLI で読み書きする。
 
-計画ファイル駆動のローカル Web ダッシュボードを起動します。
+Commands:
+  card <command>      カードの読み書き（ai-board card --help）
+  status [--json [--only <項目,...>] | --html]
+                      ボードの状態と次の一手
+  init                空のデータ用ブランチを作る（ai-board init --help）
+  pr <command>        PR の読み書き（gh api の REST。ai-board pr --help）
+  decide <command>    人の判断を書く（人と、人が会話で頼んだ Claude だけ。ai-board decide --help）
+  loop <start|finish> ループの 1 手の記録を書く（ループだけが使う。ai-board loop --help）
+  dist-check          dist/ が HEAD のコミットより古いかを確かめる（古ければ終了コード 1）
 
 Options:
   --root <path>   対象プロジェクトのルート (既定: カレントディレクトリ)
-  --port <n>      待ち受けポート (既定: ${DEFAULT_PORT}、使用中なら自動で繰り上げ)
-  --no-open       ブラウザを自動で開かない
-  --poll-interval <ms>
-                  レビュー要求のポーリング間隔 (既定: 60000)
   -h, --help      このヘルプを表示
 `;
-
-export function parseArgs(argv: readonly string[]): CliOptions | 'help' {
-  let root = process.cwd();
-  let port = DEFAULT_PORT;
-  let open = true;
-  let pollIntervalMs: number | undefined;
-
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-
-    switch (arg) {
-      case '-h':
-      case '--help':
-        return 'help';
-      case '--no-open':
-        open = false;
-        break;
-      case '--root':
-        root = path.resolve(takeValue(argv, ++i, '--root'));
-        break;
-      case '--port':
-        port = takeInteger(argv, ++i, '--port', 1, 65535);
-        break;
-      case '--poll-interval':
-        pollIntervalMs = takeInteger(argv, ++i, '--poll-interval', 1000, Number.MAX_SAFE_INTEGER);
-        break;
-      default:
-        throw new Error(`不明なオプションです: ${String(arg)}`);
-    }
-  }
-
-  return { root, port, open, pollIntervalMs };
-}
 
 /** 値を伴うオプションの引数を取り出す */
 function takeValue(argv: readonly string[], index: number, option: string): string {
@@ -113,22 +60,6 @@ function takeValue(argv: readonly string[], index: number, option: string): stri
 
   if (value === undefined || value.startsWith('--')) {
     throw new Error(`${option} には値を指定してください`);
-  }
-
-  return value;
-}
-
-function takeInteger(
-  argv: readonly string[],
-  index: number,
-  option: string,
-  min: number,
-  max: number
-): number {
-  const value = Number(takeValue(argv, index, option));
-
-  if (!Number.isInteger(value) || value < min || value > max) {
-    throw new Error(`${option} には ${min}〜${max} の整数を指定してください`);
   }
 
   return value;
@@ -213,7 +144,6 @@ async function runStatus(argv: readonly string[]): Promise<number> {
     rest,
     {
       ...board,
-      findServer: () => findLiveServer(config.paths.dataDir),
       // implement の段（next.step）を、カードのブランチの計画から読む。git fetch はしない
       branchPlanRepository: createBranchPlanRepository(runner, paths.root),
       // --html のページの、カードの詳細（GitHub 上のデータ用ブランチのカードのファイル）へのリンクに使う
@@ -438,73 +368,17 @@ async function main(): Promise<void> {
     return;
   }
 
-  const parsed = parseArgs(process.argv.slice(2));
-
-  if (parsed === 'help') {
+  if (command === '-h' || command === '--help') {
     console.warn(USAGE);
     return;
   }
 
-  const { root, port, open, pollIntervalMs } = parsed;
-
-  if (!fs.existsSync(root)) {
-    throw new Error(`ディレクトリが見つかりません: ${root}`);
-  }
-
-  warnIfNothingToShow(root);
-
-  const server = await startServer({
-    root,
-    port,
-    ...(pollIntervalMs !== undefined ? { pollIntervalMs } : {}),
-  });
-
-  console.warn(`ai-board  ${server.url}`);
-  console.warn(`  対象      ${server.config.paths.root}`);
-  console.warn(`  取得先    ${describeForge(server.config.forge)}`);
-  console.warn(`  データ    ${describeData(server.config.paths)}`);
-
-  if (open) {
-    openBrowser(server.url);
-  }
-
-  const shutdown = (): void => {
-    void server.close().then(() => process.exit(0));
-  };
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
-}
-
-/** .ai-board が無いディレクトリで起動されたときに気付けるようにする */
-function warnIfNothingToShow(root: string): void {
-  if (!fs.existsSync(path.join(root, BOARD_DIR))) {
-    console.warn(
-      `[ai-board] ${root} に ${BOARD_DIR}/ がありません。\n` +
-        `           空のボードを表示します。--root で対象を指定できます。`
-    );
-  }
+  if (command !== undefined) console.error(`[ai-board] 不明なコマンドです: ${command}`);
+  console.warn(USAGE);
+  process.exitCode = 1;
 }
 
 main().catch((error: unknown) => {
   console.error(`[ai-board] ${error instanceof Error ? error.message : String(error)}`);
   process.exit(1);
 });
-
-/** 起動ログに出す取得先の 1 行 */
-function describeForge(forge: AppConfig['forge']): string {
-  if (forge === null) return '未設定（PR 中 / マージ済みの列は空になります）';
-
-  return `GitHub ${forge.owner}/${forge.repo}（gh のログインを使用）`;
-}
-
-/** 起動ログに出すデータのワークツリーの 1 行。ワークツリーから共有しているときは、そうと分かるようにする */
-function describeData(paths: AppConfig['paths']): string {
-  switch (paths.dataSource) {
-    case 'main-checkout':
-      return `${paths.dataDir}（メインのチェックアウトと共有）`;
-    case 'env':
-      return `${paths.dataDir}（${DATA_ENV} で指定）`;
-    case 'local':
-      return paths.dataDir;
-  }
-}

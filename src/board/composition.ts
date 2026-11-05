@@ -70,7 +70,7 @@ export function createForgeClient(forge: ForgeConfig, runner: CliRunner): ForgeC
 
 export interface MrStateSource {
   readonly provider: MrStateProvider;
-  /** 問い合わせられるときだけ作る。サーバは `start()`、`ai-board status` は `refresh()` を 1 回だけ呼ぶ */
+  /** 問い合わせられるときだけ作る。CLI は 1 回の実行で `refresh()` を 1 回だけ呼ぶ */
   readonly poller: ForgePoller | null;
 }
 

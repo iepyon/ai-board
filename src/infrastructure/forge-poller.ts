@@ -12,10 +12,8 @@ import type {
 } from '../board/models/mr-state.js';
 
 // ============================================================
-// レビュー要求のポーリング
+// レビュー要求の問い合わせ
 // ============================================================
-
-export const DEFAULT_POLL_INTERVAL_MS = 60_000;
 
 /**
  * ブランチから解決した PR 番号を、カードに書き戻す。
@@ -26,8 +24,7 @@ export const DEFAULT_POLL_INTERVAL_MS = 60_000;
 export type MrNumberWriter = (cardId: CardId, iid: MrState['iid']) => Promise<void>;
 
 export interface ForgePollerOptions {
-  readonly intervalMs?: number;
-  /** PR の状態が変わったときに呼ばれる（SSE 通知に使う） */
+  /** PR の状態が変わったときに呼ばれる */
   readonly onUpdate?: () => void;
   /**
    * PR 番号の書き戻し。データ用ブランチでは `DataStore.transact` を通すものを渡す
@@ -53,7 +50,6 @@ export class ForgePoller implements MrStateProvider {
   private readonly cache = new Map<CardId, MrSnapshot>();
   private readonly failures = new Map<CardId, ForgeCardFailure>();
   private connectionState: ForgeConnection;
-  private timer: NodeJS.Timeout | null = null;
   private running = false;
   private refreshed = false;
   private loaded = false;
@@ -82,24 +78,6 @@ export class ForgePoller implements MrStateProvider {
   /** 初回の `refresh` が全カードを回り終えたか。起動直後のキャッシュは空で、PR が無いのと見分けが付かない */
   synced(): boolean {
     return this.refreshed;
-  }
-
-  start(): void {
-    if (this.timer !== null) return;
-
-    const interval = this.options.intervalMs ?? DEFAULT_POLL_INTERVAL_MS;
-
-    void this.refresh();
-    this.timer = setInterval(() => void this.refresh(), interval);
-    // ポーリングだけでプロセスを生かし続けない
-    this.timer.unref?.();
-  }
-
-  stop(): void {
-    if (this.timer !== null) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
   }
 
   /**
