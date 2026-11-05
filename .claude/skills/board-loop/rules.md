@@ -134,10 +134,10 @@ git clone "$S/origin.git" "$S/data"
 AI_BOARD_DATA="$S/data" node "$WT/dist/cli.js" init   # 空のデータ用ブランチを作る
 ```
 
-`server.json`・ロック（`data.lock`）・PR の状態の控え（`cache/`）は、`AI_BOARD_DATA` の指すディレクトリの親に置かれる。
+ロック（`data.lock`）・PR の状態の控え（`cache/`）は、`AI_BOARD_DATA` の指すディレクトリの親に置かれる。
 clone は `$S/data` のように専用のディレクトリにし、スクラッチパッドの根そのものを指さない。
 clone・bare リポジトリ・一時ファイルは `$WT` の外（スクラッチパッドなど）に置く。`$WT` の中に置くと未コミットの変更として残る。
-自分で起動したサーバは止めてから終える。
+自分で起動したプロセスは止めてから終える。
 
 ## ハードルール
 
@@ -147,9 +147,9 @@ clone・bare リポジトリ・一時ファイルは `$WT` の外（スクラッ
 - `startedAt` / `rank` / `skipGates` を書かない。アイデアの表の区切り線も動かさない
 - `## レビュー` に 承認 / 否決 / 中止 を書かない（人が書く）
 - 1 手の記録（`ai-board loop`）は `SKILL.md` の手順でだけ書く。`board-reviewer` は書かない
-- 手の中で `board-decide` のスキル・人の判断を書く `ai-board decide`・共有のボードのサーバの人の API（`/api/...`）・`server.json` を使わない（人がチャットで頼んだときの扱いは `SKILL.md` のハードルール）。
-  `ai-board decide` は構造では止めていない。この決まりが人の判断の守りである
-  `AI_BOARD_DATA` で試しの clone を指して自分で起動したサーバを試すのは構わない
+- 手の中で `board-decide` のスキルと、人の判断を書く `ai-board decide` を使わない（人がチャットで頼んだときの扱いは `SKILL.md` のハードルール）。
+  `ai-board decide` は構造では止めていない。この決まりが人の判断の守りである。
+  `AI_BOARD_DATA` で試しの clone を指して `ai-board decide` を試すのは構わない
 - 計画レビューのカードに触らない。PR中 のカードには `fix-pr` の手（`fix-pr.md`）でだけ触り、修正の push と返信 1 件のほかはしない。PR をマージしない
 - 品質ゲート `cd "$WT" && npm run typecheck && npm run lint && npm run format:check && npm test` を通らないままコミットしない。
   計画ファイルだけの変更でも走らせる（ブランチが既に壊れていれば、そこへ積まずに気づける）

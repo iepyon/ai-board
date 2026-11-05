@@ -6,7 +6,7 @@ description: ai-board のボードを、今 / ログ / 振り返り のタブと
 # board-dashboard — ボードのダッシュボードを公開する・公開し直す
 
 ボードを 1 枚の HTML（ダッシュボード）にして Artifact として公開する。
-クラウドのセッションにはボードの画面（サーバ）が無いので、これがボードを読む手段になる。手元のセッションでも同じ手順で使える。
+ボードの画面とサーバはいったん外したので（ADR 0017）、`ai-board status` と並んでこれがボードを読む手段になる。手元のセッションでもクラウドのセッションでも同じ手順で使える。
 
 ダッシュボードは `ai-board status --html` がすべて作る（集計は `src/shared/board-metrics.ts`、ログは `src/shared/board-log.ts`、グラフは `src/board/cli/status-charts.ts`、ページは `src/board/cli/status-html.ts`）。
 同じデータからは毎回同じダッシュボードができる。Claude はその場で集計したり、HTML を書き換えたりしない。

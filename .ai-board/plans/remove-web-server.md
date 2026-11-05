@@ -132,7 +132,7 @@
 
 ### 5. 手順書
 
-- [ ] `.claude/skills/board-loop/rules.md` から `server.json`・自分で起動したサーバ・人の API（`/api/...`）の記述を消す
-- [ ] `.claude/skills/board-loop/plan.md` と `implement.md` の「見る画面」「画面の見た目」の例を、CLI で確かめられないものの例に置き換える
-- [ ] `.claude/skills/board-decide/SKILL.md` と `.claude/skills/board-dashboard/SKILL.md` から画面のボタンとサーバの記述を消す
-- [ ] `.claude/HARNESS_VERSIONS.md` に v2 を足し、画面とサーバを外して手順書から記述を消したことを書く
+- [x] `.claude/skills/board-loop/rules.md` から `server.json`・自分で起動したサーバ・人の API（`/api/...`）の記述を消す
+- [x] `.claude/skills/board-loop/plan.md` と `implement.md` の「見る画面」「画面の見た目」の例を、CLI で確かめられないものの例に置き換える
+- [x] `.claude/skills/board-decide/SKILL.md` と `.claude/skills/board-dashboard/SKILL.md` から画面のボタンとサーバの記述を消す
+- [x] `.claude/HARNESS_VERSIONS.md` に v2 を足し、画面とサーバを外して手順書から記述を消したことを書く
