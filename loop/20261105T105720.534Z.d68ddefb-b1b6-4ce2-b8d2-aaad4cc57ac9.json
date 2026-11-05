@@ -1,0 +1,13 @@
+{
+  "loop": "d68ddefb-b1b6-4ce2-b8d2-aaad4cc57ac9",
+  "cardId": "idea-abort",
+  "action": "plan",
+  "step": null,
+  "agent": null,
+  "harness": "v1",
+  "startedAt": "2026-11-05T10:57:20.534Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
