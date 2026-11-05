@@ -466,6 +466,7 @@ describe('GET /api/board', () => {
         action: 'plan',
         step: null,
         agent: 'board-planner',
+        harness: null,
         startedAt: '2026-09-02T06:00:00.000Z',
       });
       if (isErr(started)) return Promise.resolve(started);

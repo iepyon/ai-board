@@ -16,7 +16,7 @@ import { pickNextAction, type NextAction } from '../services/next-action.js';
 import { resolveImplStep, type ImplStep } from '../services/impl-step.js';
 import type { BranchPlanRepository } from '../repositories/branch-plan.repository.js';
 import { createCardId } from '../../shared/schemas/common.js';
-import { describeForge, describeLoop, describeNext } from './status-describe.js';
+import { describeForge, describeLoop, describeNext, describeStuck } from './status-describe.js';
 import { formatStatusHtml, type CardRepository } from './status-html.js';
 import { isCardRunning, type BoardLoop } from '../../shared/loop-activity.js';
 
@@ -402,7 +402,12 @@ export function formatStatus(report: StatusReport): string {
     );
   }
 
-  lines.push('', `次の一手: ${describeNext(report.next, report.forge)}`);
+  const nextCard = report.cards.find((card) => card.id === report.next?.cardId);
+  const stuck = nextCard === undefined ? null : describeStuck(nextCard.loopSteps);
+  lines.push(
+    '',
+    `次の一手: ${describeNext(report.next, report.forge)}${stuck === null ? '' : `  ※ ${stuck}`}`
+  );
 
   return `${lines.join('\n')}\n`;
 }

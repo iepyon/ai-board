@@ -46,10 +46,12 @@ Commands:
   finish --loop <id> --card <cardId> --result <結果> [--tokens <n>] [--duration-ms <n>]
                            そのループの終わっていない記録に、終了・結果・トークン・時間を埋める
                            （--result は ${LOOP_FINISH_RESULTS.join(' / ')}。
-                           --duration-ms を省くと、開始から終了までの時間で埋める）
+                           --duration-ms を省くと、開始から終了までの時間で埋める。
+                           --tokens を省くと、Claude Code の会話の記録から開始〜終了のトークンを数えて埋める）
 
 --loop はループの識別子（英数字と . _ -、64 文字まで）。本筋のセッションの ID を渡す
 --agent は手を進めたサブエージェントの名前。本筋のセッションが自分で進める手では渡さない
+start は --root の .claude/HARNESS_VERSIONS.md の先頭の版を、手順書の版として記録に残す
 `;
 
 export interface LoopCliIo {
@@ -63,6 +65,10 @@ export interface LoopCliDependencies {
   readonly store: Pick<DataStore, 'transact'>;
   /** その ID のカードがあるか。`transact` の中（取り直した後）で呼ぶ */
   readonly cardExists: (id: string) => Promise<boolean>;
+  /** 今の手順書の版（`.claude/HARNESS_VERSIONS.md`）。読めなければ null */
+  readonly harnessVersion: () => string | null;
+  /** ループ（セッション）の `from`〜`to` のトークン。数えられなければ null */
+  readonly countTokens: (loop: string, from: string, to: string) => number | null;
 }
 
 /** CLI の検査で書き込みを拒んだ */
@@ -122,6 +128,7 @@ async function runStart(
   }
 
   const startedAt = io.now().toISOString();
+  const harness = deps.harnessVersion();
   const result = await deps.store.transact<LoopStartOutcome, LoopCliError>(
     `loop: start ${common.cardId} ${action}`,
     async (dataDir) => {
@@ -134,6 +141,7 @@ async function runStart(
         action,
         step,
         agent,
+        harness,
         startedAt,
       });
     }
@@ -170,6 +178,7 @@ async function runFinish(
   if (typeof durationMs === 'string') return fail(io, durationMs);
 
   const finishedAt = io.now().toISOString();
+  let counted: { readonly value: number | null } | undefined;
   const result = await deps.store.transact<LoopStep, LoopCliError>(
     (step) => `loop: finish ${step.cardId} ${step.action}`,
     (dataDir) =>
@@ -179,6 +188,9 @@ async function runFinish(
           cardId: common.cardId,
           result: loopResult,
           tokens,
+          // push が拒まれると op が呼び直される。会話の記録を読み直さないよう、最初に数えた値を使い回す
+          countTokens: (from, to) =>
+            (counted ??= { value: deps.countTokens(common.loop, from, to) }).value,
           durationMs,
           finishedAt,
         })

@@ -1,0 +1,190 @@
+# ループの 1 手の記録に手順書の版とトークンを残し、版ごとの成績をダッシュボードで比べる
+
+## 人に判断してほしいこと
+
+- **トークンの数え方。** 会話の記録（JSONL）の usage の、どの値を「1 手のトークン」とするか。
+  既定: 手の開始から終了までに書かれた assistant のメッセージ（同じ `message.id` は 1 回）の `input_tokens + cache_creation_input_tokens + cache_read_input_tokens + output_tokens` を足す（使った量の総和）。
+  キャッシュの読み出しが大半を占め、1 手で数十万〜数百万になる。`board-reviewer` の結果に載る数（`subagent_tokens`、例: 79,962）とは意味が違う（同じ手を数え直すと 353,028）ので、レビューの段も記録から数え直し、`--tokens` を写す決まりはやめる。
+  出力だけ（`output_tokens`）にする、キャッシュの読み出しを除く、なども選べる
+  - → 回答（2026-11-05、plan 承認）: 理由なしで承認（既定のまま進む）
+- **`bottleneck-chart` と `status-html-catchup` をこのカードに含めるか。** カードの論点では「含める」としていたが、2026-11-05 に見せ方は「版ごとの数字を並べるだけ」と決まった。
+  既定: 含めない。どちらもアイデアの列に残し、このカードは版の記録と版ごとの表に絞る
+  - → 回答（2026-11-05、plan 承認）: 理由なしで承認（既定のまま進む）
+- **React の画面にも出すか。** 既定: 出さない。ダッシュボード（`status --html`）の「振り返り」にだけ出す（研修用のリポジトリでは画面を削る予定のため）
+  - → 回答（2026-11-05、plan 承認）: 理由なしで承認（既定のまま進む）
+
+## 提案
+
+### Why
+
+これまでのマージ済みのカードの約半分は、ループ自身（手順書）を変えるカードだった。手順書を変えて良くなったかは、人の印象でしか分かっていない。
+ダッシュボードの「振り返り」には、工程ごとの時間・否決の数・手の種類ごとの件数と時間がもうある（`src/shared/board-metrics.ts`）。足りないのは次の 3 つである。
+
+- 1 手の記録に、その時の手順書の版が無い。`.claude/` のコミットは 11/2 からの 76 件の記録に対して 53 回あり、コミットを版にすると 1 版 1〜2 件で比べられない
+- 本筋のセッションが進めた手のトークンが取れていない（76 件中 20 件だけ。どれもレビューの段）
+- 版で分けて比べる表と、同じところで止まり続けているかが見えない
+
+### What Changes
+
+使う人から見た変化は次のとおり。
+
+- `.claude/HARNESS_VERSIONS.md` に、手順書の版を「版・日付・何を変えたか」で新しい順に並べる。先頭の版が今の版。最初の版は `v1`（この PR の日付）
+- `ai-board loop start` が、その時の版を 1 手の記録に残す（`harness`）。ファイルが無い・読めなければ null
+- `ai-board loop finish` が、`--tokens` が無ければ、Claude Code の会話の記録から手の開始から終了までのトークンを数えて埋める。記録が見つからない・読めなければ今どおり null
+- ダッシュボードの「振り返り」に「手順書の版ごと」の表が立つ。列は版（と「版なし」）、行は次のとおり
+  - 1 手の数、1 手の時間の中央値、1 手のトークンの中央値（取れた件数を添える）
+  - 止まった割合（`stopped` / `held` / `failed` / `unknown` / `interrupted` の手の割合）と、やり直しの回数（同じカード・同じ手・同じ段が、進めなかった手の直後にもう一度選ばれた回数）
+  - カードの否決率（否決が 1 回以上あるカードの割合）と否決の延べ回数
+  - 人を待った時間（計画レビューと PR中 の区間の、カードごとの合計の中央値）
+- ダッシュボードの「今」の AI 作業中のカードと `ai-board status` の次の一手の行に、同じ手で止まり続けている回数を出す（2 回以上のとき。例: `止まった ×3`）
+- 手順書を変える計画では、AI が「版を上げる」タスクを提案する（`plan.md` に書く）。上げるかは人が計画レビューで決める
+
+段階や「進める・戻す条件」は作らない。上限で止めて人に回すのは `loop-retry-limit` のカードに残す。
+
+### Impact
+
+- 語彙と記録: `src/shared/loop-step.ts`（`harness`）、`src/board/repositories/loop-history.repository.ts`（スキーマ。無い項目は null で読む）
+- CLI: `src/board/cli/loop-cli.ts`（start で版を読む、finish でトークンを数える）、新規 `src/infrastructure/harness-version.ts`（版の読み取り）、新規 `src/infrastructure/session-usage.ts`（会話の記録からトークンを数える）、`src/cli-main.ts`（依存を渡す）
+- 集計: `src/shared/board-metrics.ts`（版ごとの集計）、新規 `src/shared/loop-streak.ts`（止まり続けている回数）
+- 見せ方: `src/board/cli/status-html.ts`（「振り返り」の表と「今」の印）、`src/board/cli/status-cli.ts`（人向けの次の一手の行）
+- 手順書: `.claude/HARNESS_VERSIONS.md`（新規）、`.claude/skills/board-loop/SKILL.md`（`--tokens` を写さない）、`.claude/skills/board-loop/plan.md`（版を上げるタスクの提案）
+- ドキュメント: `README.md`（ループの記録・振り返り）、`docs/adr/0014-loop-step-record.md`（トークンの取り方を書き直す）
+- ステージの導出・次の一手・API・React の画面・データ用ブランチの形の版: 変わらない
+
+## 設計
+
+### Decisions
+
+#### 版の記録
+
+- `.claude/HARNESS_VERSIONS.md` は、`## v<番号> — <YYYY-MM-DD>` の見出しと、その下の箇条（何を変えたか）を新しい順に並べる。先頭の `## v` の見出しの `v<番号>` を今の版とする
+- `loop start` は `--root`（メインのチェックアウト）の `.claude/HARNESS_VERSIONS.md` を読む。ループが読み込む手順書はメインのチェックアウトのもので、カードのワークツリーのものではないため
+- 1 手の記録に `harness: string | null` を足す。スキーマは項目が無ければ null として読む（これまでの 76 件は「版なし」）。データ用ブランチの形の版（`ai-board-data.yaml`）は上げない（下の仮定）
+
+#### トークン
+
+- `loop finish` は `--tokens` があればそれを使い、無ければ `--loop` の値をセッションの ID として会話の記録を探す
+  - 探す場所: `$CLAUDE_CONFIG_DIR`（無ければ `~/.claude`）の `projects/*/<loop>.jsonl` と、その隣の `projects/*/<loop>/subagents/*.jsonl`
+  - 数える範囲: `timestamp` が記録の `startedAt` 以上、終了の時刻以下の assistant のメッセージ。同じ `message.id` は 1 回だけ数える
+  - 数える値: 「人に判断してほしいこと」の 1 の既定（4 つの値の和）
+  - 見つからない・読めない・数えるメッセージが 0 件なら null（今どおり「—」）。数えるのに失敗しても `finish` は失敗させない
+- サブエージェントの記録も同じ窓で数えるので、レビューの段のトークンも同じ物差しになる。`SKILL.md` の「`Agent` の結果のトークンを `--tokens` に写す」はやめる
+- 会話の記録の読み取りは `src/infrastructure/session-usage.ts` に閉じ、行を読んで数える部分は純関数（`countSessionTokens(lines, from, to)`）にしてテストする
+
+#### 版ごとの集計
+
+`board-metrics.ts` に `harnessVersions: HarnessVersionMetrics[]` を足す。版の並びは新しい版から（版番号の大きい順）、最後に「版なし」。
+
+- **1 手の数字**（時間・トークン・止まった割合・やり直し）は、記録ごとに、その記録の `harness` で分ける
+- **カードの数字**（否決率・否決の延べ回数・人を待った時間）は、カードを「そのカードの最初の 1 手の記録の版」に入れる。1 手の記録が無いカードは「版なし」
+  - 人を待った時間は、マージ済みのカードの `timeline` の人の区間（`owner: 'human'`）の合計
+- 中央値は既存の `median` を使う。数える値が無ければ null（表は「—」）
+- 止まり続けている回数（`loop-streak.ts`）: カードの記録を新しい順にたどり、最新の記録と同じ手・同じ段で、結果が `advanced` でないものが続く数。最新が `advanced` か終わっていなければ 0
+
+### 仮定
+
+- **形の版は上げない。** 記録のスキーマは知らない項目を落として読むので、古い CLI は新しい記録をそのまま読める（`harness` を落とすだけ）。上げると古い版の CLI がカードを読めなくなる（`CLAUDE.md`）
+- **版はメインのチェックアウトから読む。** 手順書を変える PR のワークツリーで新しい版を書いても、マージされてメインに入るまでは記録の版は変わらない
+- **カードの版は最初の 1 手で決める。** 否決は計画の手の結果で、計画の手は最初の 1 手である。途中で版が変わったカードも、最初の版の成績として数える
+- **会話の記録の形は Claude Code の内部のもの。** 読めなくなっても「—」に戻るだけで、ループは止まらない（ADR 0014 の「記録は見るためのもの」）
+- **`loop/` の記録と同じく、版ごとの集計はステージの導出にも次の一手にも使わない**
+
+### 退けた代案
+
+- **`.claude/` のコミットを版にする:** 1 版 1〜2 件になり比べられない（人と決めた、2026-11-05）
+- **スキルごとに版を持たせる:** 手と版の組み合わせが増え、件数がさらに割れる
+- **形の版を上げて `harness` を必須にする:** 古い CLI が読めなくなる。古い記録は「版なし」として並べると決めた（2026-11-05）
+- **`board-reviewer` の結果のトークンを使い続ける:** 本筋のセッションの手と物差しが違い、版の間で比べられない
+- **段階と進める・戻す条件を設定に書く:** 作らない（人と決めた、2026-11-05）
+- **止まり続けたら次の一手から外す:** `loop-retry-limit` のカードに残す（人と決めた、2026-11-05）。記録を次の一手に使わない今の決まり（ADR 0014）も変えずに済む
+
+### Risks / Trade-offs
+
+- 版ごとのカードの枚数は少なく、1 版あたり数枚になる。表には件数を必ず添え、割合だけで読ませない
+- キャッシュの読み出しを含むトークンは、会話が長くなるほど 1 手あたりが増える。版の良し悪しより、会話の長さを映すことがある
+- 会話の記録はクラウドのセッションでは container が片付けられると消えるが、`finish` の時点で数えて記録に書くので、記録には残る
+
+### Non-Goals
+
+- 自動化の段階と、進める・戻す条件
+- 上限で止めて人に回すこと（`loop-retry-limit`）
+- カードごとの区間の横棒グラフ（`bottleneck-chart`）、ダッシュボードに区間の時間や手の一覧を足すこと（`status-html-catchup`）
+- React の画面への表示
+- 過去の記録に版を書き足すこと
+
+## 探索メモとの対応
+
+| #   | 探索メモ（短い引用）                                                                           | 反映した先                                               | 反映しなかった理由                |
+| --- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------- | --------------------------------- |
+| 1   | `loop-retry-limit` をこのカードにまとめた。回数は `loop/` の記録から数える                     | Decisions「版ごとの集計」の止まり続けている回数          | 上限で人に回すことは #10 で外した |
+| 2   | メトリクスとチャートは研修で改良したいので、このカードと `bottleneck-chart` は残す             | 人に判断してほしいこと 2、Non-Goals                      |                                   |
+| 3   | 調べて分かった前提（振り返りに既にあるもの、76 件と 53 回、トークン 20 件）                    | Why                                                      |                                   |
+| 4   | このリポジトリで一旦作り、研修用には後で削る                                                   | Impact、人に判断してほしいこと 3                         |                                   |
+| 5   | 版は人が付ける版番号                                                                           | Decisions「版の記録」                                    |                                   |
+| 6   | 変更履歴のファイルに版・日付・何を変えたか。手順書を変える計画では AI が版を上げるタスクを提案 | Decisions「版の記録」、What Changes、Impact（`plan.md`） |                                   |
+| 7   | 比べるもの: 否決率、人を待った時間、時間とトークン、手の止まりとやり直し                       | What Changes、Decisions「版ごとの集計」                  |                                   |
+| 8   | トークンは会話の記録（JSONL の usage）から開始〜終了を足して埋める                             | Decisions「トークン」、人に判断してほしいこと 1          |                                   |
+| 9   | 段階と進める・戻す条件は作らない。数字を並べるだけ                                             | Non-Goals、退けた代案                                    |                                   |
+| 10  | `loop-retry-limit` は数えて見せるだけ。上限で止めるのは向こうのカード                          | What Changes、Non-Goals、退けた代案                      |                                   |
+| 11  | 版の無いこれまでの記録は「版なし」として並べる                                                 | Decisions「版の記録」「版ごとの集計」                    |                                   |
+
+## 動作確認の手順
+
+ワークツリーは `$MAIN/.claude/worktrees/harness-metrics`（以下 `$WT`）。`rules.md` の「動かして確かめるとき」のとおり、スクラッチパッドの bare リポジトリを `origin` にした clone（`$S/data`）を `AI_BOARD_DATA` で指し、`init` してから動かす。
+`$S/root` に `.claude/HARNESS_VERSIONS.md` だけを置いたディレクトリを作り、`--root` に渡す。
+
+1. 版が記録に残る
+   - コマンド: `AI_BOARD_DATA=$S/data node dist/cli.js card create --title t --id t` の後、`loop start --root $S/root --loop L1 --card t --action plan` → `loop finish --root $S/root --loop L1 --card t --result advanced`、`cat $S/data/loop/*.json`
+   - 期待: 記録に `"harness": "v1"` がある
+2. 版のファイルが無ければ null
+   - コマンド: `--root` に版のファイルの無いディレクトリを渡して 1 と同じ
+   - 期待: `"harness": null`、start と finish は 0 で終わる
+3. 会話の記録からトークンが埋まる
+   - コマンド: `$S/claude/projects/x/L2.jsonl` に usage の付いた assistant の行を時刻をずらして書き、`CLAUDE_CONFIG_DIR=$S/claude` で `loop start` → `finish`（`--loop L2`）
+   - 期待: 窓の中の行の和が `tokens` に入る。窓の外の行と、同じ `message.id` の 2 行目は数えない
+4. 記録が無ければ null
+   - コマンド: `CLAUDE_CONFIG_DIR` を空のディレクトリにして 3 と同じ
+   - 期待: `"tokens": null`、終了コード 0
+5. 実際のセッションでトークンが埋まる（このセッションの記録を使う）
+   - コマンド: 本物のボードではなく `$S/data` に対して、`--loop` にこのセッションの ID を渡して `loop start` → 数秒おいて `finish`
+   - 期待: `tokens` が null でない
+6. ダッシュボードに版ごとの表と止まり続けている回数が出る（見た目は AI が見られない。HTML の中身を確かめる）
+   - コマンド: `$S/data` に版の違う記録と、同じ手で `stopped` が 2 回続く記録を作り、`status --html > $S/page.html`
+   - 期待: 「手順書の版ごと」の表に `v1` と「版なし」の列があり、「今」に `止まった ×2` がある。見た目は人がページを開いて見る（走らせていない）
+
+## タスク
+
+### 1. 記録に版とトークンを残す
+
+- [x] `loop-step.ts` の `LoopStep` に `harness: string | null` を足し、`loop-history.repository.ts` のスキーマで無い項目を null として読む。記録を作る箇所とテストの値を合わせる
+- [x] `src/infrastructure/harness-version.ts` に、`.claude/HARNESS_VERSIONS.md` の先頭の `## v<番号>` を読む関数を足す（無い・読めなければ null）。テストを足す
+- [x] `src/infrastructure/session-usage.ts` に、会話の記録を探して窓の中のトークンを数える関数を足す（数える部分は純関数）。テストを足す
+- [x] `loop-cli.ts` の start で版を、finish で `--tokens` が無いときのトークンを埋める（依存は `cli-main.ts` から渡す）。テストを足す
+- [x] `.claude/HARNESS_VERSIONS.md` を作る（`v1`、この PR の日付、今の手順書の要点を数行）
+- [x] 品質ゲートを通す
+
+### 2. 版ごとの集計と止まり続けている回数
+
+- [x] `src/shared/loop-streak.ts` に、カードの記録から止まり続けている回数を数える純関数を足す。テストを足す
+- [x] `board-metrics.ts` に `harnessVersions` を足す（Decisions「版ごとの集計」）。`MetricsCard.loopSteps` に `harness`・`cardId` など要る項目を足す。テストを足す
+- [x] 品質ゲートを通す
+
+### 3. 見せ方と手順書
+
+- [x] `status-html.ts` の「振り返り」に「手順書の版ごと」の表を、「今」の AI 作業中のカードに止まり続けている回数を足す。テストを足す
+- [x] `status-cli.ts` の人向けの次の一手の行に、止まり続けている回数（2 回以上）を足す。テストを足す
+- [x] `SKILL.md` の `--tokens` を写す決まりを、CLI が会話の記録から埋める形に書き直す。`plan.md` に「手順書（`.claude/`）を変える計画では、`HARNESS_VERSIONS.md` の版を上げるタスクを提案し、上げるかは人が計画レビューで決める」を足す
+- [x] `README.md` のループの記録と振り返りの説明、`docs/adr/0014-loop-step-record.md` のトークンの取り方を今の形に書き直す
+- [x] 品質ゲートを通す
+
+## AI レビュー
+
+### 見送った指摘
+
+- `src/board/cli/status-cli.ts:405` の `formatStatus` は、次の一手のカードの記録だけを見て `止まった ×N` を付け、次の一手の手・段が止まり続けている手と同じかは見ない。人が計画のタスクを手で倒すなどして次の一手が別の段に移ると、まだ失敗していない手の横に印が出る。表示だけで次の手を選ぶのには使わず、その手を 1 回進めれば消えるので見送る
+- `src/board/repositories/loop-history.repository.ts:134` の `harness` は形の版を上げずに足したので、古い版の CLI が `finish` や「途切れた」で記録を書き直すと `harness` が落ち、その記録は「版なし」に移る。新旧の CLI が同じループの記録を書く間だけのことで、計画の仮定「形の版は上げない」で受け入れた範囲なので見送る
+- `src/infrastructure/harness-version.ts:16` の版の見出しは桁数を限らないが、記録のスキーマは `harness` を 64 文字までにしている（`loop-history.repository.ts:134`）。`## v` に 64 桁以上の数字を書くと `serializeLoopStep` の `parse` が例外を投げ、`loop start` が失敗する。人が書く版番号でそこまで長くなることは無く、起きればすぐ気づけるので見送る
+- `src/infrastructure/session-usage.ts:145` の `readSessionTokens` は、セッションとサブエージェントの JSONL を全部読み込んでから窓で絞り、それをデータのロックを持った `transact` の中で行う（push のやり直しのたびに読み直す）。長い `/loop` のセッションでは `finish` が遅くなりうるが、振る舞いは変わらない効率の話なので見送る
+- `src/shared/loop-streak.ts:24` の `isStuck` は `advanced` 以外をすべて「止まった」とするので、`interrupted`（`finish` を書けずに途切れた手）も `止まった ×N`・止まった割合・やり直しに入る。計画の What Changes が止まった割合に `interrupted` を含めると決めているので見送る
+- `src/board/repositories/loop-history.repository.ts:351` のトークンは、セッション全体（本体と全サブエージェントの記録）の手の窓の中を数えるので、同じ時間に会話で人の判断を書いたなど手の外の仕事も入る。計画の Decisions「トークン」のとおりで、Risks にも書いてあるので見送る
+- `src/board/cli/status-html.ts:421` の `renderHarnessVersions` は、空の時間を「—」にする `duration` とトークンの書式を、同じファイルの `renderStats` / `renderLoopActions` と重ねて持っている。振る舞いを変えない重複なので見送る

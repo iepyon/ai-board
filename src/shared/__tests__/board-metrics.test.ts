@@ -45,6 +45,8 @@ function step(overrides: Partial<Pick<LoopStep, keyof StepInput>> = {}): StepInp
     result: 'advanced',
     tokens: 1000,
     durationMs: 60_000,
+    harness: null,
+    startedAt: '2026-11-01T00:00:00.000Z',
     ...overrides,
   };
 }
@@ -67,6 +69,7 @@ describe('computeBoardMetrics', () => {
     expect(metrics.dailyMerges).toEqual([]);
     expect(metrics.loopActions).toEqual([]);
     expect(metrics.loopResults).toEqual([]);
+    expect(metrics.harnessVersions).toEqual([]);
   });
 
   it('着手からマージまでの中央値と最長を出す。どちらかの時刻が無いカードは数えない', () => {
@@ -341,6 +344,137 @@ describe('computeBoardMetrics', () => {
       { result: 'stopped', count: 1 },
       { result: 'running', count: 1 },
     ]);
+  });
+});
+
+describe('computeBoardMetrics の手順書の版ごと', () => {
+  const at = (minute: number): string => new Date(Date.UTC(2026, 10, 1, 0, minute)).toISOString();
+
+  it('1 手の数字は記録の版で分け、版番号の大きい順、最後に版なしに並べる', () => {
+    const metrics = computeBoardMetrics([
+      card({
+        startedAt: at(0),
+        loopSteps: [
+          step({ harness: null, startedAt: at(1), durationMs: 10, tokens: null }),
+          step({ harness: 'v2', startedAt: at(2), durationMs: 20, tokens: null, result: null }),
+          step({ harness: 'v2', startedAt: at(3), durationMs: 30, tokens: 300 }),
+          step({ harness: 'v10', startedAt: at(4), durationMs: 40, tokens: 400 }),
+        ],
+      }),
+    ]);
+
+    expect(metrics.harnessVersions.map((entry) => entry.harness)).toEqual(['v10', 'v2', null]);
+    expect(metrics.harnessVersions[1]).toMatchObject({
+      harness: 'v2',
+      stepCount: 2,
+      durationMedianMs: 25,
+      tokensMedian: 300,
+      tokensCount: 1,
+      finishedCount: 1,
+    });
+  });
+
+  it('進めなかった記録と、進めなかった手の直後の同じ手（やり直し）を数える', () => {
+    const metrics = computeBoardMetrics([
+      card({
+        loopSteps: [
+          step({
+            harness: 'v1',
+            action: 'implement',
+            step: 'task',
+            startedAt: at(1),
+            result: 'stopped',
+          }),
+          step({
+            harness: 'v1',
+            action: 'implement',
+            step: 'task',
+            startedAt: at(2),
+            result: 'stopped',
+          }),
+          step({
+            harness: 'v1',
+            action: 'implement',
+            step: 'task',
+            startedAt: at(3),
+            result: 'advanced',
+          }),
+          step({
+            harness: 'v1',
+            action: 'implement',
+            step: 'review',
+            startedAt: at(4),
+            result: 'held',
+          }),
+          step({
+            harness: 'v1',
+            action: 'implement',
+            step: 'close',
+            startedAt: at(5),
+            result: 'advanced',
+          }),
+        ],
+      }),
+    ]);
+
+    expect(metrics.harnessVersions[0]).toMatchObject({
+      harness: 'v1',
+      finishedCount: 5,
+      stuckCount: 3,
+      retryCount: 2,
+    });
+  });
+
+  it('カードの数字は、着手したカードを最初の 1 手の版に入れる。記録の無いカードは版なし', () => {
+    const rejected = { kind: '否決' };
+    const metrics = computeBoardMetrics([
+      card({
+        startedAt: at(0),
+        reviews: [rejected, rejected],
+        loopSteps: [
+          step({ harness: 'v1', startedAt: at(1) }),
+          step({ harness: 'v2', startedAt: at(9) }),
+        ],
+      }),
+      card({ startedAt: at(0), loopSteps: [step({ harness: 'v1', startedAt: at(2) })] }),
+      card({ startedAt: at(0), reviews: [rejected] }),
+      card({ startedAt: null }),
+    ]);
+
+    const byHarness = new Map(metrics.harnessVersions.map((entry) => [entry.harness, entry]));
+    expect(byHarness.get('v1')).toMatchObject({
+      cardCount: 2,
+      rejectedCardCount: 1,
+      rejectionCount: 2,
+    });
+    expect(byHarness.get('v2')).toMatchObject({ cardCount: 0, stepCount: 1 });
+    expect(byHarness.get(null)).toMatchObject({ cardCount: 1, rejectedCardCount: 1, stepCount: 0 });
+  });
+
+  it('人を待った時間は、マージ済みのカードの着手の後の人の区間の合計の中央値（アイデアの区間は入れない）', () => {
+    const metrics = computeBoardMetrics([
+      merged('2026-11-01T10:00:00.000Z', {
+        startedAt: at(0),
+        loopSteps: [step({ harness: 'v1', startedAt: at(1) })],
+        timeline: [
+          segment('idea', '2026-10-31T00:00:00.000Z', 24),
+          segment('planning', '2026-11-01T00:00:00.000Z', 1),
+          segment('plan-review', '2026-11-01T01:00:00.000Z', 2),
+          segment('pr-review', '2026-11-01T03:00:00.000Z', null),
+        ],
+      }),
+      card({
+        stage: 'impling',
+        startedAt: at(0),
+        loopSteps: [step({ harness: 'v1', startedAt: at(2) })],
+      }),
+    ]);
+
+    // 計画レビュー 2 時間 + PR中（マージの 10:00 で閉じる）7 時間
+    expect(metrics.harnessVersions[0]).toMatchObject({
+      humanWaitMedianMs: 9 * HOUR,
+      humanWaitCardCount: 1,
+    });
   });
 });
 

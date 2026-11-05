@@ -1,6 +1,7 @@
 import type { ForgeConnection } from '../models/mr-state.js';
 import type { NextAction } from '../services/next-action.js';
 import { summarizeLoop, type BoardLoop } from '../../shared/loop-activity.js';
+import { STREAK_THRESHOLD, stuckStreak, type StreakStep } from '../../shared/loop-streak.js';
 
 // ============================================================
 // ai-board status の文言 — 人向けの数行と HTML の両方で使う
@@ -47,4 +48,13 @@ export function describeLoop(report: {
 }): string {
   const titles = new Map(report.cards.map((card) => [card.id, card.title]));
   return summarizeLoop(report.loop, report.generatedAt, (id) => titles.get(id) ?? null).text;
+}
+
+/**
+ * 同じ手で止まり続けている印（例: `止まった ×3`）。`STREAK_THRESHOLD` 回より少なければ null。
+ * 数えて見せるだけで、上限で止めることはしない（`loop-retry-limit`）
+ */
+export function describeStuck(steps: readonly StreakStep[]): string | null {
+  const count = stuckStreak(steps);
+  return count < STREAK_THRESHOLD ? null : `止まった ×${count}`;
 }

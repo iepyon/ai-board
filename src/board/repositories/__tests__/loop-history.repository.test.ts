@@ -36,6 +36,7 @@ const START: LoopStartInput = {
   action: 'implement',
   step: 'task',
   agent: 'board-worker-card-a-1114',
+  harness: null,
   startedAt: '2026-11-02T11:14:06.000Z',
 };
 
@@ -115,6 +116,19 @@ describe('中身', () => {
     ).toBeNull();
   });
 
+  it('手順書の版の項目が無い記録（変更履歴より前）は、版なし（null）として読む', () => {
+    const { harness: _harness, ...old } = {
+      ...START,
+      finishedAt: null,
+      result: null,
+      tokens: null,
+      durationMs: null,
+    };
+    expect(parseLoopStep(old)?.harness).toBeNull();
+    expect(parseLoopStep({ ...old, harness: 'v2' })?.harness).toBe('v2');
+    expect(parseLoopStep({ ...old, harness: '' })).toBeNull();
+  });
+
   it('廃止した手（revise-impl / ready）の過去の記録も読める', () => {
     const base = {
       ...START,
@@ -148,6 +162,7 @@ describe('writeLoopStart', () => {
       action: 'implement',
       step: 'task',
       agent: 'board-worker-card-a-1114',
+      harness: null,
       startedAt: '2026-11-02T11:14:06.000Z',
       finishedAt: null,
       result: null,
@@ -235,6 +250,48 @@ describe('writeLoopFinish', () => {
 
     // 11:14:06 から 11:31:40 まで
     expect(finished).toMatchObject({ tokens: null, durationMs: 1054000 });
+  });
+
+  it('トークンが null なら、開始から終了までの窓で countTokens に数えさせる', () => {
+    unwrap(writeLoopStart(dataDir, { ...START, harness: 'v1' }));
+    const windows: [string, string][] = [];
+    const finished = unwrap(
+      writeLoopFinish(dataDir, {
+        ...FINISH,
+        tokens: null,
+        countTokens: (from, to) => {
+          windows.push([from, to]);
+          return 500;
+        },
+      })
+    );
+
+    expect(finished).toMatchObject({ harness: 'v1', tokens: 500 });
+    expect(windows).toEqual([['2026-11-02T11:14:06.000Z', '2026-11-02T11:31:40.000Z']]);
+  });
+
+  it('トークンが渡されれば countTokens を呼ばない。数えられなければ null', () => {
+    unwrap(writeLoopStart(dataDir, START));
+    const finished = unwrap(
+      writeLoopFinish(dataDir, {
+        ...FINISH,
+        countTokens: () => {
+          throw new Error('呼ばれない');
+        },
+      })
+    );
+    expect(finished.tokens).toBe(81234);
+
+    unwrap(writeLoopStart(dataDir, { ...START, startedAt: '2026-11-02T12:00:00.000Z' }));
+    const counted = unwrap(
+      writeLoopFinish(dataDir, {
+        ...FINISH,
+        tokens: null,
+        finishedAt: '2026-11-02T12:01:00.000Z',
+        countTokens: () => null,
+      })
+    );
+    expect(counted.tokens).toBeNull();
   });
 
   it('終了が開始より前（時計の戻り）なら、時間は 0 にする', () => {
