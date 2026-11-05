@@ -7,6 +7,7 @@
   既定: 本文は載せない。載せるのは、カード ID・PR 番号（またはブランチ）・問い合わせ先（`pulls/68` のようにクエリを除いた道）・HTTP のステータスまで。
   例: `PR #68 の取得（pulls/68）が HTTP 422 で失敗した`。
   載せる場合は、stderr の `gh: <文> (HTTP nnn)` の形の行だけを、長さを切って載せる（それ以外の行は捨てる）
+  - → 回答（2026-11-05、plan 承認）: 失敗の説明に GitHub の応答の本文は載せない（既定のまま）
 
 ## 提案
 
@@ -148,9 +149,9 @@
 
 ### 1. 失敗をカードに閉じる
 
-- [ ] `forge-client.ts` に `ForgeRequestError` と `failureScope` を足す。`github-client.ts` の `get` / `getAll` が失敗を `ForgeRequestError` にして投げる（404 は今どおり null）。テストを足す
-- [ ] `ForgePoller` にカードごとの失敗（`failures`）を持たせ、`scope: 'card'` の失敗では接続の状態を `error` にしない。全体のエラーの文言にカード ID と問い合わせ先を出す。`MrStateProvider` に `failure` を足す。テストを足す
-- [ ] 品質ゲートを通す
+- [x] `forge-client.ts` に `ForgeRequestError` と `failureScope` を足す。`github-client.ts` の `get` / `getAll` が失敗を `ForgeRequestError` にして投げる（404 は今どおり null）。テストを足す
+- [x] `ForgePoller` にカードごとの失敗（`failures`）を持たせ、`scope: 'card'` の失敗では接続の状態を `error` にしない。全体のエラーの文言にカード ID と問い合わせ先を出す。`MrStateProvider` に `failure` を足す。テストを足す
+- [x] 品質ゲートを通す
 
 ### 2. 止まりにして、判断を止める
 

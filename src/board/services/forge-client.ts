@@ -1,5 +1,6 @@
 import type { MergeRequestIid } from '../../shared/schemas/common.js';
 import type { ForgeKind, MrSnapshot } from '../models/mr-state.js';
+import { describeCliError, type CliError } from '../../infrastructure/cli-runner.js';
 
 // ============================================================
 // レビュー要求の取得先
@@ -23,6 +24,74 @@ export interface ForgeClient {
   fetchByBranch(branch: string): Promise<MrSnapshot | null>;
   /** 取得先へ問い合わせられる状態かを確かめる。理由文を返す（null なら利用可能） */
   checkAuth(): Promise<string | null>;
+}
+
+// ============================================================
+// 取得の失敗
+// ============================================================
+
+/**
+ * 失敗がどこまで効くか。
+ *
+ * - `global`: どのカードの問い合わせでも同じに起きる失敗（CLI が無い、ネットワークの断・タイムアウト、認証、上限、GitHub の障害）。
+ *   接続の状態をまるごと `error` にする
+ * - `card`: その PR の中身に依る失敗（422 など）。そのカードだけを止め、ほかのカードは今までどおり導出する
+ */
+export type ForgeFailureScope = 'global' | 'card';
+
+/** 全体に効く HTTP のステータス。認証（401）・権限や上限（403）・上限（429） */
+const GLOBAL_HTTP_STATUSES: ReadonlySet<number> = new Set([401, 403, 429]);
+
+/**
+ * CLI の失敗を、全体に効くものとカードだけのものに見分ける。
+ *
+ * 全カードが失敗したら全体、という数え方にしないのは、カードが 1 枚しか無いときに見分けられないため。
+ * 5xx を全体にするのは、GitHub の障害で全カードが一度に止まりになり、判断待ちが埋まるのを避けるため。
+ * HTTP のステータスが取れない失敗（ネットワークの断・タイムアウトなど）も全体にする。
+ */
+export function failureScope(error: CliError): ForgeFailureScope {
+  switch (error.type) {
+    case 'NotInstalled':
+      return 'global';
+    case 'InvalidJson':
+      return 'card';
+    case 'Failed': {
+      const status = error.httpStatus;
+      if (status === null || status >= 500 || GLOBAL_HTTP_STATUSES.has(status)) return 'global';
+      return 'card';
+    }
+  }
+}
+
+/**
+ * 取得先への問い合わせの失敗。どの問い合わせが、どの HTTP のステータスで失敗したかを持つ。
+ *
+ * `gh` の stderr の本文は載せない（資格情報が混じりうる。`cli-runner.ts` の `describe`）。
+ * 問い合わせ先はクエリを落とした道だけにする（ブランチ名などはクエリに入る）。
+ */
+export class ForgeRequestError extends Error {
+  readonly endpoint: string;
+  readonly httpStatus: number | null;
+  readonly scope: ForgeFailureScope;
+
+  constructor(endpoint: string, error: CliError) {
+    const pathOnly = stripQuery(endpoint);
+    const httpStatus = error.type === 'Failed' ? error.httpStatus : null;
+    super(
+      httpStatus === null
+        ? `${pathOnly} が失敗した（${describeCliError(error)}）`
+        : `${pathOnly} が HTTP ${httpStatus} で失敗した`
+    );
+    this.name = 'ForgeRequestError';
+    this.endpoint = pathOnly;
+    this.httpStatus = httpStatus;
+    this.scope = failureScope(error);
+  }
+}
+
+function stripQuery(endpoint: string): string {
+  const index = endpoint.indexOf('?');
+  return index === -1 ? endpoint : endpoint.slice(0, index);
 }
 
 // ============================================================

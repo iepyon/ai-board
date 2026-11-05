@@ -10,6 +10,7 @@ import type { ForgeConfig } from '../../../shared/config.js';
 import type { MergeRequestIid } from '../../../shared/schemas/common.js';
 import type { CliRunner } from '../../../infrastructure/cli-runner.js';
 import { ok, err } from '../../../shared/result.js';
+import { ForgeRequestError } from '../forge-client.js';
 
 const config: ForgeConfig = {
   kind: 'github',
@@ -520,9 +521,55 @@ describe('GhForgeClient', () => {
       ),
     };
 
-    await expect(
-      new GhForgeClient(config, runner).fetchByIid(7 as MergeRequestIid)
-    ).rejects.toThrow(/gh/);
+    const failure = await new GhForgeClient(config, runner)
+      .fetchByIid(7 as MergeRequestIid)
+      .catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(ForgeRequestError);
+    expect((failure as ForgeRequestError).message).toBe('pulls/7 が HTTP 500 で失敗した');
+    expect((failure as ForgeRequestError).scope).toBe('global');
+  });
+
+  it('PR の中身に依る失敗（422）はカードだけの失敗として投げる', async () => {
+    const runner: CliRunner = {
+      run: vi.fn(async () =>
+        err({
+          type: 'Failed' as const,
+          command: 'gh',
+          message: '終了コード 1 で失敗した',
+          httpStatus: 422,
+        })
+      ),
+    };
+
+    const failure = await new GhForgeClient(config, runner)
+      .fetchByIid(68 as MergeRequestIid)
+      .catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(ForgeRequestError);
+    expect((failure as ForgeRequestError).endpoint).toBe('pulls/68');
+    expect((failure as ForgeRequestError).httpStatus).toBe(422);
+    expect((failure as ForgeRequestError).scope).toBe('card');
+  });
+
+  it('ブランチから解決するときの失敗は、クエリ（ブランチ名）を落とした道で伝える', async () => {
+    const runner: CliRunner = {
+      run: vi.fn(async () =>
+        err({
+          type: 'Failed' as const,
+          command: 'gh',
+          message: '終了コード 1 で失敗した',
+          httpStatus: 422,
+        })
+      ),
+    };
+
+    const failure = await new GhForgeClient(config, runner)
+      .fetchByBranch('feat/secret-name')
+      .catch((error: unknown) => error);
+
+    expect((failure as ForgeRequestError).message).toBe('pulls が HTTP 422 で失敗した');
+    expect((failure as ForgeRequestError).message).not.toContain('secret-name');
   });
 
   it('トークンを引数に渡さない', async () => {

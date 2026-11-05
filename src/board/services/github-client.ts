@@ -4,11 +4,17 @@ import * as path from 'node:path';
 import type { MergeRequestIid } from '../../shared/schemas/common.js';
 import type { ForgeConfig } from '../../shared/config.js';
 import type { ForgeKind, MrLifecycleState, MrSnapshot, MrState } from '../models/mr-state.js';
-import { asArray, latestOf, toMergeRequestIid, type ForgeClient } from './forge-client.js';
+import {
+  asArray,
+  ForgeRequestError,
+  latestOf,
+  toMergeRequestIid,
+  type ForgeClient,
+} from './forge-client.js';
 import {
   parseJson,
   describeCliError,
-  unwrap,
+  isNotFound,
   type CliError,
   type CliRunner,
 } from '../../infrastructure/cli-runner.js';
@@ -184,7 +190,7 @@ export class GhForgeClient implements ForgeClient {
   private async get<T>(endpoint: string): Promise<T | null> {
     const result = await this.runner.run(GH, ['api', `${this.base}/${endpoint}`]);
 
-    return unwrap(result.ok ? parseJson<T>(GH, result.value) : result);
+    return unwrapRequest(endpoint, result.ok ? parseJson<T>(GH, result.value) : result);
   }
 
   /**
@@ -197,13 +203,26 @@ export class GhForgeClient implements ForgeClient {
     const path = `${this.base}/${endpoint}?per_page=${PER_PAGE}`;
     const result = await this.runner.run(GH, ['api', '--paginate', path]);
 
-    return asArray(unwrap(result.ok ? parseJson<T[]>(GH, result.value) : result));
+    return asArray(unwrapRequest(endpoint, result.ok ? parseJson<T[]>(GH, result.value) : result));
   }
 }
 
 // ============================================================
 // ヘルパー
 // ============================================================
+
+/**
+ * 問い合わせの結果を値へ開く。404 は「存在しない」として null、それ以外の失敗は `ForgeRequestError` にして投げる。
+ * ポーラーはこの例外の `scope` で、接続をまるごと止めるか、そのカードだけを止めるかを決める
+ */
+function unwrapRequest<T>(endpoint: string, result: Result<T, CliError>): T | null {
+  if (isErr(result)) {
+    if (isNotFound(result.error)) return null;
+    throw new ForgeRequestError(endpoint, result.error);
+  }
+
+  return result.value;
+}
 
 /**
  * GitHub の `state` は open / closed の 2 値しか取らない。

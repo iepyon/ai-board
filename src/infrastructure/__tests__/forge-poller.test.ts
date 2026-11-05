@@ -8,7 +8,8 @@ import { createCliRunner } from '../cli-runner.js';
 import { createDataStore, DATA_BRANCH } from '../data-store.js';
 import { FileMrSnapshotRepository } from '../../board/repositories/file-mr-snapshot.repository.js';
 import type { CardRepository } from '../../cards/repositories/card.repository.js';
-import type { ForgeClient } from '../../board/services/forge-client.js';
+import { ForgeRequestError, type ForgeClient } from '../../board/services/forge-client.js';
+import type { CliError } from '../cli-runner.js';
 import type { Card } from '../../cards/models/card.js';
 import type { MrSnapshot, MrState } from '../../board/models/mr-state.js';
 import type { MrSnapshotRepository } from '../../board/repositories/mr-snapshot.repository.js';
@@ -109,6 +110,10 @@ function makeMr(overrides: Partial<MrState> = {}): MrState {
 function snap(overrides: Partial<MrState> = {}): MrSnapshot {
   const mr = makeMr(overrides);
   return { mr, fingerprint: JSON.stringify(mr) };
+}
+
+function failed(httpStatus: number): CliError {
+  return { type: 'Failed', command: 'gh', message: '終了コード 1 で失敗した', httpStatus };
 }
 
 function stubClient(overrides: Partial<ForgeClient> = {}): ForgeClient {
@@ -301,10 +306,123 @@ describe('ForgePoller', () => {
     expect(poller.connection()).toEqual({
       status: 'error',
       kind: 'github',
-      message: 'ECONNREFUSED',
+      message: 'refresh-token: PR #42 の取得に失敗した（ECONNREFUSED）',
     });
     // 直近の値は残す。ボードを空にしない
     expect(poller.get('refresh-token')?.iid).toBe(42);
+  });
+
+  it('1 枚の PR だけに効く失敗では接続を止めず、そのカードの失敗として持つ', async () => {
+    const repository = new InMemoryCardRepository([
+      makeCard({ id: 'a' as CardId, mr: 42 as MergeRequestIid }),
+      makeCard({ id: 'b' as CardId, mr: 68 as MergeRequestIid }),
+    ]);
+    let shouldFail = false;
+    const client = stubClient({
+      fetchByIid: vi.fn(async (iid) => {
+        if (shouldFail && iid === 68) throw new ForgeRequestError('pulls/68', failed(422));
+        return snap({ iid });
+      }),
+    });
+    const poller = new ForgePoller(repository, client, snapshots, { onUpdate });
+
+    await poller.refresh();
+    shouldFail = true;
+    onUpdate.mockClear();
+    await poller.refresh();
+
+    expect(poller.connection()).toEqual({ status: 'connected', kind: 'github' });
+    expect(poller.failure('b')?.message).toBe('PR #68 の取得（pulls/68）が HTTP 422 で失敗した');
+    expect(poller.failure('a')).toBeNull();
+    // 前に引けた控えは残す。手前の AI の列に落とさない
+    expect(poller.get('b')?.iid).toBe(68);
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it('失敗が続くあいだは最初の時刻を保ち、引けたら消す', async () => {
+    const repository = new InMemoryCardRepository([makeCard({ mr: 68 as MergeRequestIid })]);
+    let shouldFail = true;
+    const client = stubClient({
+      fetchByIid: vi.fn(async () => {
+        if (shouldFail) throw new ForgeRequestError('pulls/68', failed(422));
+        return snap({ iid: 68 as MergeRequestIid });
+      }),
+    });
+    const poller = new ForgePoller(repository, client, snapshots, { onUpdate });
+
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-11-05T00:00:00.000Z'));
+      await poller.refresh();
+      vi.setSystemTime(new Date('2026-11-05T00:05:00.000Z'));
+      onUpdate.mockClear();
+      await poller.refresh();
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(poller.failure('refresh-token')?.since).toBe('2026-11-05T00:00:00.000Z');
+    // 同じ失敗が続くだけなら通知しない
+    expect(onUpdate).not.toHaveBeenCalled();
+
+    shouldFail = false;
+    await poller.refresh();
+
+    expect(poller.failure('refresh-token')).toBeNull();
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it('ブランチから解決するときの失敗は、ブランチの名前で伝える', async () => {
+    const repository = new InMemoryCardRepository([makeCard({ branch: 'feat/x' })]);
+    const client = stubClient({
+      fetchByBranch: vi.fn(async () => {
+        throw new ForgeRequestError('pulls?head=acme%3Afeat%2Fx', failed(422));
+      }),
+    });
+    const poller = new ForgePoller(repository, client, snapshots);
+
+    await poller.refresh();
+
+    expect(poller.failure('refresh-token')?.message).toBe(
+      'ブランチ feat/x の PR の解決（pulls）が HTTP 422 で失敗した'
+    );
+  });
+
+  it('全体に効く失敗（認証など）は、どのカードのどの問い合わせかを添えて接続を error にする', async () => {
+    const repository = new InMemoryCardRepository([makeCard({ mr: 42 as MergeRequestIid })]);
+    const client = stubClient({
+      fetchByIid: vi.fn(async () => {
+        throw new ForgeRequestError('pulls/42', failed(401));
+      }),
+    });
+    const poller = new ForgePoller(repository, client, snapshots);
+
+    await poller.refresh();
+
+    expect(poller.connection()).toEqual({
+      status: 'error',
+      kind: 'github',
+      message: 'refresh-token: PR #42 の取得（pulls/42）が HTTP 401 で失敗した',
+    });
+    expect(poller.failure('refresh-token')).toBeNull();
+  });
+
+  it('問い合わせの対象から外れたカードの失敗を消す', async () => {
+    const repository = new InMemoryCardRepository([makeCard({ mr: 68 as MergeRequestIid })]);
+    const client = stubClient({
+      fetchByIid: vi.fn(async () => {
+        throw new ForgeRequestError('pulls/68', failed(422));
+      }),
+    });
+    const poller = new ForgePoller(repository, client, snapshots);
+
+    await poller.refresh();
+    expect(poller.failure('refresh-token')).not.toBeNull();
+
+    repository.cards.set('refresh-token', makeCard());
+    await poller.refresh();
+
+    expect(poller.failure('refresh-token')).toBeNull();
   });
 
   it('PR が消えたらキャッシュから外す', async () => {
