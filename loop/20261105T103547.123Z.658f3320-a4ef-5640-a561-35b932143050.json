@@ -1,0 +1,13 @@
+{
+  "loop": "658f3320-a4ef-5640-a561-35b932143050",
+  "cardId": "typecheck-tests",
+  "action": "implement",
+  "step": "task",
+  "agent": null,
+  "harness": "v1",
+  "startedAt": "2026-11-05T10:35:47.123Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
