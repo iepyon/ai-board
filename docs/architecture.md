@@ -65,18 +65,23 @@ Draft の PR も計画レビューの列を立てる。AI が締めの段で Rea
 ## 止まり（hold）
 
 AI の列（計画提案中 / 実装中）にいても、人の判断を待って止まっているカードはループが選ばない。
-止まりは `resolveHold` が導き、ボードの組み立て（`get-board.query.ts`）で `BoardCard.hold`（`{ reason, since }` か `null`）に載る。
+止まりは `resolveHold` が導き、ボードの組み立て（`get-board.query.ts`）で `BoardCard.hold`（`{ kind, reason, since }` か `null`）に載る。
+`kind` は、人の判断で解く `decision` と、PR の状態を引けない `forge` の 2 つである。
 ステージとは別の軸の派生値で、どこにも保存しない（ステージは「工程のどこにいるか」、止まりは「その工程で誰を待っているか」）。
-止まりは次の 3 つで、`reason` には人が何をすればよいかを書く（`HOLD_REASONS`）。
+止まりは次の 4 つで、`reason` には人が何をすればよいかを書く（`HOLD_REASONS`）。
+
+- （`forge`）そのカードの PR だけを直近の取得で引けなかった（`MrStateProvider.failure`）。アイデア / マージ済み と中止のカードを除く、どの列でも立ち、ほかの止まりより先に見る。
+  列は前に引けた控えで決まるが、控えは古いことがあり、人の指摘や Draft への戻しを見落として進めかねない。
+  `decisionsFor` は空を返し（押せる判断を決められない）、`ai-board decide` はそのカードの承認 / 否決 / 中止・着手 / 着手を戻すを拒む。次の取得で引ければ外れる
 
 - 実装中で、人の最新の判断より後に PR が Draft に戻された（`mrState.convertedToDraftAt`）。
   AI が Ready にした PR を人が Draft に戻すとカードは実装中に落ち、計画は archive 済みなので、見ないと `implement` の archive 済みの段が Ready にし直してしまう
 - 計画提案中で、plan の最新が 保留
 - 計画提案中で、plan が提出済みなのに計画ファイルも Draft の PR も見えない（作り直すと PR を二重に作りかねない）。
-  PR の状態を引けていない（取得先に未接続、または起動直後で初回の取得前。`MrStateProvider.synced`）ときは、
+  PR の状態を引けていない（取得先に未接続、起動直後で初回の取得前（`MrStateProvider.synced`）、またはそのカードの PR だけを引けない）ときは、
   PR が無いのか分からないので立てない
 
-人が承認 / 否決 / 中止を書けばそのエントリが最新になり、止まりは外れる。止まりを解く専用のエントリは無い。
+人が承認 / 否決 / 中止を書けばそのエントリが最新になり、`decision` の止まりは外れる。止まりを解く専用のエントリは無い。
 
 ## 判断のボタンと画面の区画
 
@@ -289,6 +294,18 @@ usecase が書く前に拒むもの（本文の差し替えでエントリが変
 確かめ方は `gh api repos/<owner>/<repo>` を 1 回引けるかで、`gh auth status` は使わない。
 クラウドのセッションでは `gh auth status` が「GH_TOKEN が無効」と失敗するが、同じ認証で `gh api` は動く。
 ポーリングで使うのも `gh api` なので、同じ経路で確かめる。`connected` にならないと `status` の `next` が `null` になり、ループが回らない。
+
+ポーリングの失敗は、全体とカードに分ける（`forge-client.ts` の `failureScope`）。
+`github-client.ts` は 404 を「PR が無い」として null にし、それ以外の失敗を `ForgeRequestError`（問い合わせ先の道・HTTP のステータス・`scope`）にして投げる。
+問い合わせ先はクエリを落とした道だけで、`gh` の stderr の本文は載せない（資格情報が混じりうる）。
+
+- `global`: `gh` が無い、HTTP のステータスが取れない（ネットワークの断・タイムアウト）、401 / 403 / 429、5xx。
+  `ForgePoller` は接続をまるごと `error` にし、`message` を `<カード ID>: PR #<n> の取得（<道>）が HTTP <n> で失敗した` の形にする
+- `card`: それ以外の 4xx（422 など）と、JSON として読めない応答。接続は `connected` のまま、そのカードの失敗（`failure(cardId)` の `{ message, since }`）として持ち、
+  前に引けた控えは消さずに `get` で返す。`since` は失敗し始めた時刻で、失敗が続くあいだは保ち、引けたら消す（プロセスの中だけで持つ）。
+  ボードはそのカードを止まり（`hold.kind` が `forge`）にする（「止まり」）
+
+全カードが失敗したら全体、という数え方にしないのは、カードが 1 枚しか無いときに見分けられないためである。
 
 GitHub の PR は `state` が `open` / `closed` の 2 値しかなく、**マージ済みも `closed`** で返る。
 区別は `merged_at` の有無で付ける（`toLifecycleState`）。ここを取り違えるとカードが `merged` へ進まない。

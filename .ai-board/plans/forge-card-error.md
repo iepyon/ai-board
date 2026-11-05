@@ -162,5 +162,5 @@
 
 ### 3. ドキュメント
 
-- [ ] `docs/architecture.md` の「止まり」と GitHub の取得の節、`docs/adr/0006-ai-review-entries-and-hold.md`、`.claude/skills/board-loop/SKILL.md` の止まりの列挙、`README.md`（止まりの説明があれば）を今の形に書き直す
-- [ ] 品質ゲートを通す
+- [x] `docs/architecture.md` の「止まり」と GitHub の取得の節、`docs/adr/0006-ai-review-entries-and-hold.md`、`.claude/skills/board-loop/SKILL.md` の止まりの列挙、`README.md`（止まりの説明があれば）を今の形に書き直す
+- [x] 品質ゲートを通す
