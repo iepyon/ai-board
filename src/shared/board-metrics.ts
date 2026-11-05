@@ -7,7 +7,7 @@ import {
   type LoopResult,
   type LoopStep,
 } from './loop-step.js';
-import { byStartedAt, isStuck, sameMove } from './loop-streak.js';
+import { isStuck, sameMove } from './loop-streak.js';
 import type { Stage } from './schemas/common.js';
 import {
   TIMELINE_KINDS,
@@ -36,6 +36,7 @@ export interface MetricsCard {
   readonly plan: { readonly updatedAt: string } | null;
   readonly reviews: readonly { readonly kind: string }[];
   readonly timeline: readonly TimelineSegment[];
+  /** 開始の古い順（`BoardCard.loopSteps` と同じ並び） */
   readonly loopSteps: readonly Pick<
     LoopStep,
     'action' | 'step' | 'result' | 'tokens' | 'durationMs' | 'harness' | 'startedAt'
@@ -190,17 +191,12 @@ function summarize(live: readonly MetricsCard[], merged: readonly MetricsCard[])
     .map((card) => humanShare(card))
     .filter((value): value is number => value !== null);
 
-  const rejections = live.map(
-    (card) => card.reviews.filter((review) => review.kind === REJECTED_KIND).length
-  );
-
   return {
     mergedCount: merged.length,
     leadTimeMedianMs: median(leadTimes),
     leadTimeMaxMs: leadTimes.length === 0 ? null : Math.max(...leadTimes),
     humanShareMedian: median(shares),
-    rejectedCardCount: rejections.filter((count) => count > 0).length,
-    rejectionCount: rejections.reduce((sum, count) => sum + count, 0),
+    ...countRejections(live),
     ideaCount: live.filter((card) => card.stage === 'idea').length,
   };
 }
@@ -327,10 +323,8 @@ function loopActionMetrics(live: readonly MetricsCard[]): readonly LoopActionMet
     const matched = steps.filter((step) => step.action === key.action && stepOf(step) === key.step);
     if (matched.length === 0) continue;
 
-    const durations = matched.flatMap((step) =>
-      step.durationMs === null ? [] : [step.durationMs]
-    );
-    const tokens = matched.flatMap((step) => (step.tokens === null ? [] : [step.tokens]));
+    const durations = presentValues(matched, 'durationMs');
+    const tokens = presentValues(matched, 'tokens');
     metrics.push({
       action: key.action,
       step: key.step,
@@ -368,52 +362,37 @@ function loopResultCounts(live: readonly MetricsCard[]): readonly LoopResultCoun
 type Harness = string | null;
 
 interface VersionBucket {
-  readonly steps: LoopStepInput[];
-  retryCount: number;
+  /** 記録と、それがやり直し（進めなかった同じ手の直後）か */
+  readonly steps: { readonly step: LoopStepInput; readonly retry: boolean }[];
   readonly cards: MetricsCard[];
 }
 
 function harnessVersionMetrics(live: readonly MetricsCard[]): readonly HarnessVersionMetrics[] {
   const buckets = new Map<Harness, VersionBucket>();
   const bucket = (harness: Harness): VersionBucket => {
-    let found = buckets.get(harness);
-    if (found === undefined) {
-      found = { steps: [], retryCount: 0, cards: [] };
-      buckets.set(harness, found);
-    }
+    const found = buckets.get(harness) ?? { steps: [], cards: [] };
+    buckets.set(harness, found);
     return found;
   };
 
   for (const card of live) {
-    const ordered = byStartedAt(card.loopSteps);
-
-    ordered.forEach((step, index) => {
-      const target = bucket(harnessOf(step));
-      target.steps.push(step);
-
-      const previous = index === 0 ? undefined : ordered[index - 1];
-      if (previous !== undefined && isStuck(previous) && sameMove(previous, step)) {
-        target.retryCount += 1;
-      }
+    card.loopSteps.forEach((step, index) => {
+      const previous = card.loopSteps[index - 1];
+      const retry = previous !== undefined && isStuck(previous) && sameMove(previous, step);
+      bucket(step.harness).steps.push({ step, retry });
     });
 
     if (card.startedAt !== null) {
-      const first = ordered[0];
-      bucket(first === undefined ? null : harnessOf(first)).cards.push(card);
+      bucket(card.loopSteps[0]?.harness ?? null).cards.push(card);
     }
   }
 
   return [...buckets.entries()]
     .sort(([a], [b]) => compareHarness(a, b))
-    .map(([harness, { steps, retryCount, cards }]) => {
-      const durations = steps.flatMap((step) =>
-        step.durationMs === null ? [] : [step.durationMs]
-      );
-      const tokens = steps.flatMap((step) => (step.tokens === null ? [] : [step.tokens]));
-      const rejections = cards.map(
-        (card) => card.reviews.filter((review) => review.kind === REJECTED_KIND).length
-      );
-      const waits = cards
+    .map(([harness, bucketed]) => {
+      const steps = bucketed.steps.map((entry) => entry.step);
+      const tokens = presentValues(steps, 'tokens');
+      const waits = bucketed.cards
         .filter((card) => card.stage === 'merged')
         .map((card) => humanWaitMs(card))
         .filter((value): value is number => value !== null);
@@ -421,24 +400,18 @@ function harnessVersionMetrics(live: readonly MetricsCard[]): readonly HarnessVe
       return {
         harness,
         stepCount: steps.length,
-        durationMedianMs: median(durations),
+        durationMedianMs: median(presentValues(steps, 'durationMs')),
         tokensMedian: median(tokens),
         tokensCount: tokens.length,
         finishedCount: steps.filter((step) => step.result !== null).length,
         stuckCount: steps.filter((step) => isStuck(step)).length,
-        retryCount,
-        cardCount: cards.length,
-        rejectedCardCount: rejections.filter((count) => count > 0).length,
-        rejectionCount: rejections.reduce((sum, count) => sum + count, 0),
+        retryCount: bucketed.steps.filter((entry) => entry.retry).length,
+        cardCount: bucketed.cards.length,
+        ...countRejections(bucketed.cards),
         humanWaitMedianMs: median(waits),
         humanWaitCardCount: waits.length,
       };
     });
-}
-
-/** 記録の版。項目の無い古い記録（`undefined`）も版なしにそろえる */
-function harnessOf(step: LoopStepInput): Harness {
-  return step.harness ?? null;
 }
 
 /** 版番号の大きい順。版なしは最後。番号の読めない版は名前の順で番号のある版の後ろ */
@@ -488,6 +461,28 @@ export function median(values: readonly number[]): number | null {
   const upper = sorted[middle] as number;
 
   return sorted.length % 2 === 1 ? upper : ((sorted[middle - 1] as number) + upper) / 2;
+}
+
+/** 否決が 1 回以上あるカードの枚数と、否決の延べ回数 */
+function countRejections(cards: readonly MetricsCard[]): {
+  readonly rejectedCardCount: number;
+  readonly rejectionCount: number;
+} {
+  const rejections = cards.map(
+    (card) => card.reviews.filter((review) => review.kind === REJECTED_KIND).length
+  );
+  return {
+    rejectedCardCount: rejections.filter((count) => count > 0).length,
+    rejectionCount: rejections.reduce((sum, count) => sum + count, 0),
+  };
+}
+
+/** 記録の時間かトークンのうち、null でないもの */
+function presentValues(steps: readonly LoopStepInput[], field: 'durationMs' | 'tokens'): number[] {
+  return steps.flatMap((step) => {
+    const value = step[field];
+    return value === null ? [] : [value];
+  });
 }
 
 /** 平均。空なら null */

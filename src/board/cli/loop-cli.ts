@@ -178,6 +178,7 @@ async function runFinish(
   if (typeof durationMs === 'string') return fail(io, durationMs);
 
   const finishedAt = io.now().toISOString();
+  let counted: { readonly value: number | null } | undefined;
   const result = await deps.store.transact<LoopStep, LoopCliError>(
     (step) => `loop: finish ${step.cardId} ${step.action}`,
     (dataDir) =>
@@ -187,7 +188,9 @@ async function runFinish(
           cardId: common.cardId,
           result: loopResult,
           tokens,
-          countTokens: (from, to) => deps.countTokens(common.loop, from, to),
+          // push が拒まれると op が呼び直される。会話の記録を読み直さないよう、最初に数えた値を使い回す
+          countTokens: (from, to) =>
+            (counted ??= { value: deps.countTokens(common.loop, from, to) }).value,
           durationMs,
           finishedAt,
         })

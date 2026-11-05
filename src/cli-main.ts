@@ -318,7 +318,7 @@ async function runLoop(argv: readonly string[]): Promise<number> {
         return parsed.success && (await cardRepository.findById(parsed.data as CardId)) !== null;
       },
       harnessVersion: () => readHarnessVersion(root),
-      countTokens: (loop, from, to) => readSessionTokens(loop, from, to),
+      countTokens: readSessionTokens,
     },
     createProcessIo()
   );

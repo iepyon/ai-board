@@ -60,7 +60,8 @@ interface UsageEntry {
 }
 
 function parseLine(line: string): UsageEntry | null {
-  if (line.trim() === '') return null;
+  // 記録の大半は道具の結果などの行で、assistant の語を含まない行は JSON として読むまでもない
+  if (!line.includes('"assistant"')) return null;
 
   let json: unknown;
   try {
@@ -85,6 +86,13 @@ function parseLine(line: string): UsageEntry | null {
   }, 0);
 
   return { id, at, tokens };
+}
+
+/** ファイルを 1 つずつ読んで行を出す。全部のファイルの行を 1 つの配列に溜めない */
+function* linesOf(files: readonly string[]): Generator<string> {
+  for (const file of files) {
+    yield* fs.readFileSync(file, 'utf-8').split('\n');
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -142,10 +150,7 @@ export function readSessionTokens(
   configDir: string = claudeConfigDir()
 ): number | null {
   try {
-    const lines = findSessionLogs(configDir, sessionId).flatMap((file) =>
-      fs.readFileSync(file, 'utf-8').split('\n')
-    );
-    return countSessionTokens(lines, from, to);
+    return countSessionTokens(linesOf(findSessionLogs(configDir, sessionId)), from, to);
   } catch {
     return null;
   }

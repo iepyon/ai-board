@@ -418,19 +418,18 @@ ${renderHarnessVersions(metrics.harnessVersions)}
 function renderHarnessVersions(versions: readonly HarnessVersionMetrics[]): string {
   if (versions.length === 0) return '<p class="empty">まだありません</p>';
 
-  const duration = (ms: number | null): string => (ms === null ? '—' : formatDuration(ms));
   const ratio = (part: number, whole: number): string =>
     whole === 0 ? '—' : `${Math.round((part / whole) * 100)}%（${part}/${whole}）`;
 
   const rows: readonly (readonly [string, (entry: HarnessVersionMetrics) => string])[] = [
     ['1 手の数', (entry) => `${entry.stepCount}`],
-    ['1 手の時間（中央値）', (entry) => duration(entry.durationMedianMs)],
+    ['1 手の時間（中央値）', (entry) => durationOrDash(entry.durationMedianMs)],
     [
       '1 手のトークン（中央値）',
       (entry) =>
         entry.tokensMedian === null
           ? '—'
-          : `${Math.round(entry.tokensMedian).toLocaleString('en-US')}（${entry.tokensCount} 件）`,
+          : `${countOrDash(entry.tokensMedian)}（${entry.tokensCount} 件）`,
     ],
     ['止まった割合', (entry) => ratio(entry.stuckCount, entry.finishedCount)],
     ['やり直し', (entry) => `${entry.retryCount} 回`],
@@ -465,7 +464,7 @@ ${body.join('\n')}
 
 function renderStats(metrics: BoardMetrics): string {
   const { summary } = metrics;
-  const duration = (ms: number | null): string => (ms === null ? '—' : formatDuration(ms));
+  const duration = durationOrDash;
   const share =
     summary.humanShareMedian === null ? '—' : `${Math.round(summary.humanShareMedian * 100)}%`;
 
@@ -493,9 +492,8 @@ function renderLoopActions(metrics: BoardMetrics): string {
 
   const rows = metrics.loopActions.map((entry) => {
     const name = entry.step === null ? entry.action : `${entry.action} · ${entry.step}`;
-    const duration = entry.avgDurationMs === null ? '—' : formatDuration(entry.avgDurationMs);
-    const tokens =
-      entry.avgTokens === null ? '—' : Math.round(entry.avgTokens).toLocaleString('en-US');
+    const duration = durationOrDash(entry.avgDurationMs);
+    const tokens = countOrDash(entry.avgTokens);
 
     return `<tr><th scope="row">${escapeHtml(name)}</th><td>${entry.count}</td><td>${escapeHtml(
       duration + missing(entry.missingDuration)
@@ -508,6 +506,16 @@ function renderLoopActions(metrics: BoardMetrics): string {
 ${rows.join('\n')}
 </tbody>
 </table></div>`;
+}
+
+/** 時間。値が無ければ「—」 */
+function durationOrDash(ms: number | null): string {
+  return ms === null ? '—' : formatDuration(ms);
+}
+
+/** トークンなどの数を 3 桁区切りで。値が無ければ「—」 */
+function countOrDash(value: number | null): string {
+  return value === null ? '—' : Math.round(value).toLocaleString('en-US');
 }
 
 /** 平均から除いた件数の注記 */

@@ -356,9 +356,9 @@ describe('computeBoardMetrics の手順書の版ごと', () => {
         startedAt: at(0),
         loopSteps: [
           step({ harness: null, startedAt: at(1), durationMs: 10, tokens: null }),
+          step({ harness: 'v2', startedAt: at(2), durationMs: 20, tokens: null, result: null }),
           step({ harness: 'v2', startedAt: at(3), durationMs: 30, tokens: 300 }),
           step({ harness: 'v10', startedAt: at(4), durationMs: 40, tokens: 400 }),
-          step({ harness: 'v2', startedAt: at(2), durationMs: 20, tokens: null, result: null }),
         ],
       }),
     ]);

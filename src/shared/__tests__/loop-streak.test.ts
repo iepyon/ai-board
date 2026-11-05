@@ -1,14 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { stuckStreak, type StreakStep } from '../loop-streak.js';
 
-function step(minute: number, overrides: Partial<StreakStep> = {}): StreakStep {
-  return {
-    action: 'implement',
-    step: 'task',
-    result: 'stopped',
-    startedAt: new Date(Date.UTC(2026, 10, 5, 0, minute)).toISOString(),
-    ...overrides,
-  };
+/** 記録は開始の古い順に並べて渡す（`minute` は並びを読みやすくするための目印） */
+function step(_minute: number, overrides: Partial<StreakStep> = {}): StreakStep {
+  return { action: 'implement', step: 'task', result: 'stopped', ...overrides };
 }
 
 describe('stuckStreak', () => {
@@ -17,8 +12,8 @@ describe('stuckStreak', () => {
       stuckStreak([
         step(1, { result: 'advanced' }),
         step(2),
-        step(4, { result: 'held' }),
         step(3, { result: 'interrupted' }),
+        step(4, { result: 'held' }),
       ])
     ).toBe(3);
   });
