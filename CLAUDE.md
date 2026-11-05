@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      人            AI            人 ★          AI        人 ★        —
 ```
 
-画面と常駐するサーバはいったん外した（[ADR 0017](docs/adr/0017-remove-web-and-server.md)）。API の見本として `ai-board serve` の 2 つだけが `127.0.0.1` に bind する。認証やレート制限は持たない。
+画面と常駐するサーバはいったん外した（[ADR 0017](docs/adr/0017-remove-web-and-server.md)）。手元で動かす CLI だけで、認証やレート制限は持たない。
 成果物（計画・カード・コミット・ドキュメント）は日本語で書く。
 
 ### 読む場所
@@ -72,7 +72,6 @@ ai-board decide <approve|reject|abort|start|unstart|skip|move|move-divider> ... 
 | ----------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `ai-board status` | **read-only**                                | PR 番号とマージ済みの PR の控えを書き戻す（コミットして push する）                                               |
 | `ai-board decide` | **read-only**                                | 人の判断を書く。加えて PR 番号とマージ済みの PR の控えを書き戻す（`status` と同じ。どれもコミットして push する） |
-| `ai-board serve`  | **read-only**                                | API のサンプルの `POST /api/cards/:id/reviews` で人の判断を書く（`decide` と同じ検査）                            |
 | AI エージェント   | 書く（計画・タスクの更新・archive への移動） | `ai-board card` 経由で本文・ブランチ・提出・保留のみ                                                              |
 | ループ            | AI エージェントと同じ                        | AI エージェントと同じ。加えて `ai-board loop` 経由で 1 手の記録（`loop/`）を書く                                  |
 

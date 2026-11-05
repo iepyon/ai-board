@@ -12,11 +12,9 @@ src/
   cards/                カードの読み書きのコンテキスト
   board/                3ソース統合・ステージ導出コンテキスト
   infrastructure/       外部コマンド・データのワークツリー・GitHub の問い合わせ
-  api/                  API のサンプル（ai-board serve。GET /api/board・POST /api/cards/:id/reviews）
 ```
 
 かつてあった React の画面（`src/web/`）と、それを配るサーバ（HTTP API・SSE・ファイル監視・取り直し・定期のポーリング）は外した（ADR 0017）。
-API は見本として 2 つだけを `src/api/` に残した（下の「API のサンプル」）。
 
 各コンテキストは `models/ errors/ repositories/ usecases/ cli/ composition.ts` を持つ。
 
@@ -381,19 +379,6 @@ GitHub の上限（5,000 回/時）の大半を使う。そこで引いた結果
 `timeline`（区間の並び。各区間に待ちと作業の `phases`）、`loopSteps`（そのカードのループの 1 手の記録）、`reviews`（判断を書かれた順に並べた `{ at, gate, kind, reason }` の配列）を持つ。
 `reviews` の理由は組み立てた本文から読むので、`#`〜`###` の行は `####` に下がった文になる（`log/` の元の文ではない）。
 ボード全体には `loop`（`{ running, lastFinishedAt }`）が付く。
-
-## API のサンプル
-
-`ai-board serve` は `src/api/server.ts` の `startApiServer` で `127.0.0.1` にだけ bind し、`src/api/app.ts` の `createApp` を待ち受ける。
-口は `GET /api/board` と `POST /api/cards/:id/reviews` の 2 つだけで、ほかのパスは Express の既定の 404 になる。
-
-- **GitHub には問い合わせない。** PR の状態は `createSnapshotMrStateProvider`（`src/board/services/snapshot-mr-state-provider.ts`）が、
-  `FileMrSnapshotRepository` の控えだけから返す。接続は `connected` と答え、控えが 1 件も無ければ `synced` を偽にする（`resolveHold` の planLost を立てない）。
-  `snapshotTakenAt` は `cache/mr-snapshots.json` の更新時刻で、無ければ `null`
-- **リクエストのたびに組み立てる。** `createApiDependencies` はデータ用ブランチを取り直し（`DataStore.refresh`）、`config.yaml` と控えを読み直してボードを組み立てる
-- **書く口は `ai-board decide` と同じ検査をする。** 入力は Zod で `gate: 'plan'`・`kind`（承認 / 否決 / 中止）・`reason` に絞り、否決は理由を要る。
-  `decisionsFor` に無い判断は 409（`DecisionNotAvailable`、出せる判断を添える）で、書くのは `createTransactionalCardDependencies` の `appendReviewCommand`（コミットして push する）。
-  書き込みの失敗は、カードが無ければ 404、書き込みを拒んだら 409、データ用ブランチの失敗は 503
 
 ## 区間の並び（timeline）
 

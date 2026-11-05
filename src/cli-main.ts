@@ -28,7 +28,6 @@ import { DECIDE_USAGE, isDecideCommand, runDecideCli } from './board/cli/decide-
 import { readHarnessVersion } from './infrastructure/harness-version.js';
 import { readSessionTokens } from './infrastructure/session-usage.js';
 import { readMtimeMs, runDistCheckCli } from './infrastructure/dist-check-cli.js';
-import { startApiServer, DEFAULT_PORT } from './api/server.js';
 import { err, isErr, ok, type Result } from './shared/result.js';
 import { CardIdSchema, type CardId } from './shared/schemas/common.js';
 
@@ -49,7 +48,6 @@ Commands:
   decide <command>    人の判断を書く（人と、人が会話で頼んだ Claude だけ。ai-board decide --help）
   loop <start|finish> ループの 1 手の記録を書く（ループだけが使う。ai-board loop --help）
   dist-check          dist/ が HEAD のコミットより古いかを確かめる（古ければ終了コード 1）
-  serve [--port <n>]  API のサンプル（GET /api/board・POST /api/cards/:id/reviews）を 127.0.0.1 で待ち受ける
 
 Options:
   --root <path>   対象プロジェクトのルート (既定: カレントディレクトリ)
@@ -350,34 +348,7 @@ async function readMarkdownDir(dir: string): Promise<Result<readonly SeedFile[],
   }
 }
 
-/**
- * `serve` サブコマンド。API のサンプル（2 つだけ）を `127.0.0.1` で待ち受ける。
- *
- * GitHub には問い合わせず、PR の状態は `status` などが書いた控えを読む。Ctrl+C で止まる。
- */
-async function runServe(argv: readonly string[]): Promise<number> {
-  const { root, rest } = extractRoot(argv);
-  const portIndex = rest.indexOf('--port');
-  const port = portIndex === -1 ? DEFAULT_PORT : Number(takeValue(rest, portIndex + 1, '--port'));
-  const unknown = rest.filter((arg, i) => i !== portIndex && i !== portIndex + 1);
-
-  if (unknown.length > 0 || !Number.isInteger(port) || port < 1 || port > 65535) {
-    process.stderr.write('使い方: ai-board serve [--port <1〜65535>] [--root <path>]\n');
-    return 1;
-  }
-
-  const api = await startApiServer(root, port);
-  console.warn(`ai-board serve  ${api.url}（GET /api/board・POST /api/cards/:id/reviews）`);
-
-  const shutdown = (): void => {
-    void api.close().then(() => process.exit(0));
-  };
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
-  return 0;
-}
-
-/** サブコマンド。名前から実行する関数を引く */
+/** サーバを起動しないサブコマンド。名前から実行する関数を引く */
 const SUBCOMMANDS: Readonly<Record<string, (argv: readonly string[]) => Promise<number>>> = {
   card: runCard,
   init: runInit,
@@ -386,7 +357,6 @@ const SUBCOMMANDS: Readonly<Record<string, (argv: readonly string[]) => Promise<
   loop: runLoop,
   decide: runDecide,
   'dist-check': runDistCheck,
-  serve: runServe,
 };
 
 async function main(): Promise<void> {
