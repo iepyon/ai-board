@@ -1,0 +1,19 @@
+{
+  "fingerprint": "[3,\"closed\",\"2026-11-05T06:05:23Z\",false,\"73b7e47662cf6e7896794a2d646f36fafb8c7155\",0,0,\"2026-11-05T06:05:24Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 83,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "forge-card-error",
+    "title": "1 枚の PR が引けないときは、そのカードだけを止め、ボードとループ全体は止めない",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/83",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestAiNoteAt": null,
+    "latestCommitAt": "2026-11-05T05:31:44Z",
+    "mergedAt": "2026-11-05T06:05:23Z",
+    "readyAt": "2026-11-05T05:07:56Z",
+    "convertedToDraftAt": null
+  }
+}
