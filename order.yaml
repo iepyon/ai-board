@@ -29,7 +29,7 @@ ranks:
   loop-ready-permission: 1793765357520
   loop-respect-human: 35000
   loop-resume-after-decide: 5000
-  loop-retry-limit: 1793715940378
+  loop-retry-limit: -7781.25
   loop-single-session: -15750
   loop-task-batch: 2000
   loop-worker-dummy: 33000
