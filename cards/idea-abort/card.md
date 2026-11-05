@@ -3,7 +3,7 @@ id: idea-abort
 title: ユーザは、要らなくなったアイデアのカードを、中止してボードから片付けたい
 created: '2026-11-05T10:56:28.677Z'
 skipGates: []
-branch: null
+branch: idea-abort
 mr: null
 ---
 
