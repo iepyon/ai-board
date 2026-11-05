@@ -89,7 +89,11 @@ describe('groupBySection', () => {
   });
 
   it('止まっているカードは AI の列にいても判断待ちへ出し、AI 作業中に含めない', () => {
-    const hold = { reason: '止まっている', since: '2026-09-20T00:00:00Z' };
+    const hold = {
+      kind: 'decision' as const,
+      reason: '止まっている',
+      since: '2026-09-20T00:00:00Z',
+    };
     const sections = groupBySection([
       makeCard({ id: 'held-impl', stage: 'impling', hold }),
       makeCard({ id: 'held-plan', stage: 'planning', hold }),
@@ -106,7 +110,7 @@ describe('groupBySection', () => {
         id: 'aborted',
         stage: 'impling',
         aborted: true,
-        hold: { reason: '止まっている', since: '2026-09-20T00:00:00Z' },
+        hold: { kind: 'decision' as const, reason: '止まっている', since: '2026-09-20T00:00:00Z' },
       }),
     ]);
 
@@ -125,7 +129,7 @@ describe('groupBySection', () => {
         id: 'held',
         stage: 'impling',
         latestReview: { at: '2026-09-25T00:00:00Z' },
-        hold: { reason: '止まっている', since: '2026-09-21T00:00:00Z' },
+        hold: { kind: 'decision' as const, reason: '止まっている', since: '2026-09-21T00:00:00Z' },
       }),
     ]);
 
@@ -188,7 +192,7 @@ describe('waitingSince', () => {
       id: 'a',
       stage: 'impling',
       latestReview: { at: '2026-09-20T00:00:00Z' },
-      hold: { reason: '止まっている', since: '2026-09-24T00:00:00Z' },
+      hold: { kind: 'decision' as const, reason: '止まっている', since: '2026-09-24T00:00:00Z' },
     });
 
     expect(waitingSince(card)).toBe('2026-09-24T00:00:00Z');
@@ -275,7 +279,7 @@ function decisionCard(overrides: Partial<DecisionCard> = {}): DecisionCard {
   };
 }
 
-const HOLD = { reason: '止まっている', since: '2026-09-20T00:00:00Z' };
+const HOLD = { kind: 'decision' as const, reason: '止まっている', since: '2026-09-20T00:00:00Z' };
 
 /** ボタンを `gate kind ラベル` の文字列に縮める。並びも確かめる */
 const buttons = (card: DecisionCard): string[] =>
@@ -319,6 +323,14 @@ describe('decisionsFor', () => {
   it('止まっていない AI の列、アイデア、PR中、マージ済みには出さない', () => {
     for (const stage of ['idea', 'planning', 'impling', 'pr', 'merged'] as const) {
       expect(decisionsFor(decisionCard({ stage }))).toEqual([]);
+    }
+  });
+
+  it('PR の状態を引けない止まりのカードには、どの列でも出さない', () => {
+    const forgeHold = { ...HOLD, kind: 'forge' as const };
+
+    for (const stage of ['plan-review', 'impling', 'planning'] as const) {
+      expect(decisionsFor(decisionCard({ stage, hold: forgeHold }))).toEqual([]);
     }
   });
 

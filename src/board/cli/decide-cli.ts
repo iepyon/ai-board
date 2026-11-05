@@ -186,6 +186,7 @@ async function runReview(
 
   const card = findCard(board, id, io);
   if (card === null) return 1;
+  if (refuseWithoutCardPr(card, '承認 / 否決 / 中止', io)) return 1;
 
   const decisions = decisionsFor(card);
   const decision = decisions.find((d) => d.kind === kind);
@@ -259,6 +260,7 @@ async function runStartedAt(
 
   const card = findCard(board, id, io);
   if (card === null) return 1;
+  if (refuseWithoutCardPr(card, '着手 / 着手を戻す', io)) return 1;
 
   if (card.stage !== move.from || !card.droppableStages.includes(move.to)) {
     return fail(
@@ -433,6 +435,16 @@ function refuseWithoutForge(board: Board, what: string, io: DecideCliIo): boolea
   io.stderr(
     `GitHub に繋がらないので、${what}は書けません（GitHub: ${describeForge(board.forge)}）\n`
   );
+  return true;
+}
+
+/**
+ * そのカードの PR の状態だけを引けていなければ（`hold.kind` が `forge`）拒んで true を返す。
+ * 列が前に引けた控えに依るので、`refuseWithoutForge` と同じ理由で判断と列の移しを書かない
+ */
+function refuseWithoutCardPr(card: BoardCard, what: string, io: DecideCliIo): boolean {
+  if (card.hold?.kind !== 'forge') return false;
+  io.stderr(`GitHub から PR の状態を引けないので、${what}は書けません（${card.hold.reason}）\n`);
   return true;
 }
 

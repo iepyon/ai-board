@@ -155,10 +155,10 @@
 
 ### 2. 止まりにして、判断を止める
 
-- [ ] `CardHold` に `kind` を、`HoldInput` に `mrFailure` を足し、`resolveHold` が `forge` の止まりを返す。`HOLD_REASONS.forgeFailed` を足す。今の止まりを作る箇所とテストの値を `kind: 'decision'` に合わせる。テストを足す
-- [ ] `get-board.query.ts` がカードの失敗を `resolveHold` に渡し、カードごとの `mrKnown` に効かせる。`src/web/types.ts` の `CardHold` に `kind` を写す。e2e のテストを足す
-- [ ] `decisionsFor` が `forge` の止まりで空を返し、`ai-board decide` が承認 / 否決 / 中止・着手 / 着手を戻すを拒む。テストを足す
-- [ ] 品質ゲートを通す
+- [x] `CardHold` に `kind` を、`HoldInput` に `mrFailure` を足し、`resolveHold` が `forge` の止まりを返す。`HOLD_REASONS.forgeFailed` を足す。今の止まりを作る箇所とテストの値を `kind: 'decision'` に合わせる。テストを足す
+- [x] `get-board.query.ts` がカードの失敗を `resolveHold` に渡し、カードごとの `mrKnown` に効かせる。`src/web/types.ts` の `CardHold` に `kind` を写す。e2e のテストを足す
+- [x] `decisionsFor` が `forge` の止まりで空を返し、`ai-board decide` が承認 / 否決 / 中止・着手 / 着手を戻すを拒む。テストを足す
+- [x] 品質ゲートを通す
 
 ### 3. ドキュメント
 

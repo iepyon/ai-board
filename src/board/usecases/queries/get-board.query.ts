@@ -82,6 +82,7 @@ export function createGetBoardQuery(
     const boardCards: BoardCard[] = cards.map((card) => {
       const plan = planState.get(card.id) ?? null;
       const mr = mrProvider.get(card.id);
+      const mrFailure = mrProvider.failure(card.id);
 
       const resolution = resolveStage(card, plan, mr);
       const floorStage = resolveFloorStage(card, plan, mr);
@@ -96,7 +97,14 @@ export function createGetBoardQuery(
         latestReview(entries, resolution.stage),
         toBoardCardPlan(plan),
         toBoardCardMr(mr),
-        resolveHold({ ...resolution, entries, mr, mrKnown }),
+        resolveHold({
+          ...resolution,
+          entries,
+          mr,
+          // 引けなかったカードの控えは古いことがあるので、PR が見えないことを根拠にしない
+          mrKnown: mrKnown && mrFailure === null,
+          mrFailure,
+        }),
         splitAiPhases(
           resolveTimeline({
             created: card.created,

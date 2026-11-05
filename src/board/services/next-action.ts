@@ -2,6 +2,7 @@ import type { Stage } from '../../shared/schemas/common.js';
 import type { GateState, ReviewEntry, ReviewGate } from '../../cards/models/review.js';
 import { latestGateEntry } from '../../cards/services/review-log.js';
 import type { ImplStep } from './impl-step.js';
+import type { ForgeCardFailure } from '../models/mr-state.js';
 
 // ============================================================
 // 次の一手 — ループが 1 周で進めるものを決める純関数
@@ -49,11 +50,20 @@ export interface NextAction {
  * どこにも保存せず、ボードを組み立てるたびに `resolveHold` で導く。
  */
 export interface CardHold {
+  /**
+   * 何を待っているか。
+   *
+   * - `decision`: 人の判断（判断のボタンか GitHub の操作）で解く
+   * - `forge`: そのカードの PR の状態を引けない。時間が経てば解けることが多く、判断のボタンは出さない
+   */
+  readonly kind: CardHoldKind;
   /** 人が何をすればよいか */
   readonly reason: string;
   /** 人を待ち始めた時刻 */
   readonly since: string;
 }
+
+export type CardHoldKind = 'decision' | 'forge';
 
 /** 判定に要るフィールドだけ。サーバの BoardCard が満たす */
 export interface NextActionCard {
@@ -81,6 +91,11 @@ export interface HoldInput {
    * 偽なら `mr: null` は「PR が無い」ではなく「分からない」なので、成果物が見えないことを止まりにしない
    */
   readonly mrKnown: boolean;
+  /**
+   * そのカードの PR を直近の取得で引けなかったか（`MrStateProvider.failure`）。引けていれば null。
+   * 引けなかったカードの `mr` は前に引けた控えで、古いことがある
+   */
+  readonly mrFailure: ForgeCardFailure | null;
 }
 
 /** 止まりの理由。人が何をすればよいかを書く */
@@ -88,6 +103,8 @@ export const HOLD_REASONS = {
   planHeld:
     'AI が計画を直しきれずに止まった。否決の理由を足して直させるか、中止するかを選んでください',
   planLost: '計画を提出済みだが、計画ファイルも Draft の PR も見えない',
+  forgeFailed: (message: string): string =>
+    `PR の状態を引けない（${message}）。時間を置いても続くなら、GitHub で PR を確かめてください`,
   draftReverted: (iid: number): string =>
     `判断の後に PR #${iid} が Draft に戻された。GitHub で Ready に戻すか、下の判断のボタンで計画から立て直させるか中止してください`,
 } as const;
@@ -130,10 +147,22 @@ export function pickNextAction(cards: readonly NextActionCard[]): NextAction | n
  *   計画レビュー に上がるはずである。作り直すと PR やブランチを二重に作りかねないので、推測で動かない。
  *   PR の状態を引けていない（`mrKnown` が偽）ときは、PR が無いのか分からないので止まりにしない
  *
+ * - **PR の状態を引けない**（アイデア / マージ済み 以外）: そのカードの PR だけを直近の取得で引けなかった（`mrFailure`）。
+ *   ほかの止まりより先に見る。前に引けた控えは古いことがあり、人の指摘や Draft への戻しを見落として進めかねないため。
+ *   次の取得で引ければひとりでに外れる
+ *
  * 人が否決・承認・中止を書けば、そのエントリが最新になって止まりは外れる。
  */
 export function resolveHold(card: HoldInput): CardHold | null {
   if (card.aborted) return null;
+
+  if (card.mrFailure !== null && card.stage !== 'idea' && card.stage !== 'merged') {
+    return {
+      kind: 'forge',
+      reason: HOLD_REASONS.forgeFailed(card.mrFailure.message),
+      since: card.mrFailure.since,
+    };
+  }
 
   switch (card.stage) {
     case 'impling':
@@ -162,7 +191,7 @@ function draftReverted(card: HoldInput): CardHold | null {
   const latest = latestGateEntry(card.entries);
   if (latest !== null && Date.parse(convertedAt) <= Date.parse(latest.at)) return null;
 
-  return { reason: HOLD_REASONS.draftReverted(mr.iid), since: convertedAt };
+  return { kind: 'decision', reason: HOLD_REASONS.draftReverted(mr.iid), since: convertedAt };
 }
 
 function heldBy(card: HoldInput, gate: ReviewGate, reason: string): CardHold | null {
@@ -172,7 +201,7 @@ function heldBy(card: HoldInput, gate: ReviewGate, reason: string): CardHold | n
 /** 止まりの起点はそのゲートの最新エントリ（保留や提出）の時刻 */
 function since(card: HoldInput, gate: ReviewGate, reason: string): CardHold | null {
   const entry = latestGateEntry(card.entries, gate);
-  return entry === null ? null : { reason, since: entry.at };
+  return entry === null ? null : { kind: 'decision', reason, since: entry.at };
 }
 
 function judge(card: NextActionCard): NextAction | null {

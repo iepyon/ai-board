@@ -44,7 +44,12 @@ export interface SectionCard {
    * AI の列にいるが人の判断を待っているときの止まり（サーバの `resolveHold`）。
    * `src/shared/` は web からも読むので、サーバの型を import せず形だけを書く
    */
-  readonly hold: { readonly reason: string; readonly since: string } | null;
+  /** 止まり。`kind` が `forge`（PR の状態を引けない）なら判断のボタンを出さない */
+  readonly hold: {
+    readonly kind: 'decision' | 'forge';
+    readonly reason: string;
+    readonly since: string;
+  } | null;
 }
 
 export type Sections<T> = Record<DashboardSection, T[]>;
@@ -182,6 +187,7 @@ const replan = reject('plan', '計画から立て直させる');
  *   提出済みなのに成果物が見えないなら 中止 だけ（直させる先の計画が見えない）
  *
  * PR中 のカードは GitHub で PR をマージして判断するので出さない。中止のカードにも出さない。
+ * PR の状態を引けない止まり（`hold.kind` が `forge`）のカードにも出さない（列が控えに依り、押せる判断を決められない）。
  *
  * 飛ばす宣言（`skipGates`）の有無では出し分けない。
  * 宣言のあるゲートでも、AI の 提出 / 再提出 を承認と読むだけで、人の否決 / 承認はふつうに効く（`gateState`）。
@@ -189,6 +195,8 @@ const replan = reject('plan', '計画から立て直させる');
  */
 export function decisionsFor(card: DecisionCard): Decision[] {
   if (card.aborted) return [];
+  // PR の状態を引けないカードは列が控えに依り、押せるボタンを決められない
+  if (card.hold?.kind === 'forge') return [];
 
   switch (card.stage) {
     case 'plan-review':
