@@ -2,5 +2,5 @@
   // テストも型検査にかける。tsconfig.json は出力のために __tests__ を除外しているので、ここで外す
   "extends": "./tsconfig.json",
   "compilerOptions": { "noEmit": true },
-  "exclude": ["src/web/**", "node_modules", "dist"]
+  "exclude": ["node_modules", "dist"]
 }

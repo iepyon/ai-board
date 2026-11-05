@@ -29,6 +29,6 @@
 
 - **監視役が 3 役のサブエージェントに渡す（前の形）** — 分けた理由が効かなくなり、受け渡しの決まりと分類器の止まりが残った。
 - **レビューを別のセッションで行う** — 人がセッションを立てる手間が増え、間隔運転とつながらない。
-- **`review` を `next.action` の種類にする** — 手の種類が CLI や画面に広がる。段は `implement` の中の区切りとして `next.step` に置いた。
+- **`review` を `next.action` の種類にする** — 手の種類が CLI やダッシュボードに広がる。段は `implement` の中の区切りとして `next.step` に置いた。
 
 根拠: `.ai-board/plans/archive/` の `board-loop-skill`・`loop-impl-review`・`loop-task-batch`・`loop-three-roles`・`loop-single-session`、カード `loop-single-session` の `## 背景` と `## 探索メモ`

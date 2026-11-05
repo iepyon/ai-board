@@ -28,16 +28,11 @@ export const RETIRED_REVIEW_GATES = ['explore', 'verify'] as const;
  * レビューエントリの種別。
  *
  * - 提出 / 再提出 / 保留 は AI が書く。保留は、AI がその手を自分では進められないと判断して止まった痕跡
- * - 承認 / 否決 / 中止 は人が書く（`HUMAN_REVIEW_KINDS`）
+ * - 承認 / 否決 / 中止 は人が書く（`ai-board decide`）
  */
 export const REVIEW_KINDS = ['提出', '再提出', '保留', '承認', '否決', '中止'] as const;
 
 export type ReviewKind = (typeof REVIEW_KINDS)[number];
-
-/** 人が画面（`POST /api/cards/:id/reviews`）から書ける種別。AI の種別はここに含めない */
-export const HUMAN_REVIEW_KINDS = ['承認', '否決', '中止'] as const satisfies readonly ReviewKind[];
-
-export type HumanReviewKind = (typeof HUMAN_REVIEW_KINDS)[number];
 
 export interface ReviewEntry {
   /** ISO 8601 文字列 */

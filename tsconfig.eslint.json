@@ -1,15 +1,11 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "jsx": "react-jsx",
-    "moduleResolution": "Bundler",
-    "module": "ESNext",
     "noEmit": true,
     // include に並ぶ eslint.config.js を project に載せるため（型検査はしない）
     "allowJs": true,
-    "types": ["node", "vite/client"]
+    "types": ["node"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "*.config.ts", "eslint.config.js"],
+  "include": ["src/**/*.ts", "*.config.ts", "eslint.config.js"],
   "exclude": ["node_modules", "dist"]
 }

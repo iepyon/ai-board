@@ -224,16 +224,6 @@ export function decisionsFor(card: DecisionCard): Decision[] {
   }
 }
 
-/**
- * 詳細パネルで、判断のボタンを本文より前に出すか。アイデアでなく、出すボタン（`decisionsFor`）が 1 つでもあれば出す。
- *
- * ゲートを待つ列（計画レビュー）のカードと、AI の列で止まっているカードが当たる。
- * アイデアの 中止 は人の判断を待っているのではないので含めない（詳細パネルでは本文の後ろに出す）。
- */
-export function awaitsDecision(card: DecisionCard): boolean {
-  return card.stage !== 'idea' && decisionsFor(card).length > 0;
-}
-
 /** 「動きなし」とみなすまでの日数 */
 export const STALE_DAYS = 3;
 

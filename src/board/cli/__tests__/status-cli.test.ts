@@ -12,7 +12,6 @@ import type { MrStateProvider } from '../../services/mr-state-provider.js';
 import type { ForgeConnection, MrState } from '../../models/mr-state.js';
 import type { MergeRequestIid } from '../../../shared/schemas/common.js';
 import { HOLD_REASONS } from '../../services/next-action.js';
-import type { ServerLocation } from '../../../infrastructure/server-info.js';
 import type { BranchPlanRepository } from '../../repositories/branch-plan.repository.js';
 import type { ImplStepPlan } from '../../services/impl-step.js';
 import { parseStatusArgs, pickFields, runStatusCli, type StatusReport } from '../status-cli.js';
@@ -91,7 +90,6 @@ function stubProvider(
 async function run(
   argv: readonly string[],
   provider = stubProvider(),
-  findServer?: () => ServerLocation | null,
   branchPlanRepository?: BranchPlanRepository,
   repository?: { readonly owner: string; readonly repo: string }
 ): Promise<number> {
@@ -108,7 +106,6 @@ async function run(
     argv,
     {
       ...board,
-      ...(findServer ? { findServer } : {}),
       ...(branchPlanRepository ? { branchPlanRepository } : {}),
       ...(repository ? { repository } : {}),
     },
@@ -452,14 +449,6 @@ describe('ai-board status --json', () => {
     expect(report.ideas).toEqual([{ id: 'only', title: 'only のタイトル' }, { divider: true }]);
   });
 
-  it('起動中のサーバの URL を出す。見つからなければ null', async () => {
-    expect((await runJson()).server).toBeNull();
-
-    stdout = '';
-    expect(await run(['--json'], stubProvider(), () => ({ url: 'http://127.0.0.1:5674' }))).toBe(0);
-    expect((JSON.parse(stdout) as StatusReport).server).toEqual({ url: 'http://127.0.0.1:5674' });
-  });
-
   it('GitHub が使えないときは接続状態に理由を載せ、次の一手を出さない', async () => {
     await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\n");
 
@@ -528,7 +517,7 @@ function stubPlanReader(plan: ImplStepPlan | null): BranchPlanRepository & {
 }
 
 async function runJsonWith(reader: BranchPlanRepository): Promise<StatusReport> {
-  expect(await run(['--json'], stubProvider(), undefined, reader)).toBe(0);
+  expect(await run(['--json'], stubProvider(), reader)).toBe(0);
   return JSON.parse(stdout) as StatusReport;
 }
 
@@ -606,7 +595,7 @@ describe('ai-board status', () => {
     expect(await run([])).toBe(0);
 
     expect(stdout).toContain('GitHub: 接続済み');
-    expect(stdout).toContain('サーバ: 起動していません');
+    expect(stdout).not.toContain('サーバ:');
     expect(stdout).toContain('ループ: 記録なし');
     expect(stdout).toContain('判断待ち (1)');
     expect(stdout).toContain('reviewing  [計画レビュー]  reviewing のタイトル');
@@ -667,7 +656,7 @@ describe('ai-board status', () => {
     await writeCard('impl', IMPLING, review('承認'));
     const reader = stubPlanReader({ location: 'active', text: '- [x] 1\n' });
 
-    expect(await run([], stubProvider(), undefined, reader)).toBe(0);
+    expect(await run([], stubProvider(), reader)).toBe(0);
 
     expect(stdout).toContain('次の一手: implement impl 段=review（計画が承認されている）');
   });
@@ -719,9 +708,7 @@ describe('ai-board status --html', () => {
   it('リポジトリを渡すと、カードの詳細へのリンクを付ける。渡さなければ付けない', async () => {
     await writeCard('idea', '');
 
-    expect(await run(['--html'], undefined, undefined, undefined, { owner: 'o', repo: 'r' })).toBe(
-      0
-    );
+    expect(await run(['--html'], undefined, undefined, { owner: 'o', repo: 'r' })).toBe(0);
     expect(stdout).toContain('href="https://github.com/o/r/blob/ai-board/data/cards/idea/card.md"');
 
     stdout = '';
@@ -779,10 +766,10 @@ describe('ai-board status --json --only', () => {
   });
 
   it('最上位の項目と、配列の要素の項目を混ぜられる', async () => {
-    const report = await runOnly('server,cards.id,next');
+    const report = await runOnly('forge,cards.id,next');
 
-    expect(Object.keys(report)).toEqual(['server', 'cards', 'next']);
-    expect(report['server']).toBeNull();
+    expect(Object.keys(report)).toEqual(['forge', 'cards', 'next']);
+    expect(report['forge']).toEqual({ status: 'connected', kind: 'github' });
     expect((report['cards'] as object[]).every((card) => Object.keys(card).join() === 'id')).toBe(
       true
     );
@@ -833,6 +820,11 @@ describe('ai-board status の引数', () => {
   it('--help は使い方を出して 0 で終わる', async () => {
     expect(await run(['--help'])).toBe(0);
     expect(stderr).toContain('使い方: ai-board status');
+  });
+
+  it('消した server の項目を --only で指すと、使い方を出して 1 で終わる', async () => {
+    expect(await run(['--json', '--only', 'server'])).toBe(1);
+    expect(stdout).toBe('');
   });
 
   it('不明な引数は使い方を出して 1 で終わる', async () => {

@@ -6,8 +6,6 @@ import {
   formatDurationMs,
   formatElapsed,
   formatTokens,
-  hasRunningStep,
-  newestFirst,
   isCardRunning,
   runningStepOf,
   summarizeLoop,
@@ -142,15 +140,5 @@ describe('詳細パネルの書式', () => {
     expect(describeResult({ result: 'advanced' })).toBe('進めた');
     expect(describeResult({ result: 'interrupted' })).toBe('途切れた');
     expect(describeResult({ result: null })).toBe('動作中');
-  });
-
-  it('新しい順に並べ、終わっていない記録があるかを見る', () => {
-    const steps = [step({ startedAt: '2026-11-02T01:00:00.000Z' }), done()];
-    expect(newestFirst(steps).map((s) => s.startedAt)).toEqual([
-      '2026-11-02T11:48:00.000Z',
-      '2026-11-02T01:00:00.000Z',
-    ]);
-    expect(hasRunningStep(steps)).toBe(true);
-    expect(hasRunningStep([done()])).toBe(false);
   });
 });

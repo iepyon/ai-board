@@ -11,7 +11,6 @@ import type { Stage } from '../../shared/schemas/common.js';
 import type { GetBoardQuery } from '../usecases/queries/get-board.query.js';
 import type { Board, BoardCard } from '../models/board-card.js';
 import type { ForgeConnection } from '../models/mr-state.js';
-import type { ServerLocation } from '../../infrastructure/server-info.js';
 import { pickNextAction, type NextAction } from '../services/next-action.js';
 import { resolveImplStep, type ImplStep } from '../services/impl-step.js';
 import type { BranchPlanRepository } from '../repositories/branch-plan.repository.js';
@@ -36,7 +35,6 @@ const STATUS_KEY_KINDS = {
   ideas: 'array',
   forge: 'value',
   loop: 'value',
-  server: 'value',
   generatedAt: 'value',
 } as const satisfies Record<keyof StatusReport, 'value' | 'array'>;
 
@@ -102,15 +100,11 @@ export interface StatusReport {
   readonly forge: ForgeConnection;
   /** ループの様子（今触っている手と、最後に手を終えた時刻）。各カードの手の一覧は `cards[].loopSteps` */
   readonly loop: BoardLoop;
-  /** 同じ DB を使って起動中のサーバ。人の API を叩くとき（`board-decide`）に使う。無ければ null */
-  readonly server: ServerLocation | null;
   readonly generatedAt: string;
 }
 
 export interface StatusDependencies {
   readonly getBoardQuery: GetBoardQuery;
-  /** 起動中のサーバを探す。省略時は null（サーバは無いものとする） */
-  readonly findServer?: () => ServerLocation | null;
   /**
    * カードのブランチの計画を読む。`next.action` が `implement` のときだけ使い、`next.step` を埋める。
    * 省略時は段を読まず、`next.step` は null のまま
@@ -283,7 +277,7 @@ export async function runStatusCli(
     return 1;
   }
 
-  const built = buildStatusReport(result.value, io.now(), deps.findServer?.() ?? null);
+  const built = buildStatusReport(result.value, io.now());
   const report = await withImplStep(built, deps.branchPlanRepository);
 
   io.stdout(
@@ -349,13 +343,9 @@ function formatReport(
  * 計画レビュー / PR中 のカードが手前の AI の列に落ちて見え、人を待つカードを進めてしまうため。
  * `github:` の無いリポジトリでも同じで、ループは `gh` で PR を出すので GitHub を前提にする。
  */
-export function buildStatusReport(
-  board: Board,
-  now: Date,
-  server: ServerLocation | null = null
-): StatusReport {
+export function buildStatusReport(board: Board, now: Date): StatusReport {
   const cards = board.cards.map(({ body: _body, ...rest }) => rest);
-  // 画面の判断待ちの区画と同じ振り分け。止まっているカードは inbox に入り、work には入らない
+  // 判断待ちの区画の振り分け。止まっているカードは inbox に入り、work には入らない
   const sections = groupBySection(cards);
 
   return {
@@ -374,19 +364,13 @@ export function buildStatusReport(
     ),
     forge: board.forge,
     loop: board.loop,
-    server,
     generatedAt: board.generatedAt,
   };
 }
 
 /** 人向けの数行。判断待ち / AI 作業中 / 次の一手 の順に並べる */
 export function formatStatus(report: StatusReport): string {
-  const lines = [
-    `GitHub: ${describeForge(report.forge)}`,
-    `サーバ: ${report.server?.url ?? '起動していません'}`,
-    describeLoop(report),
-    '',
-  ];
+  const lines = [`GitHub: ${describeForge(report.forge)}`, describeLoop(report), ''];
 
   lines.push(`判断待ち (${report.waiting.length})`);
   for (const card of report.waiting) {

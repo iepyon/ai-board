@@ -119,14 +119,6 @@ export function formatElapsed(from: string, to: string): string {
   return `${Math.floor(hours / 24)} 日 ${hours % 24} 時間`;
 }
 
-/**
- * 記録の中に終わっていないものがあるか。カードの `loopSteps` から、そのカードを今触っているかを見る
- * （画面のカードの行の「AI 稼働中」の印）
- */
-export function hasRunningStep(steps: readonly Pick<LoopStep, 'result'>[]): boolean {
-  return steps.some((step) => step.result === null);
-}
-
 // ------------------------------------------------------------
 // 詳細パネルの「ループの手」の書式
 // ------------------------------------------------------------
@@ -159,11 +151,6 @@ export function formatTokens(tokens: number | null): string {
 /** 結果の語。終わっていなければ「動作中」 */
 export function describeResult(step: Pick<LoopStep, 'result'>): string {
   return step.result === null ? '動作中' : LOOP_RESULT_LABELS[step.result];
-}
-
-/** 手の一覧を新しい順に並べる（詳細パネルは新しい手を上に出す） */
-export function newestFirst<T extends Pick<LoopStep, 'startedAt'>>(steps: readonly T[]): T[] {
-  return [...steps].sort((a, b) => timeOf(b.startedAt) - timeOf(a.startedAt));
 }
 
 function timeOf(iso: string): number {

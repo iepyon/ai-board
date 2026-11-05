@@ -1,4 +1,4 @@
-import { execFile, spawn } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { ok, err, type Result } from '../shared/result.js';
 
@@ -82,41 +82,6 @@ export function createCliRunner(options: CliRunnerOptions = {}): CliRunner {
     },
   };
 }
-
-/** 切り離して起動したコマンドが失敗したときに呼ばれる */
-export type DetachedSpawnErrorHandler = (error: unknown) => void;
-
-/** コマンドを切り離して起動する入口。`spawnDetached` と同じ形で、テストで差し替える */
-export type DetachedSpawn = (
-  command: string,
-  args: readonly string[],
-  onError: DetachedSpawnErrorHandler
-) => void;
-
-/**
- * コマンドを切り離して起動し、終わりを待たない（ブラウザを開くなど）。
- *
- * `run` と同じく **shell を介さず、引数は配列の要素として渡す。**
- * 子プロセスは detached にして `unref` し、親（サーバ）の終了を妨げない。出力は捨てる。
- *
- * 失敗は例外にしない。コマンドが無いとき（ENOENT）の失敗は `spawn` の例外ではなく
- * 子プロセスの `error` イベントで後から届き、リスナーが無いと未処理の `error` で親ごと落ちる。
- * そこで `error` のリスナーを必ず付け、`spawn` の同期の例外と合わせて `onError` に渡す。
- */
-export const spawnDetached: DetachedSpawn = (command, args, onError) => {
-  try {
-    const child = spawn(command, [...args], {
-      detached: true,
-      stdio: 'ignore',
-      // shell は使わない。既定が false であることに依存せず明示する
-      shell: false,
-    });
-    child.on('error', onError);
-    child.unref();
-  } catch (error) {
-    onError(error);
-  }
-};
 
 function toCliError(command: string, error: unknown): CliError {
   if (isErrnoException(error) && error.code === 'ENOENT') {

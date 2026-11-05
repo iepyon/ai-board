@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { CardIdSchema } from '../../../shared/schemas/common.js';
-import { DIVIDER_ID } from '../../../shared/card-reorder.js';
-import { HUMAN_REVIEW_KINDS, isRetiredReviewGate, REVIEW_GATES } from '../review.js';
+import { isRetiredReviewGate, REVIEW_GATES } from '../review.js';
 
 const ReviewGateSchema = z.enum(REVIEW_GATES);
 
@@ -60,83 +59,3 @@ export const CardFrontmatterSchema = z.object({
 });
 
 export type CardFrontmatter = z.infer<typeof CardFrontmatterSchema>;
-
-// ============================================================
-// API 入力スキーマ
-// ============================================================
-
-export const CreateCardInputSchema = z.object({
-  title: z.string().min(1).max(200),
-  /** 省略時は title から slug を生成する */
-  id: CardIdSchema.optional(),
-  body: z.string().max(100_000).optional(),
-});
-
-export type CreateCardInput = z.infer<typeof CreateCardInputSchema>;
-
-/**
- * frontmatter の部分更新。
- * 明示的に null を送ることで「紐付けを外す」を表現できるため、
- * undefined（未指定＝変更しない）と null を区別する。
- *
- * ステージを直接指定する手段は無い。人の判断は `startedAt` の打刻と
- * 本文のレビューログにだけ現れ、そこから導出される。
- */
-export const UpdateCardMetaInputSchema = z
-  .object({
-    title: z.string().min(1).max(200).optional(),
-    startedAt: z.union([IsoDateTime, z.null()]).optional(),
-    skipGates: z.array(ReviewGateSchema).optional(),
-    branch: z.union([z.string().min(1).max(200), z.null()]).optional(),
-    mr: z.union([z.number().int().positive(), z.null()]).optional(),
-  })
-  .refine((value) => Object.keys(value).length > 0, {
-    message: '更新するフィールドを 1 つ以上指定してください',
-  });
-
-export type UpdateCardMetaInput = z.infer<typeof UpdateCardMetaInputSchema>;
-
-export const UpdateCardBodyInputSchema = z.object({
-  body: z.string().max(100_000),
-});
-
-export type UpdateCardBodyInput = z.infer<typeof UpdateCardBodyInputSchema>;
-
-/**
- * 並べ替え。移動先で直前（`after`）・直後（`before`）に来るカードを指定する。
- * `null` はその側が列の端であることを表す。アイデアの表の区切り線が隣なら `DIVIDER_ID` を送る。
- *
- * 列はサーバに実体が無い（ステージは導出される）ため、位置は列内の添字ではなく
- * 隣のカードで伝える。
- */
-export const MoveCardInputSchema = z.object({
-  after: z.union([CardIdSchema, z.literal(DIVIDER_ID), z.null()]),
-  before: z.union([CardIdSchema, z.literal(DIVIDER_ID), z.null()]),
-});
-
-export type MoveCardInput = z.infer<typeof MoveCardInputSchema>;
-
-/** 区切り線の移動。隣はカードだけ（区切り線は 1 本なので自分自身しかありえない） */
-export const MoveIdeaDividerInputSchema = z.object({
-  after: z.union([CardIdSchema, z.null()]),
-  before: z.union([CardIdSchema, z.null()]),
-});
-
-/**
- * レビューエントリの追記。
- *
- * 提出 / 再提出 / 保留 は AI が書くもので、この API からは受け付けない（`HUMAN_REVIEW_KINDS` だけを通す）。
- * 否決には理由文を必須にする。空の否決は AI が次の周回で読むものを持たないため。
- */
-export const AppendReviewInputSchema = z
-  .object({
-    gate: z.enum(REVIEW_GATES),
-    kind: z.enum(HUMAN_REVIEW_KINDS),
-    reason: z.string().max(10_000).default(''),
-  })
-  .refine((value) => value.kind !== '否決' || value.reason.trim() !== '', {
-    message: '否決には理由を書いてください',
-    path: ['reason'],
-  });
-
-export type AppendReviewInput = z.infer<typeof AppendReviewInputSchema>;

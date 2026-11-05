@@ -7,7 +7,7 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   {
     languageOptions: {
-      // src 配下（サーバ・web・テスト）をまとめて解析させる
+      // src 配下（本体・テスト）をまとめて解析させる
       parserOptions: { project: './tsconfig.eslint.json', tsconfigRootDir: import.meta.dirname },
     },
     rules: {
