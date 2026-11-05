@@ -1,0 +1,12 @@
+{
+  "loop": "5ccb4264-1ea7-5f98-9716-0af3b13a9f11",
+  "cardId": "harness-metrics",
+  "action": "plan",
+  "step": null,
+  "agent": null,
+  "startedAt": "2026-11-05T02:05:04.643Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
