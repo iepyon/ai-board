@@ -774,7 +774,7 @@ describe('runCardCli seed', () => {
     expect(stderr).toContain('nowhere を読めません: ENOENT');
 
     stderr = '';
-    seedFiles = ok([{ name: 'README.txt', content: 'x' }]);
+    seedFiles = ok([]);
     expect(await run(['seed', '--from', 'cards'])).toBe(1);
     expect(stderr).toContain('*.md がありません');
   });

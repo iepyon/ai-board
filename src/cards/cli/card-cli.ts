@@ -14,7 +14,7 @@ import { CardWriteRefusedError } from '../repositories/file-card.repository.js';
 import { isReviewGate, REVIEW_GATES, type ReviewGate } from '../models/review.js';
 import { gateStates, parseReviewLog } from '../services/review-log.js';
 import { describeDataStoreError, describeOfflineRead } from './data-store-messages.js';
-import { readSeedCards, type SeedCard, type SeedFile } from './seed-cards.js';
+import { readSeedCards, type SeedFile } from './seed-cards.js';
 
 // ============================================================
 // ai-board card — エージェントがカードに書くための CLI
@@ -61,7 +61,7 @@ export interface CardCliIo {
   /** 標準入力を最後まで読む。端末から起動されて入力が無ければ null */
   readonly readStdin: () => Promise<string | null>;
   /**
-   * ディレクトリの直下のファイルを読む（`seed` が使う）。相対パスは作業ディレクトリから解決する。
+   * ディレクトリの直下の `*.md` を読む（`seed` が使う。下の階層は読まない）。相対パスは作業ディレクトリから解決する。
    * 読めなければ理由の文を返す
    */
   readonly readMarkdownDir: (dir: string) => Promise<Result<readonly SeedFile[], string>>;
@@ -261,12 +261,25 @@ async function runSeed(
     return 1;
   }
 
+  // 既にある ID は、書き込み（fetch・ロック・push）を経ずに飛ばす。取り直しは頭の 1 回だけにする
+  if (!(await refreshForRead(deps, io))) return 1;
+  const existing = new Set((await deps.cards.cardRepository.findAll()).map((card) => card.id));
+
   for (const card of read.value) {
-    const result = await seedCard(card, deps, io.now());
+    if (existing.has(card.id)) {
+      io.stdout(`${card.id}: 既にあるので飛ばしました\n`);
+      continue;
+    }
+
+    const createdAt = io.now();
+    const result = await transactCard(deps, `data: ${card.id} を作る`, () =>
+      deps.cards.createCardCommand({ title: card.title, id: card.id, body: card.body, createdAt })
+    );
 
     if (result.ok) {
       io.stdout(`${card.id}: 起票しました\n`);
     } else if (result.error.type === 'DuplicateCardId') {
+      // 頭の取り直しの後に、ほかの人が同じ ID を起票していた
       io.stdout(`${card.id}: 既にあるので飛ばしました\n`);
     } else {
       io.stderr(`${card.file}: ${describeError(result.error)}\n`);
@@ -274,16 +287,6 @@ async function runSeed(
     }
   }
   return 0;
-}
-
-function seedCard(
-  card: SeedCard,
-  deps: CardCliDependencies,
-  createdAt: Date
-): Promise<Result<Card, WriteFailure | DataStoreError>> {
-  return transactCard(deps, `data: ${card.id} を作る`, () =>
-    deps.cards.createCardCommand({ title: card.title, id: card.id, body: card.body, createdAt })
-  );
 }
 
 async function runBody(

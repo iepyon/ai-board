@@ -397,14 +397,15 @@ function createProcessIo(): CardCliIo {
 /** ディレクトリの直下の `*.md`（下の階層は読まない）を読む。相対パスは作業ディレクトリから解決する */
 async function readMarkdownDir(dir: string): Promise<Result<readonly SeedFile[], string>> {
   try {
-    const entries = await fs.promises.readdir(path.resolve(dir), { withFileTypes: true });
+    const root = path.resolve(dir);
+    const entries = await fs.promises.readdir(root, { withFileTypes: true });
     const files = entries.filter((entry) => entry.isFile() && entry.name.endsWith('.md'));
 
     return ok(
       await Promise.all(
         files.map(async (entry) => ({
           name: entry.name,
-          content: await fs.promises.readFile(path.join(path.resolve(dir), entry.name), 'utf-8'),
+          content: await fs.promises.readFile(path.join(root, entry.name), 'utf-8'),
         }))
       )
     );

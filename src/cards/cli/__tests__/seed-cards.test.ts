@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { readSeedCards, type SeedFile } from '../seed-cards.js';
 
 function file(name: string, frontmatter: string | null, body = '## アイデア\n題材'): SeedFile {
@@ -7,10 +7,9 @@ function file(name: string, frontmatter: string | null, body = '## アイデア\
 }
 
 describe('readSeedCards', () => {
-  it('*.md だけをファイル名の順に読み、id・title・本文だけを返す', () => {
+  it('ファイル名の順に読み、id・title・本文だけを返す', () => {
     const result = readSeedCards([
       file('b.md', 'title: B'),
-      { name: 'notes.txt', content: 'x' },
       file('a.md', 'id: a\ntitle: A', '\n\n## アイデア\nA の本文\n\n'),
     ]);
 
@@ -43,8 +42,6 @@ describe('readSeedCards', () => {
   });
 
   it('読めないファイルを理由付きで全部返す', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-
     const result = readSeedCards([
       file('ok.md', 'title: OK'),
       file('no-title.md', 'id: no-title'),
@@ -75,8 +72,6 @@ describe('readSeedCards', () => {
     );
     expect(reasons['Bad_Name.md']).toContain('ID が不正です: Bad_Name');
     expect(reasons['broken.md']).toContain('frontmatter を読めません');
-
-    warn.mockRestore();
   });
 
   it('ファイルが無ければ空で返す（*.md が無いことは呼び出し側が扱う）', () => {

@@ -2,13 +2,13 @@ import matter from 'gray-matter';
 import { err, ok, type Result } from '../../shared/result.js';
 import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
 import { CardFrontmatterSchema } from '../models/schemas/card.schema.js';
-import { parseCard } from '../repositories/card-markdown.js';
+import { normalizeBody } from '../repositories/card-markdown.js';
 
 // ============================================================
 // ai-board card seed — 題材のファイルからカードの候補を作る
 // ============================================================
 
-/** 題材のディレクトリの 1 ファイル。`name` はディレクトリからの名前（例: `status-stage-counts.md`） */
+/** 題材のディレクトリの `*.md` の 1 ファイル。`name` はディレクトリからの名前（例: `status-stage-counts.md`） */
 export interface SeedFile {
   readonly name: string;
   readonly content: string;
@@ -33,9 +33,9 @@ const MARKDOWN_EXTENSION = '.md';
 /**
  * 題材のファイルを読み、起票するカードの候補をファイル名の順に返す。
  *
- * - `*.md` だけを読む。ほかのファイルは無視する
  * - 読むのは frontmatter の `id` と `title` と本文だけ。`id` は省けばファイル名から補い、
- *   書いてあればファイル名と一致しなければならない（`parseCard` と同じ決まり）
+ *   書いてあればファイル名と一致しなければならない（`parseCard` と同じ決まり）。`title` は省けない
+ *   （`parseCard` はファイル名で補うが、題材では書き忘れとして拒む）
  * - `rank`・`startedAt`・`skipGates`・`branch`・`mr`・`created` などは書いてあっても読まない。
  *   並び順と着手は人が決め、起票の時刻は取り込んだ時刻にする
  * - 1 つでも読めないファイルがあれば、読めないファイルを理由付きで全部返す（呼び出し側は 1 枚も起票しない）
@@ -49,11 +49,9 @@ export function readSeedCards(
   const cards: SeedCard[] = [];
   const problems: SeedProblem[] = [];
 
-  const markdown = files
-    .filter((file) => file.name.endsWith(MARKDOWN_EXTENSION))
-    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  const sorted = [...files].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
-  for (const file of markdown) {
+  for (const file of sorted) {
     const read = readSeedCard(file);
     if (read.ok) {
       cards.push(read.value);
@@ -96,14 +94,10 @@ function readSeedCard(file: SeedFile): Result<SeedCard, string> {
     return err(`frontmatter の id (${id.data}) がファイル名 (${fileId}) と一致しません`);
   }
 
-  // 読む項目だけで組み直して parseCard に通す。読まない項目に何が書かれていても読み方は変わらない
-  const card = parseCard(
-    file.name,
-    matter.stringify(parsed.content, { id: id.data, title: title.data })
-  );
-  if (card === null) {
-    return err('カードとして読めません');
-  }
-
-  return ok({ file: file.name, id: card.id, title: card.title, body: card.body });
+  return ok({
+    file: file.name,
+    id: id.data as CardId,
+    title: title.data,
+    body: normalizeBody(parsed.content),
+  });
 }
