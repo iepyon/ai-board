@@ -13,7 +13,7 @@ ranks:
   detail-layout: 31000
   drop-dashboard-refresh: 4250
   forge-card-error: -8750
-  forge-poll-budget: -4750
+  forge-poll-budget: -8250
   gitignore-db-backup: 29000
   harness-guide: 1793765355520
   harness-metrics: -8750
