@@ -38,7 +38,7 @@ ranks:
   node-lts: 4000
   plan-assumptions: -10750
   plan-visual: 1793715933378
-  pr-checks: 1793715937378
+  pr-checks: -3812.6220703125
   pr-closed-unmerged: -7812.5
   pr-feedback-ai-turn: -13750
   rename-mr-to-pr: 30000
