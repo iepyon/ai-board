@@ -4,7 +4,7 @@ title: ユーザは、fork したリポジトリで、用意された題材の�
 created: '2026-10-31T06:52:00.511Z'
 skipGates: []
 branch: training-seed
-mr: null
+mr: 81
 ---
 
 ## アイデア
