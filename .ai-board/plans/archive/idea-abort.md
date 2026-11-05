@@ -110,3 +110,4 @@ GitHub に繋がらない試しのデータでは `decide abort` が拒まれる
 ### 人に判断してほしいこと
 
 - `.claude/skills/board-decide/SKILL.md:53` に「出せる判断は `waiting[].decisions` にある」とあるが、アイデアのカードは判断待ちの区画（`sectionOf`、`src/shared/dashboard-sections.ts:96`）に入らないので `waiting` に出ず、アイデアの 中止 はこの一覧に載らない。マージ後に区切り線より下のアイデアを「チャットで頼んで board-decide で書く」（Non-Goals）とき、スキルが `waiting` に無いことを理由に書かずに止まる恐れがある。`ai-board decide abort` 自体は `decisionsFor` で確かめて書ける（`src/board/cli/decide-cli.ts:185`）。計画の仮定は「手順書の振る舞いは変わらないので `.claude/HARNESS_VERSIONS.md` の版は上げない」としているので、スキルのこの行に「アイデアの 中止 は `waiting` に出ない」と書き足すか（版を上げるかを含む）、今のままにするかは人が決める
+  - → 回答（2026-11-05、チャット）: Aで直して（スキルに書き足す。手順書の版は上げない）
