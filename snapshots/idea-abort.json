@@ -1,0 +1,19 @@
+{
+  "fingerprint": "[3,\"closed\",\"2026-11-05T14:30:25Z\",false,\"42f69c750d5d3a202d422641584a3399fdc5181e\",0,0,\"2026-11-05T14:30:26Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 85,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "idea-abort",
+    "title": "アイデアのカードを中止して片付けられるようにする",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/85",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestAiNoteAt": null,
+    "latestCommitAt": "2026-11-05T12:38:48Z",
+    "mergedAt": "2026-11-05T14:30:25Z",
+    "readyAt": "2026-11-05T11:14:49Z",
+    "convertedToDraftAt": null
+  }
+}
