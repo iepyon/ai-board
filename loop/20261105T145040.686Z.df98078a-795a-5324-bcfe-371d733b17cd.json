@@ -6,8 +6,8 @@
   "agent": null,
   "harness": "v1",
   "startedAt": "2026-11-05T14:50:40.686Z",
-  "finishedAt": null,
-  "result": null,
-  "tokens": null,
-  "durationMs": null
+  "finishedAt": "2026-11-05T14:53:32.615Z",
+  "result": "advanced",
+  "tokens": 2378289,
+  "durationMs": 171929
 }
