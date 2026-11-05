@@ -135,3 +135,10 @@
       起票・飛ばし・途中の失敗・`## レビュー` に判断のある本文を拒むことのテストを足す
 - [x] `README.md` と `CLAUDE.md` の CLI の一覧に `card seed` を足す
 - [x] 品質ゲートを通す
+
+## AI レビュー
+
+### 見送った指摘
+
+- `src/cards/cli/seed-cards.ts` の `readSeedCard` は `title` を前後の空白を落とさずに使うので、`title: '   '` のような空白だけの題は `card create`（`runCreate` は `title.trim()` で空を拒む）と違って起票される。題材は講師が書くもので、ボードで見ればすぐ気づけるので見送る
+- `src/cli-main.ts` の `readMarkdownDir` と `src/cards/cli/seed-cards.ts` の `readSeedCards` が、どちらも `.md` で絞り込んでいる。振る舞いを変えない重複なので見送る
