@@ -50,7 +50,7 @@ ranks:
   setup-doctor: 1793765354520
   share-api-types: 250
   skip-verify-scope: 23000
-  slim-decide: 1250
+  slim-decide: 1793765356520
   slim-worker: 2250
   stage-timeline: 2000
   status-html-catchup: -6750
