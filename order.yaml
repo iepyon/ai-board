@@ -53,7 +53,7 @@ ranks:
   slim-decide: 1793765356520
   slim-worker: -7765.625
   stage-timeline: 2000
-  status-html-catchup: -6750
+  status-html-catchup: -7757.8125
   task-count-codeblock: 13000
   training-seed: -9750
   typecheck-tests: -8000
