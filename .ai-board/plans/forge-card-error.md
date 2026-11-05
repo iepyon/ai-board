@@ -164,3 +164,12 @@
 
 - [x] `docs/architecture.md` の「止まり」と GitHub の取得の節、`docs/adr/0006-ai-review-entries-and-hold.md`、`.claude/skills/board-loop/SKILL.md` の止まりの列挙、`README.md`（止まりの説明があれば）を今の形に書き直す
 - [x] 品質ゲートを通す
+
+## AI レビュー
+
+- [ ] `docs/specs/board-hold/spec.md:28` の新しい「Requirement: 1 枚の PR を引けないときは、そのカードだけを止める」が、既存の「Requirement: 止まりはステージとは別の軸で示す」の途中（26 行目の後）に差し込まれている。そのため、既存の要件の後半（52〜59 行目の理由と時刻・判断待ちへの表示・「人が承認 / 否決 / 中止を記録すれば止まりは外れなければならない (MUST)」・作成時から Draft の PR）と、その後の Scenario（保留・Draft に戻された など）が、新しい要件の下に入ってしまっている。新しい要件の節（28〜50 行目）を、既存の要件の最後の Scenario の後ろへ移す。あわせて 56 行目の「人が承認 / 否決 / 中止を記録すれば、そのエントリが最新になって止まりは外れなければならない」に、PR の状態を引けない止まりを除くこと（その止まりには判断を書けず、次に引ければ外れる）を書き足し、README・`docs/architecture.md` と同じ形にする
+
+### 見送った指摘
+
+- `docs/architecture.md` の「止まり（hold）」の節で、`forge` の止まりの箇条と残り 3 つの箇条のあいだに空行があり、Markdown では 2 つの箇条書きに分かれて見える。読み手に伝わる中身は変わらないので見送る
+- `src/infrastructure/forge-poller.ts` の `describeError` は、`ForgeRequestError` の `message` から `endpoint` の長さぶんを切り落として文を組み直しており、`message` の形に依っている。今の形では正しく動き、テストもあるので見送る
