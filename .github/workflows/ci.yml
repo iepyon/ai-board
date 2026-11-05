@@ -16,11 +16,11 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # package.json の engines（>= 24）の下限と、手元で使う版の両方で通す
+    # 一旦、手元で使う版（26）だけで通す。engines（>= 24）の下限の 24 と windows のジョブは、Actions の使用量を抑えるため外している
     strategy:
       fail-fast: false
       matrix:
-        node-version: ['24', '26']
+        node-version: ['26']
     steps:
       - uses: actions/checkout@v7
 
@@ -36,28 +36,3 @@ jobs:
       # カバレッジ閾値（vitest.config.ts）もここで強制する
       - run: npm run test:coverage
       - run: npm run build
-
-  # Windows の Git Bash で手順書とツールが動くことの確かめ。テストは Windows を対象にしていないので走らせない
-  # （POSIX 形式のパスや chmod を使うテストがある。テストの Windows 対応は別のカードで扱う）
-  windows:
-    runs-on: windows-latest
-    timeout-minutes: 20
-    defaults:
-      run:
-        # 手順書が想定するシェル（Windows の Claude Code が使う Git Bash）で走らせる
-        shell: bash
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: npm
-
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run lint
-      # .gitattributes で LF に揃えているので、Windows の clone でも整形の検査が通る
-      - run: npm run format:check
-      - run: npm run build
-      - run: node dist/cli.js status --help

@@ -320,8 +320,19 @@ describe('decisionsFor', () => {
     }
   });
 
-  it('止まっていない AI の列、アイデア、PR中、マージ済みには出さない', () => {
-    for (const stage of ['idea', 'planning', 'impling', 'pr', 'merged'] as const) {
+  it('アイデアは plan の 中止 だけ（理由は要らない）', () => {
+    const card = decisionCard({ stage: 'idea' });
+
+    expect(buttons(card)).toEqual(['plan 中止 中止する']);
+    expect(decisionsFor(card)[0]?.reasonRequired).toBe(false);
+  });
+
+  it('中止したアイデアには出さない', () => {
+    expect(decisionsFor(decisionCard({ stage: 'idea', aborted: true }))).toEqual([]);
+  });
+
+  it('止まっていない AI の列、PR中、マージ済みには出さない', () => {
+    for (const stage of ['planning', 'impling', 'pr', 'merged'] as const) {
       expect(decisionsFor(decisionCard({ stage }))).toEqual([]);
     }
   });
@@ -339,7 +350,7 @@ describe('decisionsFor', () => {
   });
 
   it('中止のカードには、ゲートを待つ列でも止まっていても出さない', () => {
-    for (const stage of ['plan-review', 'impling', 'planning'] as const) {
+    for (const stage of ['idea', 'plan-review', 'impling', 'planning'] as const) {
       expect(decisionsFor(decisionCard({ stage, hold: HOLD, aborted: true }))).toEqual([]);
     }
   });
@@ -367,6 +378,13 @@ describe('awaitsDecision', () => {
 
   it('PR中 のカードは GitHub で判断するので含めない', () => {
     expect(awaitsDecision(decisionCard({ stage: 'pr' }))).toBe(false);
+  });
+
+  it('アイデアは 中止 を出せても判断を待っていないので含めない', () => {
+    const card = decisionCard({ stage: 'idea' });
+
+    expect(decisionsFor(card)).not.toEqual([]);
+    expect(awaitsDecision(card)).toBe(false);
   });
 
   it('中止のカードはゲートを待つ列に残っていても、止まっていても含めない', () => {

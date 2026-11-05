@@ -53,6 +53,8 @@ export function CardDetail({ card, onClose, onChanged }: CardDetailProps) {
         {awaitsDecision(card) && <ReviewActions card={card} saving={saving} onRun={run} />}
         <BodyEditor card={card} saving={saving} onRun={run} />
         <ReviewLog reviews={card.reviews} />
+        {/* 判断を待っていないカードの判断（アイデアの中止）は、押し間違えにくいよう本文とレビューの後ろに置く */}
+        {!awaitsDecision(card) && <ReviewActions card={card} saving={saving} onRun={run} />}
         <StageSection card={card} />
         <PlanSection card={card} />
         <LoopSteps steps={card.loopSteps} />

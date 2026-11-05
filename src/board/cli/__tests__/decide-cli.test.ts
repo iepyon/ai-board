@@ -199,13 +199,26 @@ describe('ai-board decide', () => {
       });
     });
 
+    it('アイデアのカードは中止でき、中止したアイデアはアイデアの表から外れる', async () => {
+      await writeCard('a', IDEA('2026-11-01T00:00:00.000Z'));
+
+      expect(await run(['abort', 'a', '--reason', '要らない'])).toBe(0);
+      expect(parseReviewLog((await readCard('a')).body).at(-1)).toMatchObject({
+        gate: 'plan',
+        kind: '中止',
+        reason: '要らない',
+      });
+      expect(stdout).toBe('a: plan 中止 を書きました（アイデア）\n');
+
+      expect(await run(['abort', 'a'])).toBe(1);
+      expect(stderr).toContain('今の列: アイデア（中止済み）。出せる判断はありません');
+    });
+
     it('画面で押せない判断（判断を待っていないカードの承認）は、今の列を添えて拒む', async () => {
       await writeCard('a', IDEA('2026-11-01T00:00:00.000Z'));
 
       expect(await run(['approve', 'a'])).toBe(1);
-      expect(stderr).toContain(
-        'a に 承認 は書けません（今の列: アイデア。出せる判断はありません）'
-      );
+      expect(stderr).toContain('a に 承認 は書けません（今の列: アイデア。出せる判断: plan 中止）');
       expect((await readCard('a')).body).not.toContain(REVIEW_HEADING);
     });
 
