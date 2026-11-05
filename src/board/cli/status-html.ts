@@ -1,4 +1,8 @@
-import { computeBoardMetrics, type BoardMetrics } from '../../shared/board-metrics.js';
+import {
+  computeBoardMetrics,
+  type BoardMetrics,
+  type HarnessVersionMetrics,
+} from '../../shared/board-metrics.js';
 import { buildBoardLog, type BoardLogEntry } from '../../shared/board-log.js';
 import { groupBySection } from '../../shared/dashboard-sections.js';
 import {
@@ -12,7 +16,7 @@ import { LOOP_RESULT_LABELS } from '../../shared/loop-step.js';
 import { DATA_BRANCH } from '../../infrastructure/data-store.js';
 import { STAGE_LABELS } from '../../shared/stage-labels.js';
 import type { StatusCard, StatusReport, WaitingCard, WorkingCard } from './status-cli.js';
-import { describeForge, describeLoop, describeNext } from './status-describe.js';
+import { describeForge, describeLoop, describeNext, describeStuck } from './status-describe.js';
 import { escapeHtml } from './html-text.js';
 import { formatDuration, renderDailyMergesChart, renderStageChart } from './status-charts.js';
 
@@ -226,11 +230,13 @@ function renderWorking(
 ): string {
   const tasks = card?.plan ? ` · タスク ${card.plan.tasks.completed}/${card.plan.tasks.total}` : '';
   const stale = summary.stale ? '<span class="stale">動きなし</span>' : '';
+  const stuck = card === undefined ? null : describeStuck(card.loopSteps);
+  const stuckMark = stuck === null ? '' : `<span class="stale">${escapeHtml(stuck)}</span>`;
   const running = runningStepOf(report.loop, summary.id);
 
   return renderCard(summary, link, [
     renderRunning(summary, running === null ? null : describeAction(running)),
-    `<p class="reason">${escapeHtml(summary.reason)}${escapeHtml(tasks)}${stale}</p>`,
+    `<p class="reason">${escapeHtml(summary.reason)}${escapeHtml(tasks)}${stale}${stuckMark}</p>`,
     renderPr(card),
   ]);
 }
@@ -403,7 +409,58 @@ ${renderDailyMergesChart(metrics.dailyMerges)}
 ${renderLoopActions(metrics)}
 <h3 class="sub">手の結果</h3>
 ${renderLoopResults(metrics)}
+<h3 class="sub">手順書の版ごと <span class="count">.claude/HARNESS_VERSIONS.md の版。件数が少ないときは割合だけで読まない</span></h3>
+${renderHarnessVersions(metrics.harnessVersions)}
 </section>`;
+}
+
+/** 手順書の版ごとの表。列が版（新しい順、最後に版なし）、行が成績 */
+function renderHarnessVersions(versions: readonly HarnessVersionMetrics[]): string {
+  if (versions.length === 0) return '<p class="empty">まだありません</p>';
+
+  const duration = (ms: number | null): string => (ms === null ? '—' : formatDuration(ms));
+  const ratio = (part: number, whole: number): string =>
+    whole === 0 ? '—' : `${Math.round((part / whole) * 100)}%（${part}/${whole}）`;
+
+  const rows: readonly (readonly [string, (entry: HarnessVersionMetrics) => string])[] = [
+    ['1 手の数', (entry) => `${entry.stepCount}`],
+    ['1 手の時間（中央値）', (entry) => duration(entry.durationMedianMs)],
+    [
+      '1 手のトークン（中央値）',
+      (entry) =>
+        entry.tokensMedian === null
+          ? '—'
+          : `${Math.round(entry.tokensMedian).toLocaleString('en-US')}（${entry.tokensCount} 件）`,
+    ],
+    ['止まった割合', (entry) => ratio(entry.stuckCount, entry.finishedCount)],
+    ['やり直し', (entry) => `${entry.retryCount} 回`],
+    ['否決率', (entry) => ratio(entry.rejectedCardCount, entry.cardCount)],
+    ['否決の延べ回数', (entry) => `${entry.rejectionCount} 回`],
+    [
+      '人を待った時間（中央値）',
+      (entry) =>
+        entry.humanWaitMedianMs === null
+          ? '—'
+          : `${formatDuration(entry.humanWaitMedianMs)}（${entry.humanWaitCardCount} 枚）`,
+    ],
+  ];
+
+  const head = versions
+    .map((entry) => `<th scope="col">${escapeHtml(entry.harness ?? '版なし')}</th>`)
+    .join('');
+  const body = rows.map(
+    ([label, cell]) =>
+      `<tr><th scope="row">${escapeHtml(label)}</th>${versions
+        .map((entry) => `<td>${escapeHtml(cell(entry))}</td>`)
+        .join('')}</tr>`
+  );
+
+  return `<div class="table-wrap"><table class="loop harness">
+<thead><tr><th scope="col">成績</th>${head}</tr></thead>
+<tbody>
+${body.join('\n')}
+</tbody>
+</table></div>`;
 }
 
 function renderStats(metrics: BoardMetrics): string {

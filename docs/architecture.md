@@ -197,7 +197,9 @@ Windows の `process.kill(pid, 'SIGTERM')` は強制終了になり `server.json
   多くても `BOARD_LOG_LIMIT`（200）件で、省いた件数を添える。手の中の動き（コミットやコマンド）はボードのデータに無いので出せない
 - 振り返りのタブの頭に集計を置く。集計は `src/shared/board-metrics.ts` の `computeBoardMetrics`（純関数。今の時刻は読まない。区間を数えるのはマージ済みのカードだけで、閉じていない区間はマージの時刻（無ければ計画の最終更新）で閉じ、どちらも無いカードは工程と人の番の割合から除く。中止したカードは入れない）。
   主な数字・工程ごとの滞在時間（マージ済みのカードごとに同じ種類の区間を足し、カードを並べた中央値。いちばん長い工程がボトルネック）・日ごとのマージ数（UTC の日付）・
-  ループの手の種類ごとの回数と平均（`durationMs` / `tokens` が null の記録は除き、除いた件数を出す）・手の結果の内訳を出す
+  ループの手の種類ごとの回数と平均（`durationMs` / `tokens` が null の記録は除き、除いた件数を出す）・手の結果の内訳・手順書の版ごとの成績（`harnessVersions`）を出す。
+  版ごとの成績は、1 手の数字（時間・トークン・止まった割合・やり直し）を記録の `harness` で、カードの数字（否決率・人を待った時間）を最初の 1 手の記録の版で分ける。
+  人を待った時間は、マージ済みのカードの着手の後の人の区間（アイデアを除く）の合計。止まり続けている回数は `src/shared/loop-streak.ts`
 - グラフは `src/board/cli/status-charts.ts` がインラインの SVG の文字列として描く。外部のスクリプトを読まず、色は `:root` のトークンを class で指す
 - 集計の下に、マージ済み・中止の区画を並べる。
   PR のリンクは `PR_LINK_ATTRIBUTES`（`target="_top"`）で開き、URL を文字でも出す
@@ -411,12 +413,15 @@ AI の区間では、そのカードのループの 1 手の記録を区間の�
 
 ループ（`/board-loop` を動かした本筋のセッション）が 1 手を始めてから終えるまでを、1 件の記録としてデータ用ブランチの `loop/` に置く。
 本筋のセッションが手の始まりに `start`、終わりに `finish` を書く。`agent` はレビューの段で立てた `board-reviewer` の名前で、自分で進めた手は `null`。
-`durationMs` は `finish` に `--duration-ms` が無ければ開始から終了までのミリ秒で埋まる（0 未満は 0）。`tokens` は `board-reviewer` の結果に載っていたときだけ埋まる。
+`durationMs` は `finish` に `--duration-ms` が無ければ開始から終了までのミリ秒で埋まる（0 未満は 0）。
+`tokens` は `--tokens` が無ければ、`src/infrastructure/session-usage.ts` が会話の記録（`--loop` をセッション ID として探す）から同じ窓のトークンを数えて埋める。数えられなければ `null`。
+`harness` は `start` が `src/infrastructure/harness-version.ts` で `--root` の `.claude/HARNESS_VERSIONS.md` の先頭の版を読んで埋める。
 型と語は `src/shared/loop-step.ts`、ファイルの形と読み書きは `src/board/repositories/loop-history.repository.ts`、CLI は `src/board/cli/loop-cli.ts`。
 
 - ファイル名は `loop/<開始の時刻>.<ループの識別子>.json`。時刻は判断のファイルと同じ `toLogStamp` の形で、同じ時刻と識別子が重なれば `-2` を付ける。
   識別子は `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`（ファイル名に入るため）
-- 中身は `{ loop, cardId, action, step, agent, startedAt, finishedAt, result, tokens, durationMs }`。
+- 中身は `{ loop, cardId, action, step, agent, harness, startedAt, finishedAt, result, tokens, durationMs }`。
+  `harness` の無い古い記録は `null`（版なし）として読む。データ用ブランチの形の版は上げていない（スキーマは知らない項目を落として読むので、古い CLI も新しい記録を読める）。
   開始で `finishedAt` / `result` / `tokens` / `durationMs` を `null` にして作り、終了で 1 度だけ埋める。終わった記録は書き換えない
 - `result` は `advanced` / `held` / `stopped`（手の終わりの `結果:` の語）、`failed`（`board-reviewer` の `Agent` の失敗）、`unknown`（結果の語が無い）、`interrupted`（途切れた）
 - `ai-board loop start` は、同じループに終わっていない記録が残っていれば `interrupted` で閉じてから作る（閉じた時刻は新しい手の開始）。

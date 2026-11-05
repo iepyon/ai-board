@@ -593,6 +593,35 @@ describe('ai-board status', () => {
     expect(stdout).toContain('impl  [実装中]  impl のタイトル  ※ AI 稼働中');
   });
 
+  it('次の一手のカードが同じ手で止まり続けていれば、回数を添える', async () => {
+    await writeCard('impl', "startedAt: '2026-10-22T00:00:00.000Z'\n", review('承認'));
+    for (const startedAt of ['2026-10-22T10:00:00.000Z', '2026-10-22T11:00:00.000Z']) {
+      writeLoopStart(dataDir, {
+        loop: 'session-a',
+        cardId: 'impl',
+        action: 'implement',
+        step: null,
+        agent: null,
+        harness: 'v1',
+        startedAt,
+      });
+      writeLoopFinish(dataDir, {
+        loop: 'session-a',
+        cardId: 'impl',
+        result: 'stopped',
+        tokens: null,
+        durationMs: null,
+        finishedAt: startedAt.replace(':00:00', ':30:00'),
+      });
+    }
+
+    expect(await run([])).toBe(0);
+
+    expect(stdout).toContain(
+      '次の一手: implement impl 段=不明（計画が承認されている）  ※ 止まった ×2'
+    );
+  });
+
   it('implement の次の一手に、カードのブランチの計画から決めた段を出す', async () => {
     await writeCard('impl', IMPLING, review('承認'));
     const reader = stubPlanReader({ location: 'active', text: '- [x] 1\n' });

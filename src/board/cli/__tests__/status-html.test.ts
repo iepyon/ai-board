@@ -417,7 +417,47 @@ describe('formatStatusHtml の集計', () => {
     const metrics = page.slice(page.indexOf('<h2>集計</h2>'), page.indexOf('<h2>マージ済み '));
 
     expect(metrics).toContain('<dt>着手からマージ（中央値）</dt><dd>—</dd>');
-    expect(metrics.match(/まだありません/g)?.length).toBe(4);
+    expect(metrics.match(/まだありません/g)?.length).toBe(5);
+  });
+
+  it('手順書の版ごとの表を、版を列にして（最後に版なし）出す', () => {
+    const v1Step = {
+      ...(mergedCard.loopSteps[0] as LoopStep),
+      harness: 'v1',
+      result: 'stopped' as const,
+    };
+    const page = html([
+      mergedCard,
+      card('next', {
+        stage: 'impling',
+        startedAt: '2026-10-21T00:00:00.000Z',
+        loopSteps: [
+          { ...v1Step, cardId: 'next', startedAt: '2026-10-21T01:00:00.000Z' },
+          { ...v1Step, cardId: 'next', startedAt: '2026-10-21T02:00:00.000Z', tokens: null },
+        ],
+      }),
+    ]);
+    const metrics = page.slice(page.indexOf('<h2>集計</h2>'), page.indexOf('<h2>マージ済み '));
+
+    expect(metrics).toContain('手順書の版ごと');
+    expect(metrics).toContain(
+      '<th scope="col">成績</th><th scope="col">v1</th><th scope="col">版なし</th>'
+    );
+    expect(metrics).toContain('<th scope="row">1 手の数</th><td>2</td><td>1</td>');
+    expect(metrics).toContain(
+      '<th scope="row">止まった割合</th><td>100%（2/2）</td><td>0%（0/1）</td>'
+    );
+    expect(metrics).toContain('<th scope="row">やり直し</th><td>1 回</td><td>0 回</td>');
+    expect(metrics).toContain(
+      '<th scope="row">1 手のトークン（中央値）</th><td>12,345（1 件）</td><td>12,345（1 件）</td>'
+    );
+    expect(metrics).toContain('<th scope="row">否決率</th><td>0%（0/1）</td><td>100%（1/1）</td>');
+    expect(metrics).toContain(
+      '<th scope="row">人を待った時間（中央値）</th><td>—</td><td>5時間（1 枚）</td>'
+    );
+
+    // 同じ手で 2 回止まり続けているカードには、今の AI 作業中に印を付ける
+    expect(section(page, 'AI 作業中')).toContain('止まった ×2');
   });
 
   it('色のトークンを明るい / 暗いの両方に持つ', () => {
