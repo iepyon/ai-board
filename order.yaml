@@ -12,7 +12,7 @@ ranks:
   decide-via-cli: -11750
   detail-layout: 31000
   drop-dashboard-refresh: 4250
-  forge-card-error: -5750
+  forge-card-error: -8750
   forge-poll-budget: -4750
   gitignore-db-backup: 29000
   harness-guide: 1793765355520
