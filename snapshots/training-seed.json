@@ -1,0 +1,19 @@
+{
+  "fingerprint": "[3,\"closed\",\"2026-11-05T01:51:03Z\",false,\"322d23eb91668b8eac861cb4e3063d83c51612cb\",0,0,\"2026-11-05T01:51:03Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 81,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "training-seed",
+    "title": "題材のカードの一式を ai-board card seed でボードへ取り込む",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/81",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestAiNoteAt": null,
+    "latestCommitAt": "2026-11-05T01:44:00Z",
+    "mergedAt": "2026-11-05T01:51:03Z",
+    "readyAt": "2026-11-05T01:40:24Z",
+    "convertedToDraftAt": null
+  }
+}
