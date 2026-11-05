@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -126,11 +126,11 @@ function stubClient(overrides: Partial<ForgeClient> = {}): ForgeClient {
   };
 }
 
-let onUpdate: ReturnType<typeof vi.fn>;
+let onUpdate: Mock<() => void>;
 let snapshots: InMemoryMrSnapshotRepository;
 
 beforeEach(() => {
-  onUpdate = vi.fn();
+  onUpdate = vi.fn<() => void>();
   snapshots = new InMemoryMrSnapshotRepository();
 });
 
@@ -440,7 +440,8 @@ describe('ForgePoller', () => {
 
   it('前回の実行が終わるまで次の refresh を走らせない', async () => {
     const repository = new InMemoryCardRepository([makeCard({ mr: 42 as MergeRequestIid })]);
-    let resolveFetch: (() => void) | null = null;
+    // 代入はクロージャの中なので、初期値の null に狭められないよう型を付けた式で始める
+    let resolveFetch = null as (() => void) | null;
     const client = stubClient({
       fetchByIid: vi.fn(
         () =>
