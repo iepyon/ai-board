@@ -3,7 +3,7 @@ id: harness-metrics
 title: ユーザは、手順書の版ごとの否決率や待ち時間を見て、自動化をどこまで任せるかを決めたい
 created: '2026-11-03T11:40:34.619Z'
 skipGates: []
-branch: null
+branch: harness-metrics
 mr: null
 ---
 
