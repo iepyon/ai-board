@@ -1,0 +1,19 @@
+{
+  "fingerprint": "[3,\"closed\",\"2026-11-05T22:02:59Z\",false,\"abf90be79c546367bb7a055cdf277944c0190011\",0,0,\"2026-11-05T22:03:48Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 86,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "remove-web-server",
+    "title": "画面とサーバをいったん外し、ボードを CLI とチャットとダッシュボードだけで扱う",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/86",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestAiNoteAt": null,
+    "latestCommitAt": "2026-11-05T21:45:10Z",
+    "mergedAt": "2026-11-05T22:02:59Z",
+    "readyAt": "2026-11-05T21:27:47Z",
+    "convertedToDraftAt": null
+  }
+}
