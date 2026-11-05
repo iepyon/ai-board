@@ -124,3 +124,14 @@
 - [x] `tsconfig.test.json` を足し、`package.json` の `typecheck` から 3 本目として呼ぶ
 - [x] `README.md` の品質ゲートの節に、テストも型検査に入ることを書く
 - [x] 品質ゲートを通す
+
+## AI レビュー
+
+- [ ] `README.md:805` の CI の段落は、Windows の行が「テストを除いた typecheck」を走らせると書いたままだが、この PR で `npm run typecheck` が `tsconfig.test.json` も走らせるようになり、Windows の行もテストを型検査する（計画の仮定「Windows の CI の行もテストの型検査を走らせる」、`.github/workflows/ci.yml:58`）。すぐ下に足した段落とも食い違う。「テストを除いた typecheck」を「typecheck（テストも含む）」のように、Windows の行で走らないのはテストの実行だけだと分かる書き方に直す
+
+### 見送った指摘
+
+- `package.json:26` の 1 本目の `tsc --noEmit` は、3 本目の `tsconfig.test.json` が同じ対象をすべて含むので重複する。人の決めた「3 本目に足す」（計画の仮定・退けた代案）どおりなので見送る。速さが問題になれば別のカードで見直す
+- `tsconfig.json` がテストを除外したままなので、エディタではテストのファイルが別の設定で開かれ、ずれは `npm run typecheck` まで見えない。`tsconfig.json` にテストを含め、出力用の `tsconfig.build.json` で除く分け方にすれば直るが、設定の組み替えはこの PR の目的（ゲートでずれに気付く）の外なので見送る
+- `src/shared/**/__tests__` が `tsconfig.web.json` と `tsconfig.test.json` の両方で、別の `types` のもとに検査される。この PR の前から web の設定には入っており、今は両方で通っているので見送る
+- `vitest.config.ts` などの根の設定ファイルは、どの `tsc` の対象にも入っていない。この PR の目的（テストの型検査）の外なので見送る
