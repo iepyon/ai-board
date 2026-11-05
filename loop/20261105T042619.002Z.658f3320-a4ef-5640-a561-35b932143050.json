@@ -1,0 +1,13 @@
+{
+  "loop": "658f3320-a4ef-5640-a561-35b932143050",
+  "cardId": "forge-card-error",
+  "action": "plan",
+  "step": null,
+  "agent": null,
+  "harness": "v1",
+  "startedAt": "2026-11-05T04:26:19.002Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
