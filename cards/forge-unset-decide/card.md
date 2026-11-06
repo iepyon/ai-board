@@ -3,7 +3,7 @@ id: forge-unset-decide
 title: ユーザは、GitHub を設定していない研修のボードでも、判断を書いてループを進めたい
 created: '2026-11-06T12:35:43.307Z'
 skipGates: []
-branch: null
+branch: ccr-bb1fbf36-7v5cd6
 mr: null
 ---
 
