@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { loadConfig, resolvePaths } from '../config.js';
+import { loadConfig, readDataMode, resolvePaths } from '../config.js';
 
 let root: string;
 
@@ -256,19 +256,19 @@ describe('データ用ブランチの読み書きのモード', () => {
   }
 
   it('data-mode.yaml が無ければ既定のモード（sync）', () => {
-    expect(resolvePaths(root, {}).dataMode).toBe('sync');
+    expect(readDataMode(resolvePaths(root, {}).dataDir)).toBe('sync');
   });
 
   it('mode: local なら手元モード', async () => {
     await writeMode(path.join(root, '.ai-board'), 'mode: local\n');
 
-    expect(resolvePaths(root, {}).dataMode).toBe('local');
+    expect(readDataMode(resolvePaths(root, {}).dataDir)).toBe('local');
   });
 
   it('mode: sync なら既定のモード', async () => {
     await writeMode(path.join(root, '.ai-board'), 'mode: sync\n');
 
-    expect(resolvePaths(root, {}).dataMode).toBe('sync');
+    expect(readDataMode(resolvePaths(root, {}).dataDir)).toBe('sync');
   });
 
   it('形が違えば警告して既定のモードにする', async () => {
@@ -276,7 +276,7 @@ describe('データ用ブランチの読み書きのモード', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     try {
-      expect(resolvePaths(root, {}).dataMode).toBe('sync');
+      expect(readDataMode(resolvePaths(root, {}).dataDir)).toBe('sync');
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('data-mode.yaml を読めないため'));
     } finally {
       warn.mockRestore();
@@ -288,7 +288,7 @@ describe('データ用ブランチの読み書きのモード', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     try {
-      expect(resolvePaths(root, {}).dataMode).toBe('sync');
+      expect(readDataMode(resolvePaths(root, {}).dataDir)).toBe('sync');
       expect(warn).toHaveBeenCalledTimes(1);
     } finally {
       warn.mockRestore();
@@ -299,7 +299,7 @@ describe('データ用ブランチの読み書きのモード', () => {
     const tree = await makeLinkedWorktree('feature');
     await writeMode(path.join(root, '.ai-board'), 'mode: local\n');
 
-    expect(resolvePaths(tree, {}).dataMode).toBe('local');
+    expect(readDataMode(resolvePaths(tree, {}).dataDir)).toBe('local');
   });
 
   it('AI_BOARD_DATA を指したときは、指した先の隣の data-mode.yaml を読み、本物のものは読まない', async () => {
@@ -307,9 +307,9 @@ describe('データ用ブランチの読み書きのモード', () => {
     const trial = path.join(root, 'trial');
     const dataDir = path.join(trial, 'data');
 
-    expect(resolvePaths(root, { AI_BOARD_DATA: dataDir }).dataMode).toBe('sync');
+    expect(readDataMode(resolvePaths(root, { AI_BOARD_DATA: dataDir }).dataDir)).toBe('sync');
 
     await writeMode(trial, 'mode: local\n');
-    expect(resolvePaths(root, { AI_BOARD_DATA: dataDir }).dataMode).toBe('local');
+    expect(readDataMode(resolvePaths(root, { AI_BOARD_DATA: dataDir }).dataDir)).toBe('local');
   });
 });

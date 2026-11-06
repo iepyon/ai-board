@@ -1,4 +1,4 @@
-import type { BoardPaths } from '../shared/config.js';
+import { readDataMode, type BoardPaths } from '../shared/config.js';
 import type { CliRunner } from '../infrastructure/cli-runner.js';
 import { err, isErr, ok } from '../shared/result.js';
 import { createDataStore, type DataStore } from '../infrastructure/data-store.js';
@@ -149,14 +149,14 @@ export function createTransactionalMrWriter(
  *
  * 既定の場所（`.ai-board/data/`）なら、無ければ `root` のリポジトリから `git worktree add` で作る。
  * `AI_BOARD_DATA` は用意済みの clone を指すので、無ければ作らずに失敗させる。
- * 読み書きのモードは `data-mode.yaml`（`paths.dataMode`）に従う。
+ * 読み書きのモードは `data-mode.yaml`（`readDataMode`）に従う。ストアを組むときに 1 回だけ読む。
  */
 export function createBoardDataStore(paths: BoardPaths, runner: CliRunner): DataStore {
   return createDataStore({
     dataDir: paths.dataDir,
     ...(paths.dataSource === 'env' ? {} : { repoRoot: paths.root }),
     runner,
-    mode: paths.dataMode,
+    mode: readDataMode(paths.dataDir),
   });
 }
 

@@ -1,5 +1,4 @@
-import * as path from 'node:path';
-import { DATA_MODE_FILE } from '../../shared/config.js';
+import { dataModePath } from '../../shared/config.js';
 import type { DataStoreError } from '../../infrastructure/data-store.js';
 
 // ============================================================
@@ -33,7 +32,7 @@ export function describeDataStoreError(error: DataStoreError): string {
       return `データ用ブランチへ push できませんでした（${error.attempts} 回試しました: ${error.message}）`;
     case 'DataStoreLocalAhead': {
       const dataDir = error.dataDir;
-      const modeFile = path.join(path.dirname(dataDir), DATA_MODE_FILE);
+      const modeFile = dataModePath(dataDir);
       return (
         `データのワークツリー（${dataDir}）に、origin の ai-board/data に無い commit が ${error.count} 件あるため、読み書きを止めました。` +
         `手元モードで書いたものなら、上げるには git -C ${dataDir} push origin HEAD:ai-board/data、` +

@@ -254,7 +254,7 @@ class GitDataStore implements DataStore {
     const prepared = await this.prepare();
     if (isErr(prepared)) return prepared;
 
-    return this.withLock(() => this.sync({ guardLocalAhead: true }));
+    return this.withLock(() => this.sync());
   }
 
   async transact<T, E>(
@@ -307,13 +307,12 @@ class GitDataStore implements DataStore {
     }
     if (!committed.value || base.value === null) return done(written);
 
-    const pushed = await this.git(['push', '--quiet', '--no-verify', 'origin', DATA_PUSH_REFSPEC]);
-    if (isErr(pushed)) return { kind: 'rejected', base: base.value, error: pushed.error };
-
-    // fetch の refspec が ai-board/data を写さない clone では、push しても追跡のブランチが動かない。
-    // 次の取り直しで fetch に失敗したとき、上げ済みのコミットを守りが「origin に無い」と数えないよう進めておく。
-    // 書き込みは push で済んでいるので、ここが失敗しても失敗にしない（次の fetch が追跡のブランチを直す）
-    await this.git(['update-ref', DATA_REMOTE_REF, 'HEAD']);
+    const pushed = await pushData(this.runner, this.dataDir);
+    if (isErr(pushed)) {
+      // 拒否されたコミットを手元に残さない。次の取り直しの守りが、手元モードのコミットと取り違えないように
+      await this.discardTo(base.value);
+      return { kind: 'rejected', base: base.value, error: pushed.error };
+    }
     return done(written);
   }
 
@@ -326,8 +325,7 @@ class GitDataStore implements DataStore {
     attempt: number,
     rejected: Rejected | null
   ): Promise<Result<string | null, DataStoreError>> {
-    // 拒否の後の取り直しで手元にあるコミットは、この書き込み自身が作って拒否されたもの。捨ててやり直す
-    const synced = await this.sync({ guardLocalAhead: rejected === null });
+    const synced = await this.sync();
     if (isErr(synced)) return synced;
 
     const outcome = synced.value;
@@ -355,12 +353,9 @@ class GitDataStore implements DataStore {
     const inRepo = (args: readonly string[]): Promise<Result<string, CliError>> =>
       runGit(this.runner, repoRoot, args);
 
-    // 手元モードでは origin に問い合わせない
-    if (this.mode === 'local') return this.addWorktreeLocally(repoRoot);
-
-    const remotes = await inRepo(['remote']);
-    if (isErr(remotes)) return err(gitFailed('remote', remotes.error));
-    const withOrigin = includesOrigin(remotes.value);
+    const usesOrigin = await this.usesOrigin(repoRoot);
+    if (isErr(usesOrigin)) return usesOrigin;
+    const withOrigin = usesOrigin.value;
 
     if (withOrigin) {
       // fetch の失敗は「ブランチが無い」と「ネットワーク」を分けられないので、先に有無を問う
@@ -373,7 +368,9 @@ class GitDataStore implements DataStore {
     }
 
     const local = await inRepo(['rev-parse', '--verify', '--quiet', `refs/heads/${DATA_BRANCH}`]);
-    if (isErr(local) && !withOrigin) return err({ type: 'DataBranchMissing', dataDir });
+    if (isErr(local) && !withOrigin && !(await this.trackedBranchUsable(repoRoot))) {
+      return err({ type: 'DataBranchMissing', dataDir });
+    }
 
     // 人がデータのワークツリーを消すと登録だけが残り、worktree add が
     // 「missing but already registered worktree」で拒む。消えたワークツリーの登録を先に片付ける
@@ -387,30 +384,27 @@ class GitDataStore implements DataStore {
     return isErr(added) ? err(gitFailed('worktree add', added.error)) : ok(undefined);
   }
 
+  /** 手元モードで、最後に取った origin のデータ用ブランチ（追跡のブランチ）からワークツリーを作れるか */
+  private async trackedBranchUsable(repoRoot: string): Promise<boolean> {
+    if (this.mode !== 'local') return false;
+    const tracked = await runGit(this.runner, repoRoot, [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      DATA_REMOTE_REF,
+    ]);
+    return !isErr(tracked);
+  }
+
   /**
-   * 手元モードで、`origin` に問い合わせずにデータのワークツリーを作る。
-   *
-   * 手元のデータ用ブランチがあればそれを、無ければ最後に取った `origin/ai-board/data` から作る。
+   * `dir` のリポジトリで `origin` に問い合わせるか。手元モードでは `git remote` も走らせずに問い合わせない
    */
-  private async addWorktreeLocally(repoRoot: string): Promise<Result<void, DataStoreError>> {
-    const dataDir = this.dataDir;
-    const inRepo = (args: readonly string[]): Promise<Result<string, CliError>> =>
-      runGit(this.runner, repoRoot, args);
-
-    const local = await inRepo(['rev-parse', '--verify', '--quiet', `refs/heads/${DATA_BRANCH}`]);
-    if (isErr(local)) {
-      const tracked = await inRepo(['rev-parse', '--verify', '--quiet', DATA_REMOTE_REF]);
-      if (isErr(tracked)) return err({ type: 'DataBranchMissing', dataDir });
-    }
-
-    const pruned = await inRepo(['worktree', 'prune']);
-    if (isErr(pruned)) return err(gitFailed('worktree prune', pruned.error));
-
-    const args = isErr(local)
-      ? ['worktree', 'add', '--quiet', '-b', DATA_BRANCH, dataDir, DATA_REMOTE_REF]
-      : ['worktree', 'add', '--quiet', dataDir, DATA_BRANCH];
-    const added = await inRepo(args);
-    return isErr(added) ? err(gitFailed('worktree add', added.error)) : ok(undefined);
+  private async usesOrigin(dir: string): Promise<Result<boolean, DataStoreError>> {
+    if (this.mode === 'local') return ok(false);
+    const remotes = await runGit(this.runner, dir, ['remote']);
+    return isErr(remotes)
+      ? err(gitFailed('remote', remotes.error))
+      : ok(includesOrigin(remotes.value));
   }
 
   /**
@@ -423,33 +417,23 @@ class GitDataStore implements DataStore {
    * 合わせた後に形の版を確かめる。`refresh` と `transact`（`op` の前）はどちらもここを通るので、
    * この CLI より新しい版のデータは、読み出しでも書き込みでも中身に触れる前に止まる。
    */
-  private async sync(options: {
-    readonly guardLocalAhead: boolean;
-  }): Promise<Result<RefreshOutcome, DataStoreError>> {
-    const remotes = await this.gitStep('remote', ['remote']);
-    if (isErr(remotes)) return remotes;
+  private async sync(): Promise<Result<RefreshOutcome, DataStoreError>> {
+    const useOrigin = await this.usesOrigin(this.dataDir);
+    if (isErr(useOrigin)) return useOrigin;
 
     // reset と clean はブランチを動かし、追跡していないファイルを消す。データ用ブランチの上でしか走らせない
     const onDataBranch = await this.ensureDataBranchHead();
     if (isErr(onDataBranch)) return onDataBranch;
 
-    if (this.mode === 'local') {
+    if (!useOrigin.value) {
       const discarded = await this.discardTo('HEAD');
       if (isErr(discarded)) return discarded;
-      return this.checkVersion({ kind: 'local' });
-    }
-
-    if (!includesOrigin(remotes.value)) {
-      const discarded = await this.discardTo('HEAD');
-      if (isErr(discarded)) return discarded;
-      return this.checkVersion({ kind: 'no-origin' });
+      return this.checkVersion({ kind: this.mode === 'local' ? 'local' : 'no-origin' });
     }
 
     const fetched = await this.git(['fetch', '--quiet', 'origin', DATA_FETCH_REFSPEC]);
-    if (options.guardLocalAhead) {
-      const guarded = await this.guardLocalAhead();
-      if (isErr(guarded)) return guarded;
-    }
+    const guarded = await this.guardLocalAhead();
+    if (isErr(guarded)) return guarded;
     const discarded = await this.discardTo(DATA_REMOTE_REF);
     if (isErr(discarded)) return discarded;
 
@@ -463,21 +447,12 @@ class GitDataStore implements DataStore {
   /**
    * `origin` のデータ用ブランチに無いコミットが手元の `HEAD` にあれば、`DataStoreLocalAhead` で止まる。
    *
-   * 追跡のブランチがまだ無ければ比べる先が無いので数えない（続く `reset --hard` が今どおり失敗する）。
-   * まだコミットの無いブランチ（データ用ブランチしか無い `origin` の clone）も、先のコミットが無いので数えない。
+   * 追跡のブランチがまだ無い、まだコミットの無いブランチ（データ用ブランチしか無い `origin` の clone）では
+   * `rev-list` が失敗する。比べる先か先のコミットが無いので数えない（続く `reset --hard` が今どおり扱う）。
    */
   private async guardLocalAhead(): Promise<Result<void, DataStoreError>> {
-    const tracked = await this.git(['rev-parse', '--verify', '--quiet', DATA_REMOTE_REF]);
-    if (isErr(tracked)) return ok(undefined);
-    const born = await this.git(['rev-parse', '--verify', '--quiet', 'HEAD']);
-    if (isErr(born)) return ok(undefined);
-
-    const counted = await this.gitStep('rev-list', [
-      'rev-list',
-      '--count',
-      `${DATA_REMOTE_REF}..HEAD`,
-    ]);
-    if (isErr(counted)) return counted;
+    const counted = await this.git(['rev-list', '--count', `${DATA_REMOTE_REF}..HEAD`]);
+    if (isErr(counted)) return ok(undefined);
 
     const count = Number.parseInt(counted.value.trim(), 10);
     return count > 0
@@ -625,6 +600,25 @@ class GitDataStore implements DataStore {
     this.queue = queued.catch(() => undefined);
     return queued;
   }
+}
+
+/**
+ * データ用ブランチを `origin` へ push し、通ったら追跡のブランチを進める。
+ *
+ * fetch の refspec が ai-board/data を写さない clone では、push しても追跡のブランチが動かない。
+ * 次の取り直しで fetch に失敗したとき、上げ済みのコミットを守りが「origin に無い」と数えないよう進めておく。
+ * 書き込みは push で済んでいるので、追跡のブランチを進めるのが失敗しても失敗にしない（次の fetch が直す）
+ */
+async function pushData(runner: CliRunner, dataDir: string): Promise<Result<string, CliError>> {
+  const pushed = await runGit(runner, dataDir, [
+    'push',
+    '--quiet',
+    '--no-verify',
+    'origin',
+    DATA_PUSH_REFSPEC,
+  ]);
+  if (!isErr(pushed)) await runGit(runner, dataDir, ['update-ref', DATA_REMOTE_REF, 'HEAD']);
+  return pushed;
 }
 
 function includesOrigin(remotes: string): boolean {
@@ -791,7 +785,7 @@ export async function createDataBranch(
 
   if (!target.withOrigin) return ok({ pushed: false });
 
-  const pushed = await inData(['push', '--quiet', '--no-verify', 'origin', DATA_PUSH_REFSPEC]);
+  const pushed = await pushData(options.runner, dataDir);
   if (isErr(pushed)) {
     await rollbackDataBranch(options.runner, target, dataDir);
     return err(pushFailed(1, pushed.error));
