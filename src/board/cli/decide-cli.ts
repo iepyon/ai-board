@@ -3,7 +3,7 @@ import { CardIdSchema, type CardId, type Stage } from '../../shared/schemas/comm
 import { DIVIDER_ID } from '../../shared/card-reorder.js';
 import { STAGE_LABELS } from '../../shared/stage-labels.js';
 import { withSkipGate } from '../../shared/stage-gates.js';
-import { decisionsFor, groupBySection, ideaRows } from '../../shared/dashboard-sections.js';
+import { decisionsFor } from '../../shared/dashboard-sections.js';
 import { REVIEW_GATES, isReviewGate, type ReviewGate } from '../../cards/models/review.js';
 import type { CardDependencies } from '../../cards/composition.js';
 import type { Card } from '../../cards/models/card.js';
@@ -12,6 +12,14 @@ import { describeDataStoreError } from '../../cards/cli/data-store-messages.js';
 import type { OrderRef } from '../../cards/usecases/commands/move-in-order.js';
 import type { Board, BoardCard } from '../models/board-card.js';
 import type { GetBoardError } from '../errors/board-errors.js';
+import {
+  guardMove,
+  guardMoveDivider,
+  guardReview,
+  guardSkip,
+  guardStartedAt,
+  type DecideRefusal,
+} from '../services/decision-guards.js';
 import { describeForge } from './status-describe.js';
 
 // ============================================================
@@ -182,29 +190,13 @@ async function runReview(
   const board = await loadBoard(deps, io);
   if (board === null) return 1;
 
-  if (refuseWithoutForge(board, '承認 / 否決 / 中止', io)) return 1;
+  const target = guardReview(board, { id, kind, reason });
+  if (!target.ok) return fail(io, describeRefusal(target.error));
+  const { card, gate } = target.value;
 
-  const card = findCard(board, id, io);
-  if (card === null) return 1;
+  const result = await deps.cards.appendReviewCommand({ id, gate, kind, reason, at: io.now() });
 
-  const decisions = decisionsFor(card);
-  const decision = decisions.find((d) => d.kind === kind);
-  if (decision === undefined) {
-    return fail(io, `${id} に ${kind} は書けません（${describeChoices(card)}）`);
-  }
-  if (decision.reasonRequired && reason === '') {
-    return fail(io, `${kind}には --reason で理由を書いてください`);
-  }
-
-  const result = await deps.cards.appendReviewCommand({
-    id,
-    gate: decision.gate,
-    kind,
-    reason,
-    at: io.now(),
-  });
-
-  return reportWrite(result, `${decision.gate} ${kind}`, card, deps, io);
+  return reportWrite(result, `${gate} ${kind}`, card, deps, io);
 }
 
 // ============================================================
@@ -237,7 +229,7 @@ async function runUnstart(
   });
 }
 
-/** 画面でカードを隣の列へ入れるのと同じ。今の列と、入れられる列（`droppableStages`）を確かめる */
+/** カードを隣の列へ入れるのと同じ。今の列と、入れられる列（`droppableStages`）を確かめる（`guardStartedAt`） */
 async function runStartedAt(
   args: ParsedArgs,
   deps: DecideCliDependencies,
@@ -254,20 +246,10 @@ async function runStartedAt(
 
   const board = await loadBoard(deps, io);
   if (board === null) return 1;
-  // 列と下限は PR の状態に依る（Draft の PR だけが計画の成果物のときなど）
-  if (refuseWithoutForge(board, '着手 / 着手を戻す', io)) return 1;
 
-  const card = findCard(board, id, io);
-  if (card === null) return 1;
-
-  if (card.stage !== move.from || !card.droppableStages.includes(move.to)) {
-    return fail(
-      io,
-      `${id} は${move.label}できません（今の列: ${STAGE_LABELS[card.stage]}。` +
-        `${STAGE_LABELS[move.from]}にあり、${STAGE_LABELS[move.to]}へ入れられるカードだけ）` +
-        forgeHoldNote(card)
-    );
-  }
+  const guarded = guardStartedAt(board, { id, from: move.from, to: move.to });
+  if (!guarded.ok) return fail(io, describeRefusal(guarded.error, move.label));
+  const card = guarded.value;
 
   const result = await deps.cards.updateCardMetaCommand({
     id,
@@ -295,12 +277,9 @@ async function runSkip(
   const board = await loadBoard(deps, io);
   if (board === null) return 1;
 
-  const card = findCard(board, id, io);
-  if (card === null) return 1;
-
-  if (card.aborted) {
-    return fail(io, `${id} は中止されているので、飛ばす宣言を変えられません`);
-  }
+  const guarded = guardSkip(board, { id });
+  if (!guarded.ok) return fail(io, describeRefusal(guarded.error));
+  const card = guarded.value;
 
   // 画面のチェックボックスと同じく、1 つのゲートだけを出し入れする
   const skipGates = withSkipGate(card.skipGates, gate, !remove);
@@ -332,13 +311,8 @@ async function runMove(
   const board = await loadBoard(deps, io);
   if (board === null) return 1;
 
-  const ideas = ideaIds(board);
-  const unknown = [id, after, before].find(
-    (ref) => ref !== null && ref !== DIVIDER_ID && !ideas.has(ref)
-  );
-  if (unknown !== undefined && unknown !== null) {
-    return fail(io, `アイデアの表に無いカードです: ${unknown}`);
-  }
+  const guarded = guardMove(board, { id, after, before });
+  if (!guarded.ok) return fail(io, describeRefusal(guarded.error));
 
   const result = await deps.cards.moveCardCommand({
     id,
@@ -363,11 +337,8 @@ async function runMoveDivider(
   const board = await loadBoard(deps, io);
   if (board === null) return 1;
 
-  const ideas = ideaIds(board);
-  const unknown = [after, before].find((ref) => ref !== null && !ideas.has(ref));
-  if (unknown !== undefined && unknown !== null) {
-    return fail(io, `アイデアの表に無いカードです: ${unknown}`);
-  }
+  const guarded = guardMoveDivider(board, { after, before });
+  if (!guarded.ok) return fail(io, describeRefusal(guarded.error));
 
   const result = await deps.cards.moveIdeaDividerCommand({
     after: after as CardId | null,
@@ -403,14 +374,6 @@ function parseRefs(
   return { after: after.ref, before: before.ref };
 }
 
-/** アイデアの表に並ぶカードの ID。画面と `status` の `ideas` と同じ振り分け */
-function ideaIds(board: Board): ReadonlySet<string> {
-  const ideas = groupBySection(board.cards).idea;
-  return new Set(
-    ideaRows(ideas, board.ideaDivider).flatMap((row) => (row.kind === 'card' ? [row.id] : []))
-  );
-}
-
 // ============================================================
 // ヘルパー
 // ============================================================
@@ -424,28 +387,6 @@ async function loadBoard(deps: DecideCliDependencies, io: DecideCliIo): Promise<
   return result.value;
 }
 
-/**
- * GitHub に繋がらなければ拒んで true を返す。PR の状態が引けないと、計画レビューのカードが手前の列に落ちて見え、
- * 出せる判断や戻せる列を取り違える（`status` が `next` を `null` にするのと同じ理由）。
- * 飛ばす宣言と並べ替えは列に依らないので、ここを通さない。
- */
-function refuseWithoutForge(board: Board, what: string, io: DecideCliIo): boolean {
-  if (board.forge.status === 'connected') return false;
-  io.stderr(
-    `GitHub に繋がらないので、${what}は書けません（GitHub: ${describeForge(board.forge)}）\n`
-  );
-  return true;
-}
-
-function findCard(board: Board, id: CardId, io: DecideCliIo): BoardCard | null {
-  const card = board.cards.find((c) => c.id === id);
-  if (card === undefined) {
-    io.stderr(`カードが見つかりません: ${id}\n`);
-    return null;
-  }
-  return card;
-}
-
 function requireCardId(args: ParsedArgs, io: DecideCliIo): CardId | null {
   const parsed = CardIdSchema.safeParse(args.positionals[0]);
   if (!parsed.success) {
@@ -455,7 +396,37 @@ function requireCardId(args: ParsedArgs, io: DecideCliIo): CardId | null {
   return parsed.data as CardId;
 }
 
-/** 書けなかったときに、今の列と出せる判断を添える */
+/**
+ * 判断を書けない理由の 1 行。`label` は着手 / 着手を戻すのときの操作の名前（`StageMismatch` で使う）。
+ *
+ * GitHub に繋がらないときは、PR の状態が引けないと計画レビューのカードが手前の列に落ちて見え、
+ * 出せる判断や戻せる列を取り違えるので拒む（`status` が `next` を `null` にするのと同じ理由）。
+ */
+function describeRefusal(refusal: DecideRefusal, label = ''): string {
+  switch (refusal.type) {
+    case 'ForgeUnavailable': {
+      const what = refusal.action === 'review' ? '承認 / 否決 / 中止' : '着手 / 着手を戻す';
+      return `GitHub に繋がらないので、${what}は書けません（GitHub: ${describeForge(refusal.forge)}）`;
+    }
+    case 'CardNotFound':
+      return `カードが見つかりません: ${refusal.id}`;
+    case 'DecisionUnavailable':
+      return `${refusal.id} に ${refusal.kind} は書けません（${describeChoices(refusal.card)}）`;
+    case 'ReasonRequired':
+      return `${refusal.kind}には --reason で理由を書いてください`;
+    case 'StageMismatch':
+      return (
+        `${refusal.id} は${label}できません（今の列: ${STAGE_LABELS[refusal.card.stage]}。` +
+        `${STAGE_LABELS[refusal.from]}にあり、${STAGE_LABELS[refusal.to]}へ入れられるカードだけ）` +
+        forgeHoldNote(refusal.card)
+      );
+    case 'CardAborted':
+      return `${refusal.id} は中止されているので、飛ばす宣言を変えられません`;
+    case 'NotInIdeaTable':
+      return `アイデアの表に無いカードです: ${refusal.ref}`;
+  }
+}
+
 /**
  * PR の状態を引けない止まりなら、その理由を添える。
  * そのカードは出せる判断も入れられる列も無い（`decisionsFor` / `droppableStages`）ので、拒んだ理由がそれだと分かるようにする

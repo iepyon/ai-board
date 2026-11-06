@@ -216,9 +216,9 @@ GitHub に繋がらない試しのデータでは、`decide` の承認 / 否決 
 
 ### 2. decide の検査を純関数にする
 
-- [ ] `src/board/services/decision-guards.ts` に `DecideRefusal` と `guardReview` / `guardStartedAt` / `guardSkip` / `guardMove` / `guardMoveDivider` を置く
-- [ ] `src/board/cli/decide-cli.ts` の各ハンドラを、これらの純関数を呼んで `DecideRefusal` を今と同じ文に直す形にする（この節では、検査はまだ `transact` の外のまま）
-- [ ] `src/board/services/__tests__/decision-guards.test.ts` に、各関数の通る場合と、各拒否の種のテストを足す
+- [x] `src/board/services/decision-guards.ts` に `DecideRefusal` と `guardReview` / `guardStartedAt` / `guardSkip` / `guardMove` / `guardMoveDivider` を置く
+- [x] `src/board/cli/decide-cli.ts` の各ハンドラを、これらの純関数を呼んで `DecideRefusal` を今と同じ文に直す形にする（この節では、検査はまだ `transact` の外のまま）
+- [x] `src/board/services/__tests__/decision-guards.test.ts` に、各関数の通る場合と、各拒否の種のテストを足す
 
 ### 3. 書き込みの包み方を 1 つにし、decide の検査を transact の中へ移す
 
