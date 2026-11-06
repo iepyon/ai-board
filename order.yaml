@@ -39,6 +39,7 @@ ranks:
   merged-before-ready: -7875
   node-lts: 4000
   offline-data-mode: -8843.75
+  offline-snapshot-view: -8093.75
   plan-assumptions: -10750
   plan-visual: -3751.9569396972656
   pr-checks: -3812.6220703125
