@@ -6,7 +6,9 @@
   - A: 短いハッシュを PR の head の先頭と照らし合わせる
   - B: 完全なハッシュ（40 桁）だけを受け付け、短いハッシュは使い方の誤りとして拒む
   - C: 短いハッシュを GitHub に問い合わせて、完全なハッシュに直してから比べる
+  - → 回答（2026-11-06、plan 承認）: 理由なしで承認（既定のまま進む）
 - **大文字の 16 進も受け付けるか。** 今は `--sha` の値を小文字の 16 進だけで受けている（既定: 今のまま、大文字は拒む）
+  - → 回答（2026-11-06、plan 承認）: 理由なしで承認（既定のまま進む）
 
 ## 提案
 
@@ -85,8 +87,8 @@ GitHub の PR を読むだけなので、共有のカードには書かない。
 
 ### 1. 短いハッシュを head の先頭と照らし合わせる
 
-- [ ] `src/board/cli/__tests__/pr-cli.test.ts` に、head の短いハッシュを `--sha` に渡すと、そのコミットのチェックを読んで終えるテストを足す（`--wait` あり・なしの両方）。直す前のコードで落ちることを確かめる
-- [ ] 同じファイルに、head と別のコミットの短いハッシュなら、今と同じく走っているとして扱うテストを足す
-- [ ] `src/board/services/github-client.ts` に `isSameCommit(sha, headSha)` を足し、`checks` の照らし合わせをこれに置き換える。`checks` の docstring に短いハッシュのことを書く
-- [ ] `src/board/cli/pr-cli.ts` の `PR_USAGE` の `--sha` の説明に「7 桁以上の短いハッシュも可」を足す
-- [ ] `docs/architecture.md` の `--sha <sha>` の説明に、短いハッシュも head の先頭と照らし合わせて受け付けることを書く
+- [x] `src/board/cli/__tests__/pr-cli.test.ts` に、head の短いハッシュを `--sha` に渡すと、そのコミットのチェックを読んで終えるテストを足す（`--wait` あり・なしの両方）。直す前のコードで落ちることを確かめる
+- [x] 同じファイルに、head と別のコミットの短いハッシュなら、今と同じく走っているとして扱うテストを足す
+- [x] `src/board/services/github-client.ts` に `isSameCommit(sha, headSha)` を足し、`checks` の照らし合わせをこれに置き換える。`checks` の docstring に短いハッシュのことを書く
+- [x] `src/board/cli/pr-cli.ts` の `PR_USAGE` の `--sha` の説明に「7 桁以上の短いハッシュも可」を足す
+- [x] `docs/architecture.md` の `--sha <sha>` の説明に、短いハッシュも head の先頭と照らし合わせて受け付けることを書く
