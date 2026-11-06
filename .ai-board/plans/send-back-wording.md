@@ -132,9 +132,9 @@ export AI_BOARD_DATA="$S/data"
 
 ### 3. スキルを直し、手順書の版を上げる
 
-- [ ] `.claude/skills/board-decide/SKILL.md` の「否決」を差し戻しに直し、手順 2 の読み分けに「『否決して』と頼まれても差し戻しの依頼として受ける」を足す
-- [ ] `.claude/skills/board-loop/`（`SKILL.md`・`plan.md`・`rules.md`）と `.claude/skills/adr/SKILL.md` の「否決」を直す
-- [ ] `.claude/HARNESS_VERSIONS.md` の先頭に `## v5` を足し、変わったことを書く（過去の版の記述は直さない）
+- [x] `.claude/skills/board-decide/SKILL.md` の「否決」を差し戻しに直し、手順 2 の読み分けに「『否決して』と頼まれても差し戻しの依頼として受ける」を足す
+- [x] `.claude/skills/board-loop/`（`SKILL.md`・`plan.md`・`rules.md`）と `.claude/skills/adr/SKILL.md` の「否決」を直す
+- [x] `.claude/HARNESS_VERSIONS.md` の先頭に `## v5` を足し、変わったことを書く（過去の版の記述は直さない）
 
 ### 4. 今の形を書いた文書を直す
 
