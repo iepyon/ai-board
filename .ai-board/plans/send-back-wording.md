@@ -128,7 +128,7 @@ export AI_BOARD_DATA="$S/data"
 
 ### 2. コメントと文言だけに「否決」を持つコードを直す
 
-- [ ] `stage-resolver.ts`・`decision-guards.ts`・`card-errors.ts`・`composition.ts`・`hold-review.command.ts`・`submit-review.command.ts`・`loop-step.ts`・`timeline.ts` の「否決」を直す。どれもコメントだけで、振る舞いは変わらない
+- [x] `stage-resolver.ts`・`decision-guards.ts`・`card-errors.ts`・`composition.ts`・`hold-review.command.ts`・`submit-review.command.ts`・`loop-step.ts`・`timeline.ts` の「否決」を直す。どれもコメントだけで、振る舞いは変わらない
 
 ### 3. スキルを直し、手順書の版を上げる
 

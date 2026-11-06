@@ -39,7 +39,7 @@ export type ReviewEntriesChanged = { readonly type: 'ReviewEntriesChanged'; read
 /** 人が着手していないカードへの提出（着手は人が指示する） */
 export type SubmitBeforeStart = { readonly type: 'SubmitBeforeStart'; readonly id: string };
 
-/** ゲートが未提出でも否決でもないときの提出。`state` は今のゲートの状態 */
+/** ゲートが未提出でも差し戻しでもないときの提出。`state` は今のゲートの状態 */
 export type SubmitGateClosed = {
   readonly type: 'SubmitGateClosed';
   readonly id: string;
@@ -47,7 +47,7 @@ export type SubmitGateClosed = {
   readonly state: GateState;
 };
 
-/** ゲートの最新の判断が否決でないときの保留。`state` は今のゲートの状態 */
+/** ゲートの最新の判断が差し戻しでないときの保留。`state` は今のゲートの状態 */
 export type HoldGateNotRejected = {
   readonly type: 'HoldGateNotRejected';
   readonly id: string;

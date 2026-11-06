@@ -22,7 +22,7 @@ import type { ForgeConnection } from '../models/mr-state.js';
  * ボードを読む前に CLI が拒むので、ここには入れない。人に読める 1 行への直しは CLI が持つ。
  */
 export type DecideRefusal =
-  /** GitHub に繋がらない。列と出せる判断が PR の状態に依るので、承認 / 否決 / 中止と着手 / 着手を戻すは拒む */
+  /** GitHub に繋がらない。列と出せる判断が PR の状態に依るので、承認 / 差し戻し / 中止と着手 / 着手を戻すは拒む */
   | {
       readonly type: 'ForgeUnavailable';
       readonly action: 'review' | 'startedAt';
@@ -49,16 +49,16 @@ export type DecideRefusal =
   /** アイデアの表に並んでいない（`ref` はカード ID か区切り線） */
   | { readonly type: 'NotInIdeaTable'; readonly ref: string };
 
-/** 承認 / 否決 / 中止を書く先。ゲートは出ている判断（`decisionsFor`）から決まる */
+/** 承認 / 差し戻し / 中止を書く先。ゲートは出ている判断（`decisionsFor`）から決まる */
 export interface ReviewTarget {
   readonly card: BoardCard;
   readonly gate: DecisionGate;
 }
 
 /**
- * 承認 / 否決 / 中止を書けるか。そのカードに出ている判断（`decisionsFor`）だけを通す。
+ * 承認 / 差し戻し / 中止を書けるか。そのカードに出ている判断（`decisionsFor`）だけを通す。
  *
- * 理由の要る判断（否決）は、空白だけの理由も拒む。
+ * 理由の要る判断（差し戻し）は、空白だけの理由も拒む。
  */
 export function guardReview(
   board: Board,
