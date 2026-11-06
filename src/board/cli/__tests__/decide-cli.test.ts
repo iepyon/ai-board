@@ -11,7 +11,11 @@ import { createBoardDependencies } from '../../composition.js';
 import type { MrStateProvider } from '../../services/mr-state-provider.js';
 import type { ForgeCardFailure, ForgeConnection } from '../../models/mr-state.js';
 import type { CommitMessage, DataOperation } from '../../../infrastructure/data-store.js';
-import { runDecideCli, type DecideCliDependencies } from '../decide-cli.js';
+import { runDecideCli } from '../decide-cli.js';
+import {
+  createDecideCommands,
+  type DecideDependencies,
+} from '../../usecases/commands/decide.command.js';
 
 // ============================================================
 // テスト用プロジェクトの組み立て。git は使わず、ファイルのリポジトリで直に読み書きする
@@ -105,7 +109,7 @@ const FAILING_B = stubProvider(
  */
 function stubStore(
   beforeOp: () => Promise<void> = () => Promise.resolve()
-): DecideCliDependencies['store'] {
+): DecideDependencies['store'] {
   return {
     transact: async <T, E>(message: CommitMessage<T>, op: DataOperation<T, E>) => {
       await beforeOp();
@@ -128,13 +132,17 @@ async function run(
     cards.ideaDividerRepository,
     provider
   );
-  const deps: DecideCliDependencies = { loadBoard: board.getBoardQuery, store, cards };
+  const decide = createDecideCommands({ loadBoard: board.getBoardQuery, store, cards });
 
-  return runDecideCli(argv, deps, {
-    stdout: (text) => (stdout += text),
-    stderr: (text) => (stderr += text),
-    now: () => NOW,
-  });
+  return runDecideCli(
+    argv,
+    { decide },
+    {
+      stdout: (text) => (stdout += text),
+      stderr: (text) => (stderr += text),
+      now: () => NOW,
+    }
+  );
 }
 
 async function readCard(id: string) {

@@ -1,25 +1,17 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { CONFIG_FILE, loadConfig, resolvePaths } from './shared/config.js';
-import { createCliRunner, type CliRunner } from './infrastructure/cli-runner.js';
-import type { DataStore } from './infrastructure/data-store.js';
+import { createCliRunner } from './infrastructure/cli-runner.js';
 import {
   createBoardDataStore,
+  createCardCliParts,
   createFileCardDependencies,
-  createTransactionalMrWriter,
 } from './cards/composition.js';
 import { runCardCli, type CardCliIo } from './cards/cli/card-cli.js';
 import type { SeedFile } from './cards/cli/seed-cards.js';
 import { runInitCli } from './cards/cli/init-cli.js';
 import { describeDataStoreError, describeOfflineRead } from './cards/cli/data-store-messages.js';
-import {
-  createBoardDependencies,
-  type BoardDependencies,
-  createLoopHistoryRepository,
-  createBranchPlanRepository,
-  createFileMrSnapshotRepository,
-  createMrStateSource,
-} from './board/composition.js';
+import { assembleBoard } from './board/composition.js';
 import { parseStatusArgs, runStatusCli, STATUS_USAGE } from './board/cli/status-cli.js';
 import { isPrCommand, runPrCli } from './board/cli/pr-cli.js';
 import { runLoopCli } from './board/cli/loop-cli.js';
@@ -74,11 +66,7 @@ async function runCard(argv: readonly string[]): Promise<number> {
   const paths = resolvePaths(root);
   const store = createBoardDataStore(paths, createCliRunner());
 
-  return runCardCli(
-    rest,
-    { store, cards: createFileCardDependencies(store.dataDir) },
-    createProcessIo()
-  );
+  return runCardCli(rest, { store, ...createCardCliParts(store) }, createProcessIo());
 }
 
 /**
@@ -110,7 +98,7 @@ async function runInit(argv: readonly string[]): Promise<number> {
  *
  * カードは頭で 1 回データ用ブランチを取り直してから読む。
  * PR の状態はポーリングせず、`refresh()` を 1 回だけ待ってから読む。
- * `branch` から解決した PR 番号の書き戻しも、ここで起きる（`assembleBoard`）。
+ * `branch` から解決した PR 番号の書き戻しも、ここで起きる（`board/composition.ts` の `assembleBoard`）。
  */
 async function runStatus(argv: readonly string[]): Promise<number> {
   const { root, rest } = extractRoot(argv);
@@ -139,55 +127,15 @@ async function runStatus(argv: readonly string[]): Promise<number> {
 
   const board = await assembleBoard(root, store, runner);
 
-  return runStatusCli(
-    rest,
-    {
-      ...board,
-      // implement の段（next.step）を、カードのブランチの計画から読む。git fetch はしない
-      branchPlanRepository: createBranchPlanRepository(runner, paths.root),
-    },
-    io
-  );
-}
-
-/**
- * `status` と `decide` が使うボードの組み立て。データ用ブランチは呼び出し側が取り直しておく。
- *
- * PR の状態はポーリングせず、`refresh()` を 1 回だけ待ってから読む。
- * `branch` から解決した PR 番号の書き戻しも、この `refresh()` の中で起きる。
- */
-async function assembleBoard(
-  root: string,
-  store: DataStore,
-  runner: CliRunner
-): Promise<BoardDependencies> {
-  const config = loadConfig(root);
-  const cards = createFileCardDependencies(store.dataDir);
-  const { provider, poller } = await createMrStateSource(
-    config.forge,
-    cards.cardRepository,
-    createFileMrSnapshotRepository(store),
-    runner,
-    // ブランチから解決した PR 番号は、コミットして push する。ファイルに書くだけでは次の取り直しで捨てられる
-    { writeMr: createTransactionalMrWriter(store) }
-  );
-  await poller?.refresh();
-
-  return createBoardDependencies(
-    config.paths.plansDir,
-    cards.cardRepository,
-    cards.ideaDividerRepository,
-    provider,
-    createLoopHistoryRepository(store.dataDir)
-  );
+  return runStatusCli(rest, { getStatusQuery: board.getStatusQuery }, io);
 }
 
 /**
  * `decide` サブコマンド。人がチャットで頼んだ判断を書く。
  *
- * `status` と同じ組み立てのボードを、書き込みの 1 操作（`transactCardWrite`）の中で導出し、出せる判断かを確かめてから、
- * カードの usecase で書いてコミットして push する。PR の状態は頭で 1 回取り直したものを使い、書き込みの中では問い合わせない。
- * 書いた後のボードは、取り直した PR の状態のまま組み立て直す（列の移りを出すため）。
+ * データ用ブランチを取り直し、`status` と同じ組み立てのボード（`assembleBoard`）から、判断を書く usecase（`decide`）を渡す。
+ * 導出・検査・書き込み・コミットのメッセージ・書いた後の列の読み直しは usecase（`decide.command.ts`）が行う。
+ * PR の状態は頭で 1 回取り直したものを使い、書き込みの中でも書いた後でも問い合わせない。
  */
 async function runDecide(argv: readonly string[]): Promise<number> {
   const { root, rest } = extractRoot(argv);
@@ -215,15 +163,7 @@ async function runDecide(argv: readonly string[]): Promise<number> {
 
   const board = await assembleBoard(root, store, runner);
 
-  return runDecideCli(
-    rest,
-    {
-      loadBoard: board.getBoardQuery,
-      store,
-      cards: createFileCardDependencies(store.dataDir),
-    },
-    io
-  );
+  return runDecideCli(rest, { decide: board.decide }, io);
 }
 
 /**

@@ -1,6 +1,7 @@
 import type { CardRepository } from '../cards/repositories/card.repository.js';
+import { createFileCardDependencies, createTransactionalMrWriter } from '../cards/composition.js';
 import type { IdeaDividerRepository } from '../cards/repositories/idea-divider.repository.js';
-import type { ForgeConfig } from '../shared/config.js';
+import { loadConfig, type ForgeConfig } from '../shared/config.js';
 import type { CliRunner } from '../infrastructure/cli-runner.js';
 import { ForgePoller, type ForgePollerOptions } from '../infrastructure/forge-poller.js';
 import type { ForgeClient } from './services/forge-client.js';
@@ -19,6 +20,8 @@ import {
   type MrStateProvider,
 } from './services/mr-state-provider.js';
 import { createGetBoardQuery, type GetBoardQuery } from './usecases/queries/get-board.query.js';
+import { createGetStatusQuery, type GetStatusQuery } from './usecases/queries/get-status.query.js';
+import { createDecideCommands, type DecideCommands } from './usecases/commands/decide.command.js';
 import {
   createFileLoopHistoryRepository,
   type LoopHistoryRepository,
@@ -113,4 +116,55 @@ export async function createMrStateSource(
 
   const poller = new ForgePoller(cardRepository, client, snapshotRepository, options);
   return { provider: poller, poller };
+}
+
+/** `status` と `decide` が使う、組み立て済みのボード */
+export interface AssembledBoard {
+  /** ボードの見せる形。`next.step` を、カードのブランチの計画から読む（`git fetch` はしない） */
+  readonly getStatusQuery: GetStatusQuery;
+  /**
+   * 人の判断を書く。ボードの導出・検査・書き込みを `store` の書き込みの 1 操作の中で走らせる。
+   * 書き込みの中で導くボードも、頭で 1 回取り直した PR の状態を使い、問い合わせ直さない
+   */
+  readonly decide: DecideCommands;
+}
+
+/**
+ * `status` と `decide` が使うボードの組み立て。データ用ブランチは呼び出し側が取り直しておく。
+ *
+ * PR の状態はポーリングせず、`refresh()` を 1 回だけ待ってから読む。
+ * `branch` から解決した PR 番号の書き戻しも、この `refresh()` の中で起きる。
+ */
+export async function assembleBoard(
+  root: string,
+  store: DataStore,
+  runner: CliRunner
+): Promise<AssembledBoard> {
+  const config = loadConfig(root);
+  const cards = createFileCardDependencies(store.dataDir);
+  const { provider, poller } = await createMrStateSource(
+    config.forge,
+    cards.cardRepository,
+    createFileMrSnapshotRepository(store),
+    runner,
+    // ブランチから解決した PR 番号は、コミットして push する。ファイルに書くだけでは次の取り直しで捨てられる
+    { writeMr: createTransactionalMrWriter(store) }
+  );
+  await poller?.refresh();
+
+  const board = createBoardDependencies(
+    config.paths.plansDir,
+    cards.cardRepository,
+    cards.ideaDividerRepository,
+    provider,
+    createLoopHistoryRepository(store.dataDir)
+  );
+
+  return {
+    getStatusQuery: createGetStatusQuery(
+      board.getBoardQuery,
+      createBranchPlanRepository(runner, config.paths.root)
+    ),
+    decide: createDecideCommands({ loadBoard: board.getBoardQuery, store, cards }),
+  };
 }

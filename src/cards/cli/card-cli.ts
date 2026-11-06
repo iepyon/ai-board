@@ -1,7 +1,7 @@
 import { isErr, type Result } from '../../shared/result.js';
 import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
-import type { CommitMessage, DataStore, DataStoreError } from '../../infrastructure/data-store.js';
-import { transactCardWrite, type CardDependencies } from '../composition.js';
+import type { DataStore } from '../../infrastructure/data-store.js';
+import type { CardCliParts } from '../composition.js';
 import type { Card } from '../models/card.js';
 import type {
   CreateCardError,
@@ -27,12 +27,12 @@ import { readSeedCards, type SeedFile } from './seed-cards.js';
  * 本文の差し替えも、`## レビュー` のエントリを変えるものは拒否する
  * （検査は本文の差し替えの usecase が持ち、CLI はその `ReviewEntriesChanged` を出すだけにする）。
  * 提出 / 保留も、書けるかの検査は提出と保留の usecase が持つ。どちらも種別を中で決めるので、
- * この CLI には承認 / 差し戻し / 中止を書く口が型の上でも無い（`CardCliDependencies.cards` に `appendReviewCommand` を渡さない）。
+ * この CLI には承認 / 差し戻し / 中止を書く口が型の上でも無い（`CardCliDependencies.writes` に人の判断を書く口が無い）。
  * 提出 / 保留の判断は値のままリポジトリに渡すので、理由にどんな行を書いても判断は 1 件しか増えない。
  *
  * カードの正本はデータ用ブランチにある。読むコマンドは頭で 1 回取り直してから読み、
- * 書くコマンドは usecase（とその中の検査）を `DataStore.transact` の中で走らせる。
- * push が拒否されると取り直した状態で検査からやり直すので、検査は必ず最新のカードに対して行われる。
+ * 書くコマンドは書き込みの usecase（`writes`）を呼ぶ。usecase が検査から書き込みまでを `DataStore.transact` の中で走らせ、
+ * コミットのメッセージも決める。push が拒否されると取り直した状態で検査からやり直すので、検査は必ず最新のカードに対して行われる。
  */
 export const CARD_USAGE = `使い方: ai-board card <command> [--root <path>]
 
@@ -75,27 +75,15 @@ interface ParsedArgs {
   readonly flags: ReadonlyMap<string, string | true>;
 }
 
-export interface CardCliDependencies {
-  /** データのワークツリー。読む前に取り直し、書き込みは `transact` の中で行う */
-  readonly store: Pick<DataStore, 'refresh' | 'transact'>;
-  /**
-   * `store` のデータのワークツリーを読み書きするカードの依存。
-   * AI に許す書き込みの usecase だけを渡す。人の判断を足す `appendReviewCommand` は渡さない
-   */
-  readonly cards: Pick<
-    CardDependencies,
-    | 'cardRepository'
-    | 'createCardCommand'
-    | 'updateCardBodyCommand'
-    | 'updateCardMetaCommand'
-    | 'submitReviewCommand'
-    | 'holdReviewCommand'
-  >;
+/** 読む口（`cards`）と AI に許す書き込みの口（`writes`）は `createCardCliParts` が組む */
+export interface CardCliDependencies extends CardCliParts {
+  /** データのワークツリー。読む前に取り直す */
+  readonly store: Pick<DataStore, 'refresh'>;
 }
 
 type Handler = (args: ParsedArgs, deps: CardCliDependencies, io: CardCliIo) => Promise<number>;
 
-/** usecase のエラーには、リポジトリの拒否（`CardWriteRefused`）と `transact` の失敗が含まれる */
+/** 書き込みの usecase のエラー。リポジトリの拒否（`CardWriteRefused`）と `transact` の失敗が含まれる */
 type WriteFailure =
   CreateCardError | UpdateCardError | UpdateCardBodyError | SubmitReviewError | HoldReviewError;
 
@@ -216,17 +204,14 @@ async function runCreate(
   const body = await io.readStdin();
   const createdAt = io.now();
 
-  return write(
-    deps,
-    io,
-    (card) => `data: ${card.id} を作る`,
-    () =>
-      deps.cards.createCardCommand({
-        title: title.trim(),
-        id: typeof id === 'string' ? id : undefined,
-        body: body ?? undefined,
-        createdAt,
-      })
+  return report(
+    await deps.writes.create({
+      title: title.trim(),
+      id: typeof id === 'string' ? id : undefined,
+      body: body ?? undefined,
+      createdAt,
+    }),
+    io
   );
 }
 
@@ -278,9 +263,12 @@ async function runSeed(
     }
 
     const createdAt = io.now();
-    const result = await transactCardWrite(deps.store, `data: ${card.id} を作る`, () =>
-      deps.cards.createCardCommand({ title: card.title, id: card.id, body: card.body, createdAt })
-    );
+    const result = await deps.writes.create({
+      title: card.title,
+      id: card.id,
+      body: card.body,
+      createdAt,
+    });
 
     if (result.ok) {
       io.stdout(`${card.id}: 起票しました\n`);
@@ -310,9 +298,7 @@ async function runBody(
   }
 
   // 人の判断はレビューログにだけ残る。エントリが変わる差し替えは usecase が ReviewEntriesChanged で拒む
-  return write(deps, io, `data: ${id} の本文を差し替える`, () =>
-    deps.cards.updateCardBodyCommand({ id, body: trimNewlines(body) })
-  );
+  return report(await deps.writes.replaceBody({ id, body: trimNewlines(body) }), io);
 }
 
 async function runBranch(
@@ -331,12 +317,7 @@ async function runBranch(
     return 1;
   }
 
-  // コミットにブランチ名は入れない（ID・ゲート・種別だけを入れる）
-  const message = clear ? `data: ${id} のブランチを外す` : `data: ${id} にブランチを紐付ける`;
-
-  return write(deps, io, message, () =>
-    deps.cards.updateCardMetaCommand({ id, patch: { branch: clear ? null : (name ?? null) } })
-  );
+  return report(await deps.writes.linkBranch({ id, branch: clear ? null : (name ?? null) }), io);
 }
 
 /**
@@ -361,17 +342,16 @@ async function runSubmit(
   const reason = args.flags.get('--reason');
 
   const resubmit = args.flags.get('--resubmit') === true;
-  const kind = resubmit ? '再提出' : '提出';
-  const at = io.now();
 
-  return write(deps, io, `data: ${id} に ${gate} ${kind} を足す`, () =>
-    deps.cards.submitReviewCommand({
+  return report(
+    await deps.writes.submit({
       id,
       gate,
       resubmit,
       reason: typeof reason === 'string' ? reason : '',
-      at,
-    })
+      at: io.now(),
+    }),
+    io
   );
 }
 
@@ -402,11 +382,7 @@ async function runHold(
     return 1;
   }
 
-  const at = io.now();
-
-  return write(deps, io, `data: ${id} に ${gate} 保留 を足す`, () =>
-    deps.cards.holdReviewCommand({ id, gate, reason: reason.trim(), at })
-  );
+  return report(await deps.writes.hold({ id, gate, reason: reason.trim(), at: io.now() }), io);
 }
 // ============================================================
 // データ用ブランチの読み書き
@@ -428,22 +404,6 @@ async function refreshForRead(deps: CardCliDependencies, io: CardCliIo): Promise
     io.stderr(`${describeOfflineRead(refreshed.value.reason)}\n`);
   }
   return true;
-}
-
-/**
- * 検査から usecase までを、書き込みの 1 操作（`transact`）の中で走らせる。
- *
- * `op` は push が拒否されると取り直した状態で頭から呼び直されるので、標準出力にも標準エラーにも書かない。
- * 拒むときは Err を返す（`transact` が書きかけのファイルを捨て、コミットしない）。
- * 出力は `transact` が返ってから 1 回だけ行う。
- */
-async function write(
-  deps: CardCliDependencies,
-  io: CardCliIo,
-  message: CommitMessage<Card>,
-  op: () => Promise<Result<Card, WriteFailure>>
-): Promise<number> {
-  return report(await transactCardWrite(deps.store, message, op), deps, io);
 }
 
 // ============================================================
@@ -476,11 +436,7 @@ function requireCardId(args: ParsedArgs, io: CardCliIo): CardId | null {
 }
 
 /** 成功なら書き込んだカードの ID を出す。失敗なら理由を stderr に出す */
-function report(
-  result: Result<Card, WriteFailure | DataStoreError>,
-  deps: CardCliDependencies,
-  io: CardCliIo
-): number {
+function report(result: Result<Card, WriteFailure>, io: CardCliIo): number {
   if (result.ok) {
     io.stdout(`${result.value.id}\n`);
     return 0;
@@ -490,7 +446,7 @@ function report(
   return 1;
 }
 
-function describeError(error: WriteFailure | DataStoreError): string {
+function describeError(error: WriteFailure): string {
   switch (error.type) {
     case 'CardNotFound':
       return `カードが見つかりません: ${error.id}`;

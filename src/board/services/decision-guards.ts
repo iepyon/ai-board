@@ -9,45 +9,11 @@ import {
   type DecisionGate,
 } from '../../shared/dashboard-sections.js';
 import type { Board, BoardCard } from '../models/board-card.js';
-import type { ForgeConnection } from '../models/mr-state.js';
+import type { DecideRefusal } from '../errors/board-errors.js';
 
 // ============================================================
 // 人の判断の検査 — `ai-board decide` が書く前に、導出したボードで確かめる純関数
 // ============================================================
-
-/**
- * 人の判断を書けない理由（discriminated union）。
- *
- * どれも導出済みの `Board` だけで決まる。引数の形（カード ID・`--after` / `--before` の値・`--gate`）の誤りは
- * ボードを読む前に CLI が拒むので、ここには入れない。人に読める 1 行への直しは CLI が持つ。
- */
-export type DecideRefusal =
-  /** GitHub に繋がらない。列と出せる判断が PR の状態に依るので、承認 / 差し戻し / 中止と着手 / 着手を戻すは拒む */
-  | {
-      readonly type: 'ForgeUnavailable';
-      readonly action: 'review' | 'startedAt';
-      readonly forge: ForgeConnection;
-    }
-  | { readonly type: 'CardNotFound'; readonly id: CardId }
-  /** そのカードに、その種別の判断が出ていない（`decisionsFor`） */
-  | {
-      readonly type: 'DecisionUnavailable';
-      readonly id: CardId;
-      readonly kind: Decision['kind'];
-      readonly card: BoardCard;
-    }
-  | { readonly type: 'ReasonRequired'; readonly kind: Decision['kind'] }
-  /** 今の列が `from` でないか、`to` へ入れられない（`droppableStages`） */
-  | {
-      readonly type: 'StageMismatch';
-      readonly id: CardId;
-      readonly from: Stage;
-      readonly to: Stage;
-      readonly card: BoardCard;
-    }
-  | { readonly type: 'CardAborted'; readonly id: CardId }
-  /** アイデアの表に並んでいない（`ref` はカード ID か区切り線） */
-  | { readonly type: 'NotInIdeaTable'; readonly ref: string };
 
 /** 承認 / 差し戻し / 中止を書く先。ゲートは出ている判断（`decisionsFor`）から決まる */
 export interface ReviewTarget {

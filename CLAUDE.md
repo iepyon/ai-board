@@ -93,8 +93,9 @@ ai-board decide <approve|reject|abort|start|unstart|skip|move|move-divider> ... 
 - 計画レビュー / PR中 のカードのステージに触らない。PR中 のカードでは、人の指摘に応える `fix-pr` の手でだけ、Ready のまま修正を push するか理由を 1 件返信する（[ADR 0016](docs/adr/0016-pr-feedback-ai-turn.md)）。
 - 品質ゲートを通らないままコミットしない。
 
-`ai-board card` の CLI（`src/cards/cli/card-cli.ts`）はこれを構造で強制している。提出と保留は、種別を中で決めて書けるかを確かめる usecase（`submit-review` / `hold-review`）だけを通し、CLI の依存（`CardCliDependencies.cards`）には人の判断を足す `appendReviewCommand` を渡さない。**`ai-board card` に入口を足すときはこの境界を崩さない。**
-人の判断の入口は `ai-board decide`（`src/board/cli/decide-cli.ts`）に分けてあり、そちらは構造ではなく上の決まりで守る。
+`ai-board card` の CLI（`src/cards/cli/card-cli.ts`）はこれを構造で強制している。書き込みは、AI に許す操作だけを並べた書き込みの usecase（`CardCliDependencies.writes`、`src/cards/usecases/commands/card-write.commands.ts`）だけを通す。
+提出と保留は種別を中で決めて書けるかを確かめる usecase（`submit-review` / `hold-review`）を、ブランチは `branch` だけを書く usecase（`link-card-branch`）を通り、人の判断を足す `appendReviewCommand` や `startedAt` / `skipGates` を書ける `updateCardMetaCommand` は CLI の依存に渡らない。**`ai-board card` に入口を足すときはこの境界を崩さない。**
+人の判断の入口は `ai-board decide`（`src/board/cli/decide-cli.ts`、段取りは `src/board/usecases/commands/decide.command.ts`）に分けてあり、そちらは構造ではなく上の決まりで守る。
 
 ## 設計の不変条件
 

@@ -59,7 +59,7 @@ export type HoldGateNotRejected = {
  * データ用ブランチへの書き込みの 1 操作（`DataStore.transact`）が失敗した。
  *
  * push の失敗（`DataStorePushFailed`）、取り直しの失敗、ロック待ちの上限などを含む。
- * usecase 自身は返さず、CLI が usecase を `transact` の中で走らせたとき（`transactCardWrite`）に起きる。
+ * カードの usecase 自身は返さず、usecase を書き込みの 1 操作（`transactCardWrite`）の中で走らせたときに起きる。
  */
 export type CardStoreError = DataStoreError;
 
