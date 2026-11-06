@@ -1,0 +1,13 @@
+{
+  "loop": "709f62a1-1ba7-4484-bbc7-daab58743427",
+  "cardId": "send-back-wording",
+  "action": "implement",
+  "step": "review",
+  "agent": "board-reviewer",
+  "harness": "v4",
+  "startedAt": "2026-11-06T06:16:31.993Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
