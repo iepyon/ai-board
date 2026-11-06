@@ -255,3 +255,18 @@ Decisions の「`src/` 全体の記述」の方針で直す。コードは変え
 - [x] `src/shared/`（`dashboard-sections` / `card-reorder` / `stage-gates` / `stage-labels` / `pr-feedback` / `loop-step` / `loop-activity` / `schemas/common`）
 - [x] `src/shared/card-reorder.ts` から `moveTargetFor` / `applyMove` / `MoveTarget` を消し、`src/shared/__tests__/card-reorder.test.ts` のそれらのテストを消す。`dashboard-sections.ts` の `moveTargetFor` / `applyMove` に触れるコメントも直す
 - [x] 動作確認の手順の 2 つの `grep` で、残りが無いことを確かめる
+
+## AI レビュー
+
+- [ ] `src/cards/usecases/commands/update-card-body.command.ts:33` の `createUpdateCardBodyCommand` の docstring に「CLI と API のどちらから書いてもここを通るので、入口ごとに検査を持たない」が残り、今は無い API が書き手として居るように読める（Decisions の「`src/` 全体の記述」の方針と食い違う。探す語に `API` だけの形が無く、grep から漏れた）。「どの CLI から書いてもここを通るので」のように今の使い手に合わせて書き直す。コメントだけで、コードは変えない
+
+### 見送った指摘
+
+- `src/board/cli/status-cli.ts:48` の `status` の使い方の文に「サーバは要りません」が残る。誤りではなく、使い方の文を変えるのは計画の Non-Goals（CLI の出力の変更）に当たるので見送る
+- `src/board/cli/decide-cli.ts` の `decide()` は `transact` の `op` の中で `loadBoard` を呼ぶので、計画ファイル名の不正などで出る読み飛ばしの警告（`console.warn`、`src/board/repositories/plan.repository.ts:105` など）が、push が拒否されてやり直すたびに重ねて出る。docstring の「`op` は標準出力にも標準エラーにも書かない」とずれるが、出るのは同じ警告の繰り返しだけで、書く中身は変わらないので見送る
+- `src/board/cli/decide-cli.ts` の `StageMismatch` の文に使う操作の名前（`label`）を、`reportWrite` → `describeDecideError` → `describeRefusal` へ既定値 `''` の引数で渡している。今 `StageMismatch` が出るのは `runStartedAt` だけで、そこは `label` を渡しているので振る舞いは正しい。渡し方の好みなので見送る
+- `src/cards/usecases/commands/submit-review.command.ts` と `hold-review.command.ts` は、どちらも中で `createAppendReviewCommand(cardRepository)` を組み、`gateStates(parseReviewLog(card.body), card.skipGates)[gate]` を同じ形で書いている。中で組むのは計画の Decisions どおりで、重なりは振る舞いを変えない整理なので見送る
+
+### 人に判断してほしいこと
+
+- `src/board/services/next-action.ts:103` の `HOLD_REASONS.draftReverted` の止まりの理由は「下の判断のボタンで計画から立て直させるか中止してください」のままで、今は無い画面のボタンを人に案内する。この文は `status` の判断待ちに、人が何をすればよいか（`hold.reason`、`src/board/cli/status-cli.ts:356`）として出て、`board-decide` が人に伝える。直すなら「`ai-board decide reject` / `abort` で」のように書き換えるが、計画の Non-Goals の「CLI の出力の変更」に踏み込む（探す語に `ボタン` が無く、仮定の「掃除する記述はコメントとテスト名だけ」の洗い出しから漏れた）。この PR で文を直すか、別のカードにするかは人が決める
