@@ -1,0 +1,13 @@
+{
+  "loop": "730cd17e-bca5-4401-9dd6-781af802efa6",
+  "cardId": "cli-rules-to-usecases",
+  "action": "implement",
+  "step": "review",
+  "agent": "board-reviewer",
+  "harness": "v3",
+  "startedAt": "2026-11-06T03:27:48.901Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
