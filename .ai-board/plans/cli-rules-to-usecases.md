@@ -249,9 +249,9 @@ Decisions の「`src/` 全体の記述」の方針で直す。コードは変え
 
 記述は Decisions の「`src/` 全体の記述」の方針で直す。コードを変えるのは、画面のためだけに残ったコードを消すところだけにする。
 
-- [ ] `src/board/cli/`（`decide-cli.ts` の docstring・`DECIDE_USAGE`・コメント、`status-cli.ts`）と、そのテスト名（`decide-cli.test.ts` / `status-cli.test.ts`）
-- [ ] `src/board/models/`（`board-card.ts` / `plan-task.ts`）、`src/board/services/`（`stage-resolver.ts` / `next-action.ts`）、`src/board/usecases/queries/get-board.query.ts`
-- [ ] `src/board/composition.ts` と `src/board/repositories/`（`plan` / `branch-plan` / `mr-snapshot` / `file-mr-snapshot`）
-- [ ] `src/shared/`（`dashboard-sections` / `card-reorder` / `stage-gates` / `stage-labels` / `pr-feedback` / `loop-step` / `loop-activity` / `schemas/common`）
-- [ ] `src/shared/card-reorder.ts` から `moveTargetFor` / `applyMove` / `MoveTarget` を消し、`src/shared/__tests__/card-reorder.test.ts` のそれらのテストを消す。`dashboard-sections.ts` の `moveTargetFor` / `applyMove` に触れるコメントも直す
-- [ ] 動作確認の手順の 2 つの `grep` で、残りが無いことを確かめる
+- [x] `src/board/cli/`（`decide-cli.ts` の docstring・`DECIDE_USAGE`・コメント、`status-cli.ts`）と、そのテスト名（`decide-cli.test.ts` / `status-cli.test.ts`）
+- [x] `src/board/models/`（`board-card.ts` / `plan-task.ts`）、`src/board/services/`（`stage-resolver.ts` / `next-action.ts`）、`src/board/usecases/queries/get-board.query.ts`
+- [x] `src/board/composition.ts` と `src/board/repositories/`（`plan` / `branch-plan` / `mr-snapshot` / `file-mr-snapshot`）
+- [x] `src/shared/`（`dashboard-sections` / `card-reorder` / `stage-gates` / `stage-labels` / `pr-feedback` / `loop-step` / `loop-activity` / `schemas/common`）
+- [x] `src/shared/card-reorder.ts` から `moveTargetFor` / `applyMove` / `MoveTarget` を消し、`src/shared/__tests__/card-reorder.test.ts` のそれらのテストを消す。`dashboard-sections.ts` の `moveTargetFor` / `applyMove` に触れるコメントも直す
+- [x] 動作確認の手順の 2 つの `grep` で、残りが無いことを確かめる

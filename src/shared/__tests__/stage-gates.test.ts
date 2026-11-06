@@ -28,7 +28,7 @@ describe('withSkipGate', () => {
 // ============================================================
 
 describe('GATE_OF_STAGE', () => {
-  it('ボタンで判断を待つ列は計画レビューだけで、plan を待つ', () => {
+  it('人の判断を待つ列は計画レビューだけで、plan を待つ', () => {
     expect(GATE_OF_STAGE).toEqual({ 'plan-review': 'plan' });
   });
 });

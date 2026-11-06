@@ -8,7 +8,7 @@ import type { MrSnapshot } from '../models/mr-state.js';
 /**
  * ポーラーが引いた PR の状態を、プロセスをまたいで持つ。
  *
- * 書くのはポーラーだけ（サーバと `ai-board status`）。ステージの導出の入力ではなく、
+ * 書くのはポーラーだけ（`ai-board status` と `decide`）。ステージの導出の入力ではなく、
  * gh の問い合わせを省くための控えなので、消えても次の問い合わせで引き直すだけで済む。
  */
 export interface MrSnapshotRepository {

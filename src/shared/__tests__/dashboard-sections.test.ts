@@ -265,7 +265,7 @@ describe('mergedAt', () => {
 });
 
 // ============================================================
-// 判断のボタン
+// 出せる判断
 // ============================================================
 
 function decisionCard(overrides: Partial<DecisionCard> = {}): DecisionCard {
@@ -280,7 +280,7 @@ function decisionCard(overrides: Partial<DecisionCard> = {}): DecisionCard {
 
 const HOLD = { kind: 'decision' as const, reason: '止まっている', since: '2026-09-20T00:00:00Z' };
 
-/** ボタンを `gate kind ラベル` の文字列に縮める。並びも確かめる */
+/** 判断を `gate kind ラベル` の文字列に縮める。並びも確かめる */
 const buttons = (card: DecisionCard): string[] =>
   decisionsFor(card).map((decision) => `${decision.gate} ${decision.kind} ${decision.label}`);
 

@@ -53,7 +53,7 @@ type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 /**
  * `LoopCurrentAction`（今の手）と `NextActionKind`、`LoopImplStep` と `ImplStep` が食い違えば、ここで型エラーになる。
  * 過去の手（`LOOP_PAST_ACTIONS`）は記録を読むためだけにあり、次の一手とは突き合わせない。
- * `src/shared/` は web からも読むのでボードの型を import できず、値の一覧を 2 か所に持つための縛り
+ * `src/shared/` はコンテキストの型を import しない（画面を外す前に画面からも読んでいた名残で、置き場所は変えていない）ので、値の一覧を 2 か所に持つための縛り
  */
 export const LOOP_VOCABULARY_IN_SYNC: Same<LoopCurrentAction, NextActionKind> &
   Same<LoopImplStep, ImplStep> = true;

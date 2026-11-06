@@ -34,8 +34,8 @@ import { describeForge } from './status-describe.js';
 /**
  * 人の判断（承認 / 否決 / 中止、着手 / 着手を戻す、飛ばす宣言、並べ替え）を書く。
  *
- * 画面のボタンと同じ usecase を、サーバと同じ組み立て（`createTransactionalCardDependencies`）で呼ぶ。
- * 書く前にボードを導出し、画面で押せない判断（`decisionsFor` / `droppableStages` / アイデアの表に無いもの）は拒む。
+ * ボードの導出・検査・書き込みを、書き込みの 1 操作（`transactCardWrite`）の中で走らせる（`decide`）。
+ * 出せない判断（`decisionsFor` / `droppableStages` / アイデアの表に無いもの）は、検査（`decision-guards.ts`）で拒む。
  *
  * 誰が使ってよいかは構造では分けない。人と、人がこの会話で自分の言葉で頼んだ Claude（`board-decide` のスキル）が使い、
  * `board-reviewer` とループの周の中では使わない。この境界は手順書の決まりで守る（ADR 0007）。
@@ -44,7 +44,7 @@ import { describeForge } from './status-describe.js';
 export const DECIDE_USAGE = `使い方: ai-board decide <command> [--root <path>]
 
 人の判断を書く。人と、人がこの会話で自分の言葉で頼んだ Claude（board-decide）だけが使う。
-board-reviewer とループの周の中では使わない。画面で押せない判断は拒む。
+board-reviewer とループの周の中では使わない。出せない判断は拒む。
 
 Commands:
   approve <id> [--reason <text>]   plan を承認する
@@ -311,7 +311,7 @@ async function runSkip(
     if (!guarded.ok) return guarded;
     const card = guarded.value;
 
-    // 画面のチェックボックスと同じく、1 つのゲートだけを出し入れする
+    // 宣言はゲートごとに出し入れし、ほかのゲートの宣言は保つ
     const skipGates = withSkipGate(card.skipGates, gate, !remove);
 
     const written = await deps.cards.updateCardMetaCommand({ id, patch: { skipGates } });

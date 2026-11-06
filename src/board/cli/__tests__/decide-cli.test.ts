@@ -239,7 +239,7 @@ describe('ai-board decide', () => {
       expect(stderr).toContain('今の列: アイデア（中止済み）。出せる判断はありません');
     });
 
-    it('画面で押せない判断（判断を待っていないカードの承認）は、今の列を添えて拒む', async () => {
+    it('出せない判断（判断を待っていないカードの承認）は、今の列を添えて拒む', async () => {
       await writeCard('a', IDEA('2026-11-01T00:00:00.000Z'));
 
       expect(await run(['approve', 'a'])).toBe(1);

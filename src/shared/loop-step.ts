@@ -5,7 +5,7 @@
  * 本筋のセッションが手の始まりに `ai-board loop start`、終わりに `finish` を書き（`src/board/cli/loop-cli.ts`）、
  * データ用ブランチの `loop/` に置く。
  * ステージの導出にも次の一手にも使わない。ループの状態はカードの属性ではない。
- * 画面からも語を引くので、web からも読める `src/shared/` に置く。
+ * `status` の要約（`src/shared/loop-activity.ts`）からも語を引くので、`src/shared/` に置く。
  */
 
 /**
