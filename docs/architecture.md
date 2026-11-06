@@ -123,6 +123,21 @@ rebase しないのは、離れた行の編集を git が黙って混ぜ、検�
 読み出しはコマンドの頭で 1 回取り直し、fetch に失敗したら警告して手元の内容で読む（書き込みは失敗にする）。
 `origin` の無いデータのワークツリー（テスト用）では fetch と push を飛ばす。
 
+**手元モード。** `dataDir` の親の `data-mode.yaml`（既定の置き場所では `.ai-board/data-mode.yaml`。git に載せない）に `mode: local` と書くと、
+読み書きで `origin` に触れない（`resolvePaths` が `BoardPaths.dataMode` に読み、`createBoardDataStore` が `DataStore` の `mode` に渡す）。
+GitHub に届かない研修の環境向けで、ファイルが無い・`mode: sync` なら上の既定のモードで動く。読めない・形が違うときは警告して既定のモードにする。
+
+- 取り直しは fetch せずに手元の `HEAD` へ `reset --hard` → `clean`（`origin` の無いワークツリーと同じ道。結果は `{ kind: 'local' }`）
+- 書き込みはロック → 取り直し → 操作 → コミットで終え、push しない
+- データのワークツリーが無ければ、`ls-remote` も fetch もせず、手元の `ai-board/data`（無ければ最後に取った `origin/ai-board/data`）から作る
+- `ai-board init` は手元モードの対象外で、今どおり `origin` に問い合わせて push する
+
+**手元の commit の守り。** 既定のモードの取り直しは、fetch の後（失敗したときも最後に取った追跡ブランチに対して）、
+`origin/ai-board/data..HEAD` のコミットを数え、1 つ以上あれば `reset --hard` の前に `DataStoreLocalAhead` で止まる。
+手元モードで書いたものを、既定のモードに戻した最初のコマンドで黙って捨てないためである。上げる・捨てる・手元モードで続ける手順は止めたときの文に出る。
+push が拒否された後のやり直しの取り直しでは数えない（手元のコミットはその書き込み自身のもの）。
+追跡ブランチがまだ無いとき、`HEAD` にまだコミットが無いときも数えない。
+
 ## GitHub の PR の取得
 
 `config.yaml` に `github:` が無ければ PR中 / マージ済み の列が空になるだけでボードは動く。
