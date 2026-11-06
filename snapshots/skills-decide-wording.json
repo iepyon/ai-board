@@ -1,0 +1,19 @@
+{
+  "fingerprint": "[3,\"closed\",\"2026-11-06T07:06:24Z\",false,\"b02ace4d90d70ee3e5f61a8abc0a8d3b603f4398\",0,0,\"2026-11-06T07:06:24Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 92,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "skills-decide-wording",
+    "title": "手順書の「判断のボタン」を、今の判断の入口に合わせて書き直す",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/92",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestAiNoteAt": null,
+    "latestCommitAt": "2026-11-06T07:04:47Z",
+    "mergedAt": "2026-11-06T07:06:24Z",
+    "readyAt": "2026-11-06T07:04:53Z",
+    "convertedToDraftAt": null
+  }
+}
