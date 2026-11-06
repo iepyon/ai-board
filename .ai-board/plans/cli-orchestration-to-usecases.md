@@ -200,3 +200,15 @@ OLD="$S/base/dist/cli.js"; NEW="$WT/dist/cli.js"
 
 - [x] `CLAUDE.md` の書き込み境界の段落（`CardCliDependencies.cards` と `appendReviewCommand`）を、`CardCliDependencies.writes` の形に直す
 - [x] `docs/architecture.md` の、`card-cli.ts` の依存・`decide-cli.ts` の段取り・`status-cli.ts` の `next.step` と `pickFields` を書いた箇所を、usecase と query の名前に直す
+
+## AI レビュー
+
+### 見送った指摘
+
+- `src/cards/usecases/commands/transact-card-write.ts:32` の `transactCardWrite` は、`CardWriteRefusedError` 以外の例外を投げ直すので、上に組んだ usecase（`card-write.commands.ts` / `decide.command.ts`）から想定外の例外（fs の失敗など）が漏れうる。中身は `cards/composition.ts` からそのまま移しただけで（Decisions「中身は変えない」）、`update-card-meta.command.ts` などカードの usecase も `findById` / `save` の例外を Err に直していない。この PR で新しい経路は増えず、Err に直すと CLI の出力が変わり Non-Goals に踏み込むので見送る
+- `src/cards/usecases/commands/transact-card-write.ts:4` が、具体のリポジトリ（`repositories/file-card.repository.js`）の `CardWriteRefusedError` を import しており、usecase の層がファイルのリポジトリに依る。振る舞いに関わらない層の整理なので見送る
+- `src/cards/usecases/commands/link-card-branch.command.ts:25` の `createLinkCardBranchCommand` が、`createUpdateCardMetaCommand` の読み・書き・CardNotFound の流れを写している。`updateCardMetaCommand` を包んで済ませる直し方は、計画の退けた代案（紐付けを `updateCardMetaCommand` のまま使う）に当たるので見送る
+- `src/board/usecases/commands/decide.command.ts:6` が、依存の型 `CardDependencies` を `cards/composition.js` から型だけ import している。実行時の循環は無く、振る舞いに関わらない層の整理なので見送る
+- `src/board/cli/decide-cli.ts` の `reportWrite` に渡す「着手」「着手を戻す」の名前と、`decide.command.ts` の `label` が二か所に書かれている。今は一致しており、振る舞いを変えない重複なので見送る
+- `src/board/composition.ts` の `assembleBoard` が、`status` でも `decide` でも `getStatusQuery` と `decide` の両方を組む。組むだけで問い合わせは走らず、振る舞いを変えないので見送る
+- `src/cards/composition.ts` の `createCardCliParts` が、`createCardWriteCommands` にカードの依存を丸ごと（`appendReviewCommand` / `updateCardMetaCommand` を含めて）渡している。CLI の依存 `CardCliDependencies.writes` の型 `CardWriteCommands` には人の判断を書く口が無く、計画の Decisions（`CardWriteCommands` の型に入れない）は満たしているので見送る
