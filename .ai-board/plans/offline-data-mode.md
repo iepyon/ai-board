@@ -181,3 +181,17 @@ push が担っている「ほかの環境に渡す」と「同時に書いたと
 - [x] `docs/adr/0010-cards-on-data-branch.md` に、研修用の手元モードと守りを書き足す（決定・結果・退けた案）
 - [x] `docs/architecture.md` のデータ用ブランチの読み書きの節に、手元モードのファイル・取り直し・書き込み・守りを足す
 - [x] `README.md` に、研修でオンラインとオフラインを選ぶ方法（`.ai-board/data-mode.yaml` の書き方、既定のモードへ戻すときの手順）を足す
+
+## AI レビュー
+
+- [ ] `src/infrastructure/data-store.ts:310` の `attempt()` で push が通っても、`remote.origin.fetch` が `ai-board/data` を写さない clone（`--single-branch` や `--depth` の clone で、`+refs/heads/main:refs/remotes/origin/main` だけのもの）では `refs/remotes/origin/ai-board/data` が動かない（push で追跡のブランチが動くのは、fetch の refspec が写すときだけ。スクラッチの repo で push の後に `rev-list --count` が 1 になるのを確かめた）。次のコマンドで fetch に失敗すると、`guardLocalAhead()`（:464）が push 済みのコミットを「origin に無い」と数えて `DataStoreLocalAhead` で止まり、この PR の前は警告付きで読めていた既定のモードのオフラインの読み出しが失敗し、文も既に上がったコミットを上げるか捨てるよう促す。push が通ったら `git update-ref refs/remotes/origin/ai-board/data HEAD`（`DATA_REMOTE_REF`）で追跡のブランチを進め、`data-store.test.ts` に「fetch の refspec が ai-board/data を写さない clone で書いた後、fetch に失敗しても refresh が `offline` を返す」テストを足す
+
+### 見送った指摘
+
+- `src/infrastructure/data-store.ts:464` の守りは、`origin` の `ai-board/data` が force-push や `init` のやり直しで書き換えられたときも、ほかの clone の読み書きを止める（文の push の手順は non-fast-forward で拒まれ、reset の手順で抜ける）。`origin` に無いコミットがあれば既定のモードで止めることは、計画の「人に判断してほしいこと」で既定のまま承認された振る舞いで、Risks にも人が履歴を混ぜると書いてあるので見送る
+- `src/cli-main.ts:230` の `ai-board pr` は、取り直しが `DataStoreLocalAhead` で失敗しても「読み書きを止めました」と出した後に続けて動く。`pr` は取り直しの失敗で止めない作りで（`runPr` の docstring）、カードに書かず `config.yaml` を読むだけなので見送る
+- `src/shared/config.ts:101` の `resolvePaths` が呼ばれるたびに `data-mode.yaml` を読むので、形の違うファイルの警告が `status` / `decide` / `pr` では 2 回出る（`runStatus` と `loadConfig` の 2 か所）。動作確認の手順 6 の `card list` では 1 回で、振る舞いは変わらない見た目の重複なので見送る
+- `src/infrastructure/data-store.ts:390` の `addWorktreeLocally` は、`addWorktree` の手元のブランチの確かめ・`worktree prune`・`worktree add` を写している。振る舞いを変えない重複の整理なので見送る
+- `src/infrastructure/data-store.ts:431` の `sync()` の手元モードの分岐は、`origin` 無しの分岐と `kind` のほかは同じで、手元モードでも使わない `git remote` を走らせる。振る舞いを変えない整理なので見送る
+- `src/infrastructure/data-store.ts:464` の `guardLocalAhead` は、既定のモードの取り直しごとに git を 3 回足して走らせる（`rev-parse` 2 回と `rev-list --count`）。この PR の目的の外の効率の改善なので見送る
+- `src/infrastructure/data-store.ts:477` で `rev-list --count` の出力が数でないと `NaN > 0` が偽になり、守りを素通りする。`rev-list --count` は数だけを出し hook も走らないので起きる道が見当たらず、見送る
