@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-11-06T04:41:21Z\",false,\"2db0a1f8b599289ec58ed8598b5004b02b4ec38e\",0,0,\"2026-11-06T04:41:21Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 88,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "cli-rules-to-usecases",
+    "title": "ボードの拒否のルールを CLI の外の usecase と純関数へ出す",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/88",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-11-06T03:48:41Z",
+    "mergedAt": "2026-11-06T04:41:21Z",
+    "readyAt": "2026-11-06T03:42:20Z",
+    "convertedToDraftAt": null
+  }
+}
