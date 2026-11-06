@@ -4,7 +4,7 @@ title: AIエージェントは、手順書で、無い画面のボタンでは�
 created: '2026-11-06T04:21:21.166Z'
 skipGates: []
 branch: skills-decide-wording
-mr: null
+mr: 92
 ---
 
 ## 背景
