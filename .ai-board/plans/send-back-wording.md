@@ -141,3 +141,12 @@ export AI_BOARD_DATA="$S/data"
 - [x] `CLAUDE.md`・`README.md`・`REVIEW.md`・`docs/architecture.md` の「否決」を直す。「否決の差し戻しに専用ルールは無く」は「差し戻しに専用ルールは無く」にする
 - [x] `docs/adr/` の 9 本（0001・0002・0004・0005・0006・0007・0009・0012・0013）の「否決」を、今の形として直す
 - [x] `docs/specs/` の 6 本（`board-hold`・`board-stages`・`board-timeline`・`card-gate-skip`・`card-review-authority`・`card-review-log`）の「否決」を直す
+
+## AI レビュー
+
+### 見送った指摘
+
+- `src/cards/cli/card-cli.ts:510` の `ReviewEntriesChanged` の文言は、古い CLI の `card show` の出力（`### <時刻> plan 否決`）を `card body` に送って拒まれたとき、原因（見出しの種別が古い）を案内しない。拒まれるだけでデータは壊れず、`card show` を取り直せば通ることは計画レビューで人が承認した既定のとおりで、文言の改善はこの PR の目的の外なので見送る
+- `src/cards/services/review-log.ts:100` の `toPendingEntry` は、知らない種別の見出し（これからは `否決` も含む）を警告なしに読み飛ばす。読み飛ばしはこの PR の前からある、知らない種別すべてへの扱いで、古い CLI の出力に `否決` の見出しが出るカードには必ず今のエントリがあるので、並びの食い違いで拒まれる（計画の仮定どおり）。黙って通るのは、エントリの無いカードに手で `否決` の見出しを書いた場合だけで、`## レビュー` は保存されず `log/` も変わらないので記録は失われない。見送る
+- 「`否決` を別名として読まない」ことを固定するテスト（`parseReviewLog` が `plan 否決` の見出しを読まない、`card body` が古い見出しを拒む）が無い。この PR は振る舞いを足しておらず、種別の名前を差し替えたもので、差し替えた種別のテストは直してあるので見送る
+- マージしてから `$MAIN` で `npm run build` するまでの間、ループが使う `$MAIN/dist/cli.js` は `否決` を出し続け、v5 の手順書の言葉（`plan 差し戻し`）と食い違う。計画の Risks / Trade-offs に書いた一時的な食い違いで、手順書は `kind` の値で分岐しないので見送る
