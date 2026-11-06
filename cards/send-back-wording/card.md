@@ -3,7 +3,7 @@ id: send-back-wording
 title: ユーザは、計画を返す判断を「否決」ではなく「差し戻し」と呼びたい
 created: '2026-11-06T05:58:20.087Z'
 skipGates: []
-branch: null
+branch: send-back-wording
 mr: null
 ---
 
