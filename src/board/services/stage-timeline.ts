@@ -133,7 +133,7 @@ function transitionOf({ gate, kind }: ReviewEntry, skipGates: readonly ReviewGat
  * 区間の始まりに使う着手の時刻。
  *
  * 着手を書かずに進めたカードは `startedAt` が無い。最初のエントリより後の `startedAt` は
- * 通常の操作からは生まれない（DB を直接書き換えたか、古いデータを取り込んだとき）。
+ * 通常の操作からは生まれない（データ用ブランチを手で書き換えたか、古いデータを取り込んだとき）。
  * どちらも着手を無いものとして扱い、`idea` が最初の痕跡まで続く。
  */
 function effectiveStartedAt({ startedAt, entries }: TimelineTraces): string | null {

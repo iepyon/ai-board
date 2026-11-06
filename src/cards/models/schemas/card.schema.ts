@@ -9,7 +9,7 @@ const ReviewGateSchema = z.enum(REVIEW_GATES);
  *
  * 廃止したゲートの `## レビュー` のエントリは規定外として黙って無視する（`review.ts`）。
  * `skipGates` は Zod で検証するので、落とさないとマージ済みのカードまで読めなくなる。
- * 落とすのは廃止したものだけにし、書き損じは今までどおり検証で落とす。書く入口（`PATCH`）は受け付けない。
+ * 落とすのは廃止したものだけにし、書き損じは今までどおり検証で落とす。書くのは `ai-board decide skip` だけで、`plan` しか受け付けない。
  */
 const StoredSkipGatesSchema = z.preprocess(
   (value) =>

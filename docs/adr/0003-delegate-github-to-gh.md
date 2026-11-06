@@ -21,8 +21,7 @@ GitHub の PR を取得先に足すとき、それまでの GitLab 連携は Per
 - 利用者は資格情報を ai-board に渡さなくてよい。代わりに `gh` のインストールとログインが前提になった。
 - `branch` にシェルの特殊文字を入れてもコマンドにならない。git の操作（計画の `git show`・データ用ブランチ）も cli-runner を通る。
 - 問い合わせは 1 回約 0.4 秒遅くなる。
-- クラウドでは `gh auth status` と GraphQL が使えないので、接続の確かめは `gh api repos/...` に、`gh pr` は REST の `ai-board pr` に置き換えた（[10](0010-cards-on-data-branch.md)）。
-- ブラウザを開く処理（`open-browser.ts`）も、cli-runner の切り離して起動する入口（`spawnDetached`）を通る。例外は無い。
+- クラウドでは `gh auth status` と GraphQL が使えないので、接続の確かめは `gh api repos/...` に、`gh pr` は REST の `ai-board pr` に置き換えた（`pr ready` だけは REST で Draft を外せないので `gh pr ready` を先に試す）（[10](0010-cards-on-data-branch.md)）。
 
 ## 退けた案
 

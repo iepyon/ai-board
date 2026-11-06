@@ -40,15 +40,10 @@ GitHub の PR）から毎回導出しなければならない (MUST)。
 - **WHEN** 2 つのステージの進行度を比べる
 - **THEN** 上の並びで後ろにあるほうが進んでいると判定される
 
-#### Scenario: 探索の列は存在しない
+#### Scenario: 廃止した列は存在しない
 
 - **WHEN** ボードが返すステージの一覧を見る
-- **THEN** `exploring` と `explore-review` はどこにも現れない
-
-#### Scenario: 動作確認の列は存在しない
-
-- **WHEN** ボードが返すステージの一覧を見る
-- **THEN** `verifying` はどこにも現れない
+- **THEN** `exploring` / `explore-review` / `verifying` はどこにも現れない
 
 ### Requirement: 最も進んだステージが勝つ
 
@@ -104,11 +99,6 @@ plan ゲートのレビュー記録が 1 件も無い場合も `plan-review` を
 - **WHEN** 計画ファイルは見えないが、カードに open で Draft の PR が紐付き、plan ゲートの記録が提出である
 - **THEN** ステージは `plan-review` になる
 
-#### Scenario: 計画が差し戻された
-
-- **WHEN** 計画ファイルが存在し、plan ゲートの最新の記録が差し戻しである
-- **THEN** ステージは `planning` に戻る
-
 #### Scenario: AI が差し戻された計画を直しきれずに止まった
 
 - **WHEN** 計画ファイルが存在し、plan ゲートの最新の記録が保留である
@@ -146,18 +136,7 @@ AI レビューの指摘のうち直すものは、計画の末尾の `## AI レ
 
 ### Requirement: 廃止した verify ゲートの記録はステージに効かない
 
-システムは カードに残る廃止した verify ゲートの記録（提出・差し戻し・承認・保留）と、`skipGates` に残る `verify` を、
-ステージの導出に使っては SHALL NOT。記録は消さずに残す。
-
-#### Scenario: verify の提出が残っている
-
-- **WHEN** 計画が承認済みで、verify ゲートの提出の記録が残っており、PR は Draft である
-- **THEN** ステージは `impling` になる
-
-#### Scenario: verify の承認が残っていて PR が Ready になった
-
-- **WHEN** 計画が承認済みで、verify ゲートの承認の記録が残っており、PR が open で Draft でない
-- **THEN** ステージは `pr` になる
+システムは カードに残る廃止した verify ゲートの記録と、`skipGates` に残る `verify` を、ステージの導出に使っては SHALL NOT（card-review-log）。
 
 ### Requirement: PR 中とマージ済みは PR と archive で決まる
 

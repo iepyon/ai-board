@@ -30,4 +30,4 @@
 - **判断したカードのときだけ続ける** — rank が上の AI の番のカードがあると、両方のカードが頼み直すまで止まる。
 - **差し戻しも確かめずに続ける** — 追記専用の `## レビュー` の理由を言い直したいときに、ループが先に走ってしまう。
 
-根拠: `.ai-board/plans/loop-resume-after-decide.md`、カード `loop-resume-after-decide` の `## 探索メモ`
+根拠: `.ai-board/plans/archive/loop-resume-after-decide.md`、カード `loop-resume-after-decide` の `## 探索メモ`

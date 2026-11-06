@@ -14,7 +14,7 @@ export function describeDataStoreError(error: DataStoreError): string {
     case 'DataBranchMissing':
       return (
         `データ用ブランチ（origin の ai-board/data）がありません（${error.dataDir}）。` +
-        'ai-board init を走らせてください。移行前の board.db があるなら、README の「board.db からの切り替え」を見てください'
+        'ai-board init を走らせてください。移行前の board.db があるなら、README の「始め方と board.db からの切り替え」を見てください'
       );
     case 'DataDirNotRepository':
       return `${error.dataDir} は git のワークツリーではありません。中身を確かめ、要らなければ消してからやり直してください`;
