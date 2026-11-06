@@ -1,0 +1,13 @@
+{
+  "loop": "63426c8c-8164-55a7-a3b9-6c74d653fe34",
+  "cardId": "forge-unset-decide",
+  "action": "plan",
+  "step": null,
+  "agent": null,
+  "harness": "v5",
+  "startedAt": "2026-11-06T21:39:48.251Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
