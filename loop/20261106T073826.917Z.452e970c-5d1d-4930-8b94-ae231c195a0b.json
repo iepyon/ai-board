@@ -1,0 +1,13 @@
+{
+  "loop": "452e970c-5d1d-4930-8b94-ae231c195a0b",
+  "cardId": "cli-orchestration-to-usecases",
+  "action": "implement",
+  "step": "review",
+  "agent": "board-reviewer",
+  "harness": "v5",
+  "startedAt": "2026-11-06T07:38:26.917Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
