@@ -7,7 +7,7 @@ import { runCardCli, type CardCliIo } from './cards/cli/card-cli.js';
 import type { SeedFile } from './cards/cli/seed-cards.js';
 import { runInitCli } from './cards/cli/init-cli.js';
 import { describeDataStoreError, describeOfflineRead } from './cards/cli/data-store-messages.js';
-import { assembleBoard, createBranchPlanRepository } from './board/composition.js';
+import { assembleBoard } from './board/composition.js';
 import { parseStatusArgs, runStatusCli, STATUS_USAGE } from './board/cli/status-cli.js';
 import { isPrCommand, runPrCli } from './board/cli/pr-cli.js';
 import { runLoopCli } from './board/cli/loop-cli.js';
@@ -127,15 +127,7 @@ async function runStatus(argv: readonly string[]): Promise<number> {
 
   const board = await assembleBoard(root, store, runner);
 
-  return runStatusCli(
-    rest,
-    {
-      ...board,
-      // implement の段（next.step）を、カードのブランチの計画から読む。git fetch はしない
-      branchPlanRepository: createBranchPlanRepository(runner, paths.root),
-    },
-    io
-  );
+  return runStatusCli(rest, { getStatusQuery: board.getStatusQuery }, io);
 }
 
 /**

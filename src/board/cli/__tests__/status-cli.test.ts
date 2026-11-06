@@ -14,7 +14,9 @@ import type { MergeRequestIid } from '../../../shared/schemas/common.js';
 import { HOLD_REASONS } from '../../services/next-action.js';
 import type { BranchPlanRepository } from '../../repositories/branch-plan.repository.js';
 import type { ImplStepPlan } from '../../services/impl-step.js';
-import { parseStatusArgs, pickFields, runStatusCli, type StatusReport } from '../status-cli.js';
+import { parseStatusArgs, pickFields, runStatusCli } from '../status-cli.js';
+import type { StatusReport } from '../../models/status-report.js';
+import { createGetStatusQuery } from '../../usecases/queries/get-status.query.js';
 
 // ============================================================
 // テスト用プロジェクトの組み立て
@@ -103,10 +105,7 @@ async function run(
 
   return runStatusCli(
     argv,
-    {
-      ...board,
-      ...(branchPlanRepository ? { branchPlanRepository } : {}),
-    },
+    { getStatusQuery: createGetStatusQuery(board.getBoardQuery, branchPlanRepository) },
     {
       stdout: (text) => {
         stdout += text;

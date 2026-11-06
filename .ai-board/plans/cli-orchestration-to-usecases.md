@@ -176,10 +176,10 @@ OLD="$S/base/dist/cli.js"; NEW="$WT/dist/cli.js"
 
 ### 2. `status` の見せる形を query にする
 
-- [ ] `StatusReport` / `WaitingCard` / `WorkingCard` / `StatusCard` / `IdeaListRow` を `src/board/models/status-report.ts` へ移す
-- [ ] `buildStatusReport` と `withImplStep` を、`src/board/usecases/queries/get-status.query.ts` の `createGetStatusQuery` にする。`status-cli.ts` の依存を `{ getStatusQuery }` にし、整形だけを残す
-- [ ] `assembleBoard` が `getStatusQuery`（カードのブランチの計画の読み手を含む）を返すようにし、`cli-main.ts` の `runStatus` を直す
-- [ ] `status-cli.test.ts` の依存の組み方と `StatusReport` の import を直す（期待値は変えない）。`src/board/usecases/__tests__/get-status.query.test.ts` に、`next.step` を埋める場合と埋めない場合のテストを足す
+- [x] `StatusReport` / `WaitingCard` / `WorkingCard` / `StatusCard` / `IdeaListRow` を `src/board/models/status-report.ts` へ移す
+- [x] `buildStatusReport` と `withImplStep` を、`src/board/usecases/queries/get-status.query.ts` の `createGetStatusQuery` にする。`status-cli.ts` の依存を `{ getStatusQuery }` にし、整形だけを残す
+- [x] `assembleBoard` が `getStatusQuery`（カードのブランチの計画の読み手を含む）を返すようにし、`cli-main.ts` の `runStatus` を直す
+- [x] `status-cli.test.ts` の依存の組み方と `StatusReport` の import を直す（期待値は変えない）。`src/board/usecases/__tests__/get-status.query.test.ts` に、`next.step` を埋める場合と埋めない場合のテストを足す
 
 ### 3. `decide` の段取りを usecase にする
 

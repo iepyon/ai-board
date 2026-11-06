@@ -20,6 +20,7 @@ import {
   type MrStateProvider,
 } from './services/mr-state-provider.js';
 import { createGetBoardQuery, type GetBoardQuery } from './usecases/queries/get-board.query.js';
+import { createGetStatusQuery, type GetStatusQuery } from './usecases/queries/get-status.query.js';
 import {
   createFileLoopHistoryRepository,
   type LoopHistoryRepository,
@@ -116,6 +117,12 @@ export async function createMrStateSource(
   return { provider: poller, poller };
 }
 
+/** `status` と `decide` が使う、組み立て済みのボード */
+export interface AssembledBoard extends BoardDependencies {
+  /** ボードの見せる形。`next.step` を、カードのブランチの計画から読む（`git fetch` はしない） */
+  readonly getStatusQuery: GetStatusQuery;
+}
+
 /**
  * `status` と `decide` が使うボードの組み立て。データ用ブランチは呼び出し側が取り直しておく。
  *
@@ -126,7 +133,7 @@ export async function assembleBoard(
   root: string,
   store: DataStore,
   runner: CliRunner
-): Promise<BoardDependencies> {
+): Promise<AssembledBoard> {
   const config = loadConfig(root);
   const cards = createFileCardDependencies(store.dataDir);
   const { provider, poller } = await createMrStateSource(
@@ -139,11 +146,19 @@ export async function assembleBoard(
   );
   await poller?.refresh();
 
-  return createBoardDependencies(
+  const board = createBoardDependencies(
     config.paths.plansDir,
     cards.cardRepository,
     cards.ideaDividerRepository,
     provider,
     createLoopHistoryRepository(store.dataDir)
   );
+
+  return {
+    ...board,
+    getStatusQuery: createGetStatusQuery(
+      board.getBoardQuery,
+      createBranchPlanRepository(runner, config.paths.root)
+    ),
+  };
 }
