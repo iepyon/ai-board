@@ -1,0 +1,13 @@
+{
+  "loop": "452e970c-5d1d-4930-8b94-ae231c195a0b",
+  "cardId": "skills-decide-wording",
+  "action": "implement",
+  "step": "close",
+  "agent": null,
+  "harness": "v5",
+  "startedAt": "2026-11-06T07:00:49.272Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
