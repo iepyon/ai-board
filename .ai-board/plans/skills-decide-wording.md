@@ -87,3 +87,7 @@ v2（`.claude/HARNESS_VERSIONS.md`）で画面のボタンの記述を消した�
 
 - [x] `.claude/skills/board-loop/SKILL.md` の 2 か所（止まりの説明の 41 行目、手順 4 の `止まった` カードの伝え方の 155 行目）を直す
 - [x] `.claude/skills/board-loop/rules.md` の「直しきれないとき — 保留を書いて止まる」の節の 2 か所（119 行目と 122 行目）を直す
+
+## AI レビュー
+
+指摘なし
