@@ -1,0 +1,13 @@
+{
+  "loop": "730cd17e-bca5-4401-9dd6-781af802efa6",
+  "cardId": "plan-scope-decisions",
+  "action": "implement",
+  "step": "close",
+  "agent": null,
+  "harness": "v3",
+  "startedAt": "2026-11-06T05:04:28.457Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
