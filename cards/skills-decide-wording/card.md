@@ -3,7 +3,7 @@ id: skills-decide-wording
 title: AIエージェントは、手順書で、無い画面のボタンではなく今の判断の入口を人に案内したい
 created: '2026-11-06T04:21:21.166Z'
 skipGates: []
-branch: null
+branch: skills-decide-wording
 mr: null
 ---
 
