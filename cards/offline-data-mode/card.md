@@ -3,7 +3,7 @@ id: offline-data-mode
 title: ユーザは、GitHub に届かない研修の環境でも、カードと判断を手元の commit だけで書き込みたい
 created: '2026-11-06T09:36:42.982Z'
 skipGates: []
-branch: null
+branch: claude/idea-confirmation-7sfhok
 mr: null
 ---
 
