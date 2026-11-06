@@ -1,0 +1,19 @@
+{
+  "fingerprint": "[3,\"closed\",\"2026-11-06T20:57:37Z\",false,\"b3c6ddc848d16d191c0a9d6544904bb3f9596d34\",0,4,\"2026-11-06T20:57:38Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 95,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "claude/idea-confirmation-7sfhok",
+    "title": "研修でオンラインとオフライン（手元の commit だけで読み書きする手元モード）を選べるようにする",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/95",
+    "latestNoteAt": "2026-11-06T20:56:36Z",
+    "noteCount": 4,
+    "latestAiNoteAt": null,
+    "latestCommitAt": "2026-11-06T20:54:16Z",
+    "mergedAt": "2026-11-06T20:57:37Z",
+    "readyAt": "2026-11-06T20:37:25Z",
+    "convertedToDraftAt": null
+  }
+}
