@@ -3,9 +3,13 @@
 ## 人に判断してほしいこと
 
 - `ai-board init`（空のデータ用ブランチを作る）を、手元モードの対象に入れるか。既定: 入れない。`init` は今どおり `origin` に問い合わせて push する。オフラインで研修するときは、GitHub に届くうちに fork と clone を済ませておく前提にする
+  - → 回答（2026-11-06、plan 承認）: 理由なしで承認（既定のまま進む）
 - 既定のモードで、`origin` より先の commit が手元にあるときに読み書きを止める守りは、手元モードを使っていなくても効く。書き込みの commit の後、push の前にプロセスが落ちたときなどに残った commit も、今は次の取り直しで黙って捨てているが、この変更の後は止めて知らせる。この振る舞いの変化を入れてよいか。既定: 入れる（手元モードの commit と見分ける印を持たないため。止めたときの文に、捨てる手順も書く）
+  - → 回答（2026-11-06、plan 承認）: 理由なしで承認（既定のまま進む）
 - `status` などの出力に、手元モードで動いていることを出すか。既定: 出さない（読み書きの振る舞いだけを変える。出すなら別のカードにする）
+  - → 回答（2026-11-06、plan 承認）: 理由なしで承認（既定のまま進む）
 - モードのファイルを書く CLI（`ai-board data-mode local|sync` など）を足すか。既定: 足さない（人がファイルを 1 行書く。手順は README と止めたときの文に書く）
+  - → 回答（2026-11-06、plan 承認）: 理由なしで承認（既定のまま進む）
 
 既定と違う答えは、plan 承認の理由ではなく plan 差し戻しの理由で返してください。plan 承認は、回答の無い項目をすべて既定のまま進めると読みます。
 
@@ -159,11 +163,11 @@ push が担っている「ほかの環境に渡す」と「同時に書いたと
 
 ### 1. データストアの手元モードと守り
 
-- [ ] `DataStoreOptions` に `mode`、`RefreshOutcome` に `{ kind: 'local' }` を足し、`sync` を手元モード → `origin` 無し → 既定のモードの順に分ける。`syncForWrite` は `local` を土台 `null` にする
-- [ ] 手元モードの `addWorktree` を、`origin` に問い合わせず手元のデータ用ブランチ、無ければ `origin/ai-board/data` の追跡ブランチから作る形にする
-- [ ] 既定のモードの取り直しに守りを足す。`DataStoreError` に `DataStoreLocalAhead` を足し、push が拒否された後の取り直しでは数えない
-- [ ] `describeDataStoreError` に `DataStoreLocalAhead` を足す
-- [ ] `data-store.test.ts` にテストを足す: 手元モードの書き込みが push せず commit だけする / 手元モードで書いたものが次の `refresh` で消えない / `origin` に届かなくても手元モードで書ける / 手元モードで `origin` に触れずにワークツリーを作る / 既定のモードで先の commit があれば `refresh` と `transact` が `DataStoreLocalAhead` で止まり commit を残す / 拒否の後のやり直しは守りで止まらない（既存の 2 つの clone のテストが通ること）
+- [x] `DataStoreOptions` に `mode`、`RefreshOutcome` に `{ kind: 'local' }` を足し、`sync` を手元モード → `origin` 無し → 既定のモードの順に分ける。`syncForWrite` は `local` を土台 `null` にする
+- [x] 手元モードの `addWorktree` を、`origin` に問い合わせず手元のデータ用ブランチ、無ければ `origin/ai-board/data` の追跡ブランチから作る形にする
+- [x] 既定のモードの取り直しに守りを足す。`DataStoreError` に `DataStoreLocalAhead` を足し、push が拒否された後の取り直しでは数えない
+- [x] `describeDataStoreError` に `DataStoreLocalAhead` を足す
+- [x] `data-store.test.ts` にテストを足す: 手元モードの書き込みが push せず commit だけする / 手元モードで書いたものが次の `refresh` で消えない / `origin` に届かなくても手元モードで書ける / 手元モードで `origin` に触れずにワークツリーを作る / 既定のモードで先の commit があれば `refresh` と `transact` が `DataStoreLocalAhead` で止まり commit を残す / 拒否の後のやり直しは守りで止まらない（既存の 2 つの clone のテストが通ること）
 
 ### 2. ファイルから手元モードを選ぶ
 

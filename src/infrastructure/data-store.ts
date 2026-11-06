@@ -66,6 +66,14 @@ function runGit(
   return runner.run('git', ['-C', dir, ...DATA_GIT_CONFIG, ...args]);
 }
 
+/**
+ * データ用ブランチの読み書きのモード。
+ *
+ * - `sync`（既定）: 読み書きのたびに `origin` から取り直し、書いたら push する
+ * - `local`: `origin` に触れず、手元のコミットだけで読み書きする（GitHub に届かない研修の環境向け）
+ */
+export type DataMode = 'sync' | 'local';
+
 /** 手元の複数のプロセスの書き込みを直列にするロックファイル。データのワークツリーの親に置く */
 export const LOCK_FILE = 'data.lock';
 
@@ -106,6 +114,11 @@ export type DataStoreError =
   /** fetch / push 以外の git の操作に失敗した */
   | { readonly type: 'DataStoreGitFailed'; readonly step: string; readonly message: string }
   /**
+   * 既定のモードで、`origin` のデータ用ブランチに無いコミットが手元の `HEAD` にある（手元モードで書いたものなど）。
+   * 取り直しの `reset --hard` で黙って消さないよう、読み書きの前に止まる
+   */
+  | { readonly type: 'DataStoreLocalAhead'; readonly dataDir: string; readonly count: number }
+  /**
    * 取り直した `ai-board-data.yaml` の版が、この CLI より新しい（`UnsupportedDataVersion`）か読めない（`MalformedDataVersion`）。
    * 古い CLI が新しい形を今の形として読み書きしないよう、中身を読まずに止まる
    */
@@ -117,6 +130,8 @@ export type RefreshOutcome =
   | { readonly kind: 'fetched' }
   /** `origin` が無い（テスト用など）。手元のコミットに合わせた */
   | { readonly kind: 'no-origin' }
+  /** 手元モード。`origin` に触れず、手元のコミットに合わせた */
+  | { readonly kind: 'local' }
   /** fetch に失敗した。手元の内容のまま読む。書き込みは push できないので失敗する */
   | { readonly kind: 'offline'; readonly reason: string };
 
@@ -165,6 +180,8 @@ export interface DataStoreOptions {
   /** データのワークツリーが無いとき、`git worktree add` するリポジトリ。無ければ作らずに失敗する */
   readonly repoRoot?: string;
   readonly runner: CliRunner;
+  /** 読み書きのモード。既定は `sync` */
+  readonly mode?: DataMode;
   /** 既定は `<dataDir の親>/data.lock` */
   readonly lockPath?: string;
   readonly lockTimeoutMs?: number;
@@ -198,6 +215,7 @@ class GitDataStore implements DataStore {
   readonly dataDir: string;
   private readonly repoRoot: string | null;
   private readonly runner: CliRunner;
+  private readonly mode: DataMode;
   private readonly lockPath: string;
   private readonly lockOptions: LockOptions;
   private readonly maxRetries: number;
@@ -214,6 +232,7 @@ class GitDataStore implements DataStore {
     this.dataDir = path.resolve(options.dataDir);
     this.repoRoot = options.repoRoot === undefined ? null : path.resolve(options.repoRoot);
     this.runner = options.runner;
+    this.mode = options.mode ?? 'sync';
     this.lockPath = options.lockPath ?? path.join(path.dirname(this.dataDir), LOCK_FILE);
     this.lockOptions = {
       timeoutMs: options.lockTimeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS,
@@ -238,7 +257,7 @@ class GitDataStore implements DataStore {
     const prepared = await this.prepare();
     if (isErr(prepared)) return prepared;
 
-    return this.withLock(() => this.sync());
+    return this.withLock(() => this.sync({ guardLocalAhead: true }));
   }
 
   async transact<T, E>(
@@ -305,11 +324,12 @@ class GitDataStore implements DataStore {
     attempt: number,
     rejected: Rejected | null
   ): Promise<Result<string | null, DataStoreError>> {
-    const synced = await this.sync();
+    // 拒否の後の取り直しで手元にあるコミットは、この書き込み自身が作って拒否されたもの。捨ててやり直す
+    const synced = await this.sync({ guardLocalAhead: rejected === null });
     if (isErr(synced)) return synced;
 
     const outcome = synced.value;
-    if (outcome.kind === 'no-origin') return ok(null);
+    if (outcome.kind === 'no-origin' || outcome.kind === 'local') return ok(null);
     if (outcome.kind === 'offline') {
       // push の失敗の後に fetch もできない＝拒否ではなくネットワークの失敗
       return err(
@@ -332,6 +352,9 @@ class GitDataStore implements DataStore {
     const dataDir = this.dataDir;
     const inRepo = (args: readonly string[]): Promise<Result<string, CliError>> =>
       runGit(this.runner, repoRoot, args);
+
+    // 手元モードでは origin に問い合わせない
+    if (this.mode === 'local') return this.addWorktreeLocally(repoRoot);
 
     const remotes = await inRepo(['remote']);
     if (isErr(remotes)) return err(gitFailed('remote', remotes.error));
@@ -363,18 +386,56 @@ class GitDataStore implements DataStore {
   }
 
   /**
+   * 手元モードで、`origin` に問い合わせずにデータのワークツリーを作る。
+   *
+   * 手元のデータ用ブランチがあればそれを、無ければ最後に取った `origin/ai-board/data` から作る。
+   */
+  private async addWorktreeLocally(repoRoot: string): Promise<Result<void, DataStoreError>> {
+    const dataDir = this.dataDir;
+    const inRepo = (args: readonly string[]): Promise<Result<string, CliError>> =>
+      runGit(this.runner, repoRoot, args);
+
+    const local = await inRepo(['rev-parse', '--verify', '--quiet', `refs/heads/${DATA_BRANCH}`]);
+    if (isErr(local)) {
+      const tracked = await inRepo(['rev-parse', '--verify', '--quiet', DATA_REMOTE_REF]);
+      if (isErr(tracked)) return err({ type: 'DataBranchMissing', dataDir });
+    }
+
+    const pruned = await inRepo(['worktree', 'prune']);
+    if (isErr(pruned)) return err(gitFailed('worktree prune', pruned.error));
+
+    const args = isErr(local)
+      ? ['worktree', 'add', '--quiet', '-b', DATA_BRANCH, dataDir, DATA_REMOTE_REF]
+      : ['worktree', 'add', '--quiet', dataDir, DATA_BRANCH];
+    const added = await inRepo(args);
+    return isErr(added) ? err(gitFailed('worktree add', added.error)) : ok(undefined);
+  }
+
+  /**
    * fetch して `origin` の最新に合わせる。fetch に失敗したら、最後に知っている `origin` の内容に合わせる。
+   * 手元モードと `origin` の無いワークツリーでは、fetch せずに手元の `HEAD` に合わせる。
+   *
+   * 既定のモードでは、合わせる前に `origin` に無いコミットが手元にあるかを数え、あれば止まる（`guardLocalAhead`）。
+   * 手元モードで書いたコミットを、既定のモードに戻した最初の取り直しで黙って捨てないためである。
    *
    * 合わせた後に形の版を確かめる。`refresh` と `transact`（`op` の前）はどちらもここを通るので、
    * この CLI より新しい版のデータは、読み出しでも書き込みでも中身に触れる前に止まる。
    */
-  private async sync(): Promise<Result<RefreshOutcome, DataStoreError>> {
+  private async sync(options: {
+    readonly guardLocalAhead: boolean;
+  }): Promise<Result<RefreshOutcome, DataStoreError>> {
     const remotes = await this.gitStep('remote', ['remote']);
     if (isErr(remotes)) return remotes;
 
     // reset と clean はブランチを動かし、追跡していないファイルを消す。データ用ブランチの上でしか走らせない
     const onDataBranch = await this.ensureDataBranchHead();
     if (isErr(onDataBranch)) return onDataBranch;
+
+    if (this.mode === 'local') {
+      const discarded = await this.discardTo('HEAD');
+      if (isErr(discarded)) return discarded;
+      return this.checkVersion({ kind: 'local' });
+    }
 
     if (!includesOrigin(remotes.value)) {
       const discarded = await this.discardTo('HEAD');
@@ -383,7 +444,10 @@ class GitDataStore implements DataStore {
     }
 
     const fetched = await this.git(['fetch', '--quiet', 'origin', DATA_FETCH_REFSPEC]);
-    // 押し出せなかったコミットが残っていても、取り直しの後は origin の内容で読む
+    if (options.guardLocalAhead) {
+      const guarded = await this.guardLocalAhead();
+      if (isErr(guarded)) return guarded;
+    }
     const discarded = await this.discardTo(DATA_REMOTE_REF);
     if (isErr(discarded)) return discarded;
 
@@ -392,6 +456,31 @@ class GitDataStore implements DataStore {
         ? { kind: 'offline', reason: describeCliError(fetched.error) }
         : { kind: 'fetched' }
     );
+  }
+
+  /**
+   * `origin` のデータ用ブランチに無いコミットが手元の `HEAD` にあれば、`DataStoreLocalAhead` で止まる。
+   *
+   * 追跡のブランチがまだ無ければ比べる先が無いので数えない（続く `reset --hard` が今どおり失敗する）。
+   * まだコミットの無いブランチ（データ用ブランチしか無い `origin` の clone）も、先のコミットが無いので数えない。
+   */
+  private async guardLocalAhead(): Promise<Result<void, DataStoreError>> {
+    const tracked = await this.git(['rev-parse', '--verify', '--quiet', DATA_REMOTE_REF]);
+    if (isErr(tracked)) return ok(undefined);
+    const born = await this.git(['rev-parse', '--verify', '--quiet', 'HEAD']);
+    if (isErr(born)) return ok(undefined);
+
+    const counted = await this.gitStep('rev-list', [
+      'rev-list',
+      '--count',
+      `${DATA_REMOTE_REF}..HEAD`,
+    ]);
+    if (isErr(counted)) return counted;
+
+    const count = Number.parseInt(counted.value.trim(), 10);
+    return count > 0
+      ? err({ type: 'DataStoreLocalAhead', dataDir: this.dataDir, count })
+      : ok(undefined);
   }
 
   /**

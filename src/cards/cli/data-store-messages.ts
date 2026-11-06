@@ -1,3 +1,4 @@
+import * as path from 'node:path';
 import type { DataStoreError } from '../../infrastructure/data-store.js';
 
 // ============================================================
@@ -29,6 +30,16 @@ export function describeDataStoreError(error: DataStoreError): string {
       return `データ用ブランチを取り直せないため、書き込めません（${error.message}）`;
     case 'DataStorePushFailed':
       return `データ用ブランチへ push できませんでした（${error.attempts} 回試しました: ${error.message}）`;
+    case 'DataStoreLocalAhead': {
+      const dataDir = error.dataDir;
+      const modeFile = path.join(path.dirname(dataDir), 'data-mode.yaml');
+      return (
+        `データのワークツリー（${dataDir}）に、origin の ai-board/data に無い commit が ${error.count} 件あるため、読み書きを止めました。` +
+        `手元モードで書いたものなら、上げるには git -C ${dataDir} push origin HEAD:ai-board/data、` +
+        `捨てるには git -C ${dataDir} reset --hard origin/ai-board/data を人が走らせてください。` +
+        `手元モードで続けるなら ${modeFile} に mode: local と書いてください`
+      );
+    }
     case 'DataStoreGitFailed':
       return `データ用ブランチの git ${error.step} に失敗しました（${error.message}）`;
     case 'UnsupportedDataVersion':

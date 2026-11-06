@@ -809,3 +809,157 @@ describe('git の呼び出し', () => {
     );
   });
 });
+
+describe('手元モード', () => {
+  it('書き込みは push せずにコミットだけする', async () => {
+    const a = cloneData(path.join(tmp, 'a'));
+
+    const result = await store(a, { mode: 'local' }).transact('data: x を足す', async (dir) => {
+      write(dir, 'cards/x/card.md', 'x\n');
+      return ok(undefined);
+    });
+
+    expect(result).toEqual(ok(undefined));
+    expect(git(a, 'log', '--format=%s').split('\n')).toEqual(['data: x を足す', 'data: 始める']);
+    expect(originLog()).toEqual(['data: 始める']);
+  });
+
+  it('書いたものは次の refresh と transact で消えない', async () => {
+    const a = cloneData(path.join(tmp, 'a'));
+    const local = store(a, { mode: 'local' });
+    await local.transact('data: x を足す', async (dir) => {
+      write(dir, 'cards/x/card.md', 'x\n');
+      return ok(undefined);
+    });
+
+    expect(await local.refresh()).toEqual(ok({ kind: 'local' }));
+    expect(fs.existsSync(path.join(a, 'cards/x/card.md'))).toBe(true);
+
+    await local.transact('data: y を足す', async (dir) => {
+      expect(fs.existsSync(path.join(dir, 'cards/x/card.md'))).toBe(true);
+      write(dir, 'cards/y/card.md', 'y\n');
+      return ok(undefined);
+    });
+    expect(git(a, 'log', '--format=%s').split('\n')).toEqual([
+      'data: y を足す',
+      'data: x を足す',
+      'data: 始める',
+    ]);
+  });
+
+  it('origin に届かなくても書ける', async () => {
+    const a = cloneData(path.join(tmp, 'a'));
+    git(a, 'remote', 'set-url', 'origin', path.join(tmp, 'missing.git'));
+
+    const result = await store(a, { mode: 'local' }).transact('data: x を足す', async (dir) => {
+      write(dir, 'cards/x/card.md', 'x\n');
+      return ok(undefined);
+    });
+
+    expect(result).toEqual(ok(undefined));
+    expect(git(a, 'log', '-1', '--format=%s')).toBe('data: x を足す');
+  });
+
+  it('手元の変更は取り直しで捨て、手元の HEAD に合わせる', async () => {
+    const a = cloneData(path.join(tmp, 'a'));
+    write(a, 'stray.txt', 'stray\n');
+
+    expect(await store(a, { mode: 'local' }).refresh()).toEqual(ok({ kind: 'local' }));
+    expect(fs.existsSync(path.join(a, 'stray.txt'))).toBe(false);
+  });
+
+  it('origin に問い合わせずに、最後に取った origin のデータ用ブランチからワークツリーを作る', async () => {
+    const repo = path.join(tmp, 'main');
+    sh(['clone', '--quiet', origin, repo]);
+    git(repo, 'remote', 'set-url', 'origin', path.join(tmp, 'missing.git'));
+    const dataDir = path.join(repo, '.ai-board', 'data');
+
+    const result = await store(dataDir, { repoRoot: repo, mode: 'local' }).prepare();
+
+    expect(result).toEqual(ok(undefined));
+    expect(git(dataDir, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe(DATA_BRANCH);
+    expect(fs.readFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'utf-8')).toBe('version: 1\n');
+  });
+
+  it('手元にも追跡にもデータ用ブランチが無ければ DataBranchMissing で止まる', async () => {
+    const repo = path.join(tmp, 'empty');
+    sh(['init', '--quiet', repo]);
+    const dataDir = path.join(repo, '.ai-board', 'data');
+
+    const result = await store(dataDir, { repoRoot: repo, mode: 'local' }).prepare();
+
+    expect(result).toEqual(err({ type: 'DataBranchMissing', dataDir }));
+  });
+});
+
+describe('手元の commit の守り', () => {
+  async function writeLocally(dataDir: string, id: string): Promise<void> {
+    const result = await store(dataDir, { mode: 'local' }).transact(
+      `data: ${id} を足す`,
+      async (dir) => {
+        write(dir, `cards/${id}/card.md`, `${id}\n`);
+        return ok(undefined);
+      }
+    );
+    expect(result).toEqual(ok(undefined));
+  }
+
+  it('既定のモードの refresh は、origin に無いコミットがあれば消さずに DataStoreLocalAhead で止まる', async () => {
+    const a = cloneData(path.join(tmp, 'a'));
+    await writeLocally(a, 'x');
+    await writeLocally(a, 'y');
+
+    const result = await store(a).refresh();
+
+    expect(result).toEqual(err({ type: 'DataStoreLocalAhead', dataDir: a, count: 2 }));
+    expect(git(a, 'log', '-1', '--format=%s')).toBe('data: y を足す');
+    expect(fs.existsSync(path.join(a, 'cards/x/card.md'))).toBe(true);
+  });
+
+  it('既定のモードの transact は、op を走らせずに止まり、何も push しない', async () => {
+    const a = cloneData(path.join(tmp, 'a'));
+    await writeLocally(a, 'x');
+    let calls = 0;
+
+    const result = await store(a).transact('data: z を足す', async () => {
+      calls++;
+      return ok(undefined);
+    });
+
+    expect(result).toEqual(err({ type: 'DataStoreLocalAhead', dataDir: a, count: 1 }));
+    expect(calls).toBe(0);
+    expect(originLog()).toEqual(['data: 始める']);
+    expect(git(a, 'log', '-1', '--format=%s')).toBe('data: x を足す');
+  });
+
+  it('origin に届かなくても、最後に取った origin と比べて止まる', async () => {
+    const a = cloneData(path.join(tmp, 'a'));
+    await writeLocally(a, 'x');
+    git(a, 'remote', 'set-url', 'origin', path.join(tmp, 'missing.git'));
+
+    const result = await store(a).refresh();
+
+    expect(result).toEqual(err({ type: 'DataStoreLocalAhead', dataDir: a, count: 1 }));
+  });
+
+  it('手元のコミットを origin に上げれば、既定のモードで読み書きできる', async () => {
+    const a = cloneData(path.join(tmp, 'a'));
+    await writeLocally(a, 'x');
+    git(a, 'push', '--quiet', 'origin', `HEAD:${DATA_BRANCH}`);
+
+    expect(await store(a).refresh()).toEqual(ok({ kind: 'fetched' }));
+    expect(fs.existsSync(path.join(a, 'cards/x/card.md'))).toBe(true);
+  });
+
+  it('origin が先に進んでいるだけなら止まらない', async () => {
+    const a = cloneData(path.join(tmp, 'a'));
+    const b = cloneData(path.join(tmp, 'b'));
+    await store(b).transact('data: b が書く', async (dir) => {
+      write(dir, 'cards/b/card.md', 'b\n');
+      return ok(undefined);
+    });
+
+    expect(await store(a).refresh()).toEqual(ok({ kind: 'fetched' }));
+    expect(fs.existsSync(path.join(a, 'cards/b/card.md'))).toBe(true);
+  });
+});
