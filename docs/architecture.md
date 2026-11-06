@@ -1,7 +1,7 @@
 # 実装の細部
 
-`CLAUDE.md` から移した、触る箇所に応じて読めばよい細部。
-不変条件とハードルールは `CLAUDE.md`、使い方と 1 周の流れは `README.md`、なぜそう作ったかは `docs/adr/` にある。
+触る箇所に応じて読めばよい細部。使い方・ステージの判定表・止まり・ループの流れは `README.md`、
+不変条件とハードルールは `CLAUDE.md`、なぜそう作ったかは `docs/adr/` にある。ここではそれらを繰り返さない。
 
 ## ディレクトリ
 
@@ -10,196 +10,89 @@ src/
   cli.ts / cli-main.ts  CLI の入口（サブコマンドの振り分け）
   shared/               Result<T,E>・Branded Types・設定・区画と判断の純関数
   cards/                カードの読み書きのコンテキスト
-  board/                3ソース統合・ステージ導出コンテキスト
+  board/                3 ソース統合・ステージ導出のコンテキスト
   infrastructure/       外部コマンド・データのワークツリー・GitHub の問い合わせ
 ```
 
-かつてあった React の画面（`src/web/`）と、それを配るサーバ（HTTP API・SSE・ファイル監視・取り直し・定期のポーリング）は外した（ADR 0017）。
-
-各コンテキストは `models/ errors/ repositories/ usecases/ cli/ composition.ts` を持つ。
+各コンテキストは `models/ errors/ services/ repositories/ usecases/ cli/ composition.ts` を持つ。
 
 ## ゲートの状態
 
-ゲートの状態は `src/cards/services/review-log.ts` が本文の `## レビュー` から読む。
-ゲートは計画を読む `plan` の 1 つ（`REVIEW_GATES`）。
-廃止した `explore` / `verify` のエントリは規定外として黙って無視される（`RETIRED_REVIEW_GATES`）。
-判断のファイル（`log/`）の名前が廃止したゲートのものなら、壊れたファイルの警告を出さずに読み飛ばす（`card-files.ts` の `isRetiredLogFileName`）。
-frontmatter の `skipGates` に残る廃止したゲートは、読むスキーマ（`card.schema.ts`）が検証の前に落とす。書く `PATCH` は `plan` だけを受け付ける。
+`src/cards/services/review-log.ts` が `## レビュー` から読む。ゲートは `plan` だけ（`REVIEW_GATES`）。
+廃止した `explore` / `verify` のエントリ・判断のファイル・`skipGates` は黙って読み飛ばす（`isRetiredReviewGate`）。
 
-`gateState()` はゲートごとの最新エントリ 1 件で決まり、中止のエントリは判定から除く
-（中止は工程の進捗と直交する終端の軸で、通過済みのゲートを巻き戻さない）。
-状態は `none` / `submitted` / `held` / `approved` / `rejected` の 5 つで、`held` は最新が 保留 のとき。
-どの規則も `held` でゲートを先へ進めないので、保留のカードは AI の列（計画提案中 / 実装中）に留まり、`hold` が立つ。
-飛ばす宣言（`skipGates`）のあるゲートでは、最新が 提出 / 再提出 なら `approved` と読む（AI の提出を人の承認と同じに読む）。
-宣言があってもログを見ずに通過扱いにはしないので、エントリが無ければ `none` で、差し戻し / 保留 / 承認 はふつうに効く。
-このため plan を飛ばすカードも、着手するまではアイデアに留まり、着手すると計画提案中に入って計画を書く手（`plan`）が渡される。
-読み替えはエントリの種別を書き換えないので、`approved` が人の承認か AI の提出かは、`latestGateEntry` が返すエントリの種別で見分ける。
+- `gateState()` の値は `none` / `submitted` / `held` / `approved` / `rejected`。中止を除いた最新エントリ 1 件で決まる
+- `skipGates` のあるゲートでは、最新が 提出 / 再提出 なら `approved` と読む。種別は書き換えないので、人の承認か AI の提出かは `latestGateEntry` の種別で見分ける
+- `gateStates()` は導出（`toFacts`）と、提出・保留の usecase が使う
+- 判断待ちの区画の本文と待ち始めの時刻は、`GATE_OF_STAGE` のゲートの最新エントリ（ゲートの無い列はゲートを問わない最新）から取る
 
-全ゲートの状態は `gateStates()` でまとめて引く（`toFacts` と CLI の `planApproved` が使う）。
-`latestGateEntry` はゲート（省けばゲートを問わず）の中止を除いた最新のエントリを返す。
+## Draft の PR と止まり
 
-判断待ちの区画が出す提出の本文と待ち始めた時刻は、`latestReview` から取る。
-`latestReview` は「その列が待っているゲート（`GATE_OF_STAGE`）の最新エントリ、無ければゲートを通じた最新」で、
-どのゲートのものかを `gate` に持つ。
+Draft の PR は計画レビューの列を立てるが、その規則は plan が未承認のときだけ当たるので、実装中の Draft の PR は巻き戻らない。
+`draft` だけでは「まだ Ready にしていない」と「人が Draft に戻した」を見分けられないので、
+最後の `convert_to_draft` の時刻を `MrState.convertedToDraftAt` に持つ。
 
-## 差し戻しと Draft の PR
+止まりは `src/board/services/next-action.ts` の `resolveHold` が導き、`BoardCard.hold`（`{ kind, reason, since }` か `null`）に載る。
+`kind` は人の判断で解く `decision` と、PR の状態を引けない `forge` の 2 つ。`reason` の文は `HOLD_REASONS`。
 
-差し戻しに専用ルールは無い。ゲートが差し戻し中のときレビュー行と承認行が両方外れ、
-1 つ手前の AI 列へ自然に落ちる。
-
-「計画から立て直させる」は承認済みの計画への plan 差し戻しで、専用の規則もエントリも無い。
-plan が `rejected` になって 計画提案中 に落ち、ループは `revise-plan` を選ぶ。
-計画を承認し直すと（plan を飛ばすカードでは計画を再提出すると）実装中へ戻り、ループは `implement` から始め直す。
-
-計画ファイルはブランチにあり、ボードを動かすチェックアウトからは見えないことが多いので、
-Draft の PR も計画レビューの列を立てる。AI が締めの段で Ready にした時点で PR中 へ進む。
-実装中の PR も Draft のままだが、Draft の PR が立てる計画レビューのルールは plan が未承認のときにしか
-当てはまらないので、計画レビューへは巻き戻らない。
-
-`draft` だけでは「まだ一度も Ready にしていない」と「人が Draft に戻した」を見分けられない。
-そこで PR が最後に Draft へ戻された時刻を `MrState.convertedToDraftAt` に持つ（GitHub の `convert_to_draft` のイベント）。
-作成時から Draft の PR はこのイベントを残さないので、値が入っていれば誰かが Ready の PR を Draft に戻したことを意味する。
-実装中のカードでこの時刻が最新のレビューエントリより新しければ止まり（`hold`）になり、ループは Ready にし直さない。
-人が GitHub で Ready に戻すか（PR中 へ進む）、`ai-board decide` で差し戻し・中止すれば（そのエントリが新しくなる）止まりは外れる。
-
-## 止まり（hold）
-
-AI の列（計画提案中 / 実装中）にいても、人の判断を待って止まっているカードはループが選ばない。
-止まりは `resolveHold` が導き、ボードの組み立て（`get-board.query.ts`）で `BoardCard.hold`（`{ kind, reason, since }` か `null`）に載る。
-`kind` は、人の判断で解く `decision` と、PR の状態を引けない `forge` の 2 つである。
-ステージとは別の軸の派生値で、どこにも保存しない（ステージは「工程のどこにいるか」、止まりは「その工程で誰を待っているか」）。
-止まりは次の 4 つで、`reason` には人が何をすればよいかを書く（`HOLD_REASONS`）。
-
-- （`forge`）そのカードの PR だけを直近の取得で引けなかった（`MrStateProvider.failure`）。アイデア / マージ済み と中止のカードを除く、どの列でも立ち、ほかの止まりより先に見る。
-  列は前に引けた控えで決まるが、控えは古いことがあり、人の指摘や Draft への戻しを見落として進めかねない。
-  `decisionsFor` は空を返し（押せる判断を決められない）、`droppableStages` も空にする（`get-board.query.ts`）。
-  出せる判断も戻せる列も無くし（`decisionsFor` / `droppableStages`）、`ai-board decide` は同じ値を読んでそのカードの承認 / 差し戻し / 中止・着手 / 着手を戻すを拒む。次の取得で引ければ外れる
-
-- 実装中で、人の最新の判断より後に PR が Draft に戻された（`mrState.convertedToDraftAt`）。
-  AI が Ready にした PR を人が Draft に戻すとカードは実装中に落ち、計画は archive 済みなので、見ないと `implement` の archive 済みの段が Ready にし直してしまう
+- `forge`: そのカードの PR だけを直近の取得で引けなかった（`MrStateProvider.failure`）。アイデア / マージ済み / 中止を除いて立ち、ほかより先に見る。
+  前に引けた控えは古いことがあるので、`decisionsFor` と `droppableStages` を空にし、`ai-board decide` も判断と着手を拒む
+- 実装中で、人の最新の判断より後に `convertedToDraftAt` がある（見ないと締めの段が Ready にし直してしまう）
 - 計画提案中で、plan の最新が 保留
-- 計画提案中で、plan が提出済みなのに計画ファイルも Draft の PR も見えない（作り直すと PR を二重に作りかねない）。
-  PR の状態を引けていない（取得先に未接続、起動直後で初回の取得前（`MrStateProvider.synced`）、またはそのカードの PR だけを引けない）ときは、
-  PR が無いのか分からないので立てない
+- 計画提案中で、plan が提出済みなのに計画ファイルも Draft の PR も見えない。PR の状態を引けていない（未接続・未取得・そのカードの失敗）ときは立てない
 
-人が承認 / 差し戻し / 中止を書けばそのエントリが最新になり、`decision` の止まりは外れる。止まりを解く専用のエントリは無い。
+## 書き込みの境界
 
-## 判断と区画
+`ai-board card`（`src/cards/cli/card-cli.ts`）の書き込みは `CardCliDependencies.writes`
+（`src/cards/usecases/commands/card-write.commands.ts` の `createCardWriteCommands`）だけを通る。
+各 usecase は `transactCardWrite` の中で走り、コミットのメッセージも決める。
 
-CLI（`src/cards/cli/card-cli.ts`）には `startedAt` / `rank` / `skipGates` を書く入口も、承認 / 差し戻し / 中止を追記する入口も無く、
-`body` は `## レビュー` のエントリが変わる差し替えを拒む。
-CLI の書き込みは、AI に許す操作だけを並べた書き込みの usecase（`CardCliDependencies.writes`、`src/cards/usecases/commands/card-write.commands.ts` の `createCardWriteCommands`）を通る。
-書き込みの usecase は、カードの usecase を書き込みの 1 操作（`transactCardWrite`）の中で走らせ、コミットのメッセージも決める。
-人の判断を足す `appendReviewCommand` と、`startedAt` / `skipGates` を書ける `updateCardMetaCommand` は、CLI の依存に渡さない。ブランチは `branch` だけを書く `link-card-branch` の usecase で紐付ける。
-`submit` / `hold` は、種別を中で決める専用の usecase（`src/cards/usecases/commands/submit-review.command.ts` / `hold-review.command.ts`）を通り、書けるかの検査もそこにある。
-`submit` の plan ゲートは、着手したカードで、plan が未提出か差し戻されたときにだけ書ける
-（plan を飛ばすカードの `plan 再提出` は承認と読まれるので、いつでも書けると人の差し戻しや保留を経ずに計画を出し直せてしまう）。
-`hold` は plan の最新が差し戻しのときにだけ書ける。拒んだ理由は `SubmitBeforeStart` / `SubmitGateClosed` / `HoldGateNotRejected` のエラーで返り、CLI が 1 行に直す。
-`submit` / `hold` の `--gate` は `plan` だけを受け、廃止した `verify` は使い方の誤りとして拒む。
-逆に人の判断の CLI（`ai-board decide`）は 承認 / 差し戻し / 中止 だけを書き、提出 / 再提出 / 保留 を書く入口を持たない。
+- `submit` / `hold` は種別を中で決める usecase（`submit-review.command.ts` / `hold-review.command.ts`）を通り、
+  書けない理由を `SubmitBeforeStart` / `SubmitGateClosed` / `HoldGateNotRejected` で返す。`--gate` は `plan` だけを受ける
+- `branch` は `link-card-branch` を通る。`appendReviewCommand` と `updateCardMetaCommand`（`startedAt` / `skipGates`）は CLI の依存に渡さない
 
-判断の追記と本文の保存は、リポジトリ（`CardRepository`）の別の口に分かれており、判断は文字列を経由せずに値のまま書く。
-判断を偽造させないのは入口ごとの検査ではなく、この作りである。`ai-board card` と `ai-board decide` のどちらから書いても同じに効く。
+`ai-board decide`（`src/board/cli/decide-cli.ts`）は引数を確かめて `createDecideCommands`（`src/board/usecases/commands/decide.command.ts`）を呼ぶだけ。
+usecase は `transactCardWrite` の中で、`status` と同じ組み立てでボードを導出し、`src/board/services/decision-guards.ts` で出せる判断かを確かめて書く。
+push が拒否されたら取り直したボードで検査からやり直す。書いた後は移った先の列を返す。
 
-人の判断の CLI（`src/board/cli/decide-cli.ts`、`ai-board decide`）は、引数を確かめて判断の usecase（`src/board/usecases/commands/decide.command.ts` の `createDecideCommands`）を呼び、結果とエラーを 1 行に直すだけを行う。
-usecase は、ボードの導出・検査・書き込みを書き込みの 1 操作（`transactCardWrite`）の中で走らせ、コミットのメッセージを決める。
-`status` と同じ組み立てでボードを導出し、出せる判断かを純関数（`src/board/services/decision-guards.ts`）で確かめてから、カードの usecase で書く。
-push が拒否されたら、取り直した状態でボードを導き直して検査からやり直すので、検査の後にほかのセッションが書いたカードに古い検査のまま書くことは無い。
-承認 / 差し戻し / 中止は `decisionsFor` にあるもの、着手 / 着手を戻すは今の列と `droppableStages`、並べ替えはアイデアの表（`ideaRows`）にあるカードだけを書く。
-GitHub に接続できないときは承認 / 差し戻し / 中止と着手 / 着手を戻すを拒む（`status` が `next` を `null` にするのと同じ理由。列と下限が PR の状態に依るため）。
-書いた後は、取り直した PR の状態のままボードを組み立て直して移った先の列を返し（読めなければ null）、CLI が列の移りを 1 行で出す。
-`ai-board decide` を誰が呼んでよいかは構造では分けず、手順書の決まり（人がこの会話で頼んだときだけ）で守る（ADR 0007）。
+判断の追記と本文の保存はリポジトリ（`CardRepository`）の別の口で、判断の偽造を防ぐのは入口の検査ではなくこの作りである。
 
-- **判断は値のまま 1 件だけ足す。** `createAppendReviewCommand` は判断（時刻・gate・種別・理由）をリポジトリの `appendReview` に渡し、
-  `log/` に判断のファイルを 1 つ書く（ファイル名と中身は `card-files.ts` の `planReviewAppend` が決める）。`card.md` には触らない。
-  理由はファイルの中身になるだけで、見出しとして読み直さない。理由に `### <時刻> <gate> <種別>` の形の行があっても拒まず、
-  判断は指定した 1 件だけが増える。その行は組み立てるときに `####` へ下がり、理由の一部として見える
-- **本文の保存は判断を作らない。** `save`（`planCardWrite`）は本文とメタ（と着手）だけを書き、判断のファイルを決して作らない。
-  本文の `## レビュー` の節は次の 2 つで読む（節があるかは `review-log.ts` の `hasReviewSection`）
-  - 節が無い（本文だけを送る形）: 判断は変えないと読み、本文をそのまま `card.md` に書く。判断は `log/` にあり、本文の保存はそこに触らないので消えない
-  - 節がある（CLI で `card show` の出力を直して送る形など）: `parseReviewLog` で読んだエントリが今と同じなら、節を除いた本文を書く。
-    違えば（末尾に判断の見出しを足しただけの本文も、今の判断があるカードにエントリの無い `## レビュー` の見出しだけを送る本文も）、書かずに `ReviewEntriesChanged` で拒む
-- **本文の差し替えで `## レビュー` のエントリを変えられない。** `createUpdateCardBodyCommand` も同じ 2 つの読み方で書く前に比べ、節があってエントリが違えば `ReviewEntriesChanged` を返す。
-  CLI の `body` は 1 で終わる。節の無い本文は受け付ける。
-  リポジトリの拒否は保存の拒否（`CardWriteRefused`）になるので、「判断は `ai-board decide` で足す」と返すのは usecase の役目である。
-  保存した後は `findById` で読み直して返す（節の無い本文から作った `Card` をそのまま返すと、応答の `reviews` が空になるため）
+- **判断は値のまま 1 件だけ足す。** `appendReview` は `log/` に判断のファイルを 1 つ書き（`card-files.ts` の `planReviewAppend`）、`card.md` に触らない。
+  理由に `### <時刻> <gate> <種別>` の行があっても判断は 1 件で、組み立てるときに `####` へ下がる
+- **本文の保存は判断を作らない。** `save`（`planCardWrite`）は本文とメタだけを書く。送られた本文に `## レビュー` の節が無ければそのまま書き、
+  節があれば `parseReviewLog` のエントリが今と同じときだけ節を除いて書き、違えば `ReviewEntriesChanged` で拒む（`createUpdateCardBodyCommand` も同じ）
 
-どのカードにどの判断を出せるかは `src/shared/dashboard-sections.ts` の `decisionsFor` が決める（`status --json` の `waiting[].decisions` と、`ai-board decide` の検査が使う）。
+## 区画と出せる判断
 
-| カード                                       | 出せる判断                                  |
-| -------------------------------------------- | ------------------------------------------- |
-| アイデア                                     | 中止                                        |
-| 計画レビュー                                 | 承認 / 差し戻す / 中止                      |
-| 実装中で止まっている（Draft へ戻された）     | 計画から立て直させる（plan 差し戻し）/ 中止 |
-| 計画提案中で止まっている（plan 保留）        | 計画を直させる（plan 差し戻し）/ 中止       |
-| 計画提案中で止まっている（成果物が見えない） | 中止                                        |
+区画への振り分け・並び・出せる判断は `src/shared/dashboard-sections.ts` の純関数で、ステージの導出とは別物。
 
-どの判断も plan のゲートに書く（中止も plan に書く。中止はゲートを問わず最新のエントリで読む）。
+- `sectionOf` / `groupBySection`: 区画は inbox（判断待ち）/ work（AI 作業中）/ idea / merged / aborted。`hold` のあるカードは inbox で、待ち始めは `hold.since`。
+  PR中 でも `mrState.awaitingFix` なら work の先頭（`isAwaitingPrFix`）
+- `decisionsFor`: 出せる判断（表は README）。どの判断も plan に書き、`skipGates` の有無では出し分けない
+- `droppableStages` / `resolveFloorStage`: 着手を戻せる下限（`startedAt` を外したときに残るステージ）
+- 動きなし（`stale`）: AI 作業中のカードで、計画ファイルの更新（計画が無ければ `startedAt`）から 3 日。PR中 のカードは数えない
 
-飛ばす宣言（`skipGates`）の有無では出し分けない。宣言のあるゲートでも、人の差し戻し / 承認はふつうに効くからである（`gateState`）。
-plan を飛ばすカードが実装中で止まっても「計画から立て直させる」を出す。
-アイデアの 中止 は要らなくなったアイデアを中止の区画へ片付けるためのもので、人の判断を待っているのではない。
-判断待ちの区画は `hold` とステージで決まり（`sectionOf`）、`decisionsFor` を見ないので、アイデアが判断待ちに出ることはない。
-
-`startedAt` を書き換えるのは `ai-board decide start` / `unstart` だけ。列をまたぐ移動は無く、
-`ai-board decide move` / `move-divider` はアイデアの表の中の並べ替え（`rank`）と区切り線の移動にだけ使う。
-`skipGates` を書くのは `ai-board decide skip`（`plan` の出し入れ）だけで、
-`withSkipGate` で 1 つのゲートだけを出し入れする。`ai-board card` には入口を足さない。
-提出済みのカードに「計画レビューを飛ばす」を入れると、`plan 提出` が承認と読まれてその場で実装中へ進む。
-
-区画（判断待ち / AI 作業中 / アイデア / マージ済み / 中止）への振り分けと並び順も `dashboard-sections.ts` の純関数にある。
-ステージの導出とは別物で、見せ方だけを決める。
-`hold` のあるカードはステージが AI の列のままでも判断待ちの区画に入り、待ち始めた時刻（`waitingSince`）は `hold.since` になる。
-逆に PR中 のカードでも、人の指摘に AI が応える番（`mrState.awaitingFix`）なら AI 作業中の区画の先頭に入る（`isAwaitingPrFix`）。
-「`startedAt` を外したときに残るステージ」（AI の成果物とレビュー記録が課す下限）より
-前へは戻せない（`resolveFloorStage` / `droppableStages`）。
-
-アイデアの表の区切り線は `rank` と同じ物差しの値を 1 つだけ持つ（データ用ブランチの `order.yaml` の `divider`）。
-並べ替えの中ではカードと同じ 1 項目（`DIVIDER_ID`）として扱い、隙間が尽きた振り直しでも一緒に振り直す
-（`src/cards/usecases/commands/move-in-order.ts`）。
+アイデアの区切り線は `rank` と同じ物差しの値を 1 つ持ち（`order.yaml` の `divider`）、並べ替えではカードと同じ 1 項目（`DIVIDER_ID`）として扱う（`move-in-order.ts`）。
 
 ## `ai-board status` と次の一手
 
-`status` と `decide` のボードは `src/board/composition.ts` の `assembleBoard` が組む（`createMrStateSource` → `getBoardQuery`）。
-`status` の見せる形（判断待ち・作業中・アイデアの表・次の一手）は、query（`src/board/usecases/queries/get-status.query.ts` の `createGetStatusQuery`）が組み、CLI（`status-cli.ts`）は引数の解析と整形だけを行う。
-PR の状態は `refresh()` を 1 回だけ待って引き、`branch` から解決した PR 番号の書き戻しもここで起きる。
+ボードは `src/board/composition.ts` の `assembleBoard`（`createMrStateSource` → `getBoardQuery`）が組み、`status` と `decide` が共有する。
+PR の状態は `refresh()` を 1 回待って引き、`branch` から解決した PR 番号の書き戻しもここで起きる。
+見せる形は `src/board/usecases/queries/get-status.query.ts` が組み、`status-cli.ts` は引数と整形だけを持つ。
 
-次の一手は `src/board/services/next-action.ts` の `pickNextAction`（PR中 → 実装中 → 計画提案中、列の中は `rank` の順）が決める。
-手は `plan` / `revise-plan`（計画提案中）と `implement`（実装中）と `fix-pr`（PR中）の 4 種類で、止まっていない実装中のカードには常に `implement` を返す。
-PR中 のカードは人の列なので、`mrState.awaitingFix`（下の「PR の指摘に AI が応える番」）が真のものだけを `fix-pr` で選ぶ。
-締めの段が動かした証拠を PR の本文に書いて Ready にするので、Ready にするための別の手は無い。
-ループの 1 手の記録（`loop/`）に残る廃止した手（`revise-impl` / `ready`）は、`LOOP_PAST_ACTIONS` として読めるまま残し、`loop start` では受け付けない。
-`implement` は手の種類を計画の進み具合では分けず、段を `next.step` として添える（`implement` 以外の手では常に `null`）。
-`pickNextAction` は純関数のまま `step: null` を返し、`status` の query（`get-status.query.ts`）が `implement` のときだけ、選ばれた 1 枚のカードのブランチの計画を読んで埋める。
-
-- 読み方: `src/board/repositories/` の読み手が `CliRunner` で `git show <ref>:.ai-board/plans/<id>.md` を、無ければ `plans/archive/<id>.md` を読む。
-  `<ref>` はローカルの `refs/heads/<branch>` があればそれ、無ければ `refs/remotes/origin/<branch>`。
-  `branch` は誰でも書けるので完全な ref 名にして渡し、`git check-ref-format --branch` を通らない名前では `git` を呼ばない。`git fetch` はしない
-- 段: `src/board/services/impl-step.ts` の `resolveImplStep` が決める。archive 済み → `close`、未チェックのタスクがある → `task`、
-  全部倒れていて `## AI レビュー` 節（コードブロックの外の見出し）が無い → `review`、ある → `close`。
-  タスクの行の正規表現と、フェンス（` ``` ` / `~~~`）で囲んだコードブロックの中の行を外す純関数（`src/board/models/plan-task.ts` の `linesOutsideCodeBlocks`）を
-  計画の進捗（`plan.repository.ts`）と共有する。コードブロックの中のチェックボックスと見出しは数えない。閉じていないフェンスは無いものとして後ろの行を数える
-- 読めない（`branch` が null、ブランチや計画が無い、`git` が失敗した）ときは例外を投げず `step` を `null` にし、`status` 自体は成功させる。
-  人向けの数行（`--json` を付けない形）では `段=task` のように添え、`null` は `段=不明` と出す（`status-describe.ts`）
-- ループ（本筋のセッション）は、`review` なら `board-reviewer` のサブエージェントを前景で立て、`task` / `close` / `null` なら `board-loop` の `implement.md` の手順で自分で進める。
-  段はステージではなく、ボードの組み立て（`GetBoardQuery`）とステージの導出（`stage-resolver.ts`）はブランチの計画を読まない
-  GitHub に接続できないとき（`forge.status` が `connected` でないとき）は `next` を `null` にする。
-
-`status` の `waiting` は判断待ちの区画（`groupBySection` の inbox）をそのまま使うので、止まっているカードも 1 度だけ出て、`working` には出ない。
-人の指摘に AI が応える番の PR中 のカードは逆に `working` の先頭に出て、`waiting` には出ない。
-止まっているカードの `reason` は `hold.reason` になる。
-`waiting` の各カードは、出せる判断（`decisionsFor`）を `decisions` に持つ。
-`status --json` は、ほかにアイデアの表の並び（`ideas`。`ideaRows` の順で、区切り線も 1 行）を出す。`ideas` は `board-decide` のスキルが並べ替えの位置を選ぶのに使う。
-
-`status --json --only <項目,...>` は、出力を組み立てた後に、コンマ区切りの項目だけに絞る（`status-cli.ts` の `pickFields`）。
-項目は `<key>`（最上位の項目をそのまま）か `<key>.<field>`（最上位の配列の各要素から `<field>` だけ）で、`.` の入れ子は 1 段まで。
-無い最上位の項目、配列でない項目への `.`、2 段以上の `.`、`--json` 以外との組み合わせは、使い方の誤りとして GitHub に問い合わせる前に失敗する。
-要素に無い `<field>` は、その要素では出さない。手順書（`board-loop` / `board-decide`）が `jq` の代わりに使う。
+- 人向けの形は「GitHub:」「ループ:」の行・判断待ち・AI 作業中・次の一手だけを出す（`status-describe.ts`）。`--json` は `next` / `waiting` / `working` / `cards` / `ideas` / `forge` / `loop` / `generatedAt`
+- `--only <項目,...>`（`pickFields`）は `<key>` か `<key>.<field>`（最上位の配列の各要素から 1 項目）で絞る。入れ子は 1 段まで。誤りは GitHub に問い合わせる前に失敗する
+- 次の一手は `src/board/services/next-action.ts` の `pickNextAction`。GitHub に接続できない（`forge.status` が `connected` でない）と `next` は `null`
+- `implement` のときだけ、query が選んだ 1 枚のブランチの計画を読んで `next.step` を埋める（`pickNextAction` 自体は `step: null` を返す純関数）。
+  `git show <ref>:.ai-board/plans/<id>.md`、無ければ `plans/archive/<id>.md` を読む。`<ref>` はローカルの `refs/heads/<branch>`、無ければ `refs/remotes/origin/<branch>`。
+  `git check-ref-format --branch` を通らない名前では `git` を呼ばず、`git fetch` もしない。読めなければ `step` は `null`（人向けは `段=不明`）
+- 段は `src/board/services/impl-step.ts` の `resolveImplStep`。タスクの行とコードブロックの外し方（`src/board/models/plan-task.ts` の `linesOutsideCodeBlocks`）は計画の進捗と共有する。
+  段はステージではなく、ボードの組み立てとステージの導出はブランチの計画を読まない
+- `loop/` に残る廃止した手（`revise-impl` / `ready`）は `LOOP_PAST_ACTIONS` として読めるが、`loop start` では受けない
 
 ## カードの保存
 
-カードの正本は、`origin` の orphan のブランチ `ai-board/data`（データ用ブランチ）にある。コードの履歴とは交わらない。
-中身は次のとおり（形は `src/cards/repositories/card-files.ts` の純関数が読み書きする）。
+データ用ブランチの中身（形は `src/cards/repositories/card-files.ts` の純関数が読み書きする）:
 
 ```
 ai-board-data.yaml                      形の版（version: 1）。CLI はこれより新しい版を読まずに止まる
@@ -208,206 +101,83 @@ order.yaml                              rank とアイデアの区切り線（{ 
 cards/<id>/card.md                      frontmatter（id, title, created, skipGates, branch, mr）と本文
 cards/<id>/log/<時刻>.<gate>.<種別>.md   判断 1 件。中身は理由の本文。追記だけで、書き換えも削除もしない
 snapshots/<id>.json                     マージ済みの PR の控え
-loop/<時刻>.<ループの識別子>.json        ループの 1 手の記録（後述の「ループの 1 手の記録」）。カードではない
+loop/<時刻>.<ループの識別子>.json        ループの 1 手の記録。カードではない
 ```
 
-`card show` の出力（`card.md`・`log/`・`order.yaml` から組み立てた `Card` を frontmatter の形で表したもの）:
+`startedAt` は `log/` の着手・着手を戻すの最新から、`rank` は `order.yaml` から、`## レビュー` の節は `log/` から組み立てる（`card.md` の節は読まない）。
+`card.md` が読めない・項目が不正・`id` がディレクトリ名と食い違うカードは、警告して読み飛ばす。
 
-```yaml
----
-id: board-search # 不変。生成後は変えない。ディレクトリ名と一致する kebab-case
-title: カードを絞り込めるようにする
-created: '2026-09-04T06:48:23.416Z'
-startedAt: null # 人が着手を指示した時刻（人が打つ）。log/ の着手・着手を戻すの最新から組み立てる
-skipGates: [] # 人が事前に見ないと宣言したゲート（plan）
-branch: null
-mr: null # レビュー要求の番号（branch から自動解決して書き戻す）
-rank: 1500 # 並び順（任意）。小さいほど上。人が並べ替えたときだけ order.yaml に書かれる
----
-```
+**置き場所。** メインのチェックアウトの `.ai-board/data/` に `git worktree add` で置く（`dataDir`）。`sharedBoardDir` がどのワークツリーからもここに解決する。
+`AI_BOARD_DATA` を指すとそのディレクトリを使い、その `origin` に push する。`data.lock` と `cache/` は `dataDir` の親に置き、git に載せない。
+データ用ブランチが `origin` に無ければ止まり、`ai-board init`（`src/cards/cli/init-cli.ts`）を案内する。
 
-本文の `## レビュー` の節は `log/` の判断のファイルから組み立て、本文の末尾に付ける（`card.md` の本文にあっても読まない）。
-理由の中の `#` で始まる見出しは、節を途中で切らないよう `####` へ下げて組み立てる。
-`card.md` が読めない、frontmatter の項目が不正、`id` がディレクトリ名と食い違う、のどれかなら、そのカードは警告して読み飛ばす。
-Markdown 表現（`card-markdown.ts`）は `card show` の出力にだけ使う。
+**書き込み。** どれも `DataStore.transact`（`src/infrastructure/data-store.ts`）の 1 操作として走る。
 
-**置き場所。** 手元では、メインのチェックアウトの `.ai-board/data/` に `git worktree add` でデータ用ブランチのワークツリー
-（データのワークツリー、`dataDir`）を 1 か所置く。`sharedBoardDir` はリンクされたワークツリーからもメインの `.ai-board/` に解決されるので、
-どのワークツリーから動かしても同じ場所になる。無ければ CLI が最初に作る。
-データ用ブランチが `origin` に無ければ止まり、空のデータ用ブランチを作る `ai-board init`（`src/cards/cli/init-cli.ts`）を案内する。
-`AI_BOARD_DATA` を指すと、データのワークツリーの代わりにそのディレクトリ（git のリポジトリ）を使い、その `origin` に push する。
-試すときはスクラッチパッドの bare リポジトリを `origin` にした clone を指す。
-ロック（`data.lock`）・開いている PR の控え（`cache/`）は、どれも `dataDir` の親に置き、git に載せない
-（既定なら `.ai-board/` の下、`AI_BOARD_DATA` ならそのディレクトリの隣）。試しのデータが本物とロックや控えを共有しないためである。
-
-**書き込み。** CLI の書き込みは、どれも `DataStore.transact`（`src/infrastructure/data-store.ts`）の 1 操作として走る。
-
-1. ロックを取る（`data.lock` を排他作成。持ち主の pid が死んでいれば取り直す。5 秒待って取れなければ失敗）
+1. ロックを取る（`data.lock` を排他作成。持ち主の pid が死んでいれば取り直す。5 秒で諦める）
 2. 取り直す（`git fetch origin +refs/heads/ai-board/data:refs/remotes/origin/ai-board/data` → `reset --hard` → `clean`）
-3. 操作を走らせる。検査（提出と保留の usecase の中の検査、`decide` のボードの導出と `decision-guards.ts` の検査）と usecase はこの中にあり、取り直した最新の状態に対して行われる。何も書かなければコミットしない
-4. `git add -A` → `git commit`（メッセージは ID・ゲート・種別だけで、理由の文は入れない）→ `git push origin HEAD:refs/heads/ai-board/data`
-5. push が拒否されたら、rebase せずに 2 に戻り、操作を頭からやり直す（3 回まで）
+3. 操作を走らせる（検査も usecase もここで最新の状態に対して行う）。何も書かなければコミットしない
+4. `git add --all --force -- <DATA_PATHS>` と `git add --update` → `git commit`（メッセージに理由の文は入れない）→ `git push origin HEAD:refs/heads/ai-board/data`
+5. push が拒否されたら rebase せずに 2 から頭からやり直す（3 回まで）
 
-rebase しないのは、離れた行の編集を git が黙って混ぜ、検査を経ないままの状態が push されうるからである。
-2 つの clone から同じカードに同時に `submit` を書いても、1 つだけが通り、後から来た方は取り直した状態で拒まれる。
-git はすべて `cli-runner.ts` を通し、引数は配列で渡す。`origin` の無いデータのワークツリー（テスト用）では fetch と push を飛ばしてコミットだけする。
-
-読み出しは、CLI のコマンドの頭で 1 回取り直す。fetch に失敗したら（オフライン）警告して手元の内容で読むが、書き込みは失敗にする。
-書き込みの失敗（push・fetch の失敗、ロック待ち、データ用ブランチが無いなどの置き場所の不備、判断のエントリを書き換える保存の拒否）は、CLI が理由を 1 行で出して 1 で終わる。
-usecase が書く前に拒むもの（本文の差し替えでエントリが変わるもの）と、判断の追記の口は、「判断と区画」に書く。
-
-移行前の `.ai-board/board.db`（SQLite）は、今の版では読まない。移行は SQLite を消す前の版（`d2380ce`）の `ai-board migrate` で行う（README の「board.db からの切り替え」）。
+rebase しないのは、離れた行の編集を git が黙って混ぜ、検査を経ない状態が push されうるからである。
+読み出しはコマンドの頭で 1 回取り直し、fetch に失敗したら警告して手元の内容で読む（書き込みは失敗にする）。
+`origin` の無いデータのワークツリー（テスト用）では fetch と push を飛ばす。
 
 ## GitHub の PR の取得
 
-`config.yaml` に `github:` を書いたときだけ有効で、無ければ `PR中` / `マージ済み` の列が空になるだけでボードは動く。
-`config.yaml` はデータ用ブランチの根から読み、無ければ `.ai-board/config.yaml` を読む（`src/shared/config.ts`）。
-クラウドのセッションの clone には、git に載らない各自のファイルが無いからである。
+`config.yaml` に `github:` が無ければ PR中 / マージ済み の列が空になるだけでボードは動く。
 
-`gh` で GitHub を引けるかは CLI を動かすたびに 1 度だけ確かめ（`ForgeClient.checkAuth`）、使えなければ理由付きで `disabled` にする。
-確かめ方は `gh api repos/<owner>/<repo>` を 1 回引けるかで、`gh auth status` は使わない。
-クラウドのセッションでは `gh auth status` が「GH_TOKEN が無効」と失敗するが、同じ認証で `gh api` は動く。
-PR の問い合わせに使うのも `gh api` なので、同じ経路で確かめる。`connected` にならないと `status` の `next` が `null` になり、ループが回らない。
+- 引けるかは CLI を動かすたびに `gh api repos/<owner>/<repo>` を 1 回引いて確かめる（`ForgeClient.checkAuth`）。クラウドでは `gh auth status` が失敗するので使わない
+- 失敗は `failureScope` で分ける。`global`（`gh` が無い・ステータスが取れない・401 / 403 / 429・5xx）は接続をまるごと `error` に、
+  `card`（ほかの 4xx・読めない JSON）はそのカードの `failure` にして前の控えを返し、止まり（`forge`）にする。404 は「PR が無い」。
+  `ForgeRequestError` には問い合わせ先の道とステータスだけを載せ、`gh` の stderr は載せない（資格情報が混じりうる）
+- マージ済みも `state: closed` で返るので、`merged_at` の有無で分ける（`toLifecycleState`）
+- コメントは issue comment と review comment を `--paginate` で全ページ引いて合算する。`user.type === 'Bot'` は外す
+- 最新コミットは `head.sha`。`issues/{n}/events` から最後の `ready_for_review`（無く Ready なら作成時刻）を `readyAt`、
+  最後の `convert_to_draft`（今 open かつ Draft のときだけ）を `convertedToDraftAt` にする（`draftTransitionsOf`）
+- PR 一覧は引かず、カードごとに `mr`、無ければ `branch` から解決して番号を書き戻す（`ForgePoller.fetchFor`、`createTransactionalMrWriter`）
 
-問い合わせの失敗は、全体とカードに分ける（`forge-client.ts` の `failureScope`）。
-`github-client.ts` は 404 を「PR が無い」として null にし、それ以外の失敗を `ForgeRequestError`（問い合わせ先の道・HTTP のステータス・`scope`）にして投げる。
-問い合わせ先はクエリを落とした道だけで、`gh` の stderr の本文は載せない（資格情報が混じりうる）。
+**PR の指摘に AI が応える番。** AI も人のアカウントで書くので、本文の最後の行が Claude Code のフッター（`CLAUDE_CODE_FOOTER`）であるコメントを AI のもの（`isAiComment`）とする。
+引用の中のフッターで人の指摘を見落とさないよう、含むだけでは読まない。`ai-board pr comment` はフッターを足す（`withClaudeCodeFooter`）。
+`src/shared/pr-feedback.ts` の `awaitsPrFix` は、Ready で開いた PR で人の最新のコメントが最新コミットと AI の最新のコメントより後のときに真で、
+`BoardCardMr.awaitingFix` に載る。読むのは区画と次の一手（`fix-pr`）だけで、ステージは変えない。
 
-- `global`: `gh` が無い、HTTP のステータスが取れない（ネットワークの断・タイムアウト）、401 / 403 / 429、5xx。
-  `ForgePoller` は接続をまるごと `error` にし、`message` を `<カード ID>: PR #<n> の取得（<道>）が HTTP <n> で失敗した` の形にする
-- `card`: それ以外の 4xx（422 など）と、JSON として読めない応答。接続は `connected` のまま、そのカードの失敗（`failure(cardId)` の `{ message, since }`）として持ち、
-  前に引けた控えは消さずに `get` で返す。`since` は失敗し始めた時刻で、失敗が続くあいだは保ち、引けたら消す（プロセスの中だけで持つ）。
-  ボードはそのカードを止まり（`hold.kind` が `forge`）にする（「止まり」）
+**控え。** PR 1 枚で 4 回以上引くので、結果を控えて問い合わせを省く（`src/board/repositories/file-mr-snapshot.repository.ts`）。
 
-全カードが失敗したら全体、という数え方にしないのは、カードが 1 枚しか無いときに見分けられないためである。
+- マージ済みの PR は二度と引かず（`isSettled`）、データ用ブランチの `snapshots/<id>.json` に `transact` で書く
+- それ以外は `pulls/{n}` の指紋（`fingerprintOf`）が前回と同じなら詳細を引かない。控えは `<dataDir の親>/cache/mr-snapshots.json`
+- 控えは導出の入力ではないので、書けなくても警告だけ。`MrState` に項目を足すと古い控えは検証で外れ、`enrich` を変えたら `FINGERPRINT_VERSION` を上げる
 
-GitHub の PR は `state` が `open` / `closed` の 2 値しかなく、**マージ済みも `closed`** で返る。
-区別は `merged_at` の有無で付ける（`toLifecycleState`）。ここを取り違えるとカードが `merged` へ進まない。
+### `ai-board pr checks`
 
-レビューコメントは issue comment と review comment の 2 か所に分かれるため、合算して「人が書いた最新のコメント」とする。
-どちらの一覧も既定は古い順の 1 ページ目だけで、`issues/{n}/comments` は `sort` /
-`direction` を受け付けない（受けるのはリポジトリ単位の `issues/comments` の方）。
-並び順に頼らず `gh api --paginate` で全ページ引いて最大値を取る。
-最新コミットは `pulls/{n}/commits` ではなく `head.sha` を直接引く（件数で取り逃がさない）。
-自動生成のコメントを示すフラグは無く、`user.type === 'Bot'` で外す。
+締めの段が Ready の前に CI を確かめる（`src/board/cli/pr-cli.ts`、判定は `src/board/services/pr-checks.ts`）。ボードの表示と導出には使わない。
 
-### PR の指摘に AI が応える番
+- `commits/{sha}/check-runs` と `commits/{sha}/status` を全件引いて 1 つの表にする。`--sha` は短いハッシュも受け（`isSameCommit`）、PR の head がまだそれでなければ走っているとみなす
+- 判定と終了コード: `passed` / `none` は 0、`failed` は 1、`pending` は 2、読めなければ 3
+- `--wait` は 15 秒おきに引き直し、チェックがまだ無い間も head になってから 120 秒は待つ。`--timeout`（既定 900 秒）で `pending`
+- `status` が 403 / 404（クラウドの GitHub App）なら `check-runs` だけで判定し、`statusUnreadable` に理由を出す
 
-AI は PR もコメントも人のアカウントで書くので、ユーザーでは人と AI を見分けられない。
-本文に Claude Code のフッター（`CLAUDE_CODE_FOOTER`、`_Generated by [Claude Code](https://claude.ai/code)_`）を含むコメントを AI のもの（`isAiComment`）とし、
-人のコメントの件数と最新時刻（`noteCount` / `latestNoteAt`）から外して、最新時刻だけを `MrState.latestAiNoteAt` に持つ。
-`ai-board pr comment` は本文にフッターが無ければ末尾に足す（`withClaudeCodeFooter`）。
+## カードの JSON と区間の並び
 
-`src/shared/pr-feedback.ts` の `awaitsPrFix` は、PR が Ready で開いていて、人の最新のコメントが最新コミットとも AI の最新のコメントとも後にあるときに真を返し、
-ボードの組み立てで `BoardCardMr.awaitingFix` に載る。ステージの導出は読まず、PR中 のまま変わらない。
-読むのは区画（`groupBySection` が `work` の先頭へ寄せる）と、次の一手（`fix-pr`）だけである。
-AI は修正を push するか、直すものが無い理由を返信して応え、どちらでも時刻が逆転して人の番に戻る。
-理由と退けた案は [ADR 0016](adr/0016-pr-feedback-ai-turn.md)。
+`status --json` の `cards[]` は本文を除いたカードに、`hold`・`mrState`（`readyAt` / `convertedToDraftAt` / `awaitingFix` など）・`timeline`・`loopSteps`・`reviews`（`{ at, gate, kind, reason }`）を足したもの。
+`reviews` の理由は組み立てた本文から読むので、見出しは `####` に下がっている。
 
-`latestAiNoteAt` を足したときに PR の指紋の版（`FINGERPRINT_VERSION`）を上げ、開いている PR の控えを 1 度ずつ引き直させた。
-足す前の控えは `latestAiNoteAt: null` で読む（マージ済みの PR は引き直さないが、この値を使わない）。
-stderr は本文を載せず `(HTTP 404)` の数字だけを取り出して 404 判定に使う。
-
-PR のイベントの一覧（`issues/{n}/events`）は、PR の状態を問わず `enrich` のたびに 1 回、同じく `--paginate` で全ページ引く。
-そこから 2 つの時刻を取る（`draftTransitionsOf`）。
-
-- Ready にした時刻（`readyAt`）は、最後の `ready_for_review`。作成時から Ready の PR はこのイベントを残さないので、
-  Draft でない PR でイベントが無ければ PR の作成時刻（`created_at`）で補う。今 Draft で一度も Ready にしていなければ `null`。
-  区間の並び（`timeline`）の「PR レビュー」はここから数えるので、Ready の PR とマージ済みの PR でこそ要る
-- Draft に戻された時刻（`convertedToDraftAt`）は、最後の `convert_to_draft`。今 open かつ Draft のときだけ値を持ち、
-  それ以外は `null` にする（`resolveHold` がその前提で読む）
-
-PR 一覧の全件取得はページングで取りこぼすため使わず、カード単位で問い合わせる。
-カードの `mr` が分かっていれば番号で、無ければ `branch` から解決して書き戻す（`ForgePoller.fetchFor`）。
-
-詳細（コメント 2 種・イベント・コミット）まで引くと PR 1 枚で 4 回以上になり、ループの周ごとに `status` を走らせると
-GitHub の上限（5,000 回/時）の大半を使う。そこで引いた結果を控えとして残し、次の 2 つで問い合わせを省く。
-
-- マージ済みの PR は二度と引かない（`isSettled`）。マージされずに閉じた PR は reopen がありうるので引き続ける
-- `pulls/{n}` を 1 回引き、指紋（状態・Draft・`head.sha`・コメントの件数・`updated_at`。`fingerprintOf`）が
-  前回と同じなら詳細を引かずに前回の結果を使う
-
-控えは 2 か所に分けて置く（`src/board/repositories/file-mr-snapshot.repository.ts`）。
-
-- マージ済みの PR は、データ用ブランチの `snapshots/<id>.json` に `transact` を通して書く。二度と変わらないので、全員で 1 度引けば足り、クラウドの新しい clone でも引き直さずに済む
-- それ以外は、git に載せない使い捨ての `<dataDir の親>/cache/mr-snapshots.json` に置く。クラウドでは毎回空から始まり、1 回目の `status` が引き直す
-
-同じカードが両方にあれば、マージ済みの方を採る。控えはステージの導出の入力ではないので、データ用ブランチへ書けなくても
-（オフライン、push の拒否、ロックの待ち切れ）警告するだけで、ポーラーを止めない。書けなかった控えは次のプロセスが引き直して書く。
-控えは `ai-board` の CLI（`status` / `decide` など）の `ForgePoller` だけが書き、最初の `refresh` で読み戻す。
-`status` は呼ばれるたびに新しいプロセスなので、控えが無いと毎回すべての PR を詳細まで引き直す。
-`branch` から解決した PR 番号の書き戻しも `transact` を通し（`createTransactionalMrWriter`）、取り直した後に番号が既に入っていれば何も書かない。
-`MrState` に項目を足すと古い控えは検証で外れて引き直され、`enrich` の組み立てを変えたら `FINGERPRINT_VERSION` を上げる。
-
-かつて GitLab の MR の番号も同じ `mr` 列に入っていた。GitLab の MR !1 と GitHub の PR #1 は別物で、
-番号をそのまま引くと列は正しく埋まったままリンクだけが別の PR を指す。そのため出どころを確かめられない番号は
-移行前の DB のマイグレーション（v2・v3）で消し、`branch` から解決し直させていた。
-
-### `ai-board pr checks`（Ready の前の CI の確かめ）
-
-締めの段のループが、PR を Ready にする前に CI を確かめるのに使う（`src/board/cli/pr-cli.ts`、判定は `src/board/services/pr-checks.ts` の純関数）。
-ボードの表示には使わない（ステージの導出にも使わない）。
-
-- PR の `head.sha` から、`commits/{sha}/check-runs` を `--paginate --jq '.check_runs[]'` で、`commits/{sha}/status`（コンテキストごとの最新）を `--paginate --jq '.statuses[]'` で全件（1 件 1 行）引き、突き合わせずに 1 つの表にする
-- `--sha <sha>` を付けると、そのコミットを見る。7 桁以上の短いハッシュも受け付け、PR の head の完全なハッシュの先頭と照らし合わせる（`github-client.ts` の `isSameCommit`）。PR の head がまだそのコミットでなければ（push の直後）チェックを引かず、走っているとして扱う。締めの段は手元の `HEAD` を渡し、前のコミットの済んだ結果で通らないようにする
-- 1 本ごとの結果: `check-runs` は `status` が `completed` でなければ走っている、`success` / `neutral` / `skipped` は通った、ほか（知らない値も）は落ちた。`status` は `pending` が走っている、`success` が通った、ほかは落ちた
-- 全体の判定: 落ちたものがあれば `failed`、無くて走っているものがあれば `pending`、行が無ければ `none`、ほかは `passed`。終了コードは `passed` / `none` が 0、`failed` が 1、`pending` が 2、PR やチェックを読めなかったら 3（落ちたのと見分ける）
-- `--wait` は CLI の中で 15 秒おきに引き直し、走っている間と、見るコミットのチェックがまだ無い間（そのコミットが PR の head になってから 120 秒まで）待つ。上限（`--timeout`、既定 900 秒）まで終わらなければ `pending` の 2 で終わる
-- `status` が HTTP 403 / 404 のとき（クラウドのセッションの GitHub App は Commit Status API を読めない）は、`check-runs` だけで判定し、`statusUnreadable` に理由を出す。ほかの失敗は止める
-
-## カードの JSON
-
-`status --json` の `cards[]` は、本文の `body` を除いたカード（`Card` から組み立てたもの）に、導出の結果を足したものである。
-`hold`（止まり。`{ reason, since }` か `null`）と、
-`mrState.readyAt`（最後に Ready にした時刻）、`mrState.convertedToDraftAt`（最後に Draft へ戻された時刻）、
-`timeline`（区間の並び。各区間に待ちと作業の `phases`）、`loopSteps`（そのカードのループの 1 手の記録）、`reviews`（判断を書かれた順に並べた `{ at, gate, kind, reason }` の配列）を持つ。
-`reviews` の理由は組み立てた本文から読むので、`#`〜`###` の行は `####` に下がった文になる（`log/` の元の文ではない）。
-ボード全体には `loop`（`{ running, lastFinishedAt }`）が付く。
-
-## 区間の並び（timeline）
-
-`timeline` は、カードが各工程にいた時間を区間の配列として時刻の順に並べたもので、
-`src/board/services/stage-timeline.ts` の純関数 `resolveTimeline` が痕跡から毎回導出する（保存しない）。
-痕跡は `created`・`startedAt`・`## レビュー` の全エントリ・`readyAt`・`convertedToDraftAt`・`mergedAt` で、
-`## レビュー` は `currentEntries` を通さずに全部読む（「計画から立て直させる」のような今は効いていない古いエントリこそが区間の境目になる）。
-区間は `{ kind, owner, start, end }` で、種類（8 種類）と担当（`human` / `ai`）の一覧は `src/shared/timeline.ts` にある。
-今いる区間は `end: null` で、導出は今の時刻を受け取らない（長さを出す側が `generatedAt` までを数える）。
-マージと中止は今の区間を閉じるだけで次の区間を始めない。長さ 0 の区間は落とし、隣り合う同じ種類の区間はつなぐ。
-`status --json` の `cards[].timeline` に載る。
-
-**待ちと作業。** `GetBoardQuery` は `resolveTimeline` の結果を `src/board/services/timeline-phases.ts` の純関数 `splitAiPhases` に通し、
-各区間に `phases`（`{ kind: 'wait' | 'work', start, end }` の配列、型は `src/shared/timeline.ts` の `PhasedTimelineSegment`）を付ける。
-AI の区間では、そのカードのループの 1 手の記録を区間の範囲で切り取り、重なった部分を `work`、区間の中のそれ以外を `wait` にする。
-重なる記録はつなぎ、終わっていない区間・記録は `end: null` のまま扱う（今の時刻は受け取らない）。
-人の区間と、記録が 1 つも重ならない AI の区間は空にする（記録を始める前の区間を、全部「待ち」と言い張らないため）。
-`resolveTimeline` は 1 手の記録を読まない。区間の導出（痕跡だけから決まる）と分け方を混ぜないためである。
+`timeline` は `src/board/services/stage-timeline.ts` の純関数 `resolveTimeline` が痕跡（`created`・`startedAt`・`## レビュー` の全エントリ・`readyAt`・`convertedToDraftAt`・`mergedAt`）から導く。
+今は効いていない古いエントリも区間の境目になるので全部読む。区間は `{ kind, owner, start, end }` で、種類と担当は `src/shared/timeline.ts`。
+今いる区間は `end: null` で、今の時刻は受け取らない。マージと中止は区間を閉じるだけ。長さ 0 は落とし、隣の同じ種類はつなぐ。
+`src/board/services/timeline-phases.ts` の `splitAiPhases` が AI の区間をループの記録と重ねて `phases`（`wait` / `work`）に分ける。記録が重ならない区間と人の区間は空。
 
 ## ループの 1 手の記録
 
-ループ（`/board-loop` を動かした本筋のセッション）が 1 手を始めてから終えるまでを、1 件の記録としてデータ用ブランチの `loop/` に置く。
-本筋のセッションが手の始まりに `start`、終わりに `finish` を書く。`agent` はレビューの段で立てた `board-reviewer` の名前で、自分で進めた手は `null`。
-`durationMs` は `finish` に `--duration-ms` が無ければ開始から終了までのミリ秒で埋まる（0 未満は 0）。
-`tokens` は `--tokens` が無ければ、`src/infrastructure/session-usage.ts` が会話の記録（`--loop` をセッション ID として探す）から同じ窓のトークンを数えて埋める。数えられなければ `null`。
-`harness` は `start` が `src/infrastructure/harness-version.ts` で `--root` の `.claude/HARNESS_VERSIONS.md` の先頭の版を読んで埋める。
-型と語は `src/shared/loop-step.ts`、ファイルの形と読み書きは `src/board/repositories/loop-history.repository.ts`、CLI は `src/board/cli/loop-cli.ts`。
+型は `src/shared/loop-step.ts`、読み書きは `src/board/repositories/loop-history.repository.ts`、CLI は `src/board/cli/loop-cli.ts`。
 
-- ファイル名は `loop/<開始の時刻>.<ループの識別子>.json`。時刻は判断のファイルと同じ `toLogStamp` の形で、同じ時刻と識別子が重なれば `-2` を付ける。
-  識別子は `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`（ファイル名に入るため）
-- 中身は `{ loop, cardId, action, step, agent, harness, startedAt, finishedAt, result, tokens, durationMs }`。
-  `harness` の無い古い記録は `null`（版なし）として読む。データ用ブランチの形の版は上げていない（スキーマは知らない項目を落として読むので、古い CLI も新しい記録を読める）。
-  開始で `finishedAt` / `result` / `tokens` / `durationMs` を `null` にして作り、終了で 1 度だけ埋める。終わった記録は書き換えない
-- `result` は `advanced` / `held` / `stopped`（手の終わりの `結果:` の語）、`failed`（`board-reviewer` の `Agent` の失敗）、`unknown`（結果の語が無い）、`interrupted`（途切れた）
-- `ai-board loop start` は、同じループに終わっていない記録が残っていれば `interrupted` で閉じてから作る（閉じた時刻は新しい手の開始）。
-  `finish` は、そのループの終わっていない記録を埋め、無いか `--card` が食い違えば拒む。`interrupted` は渡せない
-- どちらも `DataStore.transact` の 1 操作で、コミットのメッセージは `loop: <start|finish> <cardId> <手>`。`DATA_PATHS` に `loop` を足してある
-- `loop-cli.ts` は、カードについては「その ID のカードがあるか」を読む関数だけを受け取り、カードの書き込みの口を持たない
-- 読めないファイル（JSON でない、項目が不正、ファイル名と中身の時刻や識別子が食い違う）は警告して読み飛ばす
-- 手と段の値（`LOOP_ACTIONS` / `LOOP_IMPL_STEPS`）は `src/shared/` に置き、`NextActionKind` / `ImplStep` と食い違えば
-  `loop-history.repository.ts` の `LOOP_VOCABULARY_IN_SYNC` で型エラーになる
+- ファイル名は `loop/<開始の時刻>.<ループの識別子>.json`（時刻は `toLogStamp`、重なれば `-2`）。識別子は `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`
+- 中身は `{ loop, cardId, action, step, agent, harness, startedAt, finishedAt, result, tokens, durationMs }`。`start` で作り、`finish` で 1 度だけ埋める
+- `agent` はレビューの段で立てた `board-reviewer`、自分で進めた手は `null`。`harness` は `.claude/HARNESS_VERSIONS.md` の先頭の版（`harness-version.ts`）
+- `durationMs` は `--duration-ms` が無ければ開始からの時間。`tokens` は `--tokens` が無ければ会話の記録から数える（`session-usage.ts`、数えられなければ `null`）
+- `result` は `advanced` / `held` / `stopped` / `failed` / `unknown` と、`loop start` が同じループの終わっていない記録を閉じるときの `interrupted`
+- `finish` は終わっていない記録が無いか `--card` が食い違えば拒む。`loop-cli.ts` はカードの存在を読む関数だけを受け取り、カードを書けない
+- 手と段の語は `LOOP_VOCABULARY_IN_SYNC` で `NextActionKind` / `ImplStep` と食い違えば型エラーになる
 
-形の版（`ai-board-data.yaml`）は上げない。`loop/` を足すだけで `cards/` と `order.yaml` の形は変わらず、
-古い CLI は `DATA_PATHS` に `loop/` を持たないが、`git add` も `git clean -x` も `DATA_PATHS` の下だけを扱い、追跡済みの `loop/` のファイルは `reset --hard` で保たれる。
-
-`GetBoardQuery` は全件を読み、`Board.loop`（`toBoardLoop`。ループごとの最新の終わっていない記録と、最後に終えた時刻）と、
-カードごとの `loopSteps` と、区間の `phases` を組み立てる。ステージの導出・止まり・次の一手には渡さない。
-`status` の「ループ: …」の 1 行は `src/shared/loop-activity.ts` の `summarizeLoop` が `generatedAt` までを数えて作る（今の時刻は読まない）。
+`GetBoardQuery` が全件を読んで `Board.loop`（`toBoardLoop`）・`loopSteps`・`phases` を組む。導出・止まり・次の一手には渡さない。
+「ループ: …」の行は `src/shared/loop-activity.ts` の `summarizeLoop`。
