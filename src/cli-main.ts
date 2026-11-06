@@ -133,9 +133,9 @@ async function runStatus(argv: readonly string[]): Promise<number> {
 /**
  * `decide` サブコマンド。人がチャットで頼んだ判断を書く。
  *
- * `status` と同じ組み立てのボードを、書き込みの 1 操作（`transactCardWrite`）の中で導出し、出せる判断かを確かめてから、
- * カードの usecase で書いてコミットして push する。PR の状態は頭で 1 回取り直したものを使い、書き込みの中では問い合わせない。
- * 書いた後のボードは、取り直した PR の状態のまま組み立て直す（列の移りを出すため）。
+ * データ用ブランチを取り直し、`status` と同じ組み立てのボード（`assembleBoard`）から、判断を書く usecase（`decide`）を渡す。
+ * 導出・検査・書き込み・コミットのメッセージ・書いた後の列の読み直しは usecase（`decide.command.ts`）が行う。
+ * PR の状態は頭で 1 回取り直したものを使い、書き込みの中でも書いた後でも問い合わせない。
  */
 async function runDecide(argv: readonly string[]): Promise<number> {
   const { root, rest } = extractRoot(argv);
@@ -163,15 +163,7 @@ async function runDecide(argv: readonly string[]): Promise<number> {
 
   const board = await assembleBoard(root, store, runner);
 
-  return runDecideCli(
-    rest,
-    {
-      loadBoard: board.getBoardQuery,
-      store,
-      cards: createFileCardDependencies(store.dataDir),
-    },
-    io
-  );
+  return runDecideCli(rest, { decide: board.decide }, io);
 }
 
 /**

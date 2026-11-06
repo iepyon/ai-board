@@ -183,11 +183,11 @@ OLD="$S/base/dist/cli.js"; NEW="$WT/dist/cli.js"
 
 ### 3. `decide` の段取りを usecase にする
 
-- [ ] `DecideError`（と `BoardUnreadable`）を `src/board/errors/board-errors.ts` へ移して export する
-- [ ] `src/board/usecases/commands/decide.command.ts` に `createDecideCommands` を作り、`decide()` と `reportWrite()` の段取り（導出・検査・書き込み・コミットのメッセージ・書いた後の列）を移す
-- [ ] `decide-cli.ts` の依存を `{ decide: DecideCommands }` にし、引数の解析と、結果とエラーを文に直すことだけを残す
-- [ ] `assembleBoard` が `decide` を返すようにし、`cli-main.ts` の `runDecide` を直す
-- [ ] `decide-cli.test.ts` の依存の組み方を直す（期待値は変えない）。`src/board/usecases/__tests__/decide.command.test.ts` に、書いた後の列（`to`）が読めない場合に null を返すことと、push の拒否でボードを導き直して検査からやり直すことのテストを足す
+- [x] `DecideError`（と `BoardUnreadable`）を `src/board/errors/board-errors.ts` へ移して export する
+- [x] `src/board/usecases/commands/decide.command.ts` に `createDecideCommands` を作り、`decide()` と `reportWrite()` の段取り（導出・検査・書き込み・コミットのメッセージ・書いた後の列）を移す
+- [x] `decide-cli.ts` の依存を `{ decide: DecideCommands }` にし、引数の解析と、結果とエラーを文に直すことだけを残す
+- [x] `assembleBoard` が `decide` を返すようにし、`cli-main.ts` の `runDecide` を直す
+- [x] `decide-cli.test.ts` の依存の組み方を直す（期待値は変えない）。`src/board/usecases/__tests__/decide.command.test.ts` に、書いた後の列（`to`）が読めない場合に null を返すことと、push の拒否でボードを導き直して検査からやり直すことのテストを足す
 
 ### 4. `card` のコミットのメッセージを usecase へ寄せる
 

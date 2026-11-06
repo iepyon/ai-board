@@ -21,6 +21,7 @@ import {
 } from './services/mr-state-provider.js';
 import { createGetBoardQuery, type GetBoardQuery } from './usecases/queries/get-board.query.js';
 import { createGetStatusQuery, type GetStatusQuery } from './usecases/queries/get-status.query.js';
+import { createDecideCommands, type DecideCommands } from './usecases/commands/decide.command.js';
 import {
   createFileLoopHistoryRepository,
   type LoopHistoryRepository,
@@ -121,6 +122,11 @@ export async function createMrStateSource(
 export interface AssembledBoard extends BoardDependencies {
   /** ボードの見せる形。`next.step` を、カードのブランチの計画から読む（`git fetch` はしない） */
   readonly getStatusQuery: GetStatusQuery;
+  /**
+   * 人の判断を書く。ボードの導出・検査・書き込みを `store` の書き込みの 1 操作の中で走らせる。
+   * 書き込みの中で導くボードも、頭で 1 回取り直した PR の状態を使い、問い合わせ直さない
+   */
+  readonly decide: DecideCommands;
 }
 
 /**
@@ -160,5 +166,6 @@ export async function assembleBoard(
       board.getBoardQuery,
       createBranchPlanRepository(runner, config.paths.root)
     ),
+    decide: createDecideCommands({ loadBoard: board.getBoardQuery, store, cards }),
   };
 }
