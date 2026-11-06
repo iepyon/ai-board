@@ -1,0 +1,13 @@
+{
+  "loop": "730cd17e-bca5-4401-9dd6-781af802efa6",
+  "cardId": "pr-checks-short-sha",
+  "action": "implement",
+  "step": "review",
+  "agent": "board-reviewer",
+  "harness": "v3",
+  "startedAt": "2026-11-06T04:29:59.579Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
