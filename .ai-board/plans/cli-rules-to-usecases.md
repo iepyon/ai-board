@@ -11,6 +11,7 @@
 - **保留の `--reason` が要ることを、どこで確かめるか。**（既定: 引数の検査として CLI に残す）
   - → 回答（2026-11-06、plan 否決）: 保留の理由の必須は CLI に残す。
 - **画面のためだけに残ったコードも消すか。** 記述を掃除する中で、画面からしか使われていなかった関数が見つかる。例えば、`src/shared/card-reorder.ts` の `moveTargetFor` / `applyMove` はテストからしか使われていない（既定: 消さない。この計画では記述だけを直し、見つけた関数は PR の本文に一覧で挙げる）
+  - → 回答（2026-11-06、plan 否決）: 画面のためだけに残ったコードも消して欲しい。
 
 ## 提案
 
@@ -43,6 +44,7 @@ ADR 0010 の「取り直して検査からやり直す」が、`decide` では�
 - `decide` の拒否の検査を、`Board` を受けて `Result` を返す純関数にする
 - 書き込みの包み方を 1 つの関数にまとめ、`createTransactionalCardDependencies` と `onWrite` を消す。`decide` は検査から書き込みまでを `transact` の中で走らせる
 - `src/` のコメントとテスト名から、画面やサーバが今もあるとする記述を消すか、今の使い手（`ai-board` の CLI）に合わせて書き直す
+- 画面のためだけに残ったコード（`moveTargetFor` / `applyMove` / `MoveTarget`、`createTransactionalCardDependencies`、`onWrite`）を消す
 - CLI の出力（標準出力・標準エラーの文・終了コード）とコミットのメッセージは変えない（`DECIDE_USAGE` の 1 行を除く）
 
 ### Impact
@@ -53,7 +55,8 @@ ADR 0010 の「取り直して検査からやり直す」が、`decide` では�
 - テスト: `src/cards/usecases/__tests__/`、`src/board/services/__tests__/`、`src/board/cli/__tests__/decide-cli.test.ts`、`src/cards/cli/__tests__/card-cli.test.ts`、
   `src/cards/repositories/__tests__/file-idea-divider.repository.test.ts`
 - ドキュメント: `CLAUDE.md`、`docs/architecture.md`、`docs/adr/0006-ai-review-entries-and-hold.md`
-- 記述の掃除: `src/` の `cards/`・`board/`・`shared/`・`infrastructure/`・`cli-main.ts` と、そのテストのコメントとテスト名（コードは変えない）
+- 記述の掃除: `src/` の `cards/`・`board/`・`shared/`・`infrastructure/`・`cli-main.ts` と、そのテストのコメントとテスト名
+- 画面のためだけに残ったコードの削除: `src/shared/card-reorder.ts` の `moveTargetFor` / `applyMove` / `MoveTarget` と、そのテスト（`createTransactionalCardDependencies` と `onWrite` は節 3 で消す）
 - 導出（`stage-resolver.ts`）、データ用ブランチの形、CLI の引数と出力、手順書（`.claude/`）は変わらない
 
 ## 設計
@@ -112,6 +115,9 @@ ADR 0010 の「取り直して検査からやり直す」が、`decide` では�
   列の移りの 1 行は、`transact` の最後の試みで読んだカードを「前」にし、`transact` の後に読み直したボードを「後」にする
 
 - **`onWrite` を消す。** `createFileCardDependencies`、`FileCardRepository`、`FileIdeaDividerRepository` から消し、それを確かめるテストも消す。呼ぶ者はもういない
+- **画面のためだけに残ったコードを消す。** 消すのは、CLI の入口（`src/cli.ts` / `src/cli-main.ts`）から宣言の参照をたどって届かず、かつ画面とサーバとダッシュボードを外す前（`054c29f`）に、外したファイルから参照されていたものである。
+  当てはまるのは、`src/shared/card-reorder.ts` の `moveTargetFor` / `applyMove` / `MoveTarget`（画面のドラッグでの並べ替え）と、節 3 で消す `createTransactionalCardDependencies` / `onWrite` だけだった。
+  `card-reorder.ts` には `DIVIDER_ID` だけが残る。`DIVIDER_ID` の置き場所は変えない。`src/shared/__tests__/card-reorder.test.ts` の `moveTargetFor` / `applyMove` のテストも消す
 - **`src/` 全体の、画面やサーバを前提にした記述を今の形に直す。** 探す語は `サーバ` / `画面` / `UI` / `HTTP API` / `/api/` / `SSE` / `web` で、直し方は次のとおりにする。
   - 画面やサーバが今もあるとする記述は、今の使い手（`status` / `decide` / `card` / `loop` の CLI）に合わせて書き直す。要らなくなった記述は消す。
     例: `card-cli` の「UI と HTTP API からだけ行える」は「`ai-board decide` からだけ書く」に、`DECIDE_USAGE` の「画面で押せない判断は拒む」は「出せない判断は拒む」に直す
@@ -121,7 +127,8 @@ ADR 0010 の「取り直して検査からやり直す」が、`decide` では�
     例: `plan-task.ts` の `src/shared/markdown.ts`、`append-review.command.ts` の「次の `GET /api/board`」
   - テスト名も同じ方針で直す。期待値と fixture の文字列は変えない。
     例: `status-cli.test.ts` の `not.toContain('サーバ:')`、`claude-settings.test.ts` の `curl http://127.0.0.1:5673/api/cards`
-  - 画面からしか使われていなかった関数は消さない。見つけた関数は PR の本文に一覧で挙げる（人に判断してほしいこと）
+  - 画面やサーバのために書いたが、今も CLI の同時の実行に効いているコードは消さず、記述だけを直す。
+    例: `file-card.repository.ts` の `readLogFiles` が消えたファイルを読み飛ばすこと（`status` もロックを取らずに読む）、`file-mr-snapshot.repository.ts` の一時ファイルを経た書き込み（`status` が 2 つ同時に走りうる）
   - `docs/` と `.claude/` は、この掃除の対象にしない。タスク 4 で挙げる箇所だけを直す
 
 ### 仮定
@@ -150,19 +157,20 @@ ADR 0010 の「取り直して検査からやり直す」が、`decide` では�
 - **pr / status / loop の CLI も usecase に出す** — pr は `gh` の薄い包みで、重い `nextCheckStep` / `isSettled` はすでに純関数である。status は `buildStatusReport` が純関数で、query もある。loop の書き込みは `writeLoopStart` / `writeLoopFinish` に任せている。層を足しても得るものが無い
 - **ブランチの紐付けを専用の usecase にし、`card-cli` から `updateCardMetaCommand` も外す** — `startedAt` / `skipGates` も型の上で書けなくなる利点はある。ただし、この計画の目的（拒否のルールを出す）の外になる（人に判断してほしいこと。今回は入れないと回答を受けた）
 - **記述の掃除を別のカードにする** — 人が、この計画で `src/` 全体を掃除すると決めた（plan 否決、2026-11-06）
-- **画面のためだけに残った関数も、掃除と一緒に消す** — 消すかは関数ごとに使い手を確かめる必要があり、記述の掃除より重い。この計画では一覧に挙げるだけにする（人に判断してほしいこと）
+- **画面のためだけに残った関数を消さず、一覧に挙げるだけにする** — 人が、消して欲しいと決めた（plan 否決、2026-11-06）
+- **画面と関係なく使われていない export（`isOk` / `createMergeRequestIid` / テストからしか使われない `parseCard` など）も消す** — 画面のために残ったものではなく、頼まれた範囲の外になる（Non-Goals）
 
 ### Risks / Trade-offs
 
 - 使う側が CLI だけなので、usecase と純関数を足した分だけ読む場所が増える。拒否のルールは「提出・保留は usecase」「人の判断は `decision-guards.ts`」の 2 か所にまとまる
 - `decide` が拒むとき、今はロックと取り直しの前に拒んでいた。この変更の後は、ロックを取り、取り直してから拒む。ロックの待ちの分だけ遅くなりうるが、`card submit` / `card hold` と同じ扱いになる
 - `transact` の中でボードを導くので、push が拒否されるたびに導出が 1 回増える。導出はファイルを読むだけで、`transact` のやり直しは 3 回までである
-- 記述の掃除は 39 ファイルほどに及び、差分が広がる。コードは変えないので、壊れ方は品質ゲート（型・lint・テスト）で拾える。
+- 記述の掃除は 39 ファイルほどに及び、差分が広がる。記述の掃除ではコードを変えないので、壊れ方は品質ゲート（型・lint・テスト）で拾える。
   読む人の負担を減らすため、掃除は節 5・6 に分け、usecase の切り出し（節 1〜3）とは別のコミットにする
 
 ### Non-Goals
 
-- 画面のためだけに残った関数の削除（一覧に挙げるだけ）
+- 画面と関係なく使われていない export の削除（`isOk` / `createMergeRequestIid` / `parseCard` など）
 - `docs/` と `.claude/` の、画面やサーバを前提にした記述の掃除（タスク 4 の箇所だけを直す）
 - `src/shared/` のファイルを、ほかのコンテキストへ移すこと
 - ブランチの紐付けの専用の usecase
@@ -171,27 +179,29 @@ ADR 0010 の「取り直して検査からやり直す」が、`decide` では�
 
 ## 探索メモとの対応
 
-| #   | 探索メモ                                                                                                                                                                                                                            | 反映した先                                                                                      | 反映しなかった理由 |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------ |
-| 1   | 一緒に直す古いコメント（card-cli の「UI と HTTP API」、decide-cli の「画面のボタンと同じ」、`DECIDE_USAGE`）                                                                                                                        | Decisions（`src/` 全体の記述）／タスク 5                                                        |                    |
-| 2   | 強制する場所が移るので書き直す記述（`CLAUDE.md`、`docs/architecture.md` の 89 行目と 239 行目）                                                                                                                                     | Impact／タスク 4                                                                                |                    |
-| 3   | 使う側が CLI だけなので、層を増やすと遠回りになるのが代償                                                                                                                                                                           | Risks / Trade-offs                                                                              |                    |
-| 4   | plan 否決（2026-11-06）: 「人に判断してほしいことを足して。decide の検査は transact の中へ移す。ブランチの紐付けの usecase は今回入れない。画面やサーバを前提にした古い記述は src 全体を掃除する。保留の理由の必須は CLI に残す。」 | 人に判断してほしいこと／Why／Decisions（`src/` 全体の記述）／退けた代案／Non-Goals／タスク 5・6 |                    |
+| #   | 探索メモ                                                                                                                                                                                                                            | 反映した先                                                                                                 | 反映しなかった理由 |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------ |
+| 1   | 一緒に直す古いコメント（card-cli の「UI と HTTP API」、decide-cli の「画面のボタンと同じ」、`DECIDE_USAGE`）                                                                                                                        | Decisions（`src/` 全体の記述）／タスク 5                                                                   |                    |
+| 2   | 強制する場所が移るので書き直す記述（`CLAUDE.md`、`docs/architecture.md` の 89 行目と 239 行目）                                                                                                                                     | Impact／タスク 4                                                                                           |                    |
+| 3   | 使う側が CLI だけなので、層を増やすと遠回りになるのが代償                                                                                                                                                                           | Risks / Trade-offs                                                                                         |                    |
+| 4   | plan 否決（2026-11-06）: 「人に判断してほしいことを足して。decide の検査は transact の中へ移す。ブランチの紐付けの usecase は今回入れない。画面やサーバを前提にした古い記述は src 全体を掃除する。保留の理由の必須は CLI に残す。」 | 人に判断してほしいこと／Why／Decisions（`src/` 全体の記述）／退けた代案／Non-Goals／タスク 5・6            |                    |
+| 5   | plan 否決（2026-11-06）: 「画面のためだけに残ったコードも消して欲しい。」                                                                                                                                                           | 人に判断してほしいこと／Impact／Decisions（画面のためだけに残ったコード）／退けた代案／Non-Goals／タスク 6 |                    |
 
 ## 動作確認の手順
 
 `AI_BOARD_DATA` でスクラッチパッドの試しのデータのワークツリーを指して動かす（`.claude/skills/board-loop/rules.md` の「動かして確かめるとき」）。
 GitHub に繋がらない試しのデータでは、`decide` の承認 / 否決 / 中止と着手 / 着手を戻すが拒まれる。そのため、`decide` の手順は `config.yaml` の `github:` をこのリポジトリに向け、`gh` にログインした環境で走らせる。
 
-| 確かめること                                   | コマンド                                                              | 期待する結果                                                                                                                  |
-| ---------------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| 着手していないカードへの提出を今と同じ文で拒む | `card create --title t --id a1` の後に `card submit a1`               | 「plan の提出は着手したカードにしかできません（着手は人が指示します）」が出て終了コード 1                                     |
-| 着手したカードには提出を書ける                 | `decide start a1` の後に `card submit a1 --reason r`                  | `a1` が出て終了コード 0。`card show a1` の `## レビュー` に `plan 提出` が 1 件                                               |
-| 否決でないゲートへの保留を今と同じ文で拒む     | 上の続きで `card hold a1 --gate plan --reason r`                      | 「保留は plan の最新の判断が否決のときにしか書けません」が出て終了コード 1                                                    |
-| `decide` は書いて列の移りを 1 行で出す         | `card create --title t --id a2` の後に `decide start a2`              | `a2: 着手 を書きました（アイデア → 計画提案中）` が出て終了コード 0                                                           |
-| `decide` は出せない判断を今と同じ文で拒む      | 上の続きで `decide approve a2`                                        | 「a2 に 承認 は書けません（今の列: 計画提案中。…）」が出て終了コード 1                                                        |
-| コミットのメッセージが変わらない               | `git -C "$S/data" log --format=%s -5`                                 | `data: a2 の startedAt を変える` など、今と同じ形のメッセージが並ぶ                                                           |
-| 画面やサーバを前提にした記述が残っていない     | `grep -rnE "サーバ\|画面\|HTTP API\|/api/\|SSE\|UI " src`（`$WT` で） | 出るのは、仮定に挙げた直さない行（テストの期待値・fixture・`PASSED_CONCLUSIONS`）と、画面の作り直しや外した経緯に触れる行だけ |
+| 確かめること                                   | コマンド                                                                                             | 期待する結果                                                                                                                  |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 着手していないカードへの提出を今と同じ文で拒む | `card create --title t --id a1` の後に `card submit a1`                                              | 「plan の提出は着手したカードにしかできません（着手は人が指示します）」が出て終了コード 1                                     |
+| 着手したカードには提出を書ける                 | `decide start a1` の後に `card submit a1 --reason r`                                                 | `a1` が出て終了コード 0。`card show a1` の `## レビュー` に `plan 提出` が 1 件                                               |
+| 否決でないゲートへの保留を今と同じ文で拒む     | 上の続きで `card hold a1 --gate plan --reason r`                                                     | 「保留は plan の最新の判断が否決のときにしか書けません」が出て終了コード 1                                                    |
+| `decide` は書いて列の移りを 1 行で出す         | `card create --title t --id a2` の後に `decide start a2`                                             | `a2: 着手 を書きました（アイデア → 計画提案中）` が出て終了コード 0                                                           |
+| `decide` は出せない判断を今と同じ文で拒む      | 上の続きで `decide approve a2`                                                                       | 「a2 に 承認 は書けません（今の列: 計画提案中。…）」が出て終了コード 1                                                        |
+| コミットのメッセージが変わらない               | `git -C "$S/data" log --format=%s -5`                                                                | `data: a2 の startedAt を変える` など、今と同じ形のメッセージが並ぶ                                                           |
+| 画面のためだけに残ったコードが無い             | `grep -rnE "moveTargetFor\|applyMove\|onWrite\|createTransactionalCardDependencies" src`（`$WT` で） | 何も出ない                                                                                                                    |
+| 画面やサーバを前提にした記述が残っていない     | `grep -rnE "サーバ\|画面\|HTTP API\|/api/\|SSE\|UI " src`（`$WT` で）                                | 出るのは、仮定に挙げた直さない行（テストの期待値・fixture・`PASSED_CONCLUSIONS`）と、画面の作り直しや外した経緯に触れる行だけ |
 
 ## タスク
 
@@ -235,12 +245,13 @@ Decisions の「`src/` 全体の記述」の方針で直す。コードは変え
 - [ ] `src/cards/repositories/`（`file-card` / `file-idea-divider` / `idea-divider` / `card-files`）
 - [ ] 節 1〜3 で足したファイルにも、同じ語が無いことを確かめる
 
-### 6. 記述の掃除（board・shared）
+### 6. 記述の掃除と、画面のためだけに残ったコードの削除（board・shared）
 
-Decisions の「`src/` 全体の記述」の方針で直す。コードは変えない。
+記述は Decisions の「`src/` 全体の記述」の方針で直す。コードを変えるのは、画面のためだけに残ったコードを消すところだけにする。
 
 - [ ] `src/board/cli/`（`decide-cli.ts` の docstring・`DECIDE_USAGE`・コメント、`status-cli.ts`）と、そのテスト名（`decide-cli.test.ts` / `status-cli.test.ts`）
 - [ ] `src/board/models/`（`board-card.ts` / `plan-task.ts`）、`src/board/services/`（`stage-resolver.ts` / `next-action.ts`）、`src/board/usecases/queries/get-board.query.ts`
 - [ ] `src/board/composition.ts` と `src/board/repositories/`（`plan` / `branch-plan` / `mr-snapshot` / `file-mr-snapshot`）
 - [ ] `src/shared/`（`dashboard-sections` / `card-reorder` / `stage-gates` / `stage-labels` / `pr-feedback` / `loop-step` / `loop-activity` / `schemas/common`）
-- [ ] 動作確認の手順の `grep` で残りを確かめ、画面のためだけに残った関数を PR の本文に挙げる一覧に控える
+- [ ] `src/shared/card-reorder.ts` から `moveTargetFor` / `applyMove` / `MoveTarget` を消し、`src/shared/__tests__/card-reorder.test.ts` のそれらのテストを消す。`dashboard-sections.ts` の `moveTargetFor` / `applyMove` に触れるコメントも直す
+- [ ] 動作確認の手順の 2 つの `grep` で、残りが無いことを確かめる
