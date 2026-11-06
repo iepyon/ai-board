@@ -1,0 +1,13 @@
+{
+  "loop": "a86ca91c-9ed9-52b5-8ab3-ce83b44e4613",
+  "cardId": "offline-data-mode",
+  "action": "plan",
+  "step": null,
+  "agent": null,
+  "harness": "v5",
+  "startedAt": "2026-11-06T12:38:18.521Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
