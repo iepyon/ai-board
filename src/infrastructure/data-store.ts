@@ -309,6 +309,11 @@ class GitDataStore implements DataStore {
 
     const pushed = await this.git(['push', '--quiet', '--no-verify', 'origin', DATA_PUSH_REFSPEC]);
     if (isErr(pushed)) return { kind: 'rejected', base: base.value, error: pushed.error };
+
+    // fetch の refspec が ai-board/data を写さない clone では、push しても追跡のブランチが動かない。
+    // 次の取り直しで fetch に失敗したとき、上げ済みのコミットを守りが「origin に無い」と数えないよう進めておく。
+    // 書き込みは push で済んでいるので、ここが失敗しても失敗にしない（次の fetch が追跡のブランチを直す）
+    await this.git(['update-ref', DATA_REMOTE_REF, 'HEAD']);
     return done(written);
   }
 

@@ -963,3 +963,22 @@ describe('手元の commit の守り', () => {
     expect(fs.existsSync(path.join(a, 'cards/b/card.md'))).toBe(true);
   });
 });
+
+describe('push の後の追跡のブランチ', () => {
+  it('fetch の refspec が ai-board/data を写さない clone で書いた後、fetch に失敗しても refresh は offline を返す', async () => {
+    const a = cloneData(path.join(tmp, 'a'));
+    git(a, 'config', 'remote.origin.fetch', '+refs/heads/main:refs/remotes/origin/main');
+
+    const written = await store(a).transact('data: x を足す', async (dir) => {
+      write(dir, 'cards/x/card.md', 'x\n');
+      return ok(undefined);
+    });
+    expect(written).toEqual(ok(undefined));
+    git(a, 'remote', 'set-url', 'origin', path.join(tmp, 'missing.git'));
+
+    const result = await store(a).refresh();
+
+    expect(result).toMatchObject(ok({ kind: 'offline' }));
+    expect(fs.existsSync(path.join(a, 'cards/x/card.md'))).toBe(true);
+  });
+});

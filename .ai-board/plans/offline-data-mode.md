@@ -184,7 +184,7 @@ push が担っている「ほかの環境に渡す」と「同時に書いたと
 
 ## AI レビュー
 
-- [ ] `src/infrastructure/data-store.ts:310` の `attempt()` で push が通っても、`remote.origin.fetch` が `ai-board/data` を写さない clone（`--single-branch` や `--depth` の clone で、`+refs/heads/main:refs/remotes/origin/main` だけのもの）では `refs/remotes/origin/ai-board/data` が動かない（push で追跡のブランチが動くのは、fetch の refspec が写すときだけ。スクラッチの repo で push の後に `rev-list --count` が 1 になるのを確かめた）。次のコマンドで fetch に失敗すると、`guardLocalAhead()`（:464）が push 済みのコミットを「origin に無い」と数えて `DataStoreLocalAhead` で止まり、この PR の前は警告付きで読めていた既定のモードのオフラインの読み出しが失敗し、文も既に上がったコミットを上げるか捨てるよう促す。push が通ったら `git update-ref refs/remotes/origin/ai-board/data HEAD`（`DATA_REMOTE_REF`）で追跡のブランチを進め、`data-store.test.ts` に「fetch の refspec が ai-board/data を写さない clone で書いた後、fetch に失敗しても refresh が `offline` を返す」テストを足す
+- [x] `src/infrastructure/data-store.ts:310` の `attempt()` で push が通っても、`remote.origin.fetch` が `ai-board/data` を写さない clone（`--single-branch` や `--depth` の clone で、`+refs/heads/main:refs/remotes/origin/main` だけのもの）では `refs/remotes/origin/ai-board/data` が動かない（push で追跡のブランチが動くのは、fetch の refspec が写すときだけ。スクラッチの repo で push の後に `rev-list --count` が 1 になるのを確かめた）。次のコマンドで fetch に失敗すると、`guardLocalAhead()`（:464）が push 済みのコミットを「origin に無い」と数えて `DataStoreLocalAhead` で止まり、この PR の前は警告付きで読めていた既定のモードのオフラインの読み出しが失敗し、文も既に上がったコミットを上げるか捨てるよう促す。push が通ったら `git update-ref refs/remotes/origin/ai-board/data HEAD`（`DATA_REMOTE_REF`）で追跡のブランチを進め、`data-store.test.ts` に「fetch の refspec が ai-board/data を写さない clone で書いた後、fetch に失敗しても refresh が `offline` を返す」テストを足す
 
 ### 見送った指摘
 
