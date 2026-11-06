@@ -22,12 +22,12 @@ import { readSeedCards, type SeedFile } from './seed-cards.js';
 /**
  * エージェントに許す操作だけを並べる。
  *
- * `startedAt`・`rank`・`skipGates` の書き換えと、承認 / 否決 / 中止の追記は
+ * `startedAt`・`rank`・`skipGates` の書き換えと、承認 / 差し戻し / 中止の追記は
  * 人の判断であり、ここには入口を置かない（`ai-board decide` からだけ書く）。
  * 本文の差し替えも、`## レビュー` のエントリを変えるものは拒否する
  * （検査は本文の差し替えの usecase が持ち、CLI はその `ReviewEntriesChanged` を出すだけにする）。
  * 提出 / 保留も、書けるかの検査は提出と保留の usecase が持つ。どちらも種別を中で決めるので、
- * この CLI には承認 / 否決 / 中止を書く口が型の上でも無い（`CardCliDependencies.cards` に `appendReviewCommand` を渡さない）。
+ * この CLI には承認 / 差し戻し / 中止を書く口が型の上でも無い（`CardCliDependencies.cards` に `appendReviewCommand` を渡さない）。
  * 提出 / 保留の判断は値のままリポジトリに渡すので、理由にどんな行を書いても判断は 1 件しか増えない。
  *
  * カードの正本はデータ用ブランチにある。読むコマンドは頭で 1 回取り直してから読み、
@@ -50,7 +50,7 @@ Commands:
   submit <id> [--gate plan] [--resubmit] [--reason <text>]
                            ## レビュー に提出（--resubmit で再提出）を追記する
                            （--gate はどのゲートへの提出か。plan だけで、既定も plan。
-                           着手したカードで、plan が未提出か否決のときにだけ書ける）
+                           着手したカードで、plan が未提出か差し戻されたときにだけ書ける）
   hold <id> --gate plan --reason <text>
                            ## レビュー に保留を追記する。その手を自分では進められず
                            止まるときに、なぜ止まったか、人に何を決めてほしいかを書く
@@ -342,7 +342,7 @@ async function runBranch(
 /**
  * AI の手の区切りを `提出` / `再提出` として残す。
  *
- * 書けるか（着手したカードで、ゲートが未提出か否決か）は提出の usecase が確かめる（`submitReviewCommand`）。
+ * 書けるか（着手したカードで、ゲートが未提出か差し戻しか）は提出の usecase が確かめる（`submitReviewCommand`）。
  */
 async function runSubmit(
   args: ParsedArgs,
@@ -379,7 +379,7 @@ async function runSubmit(
  * AI が手を進められずに止まったことを `保留` として残す。
  *
  * ゲートは取り違えると別の手の止まりになるので既定を置かず、理由は人が次に何をするかを決める材料なので必須にする。
- * 書けるか（ゲートの最新の判断が否決か）は保留の usecase が確かめる（`holdReviewCommand`）。
+ * 書けるか（ゲートの最新の判断が差し戻しか）は保留の usecase が確かめる（`holdReviewCommand`）。
  */
 async function runHold(
   args: ParsedArgs,
@@ -501,9 +501,9 @@ function describeError(error: WriteFailure | DataStoreError): string {
     case 'SubmitBeforeStart':
       return 'plan の提出は着手したカードにしかできません（着手は人が指示します）';
     case 'SubmitGateClosed':
-      return `${error.gate} の提出は、${error.gate} が未提出か否決のときにしかできません（今の ${error.gate} ゲート: ${error.state}）`;
+      return `${error.gate} の提出は、${error.gate} が未提出か差し戻されたときにしかできません（今の ${error.gate} ゲート: ${error.state}）`;
     case 'HoldGateNotRejected':
-      return `保留は ${error.gate} の最新の判断が否決のときにしか書けません`;
+      return `保留は ${error.gate} の最新の判断が差し戻しのときにしか書けません`;
     case 'CardWriteRefused':
       return `カードのファイルへの書き込みを拒みました（${error.reason}）`;
     case 'ReviewEntriesChanged':

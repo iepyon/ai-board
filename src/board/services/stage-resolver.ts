@@ -14,7 +14,7 @@ import type { MrState } from '../models/mr-state.js';
  *
  * 「着手」「着手を戻す」（`ai-board decide start` / `unstart` の `startedAt` の打刻と取り消し）に対応する 1 遷移だけ。
  * 残りは AI の成果物（計画ファイル / レビュー要求）か、本文のレビューログが立てる。
- * 人のレビューログへの書き込みも、承認 / 否決 / 中止（`ai-board decide`）で行う。
+ * 人のレビューログへの書き込みも、承認 / 差し戻し / 中止（`ai-board decide`）で行う。
  */
 export const HUMAN_STAGES = ['idea', 'planning'] as const satisfies readonly Stage[];
 
@@ -45,12 +45,12 @@ export interface StageResolution {
  * | 6 | idea        | 既定                                                  |
  *
  * 計画と実装は同じ 1 本の PR に載る。AI は計画をコミットした時点で Draft の PR を出し、
- * 人はその PR で計画を読んで、`ai-board decide` で承認 / 否決する。実装と AI レビューを終えた AI が、
+ * 人はその PR で計画を読んで、`ai-board decide` で承認するか差し戻す。実装と AI レビューを終えた AI が、
  * 動かした証拠を PR の本文に書いて Ready にした時点で PR中 へ進み、人は証拠を見て動かし、差分を読む。
  * 計画ファイルはブランチにあり、ボードを動かすチェックアウトからは見えないことが多いので、
  * Draft の PR も計画の成果物として扱う。
  *
- * 否決の差し戻しは専用ルールを持たない。`gate = rejected` のとき
+ * 差し戻しは専用ルールを持たない。`gate = rejected` のとき
  * その工程のレビュー行と承認行が両方外れ、1 つ手前の列へ自然に落ちる。
  */
 export function resolveStage(

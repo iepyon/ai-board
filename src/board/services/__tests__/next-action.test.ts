@@ -99,7 +99,7 @@ describe('pickNextAction', () => {
     expect(pickNextAction([makeCard({ id: 'a', stage: 'planning' })])?.action).toBe('plan');
   });
 
-  it('否決されて計画提案中へ落ちたカードは revise-plan', () => {
+  it('差し戻されて計画提案中へ落ちたカードは revise-plan', () => {
     const next = pickNextAction([
       makeCard({ id: 'a', stage: 'planning', gates: gate('rejected') }),
     ]);
@@ -107,7 +107,7 @@ describe('pickNextAction', () => {
     expect(next).toEqual({
       cardId: 'a',
       action: 'revise-plan',
-      reason: '計画が否決された',
+      reason: '計画が差し戻された',
       step: null,
     });
   });
@@ -212,7 +212,7 @@ describe('resolveHold', () => {
     const hold = resolveHold(
       holdInput('planning', [
         entry(0, 'plan', '提出'),
-        entry(1, 'plan', '否決'),
+        entry(1, 'plan', '差し戻し'),
         entry(2, 'plan', '保留'),
       ])
     );
@@ -290,7 +290,7 @@ describe('resolveHold', () => {
   it('手を出してよい計画提案中・実装中のカードは止まらない', () => {
     expect(resolveHold(holdInput('planning', []))).toBeNull();
     expect(
-      resolveHold(holdInput('planning', [entry(0, 'plan', '提出'), entry(1, 'plan', '否決')]))
+      resolveHold(holdInput('planning', [entry(0, 'plan', '提出'), entry(1, 'plan', '差し戻し')]))
     ).toBeNull();
     expect(resolveHold(holdInput('impling', approvedPlan))).toBeNull();
   });

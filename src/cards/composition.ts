@@ -55,11 +55,11 @@ export interface CardDependencies {
   readonly createCardCommand: CreateCardCommand;
   readonly updateCardMetaCommand: UpdateCardMetaCommand;
   readonly updateCardBodyCommand: UpdateCardBodyCommand;
-  /** 人の判断（承認 / 否決 / 中止）を足す。AI の CLI（`ai-board card`）には渡さない */
+  /** 人の判断（承認 / 差し戻し / 中止）を足す。AI の CLI（`ai-board card`）には渡さない */
   readonly appendReviewCommand: AppendReviewCommand;
   /** AI の 提出 / 再提出 を足す。着手とゲートの状態を確かめる */
   readonly submitReviewCommand: SubmitReviewCommand;
-  /** AI の 保留 を足す。ゲートの最新が否決かを確かめる */
+  /** AI の 保留 を足す。ゲートの最新が差し戻しかを確かめる */
   readonly holdReviewCommand: HoldReviewCommand;
   readonly moveCardCommand: MoveCardCommand;
   readonly moveIdeaDividerCommand: MoveIdeaDividerCommand;

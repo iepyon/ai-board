@@ -184,7 +184,7 @@ describe('ai-board decide', () => {
     expect(parseReviewLog((await readCard('b')).body)).toHaveLength(1);
   });
 
-  describe('承認 / 否決 / 中止', () => {
+  describe('承認 / 差し戻し / 中止', () => {
     it('計画レビューのカードを承認すると、plan 承認 を書いて列の移りを出す', async () => {
       await writeCard('a', STARTED, review('提出'));
       await writePlan('a');
@@ -197,7 +197,7 @@ describe('ai-board decide', () => {
       expect(stdout).toBe('a: plan 承認 を書きました（計画レビュー → 実装中）\n');
     });
 
-    it('否決は --reason が無ければ拒み、カードを変えない', async () => {
+    it('差し戻しは --reason が無ければ拒み、カードを変えない', async () => {
       await writeCard('a', STARTED, review('提出'));
       await writePlan('a');
 
@@ -207,7 +207,7 @@ describe('ai-board decide', () => {
 
       expect(await run(['reject', 'a', '--reason', '直して'])).toBe(0);
       expect(parseReviewLog((await readCard('a')).body).at(-1)).toMatchObject({
-        kind: '否決',
+        kind: '差し戻し',
         reason: '直して',
       });
       expect(stdout).toContain('計画レビュー → 計画提案中');
@@ -251,11 +251,11 @@ describe('ai-board decide', () => {
       await writeCard(
         'a',
         STARTED,
-        `${review('提出')}\n### 2026-11-03T01:00:00.000Z plan 否決\n\n理由\n\n### 2026-11-03T02:00:00.000Z plan 保留\n\n止まった\n`
+        `${review('提出')}\n### 2026-11-03T01:00:00.000Z plan 差し戻し\n\n理由\n\n### 2026-11-03T02:00:00.000Z plan 保留\n\n止まった\n`
       );
 
       expect(await run(['approve', 'a'])).toBe(1);
-      expect(stderr).toContain('出せる判断: plan 否決 / plan 中止');
+      expect(stderr).toContain('出せる判断: plan 差し戻し / plan 中止');
     });
 
     it('GitHub に繋がらないときは承認を拒む', async () => {
@@ -438,7 +438,7 @@ describe('ai-board decide', () => {
       expect(
         await run(['reject', 'a', '--reason', '直して'], stubProvider(), approvedElsewhere)
       ).toBe(1);
-      expect(stderr).toContain('a に 否決 は書けません（今の列: 実装中');
+      expect(stderr).toContain('a に 差し戻し は書けません（今の列: 実装中');
       expect(parseReviewLog((await readCard('a')).body).map((entry) => entry.kind)).toEqual([
         '提出',
         '承認',

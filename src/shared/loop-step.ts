@@ -18,7 +18,7 @@ export const LOOP_CURRENT_ACTIONS = ['plan', 'revise-plan', 'implement', 'fix-pr
 export type LoopCurrentAction = (typeof LOOP_CURRENT_ACTIONS)[number];
 
 /**
- * 廃止した手。動作確認の列とともに消えた `revise-impl`（動作確認の否決を直す）と `ready`（動作確認の後に Ready にする）。
+ * 廃止した手。動作確認の列とともに消えた `revise-impl`（動作確認で差し戻された実装を直す）と `ready`（動作確認の後に Ready にする）。
  * データ用ブランチの `loop/` に残る過去の記録を読むためだけに持ち、新しく書くことはできない。
  */
 export const LOOP_PAST_ACTIONS = ['revise-impl', 'ready'] as const;

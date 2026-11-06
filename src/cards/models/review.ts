@@ -28,9 +28,9 @@ export const RETIRED_REVIEW_GATES = ['explore', 'verify'] as const;
  * レビューエントリの種別。
  *
  * - 提出 / 再提出 / 保留 は AI が書く。保留は、AI がその手を自分では進められないと判断して止まった痕跡
- * - 承認 / 否決 / 中止 は人が書く（`ai-board decide`）
+ * - 承認 / 差し戻し / 中止 は人が書く（`ai-board decide`）
  */
-export const REVIEW_KINDS = ['提出', '再提出', '保留', '承認', '否決', '中止'] as const;
+export const REVIEW_KINDS = ['提出', '再提出', '保留', '承認', '差し戻し', '中止'] as const;
 
 export type ReviewKind = (typeof REVIEW_KINDS)[number];
 

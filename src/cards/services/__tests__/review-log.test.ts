@@ -21,7 +21,7 @@ const BODY_WITH_LOG = `## アイデア
 
 ### 2026-09-11T04:00:00.000Z plan 提出
 
-### 2026-09-11T05:12:00.000Z plan 否決
+### 2026-09-11T05:12:00.000Z plan 差し戻し
 
 既存の stage-resolver を見ていない。
 導出ルールとの整合を調べ直して。
@@ -105,7 +105,7 @@ describe('gateState', () => {
     expect(gateState(entries, 'plan', [])).toBe('submitted');
   });
 
-  it('最新が 否決 なら rejected', () => {
+  it('最新が 差し戻し なら rejected', () => {
     expect(gateState(entries.slice(0, 2), 'plan', [])).toBe('rejected');
   });
 
@@ -133,7 +133,7 @@ describe('gateState', () => {
       const submitted: ReviewEntry[] = [{ at: at(4), gate: 'plan', kind: '提出', reason: '' }];
       const resubmitted: ReviewEntry[] = [
         ...submitted,
-        { at: at(5), gate: 'plan', kind: '否決', reason: 'だめ' },
+        { at: at(5), gate: 'plan', kind: '差し戻し', reason: 'だめ' },
         { at: at(6), gate: 'plan', kind: '再提出', reason: '' },
       ];
 
@@ -142,10 +142,10 @@ describe('gateState', () => {
       expect(gateState(submitted, 'plan', [])).toBe('submitted');
     });
 
-    it('否決 は rejected、保留 は held のまま効く', () => {
+    it('差し戻し は rejected、保留 は held のまま効く', () => {
       const rejected: ReviewEntry[] = [
         { at: at(4), gate: 'plan', kind: '提出', reason: '' },
-        { at: at(5), gate: 'plan', kind: '否決', reason: 'だめ' },
+        { at: at(5), gate: 'plan', kind: '差し戻し', reason: 'だめ' },
       ];
       const held: ReviewEntry[] = [
         ...rejected,
@@ -160,7 +160,7 @@ describe('gateState', () => {
   it('時刻の並びが逆でも最新の時刻のものを採る', () => {
     const shuffled: ReviewEntry[] = [
       { at: '2026-09-11T09:00:00.000Z', gate: 'plan', kind: '承認', reason: '' },
-      { at: '2026-09-11T04:00:00.000Z', gate: 'plan', kind: '否決', reason: 'だめ' },
+      { at: '2026-09-11T04:00:00.000Z', gate: 'plan', kind: '差し戻し', reason: 'だめ' },
     ];
 
     expect(gateState(shuffled, 'plan', [])).toBe('approved');
@@ -174,10 +174,10 @@ describe('gateState', () => {
     expect(gateState(aborted, 'plan', [])).toBe('none');
   });
 
-  it('最新が 保留 なら held、その後に人が否決を書けば rejected', () => {
+  it('最新が 保留 なら held、その後に人が差し戻しを書けば rejected', () => {
     const held: ReviewEntry[] = [
       { at: '2026-09-11T04:00:00.000Z', gate: 'plan', kind: '提出', reason: '' },
-      { at: '2026-09-11T05:00:00.000Z', gate: 'plan', kind: '否決', reason: '遅い' },
+      { at: '2026-09-11T05:00:00.000Z', gate: 'plan', kind: '差し戻し', reason: '遅い' },
       { at: '2026-09-11T06:00:00.000Z', gate: 'plan', kind: '保留', reason: '大きすぎる' },
     ];
 
@@ -185,7 +185,7 @@ describe('gateState', () => {
 
     const rejected: ReviewEntry[] = [
       ...held,
-      { at: '2026-09-11T07:00:00.000Z', gate: 'plan', kind: '否決', reason: '索引を足して' },
+      { at: '2026-09-11T07:00:00.000Z', gate: 'plan', kind: '差し戻し', reason: '索引を足して' },
     ];
 
     expect(gateState(rejected, 'plan', [])).toBe('rejected');
@@ -233,7 +233,7 @@ describe('gateStates', () => {
         '',
         '動かす手順',
         '',
-        '### 2026-09-11T06:00:00.000Z verify 否決',
+        '### 2026-09-11T06:00:00.000Z verify 差し戻し',
         '',
         '遅い',
         '',
@@ -249,7 +249,7 @@ describe('latestGateEntry', () => {
   it('ゲートの最新エントリを理由ごと返す', () => {
     const entries: ReviewEntry[] = [
       { at: '2026-09-11T04:00:00.000Z', gate: 'plan', kind: '提出', reason: '判断待ちの点は 2 つ' },
-      { at: '2026-09-11T05:00:00.000Z', gate: 'plan', kind: '否決', reason: 'だめ' },
+      { at: '2026-09-11T05:00:00.000Z', gate: 'plan', kind: '差し戻し', reason: 'だめ' },
       { at: '2026-09-11T06:00:00.000Z', gate: 'plan', kind: '再提出', reason: '直した' },
     ];
 
@@ -332,12 +332,12 @@ describe('appendReviewEntry', () => {
     const rejected: ReviewEntry = {
       at: '2026-09-11T05:12:00.000Z',
       gate: 'plan',
-      kind: '否決',
+      kind: '差し戻し',
       reason: 'スコープが広すぎる',
     };
 
     expect(appendReviewEntry('', rejected)).toBe(
-      '## レビュー\n\n### 2026-09-11T05:12:00.000Z plan 否決\n\nスコープが広すぎる\n'
+      '## レビュー\n\n### 2026-09-11T05:12:00.000Z plan 差し戻し\n\nスコープが広すぎる\n'
     );
   });
 

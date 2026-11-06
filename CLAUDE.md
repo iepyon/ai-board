@@ -47,7 +47,7 @@ ai-board card show <id>            # 1 枚を frontmatter 付きの Markdown で
 ai-board card body <id> < body.md  # 本文の差し替え（## レビュー のエントリは変えられない）
 ai-board card branch <id> <name>   # ブランチの紐付け（--clear で外す）
 ai-board card submit <id> [--gate plan] [--resubmit] [--reason <text>]   # 提出 / 再提出（ゲートは plan だけ）
-ai-board card hold <id> --gate plan --reason <text>   # 保留（そのゲートの最新が否決のときだけ）
+ai-board card hold <id> --gate plan --reason <text>   # 保留（そのゲートの最新が差し戻しのときだけ）
 ai-board card create --title <t> [--id <id>] < body.md     # アイデアカードの起票
 ai-board card seed --from <dir>    # <dir> の *.md のうち、まだ無いカードだけを起票（既にある ID は飛ばす。1 つでも読めなければ何もしない）
 ai-board status [--json [--only <項目,...>]]   # 導出したステージ・判断待ち・次の一手（--only で要る項目だけ）
@@ -85,9 +85,9 @@ ai-board decide <approve|reject|abort|start|unstart|skip|move|move-divider> ... 
 エージェントが自分の判断で**やってはいけないこと**（`.claude/skills/board-loop/rules.md` のハードルールと同じ）:
 
 - `startedAt` を自分で打たない。これは人が着手を指示する合図。
-- `## レビュー` に書いてよいのは 提出 / 再提出 / 保留 だけ。承認 / 否決 / 中止 は人が書く。
+- `## レビュー` に書いてよいのは 提出 / 再提出 / 保留 だけ。承認 / 差し戻し / 中止 は人が書く。
   締めの段で自分で動かした結果は PR の本文に証拠として書くだけで、それをもって PR をマージしない。
-  保留は否決を自分では直しきれず人の判断を待つときだけ。品質ゲートを通せない・未コミットの変更が残る、では書かない。
+  保留は差し戻された計画を自分では直しきれず人の判断を待つときだけ。品質ゲートを通せない・未コミットの変更が残る、では書かない。
 - `skipGates` を自分で足さない。
 - `rank` を書かない（アイデアの表の区切り線も同じ）。並び順は人が決める優先度。
 - 計画レビュー / PR中 のカードのステージに触らない。PR中 のカードでは、人の指摘に応える `fix-pr` の手でだけ、Ready のまま修正を push するか理由を 1 件返信する（[ADR 0016](docs/adr/0016-pr-feedback-ai-turn.md)）。
@@ -103,7 +103,7 @@ ai-board decide <approve|reject|abort|start|unstart|skip|move|move-divider> ... 
 
 - ルールは `RULES` 配列の順序で表す（上から評価して最初に真になったもの＝最も進んだステージが勝つ）。
 - ステージを保存する・直接指定する入力口は作らない。列を動かすなら、その列を成立させる実態を作る。
-- 否決の差し戻しに専用ルールは無く、手前の AI 列へ自然に落ちる。**ここに `if` を足したくなったら設計を疑う。**
+- 差し戻しに専用ルールは無く、手前の AI 列へ自然に落ちる。**ここに `if` を足したくなったら設計を疑う。**
   アイデアの区切り線（`DIVIDER_ID`）だけの分岐も足さない。
 - **計画ファイルが存在するだけで計画レビューの列が立つ**（取りこぼさないための保険）。「空ファイルは無視する」条件を足さない。
 - 計画ファイルの名前が ID として不正なら、警告して読み飛ばす（例外を投げるとボード全体が読めなくなる）。

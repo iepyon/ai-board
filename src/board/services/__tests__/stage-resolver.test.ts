@@ -153,7 +153,7 @@ describe('resolveStage — 自動導出', () => {
           exploreNote: true,
           entries: [
             { at: T2, gate: 'explore', kind: '提出' },
-            { at: T3, gate: 'explore', kind: '否決' },
+            { at: T3, gate: 'explore', kind: '差し戻し' },
           ],
         }),
       }),
@@ -183,10 +183,10 @@ describe('resolveStage — 自動導出', () => {
       expected: 'plan-review',
     },
     {
-      name: 'plan が否決されたら planning へ戻る',
+      name: 'plan が差し戻されたら planning へ戻る',
       card: makeCard({
         startedAt: T1,
-        body: makeBody({ entries: [{ at: T3, gate: 'plan', kind: '否決' }] }),
+        body: makeBody({ entries: [{ at: T3, gate: 'plan', kind: '差し戻し' }] }),
       }),
       plan: makePlan(),
       mr: null,
@@ -244,10 +244,10 @@ describe('resolveStage — 自動導出', () => {
       expected: 'plan-review',
     },
     {
-      name: 'Draft の PR で plan が否決されたら planning へ戻る',
+      name: 'Draft の PR で plan が差し戻されたら planning へ戻る',
       card: makeCard({
         startedAt: T1,
-        body: makeBody({ entries: [{ at: T3, gate: 'plan', kind: '否決' }] }),
+        body: makeBody({ entries: [{ at: T3, gate: 'plan', kind: '差し戻し' }] }),
       }),
       plan: null,
       mr: makeMr({ draft: true }),
@@ -276,12 +276,12 @@ describe('resolveStage — 自動導出', () => {
       expected: 'pr',
     },
     {
-      name: 'plan が否決されていれば、廃止した verify の提出が後ろにあっても planning',
+      name: 'plan が差し戻されていれば、廃止した verify の提出が後ろにあっても planning',
       card: makeCard({
         startedAt: T1,
         body: makeBody({
           entries: [
-            { at: T2, gate: 'plan', kind: '否決' },
+            { at: T2, gate: 'plan', kind: '差し戻し' },
             { at: T3, gate: 'verify', kind: '提出' },
           ],
         }),
@@ -399,14 +399,17 @@ describe('resolveStage — ゲートの状態', () => {
   it('gates は plan の状態を載せる', () => {
     const card = makeCard({
       startedAt: T1,
-      body: makeBody({ entries: [{ at: T2, gate: 'plan', kind: '否決' }] }),
+      body: makeBody({ entries: [{ at: T2, gate: 'plan', kind: '差し戻し' }] }),
     });
 
     expect(resolveStage(card, null, null).gates).toEqual({ plan: 'rejected' });
   });
 
   it('廃止された verify のエントリはゲートに現れない', () => {
-    const card = makeCard({ startedAt: T1, body: verifyAfterPlanApproved('提出', '否決', '保留') });
+    const card = makeCard({
+      startedAt: T1,
+      body: verifyAfterPlanApproved('提出', '差し戻し', '保留'),
+    });
 
     const resolved = resolveStage(card, makePlan(), makeMr({ draft: true }));
 
@@ -429,7 +432,7 @@ describe('resolveStage — ゲートの状態', () => {
       body: makeBody({
         entries: [
           { at: T2, gate: 'plan', kind: '提出' },
-          { at: T3, gate: 'plan', kind: '否決' },
+          { at: T3, gate: 'plan', kind: '差し戻し' },
           { at: T4, gate: 'plan', kind: '保留' },
         ],
       }),
@@ -441,12 +444,12 @@ describe('resolveStage — ゲートの状態', () => {
     expect(resolved.stage).toBe('planning');
   });
 
-  it('計画から立て直させる: 承認済みの計画への否決で planning に落ち、承認し直すと impling', () => {
+  it('計画から立て直させる: 承認済みの計画への差し戻しで planning に落ち、承認し直すと impling', () => {
     const at = (minutes: number): string =>
       new Date(Date.parse(T2) + minutes * 60_000).toISOString();
     const log = [
       { at: at(0), gate: 'plan', kind: '承認' },
-      { at: at(3), gate: 'plan', kind: '否決' },
+      { at: at(3), gate: 'plan', kind: '差し戻し' },
       { at: at(4), gate: 'plan', kind: '再提出' },
       { at: at(5), gate: 'plan', kind: '承認' },
     ];
@@ -491,14 +494,14 @@ describe('resolveStage — 計画レビューを飛ばす宣言', () => {
     expect(resolved.gates.plan).toBe('approved');
   });
 
-  it('plan 否決 があれば planning へ戻る', () => {
+  it('plan 差し戻し があれば planning へ戻る', () => {
     const card = makeCard({
       startedAt: T1,
       skipGates: ['plan'],
       body: makeBody({
         entries: [
           { at: T2, gate: 'plan', kind: '提出' },
-          { at: T3, gate: 'plan', kind: '否決' },
+          { at: T3, gate: 'plan', kind: '差し戻し' },
         ],
       }),
     });

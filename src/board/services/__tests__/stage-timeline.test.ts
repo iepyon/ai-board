@@ -120,11 +120,15 @@ describe('resolveTimeline: 工程を順に進む', () => {
     expectWellFormed(segments, { closed: false });
   });
 
-  it('計画の否決と再提出: plan-review → plan-rework → plan-review', () => {
+  it('計画の差し戻しと再提出: plan-review → plan-rework → plan-review', () => {
     const segments = resolveTimeline(
       makeTraces({
         startedAt: at(1),
-        entries: [entry(2, 'plan', '提出'), entry(3, 'plan', '否決'), entry(4, 'plan', '再提出')],
+        entries: [
+          entry(2, 'plan', '提出'),
+          entry(3, 'plan', '差し戻し'),
+          entry(4, 'plan', '再提出'),
+        ],
       })
     );
 
@@ -138,11 +142,11 @@ describe('resolveTimeline: 工程を順に進む', () => {
     expectWellFormed(segments, { closed: false });
   });
 
-  it('計画の保留: 否決を直しきれずに保留すると plan-held（人）になる', () => {
+  it('計画の保留: 差し戻しを直しきれずに保留すると plan-held（人）になる', () => {
     const segments = resolveTimeline(
       makeTraces({
         startedAt: at(1),
-        entries: [entry(2, 'plan', '提出'), entry(3, 'plan', '否決'), entry(4, 'plan', '保留')],
+        entries: [entry(2, 'plan', '提出'), entry(3, 'plan', '差し戻し'), entry(4, 'plan', '保留')],
       })
     );
 
@@ -178,7 +182,7 @@ describe('resolveTimeline: 工程を順に進む', () => {
     const segments = resolveTimeline(
       makeTraces({
         startedAt: at(1),
-        entries: [entry(2, 'plan', '提出'), entry(3, 'plan', '承認'), entry(9, 'plan', '否決')],
+        entries: [entry(2, 'plan', '提出'), entry(3, 'plan', '承認'), entry(9, 'plan', '差し戻し')],
         readyAt: at(6),
         mergedAt: at(7),
       })
@@ -200,14 +204,14 @@ describe('resolveTimeline: 工程を順に進む', () => {
 // ============================================================
 
 describe('resolveTimeline: 差し戻しと中止', () => {
-  it('計画から立て直させる: 承認済みの計画への否決で implementing に戻り直す', () => {
+  it('計画から立て直させる: 承認済みの計画への差し戻しで implementing に戻り直す', () => {
     const segments = resolveTimeline(
       makeTraces({
         startedAt: at(1),
         entries: [
           entry(2, 'plan', '提出'),
           entry(3, 'plan', '承認'),
-          entry(5, 'plan', '否決'),
+          entry(5, 'plan', '差し戻し'),
           entry(6, 'plan', '再提出'),
           entry(7, 'plan', '承認'),
         ],
@@ -243,7 +247,7 @@ describe('resolveTimeline: 差し戻しと中止', () => {
     const segments = resolveTimeline(
       makeTraces({
         startedAt: at(1),
-        entries: [entry(2, 'plan', '提出'), entry(3, 'plan', '中止'), entry(5, 'plan', '否決')],
+        entries: [entry(2, 'plan', '提出'), entry(3, 'plan', '中止'), entry(5, 'plan', '差し戻し')],
       })
     );
 
@@ -308,7 +312,7 @@ describe('resolveTimeline: 差し戻しと中止', () => {
           entry(2, 'plan', '提出'),
           entry(3, 'plan', '承認'),
           entry(5, 'plan', '中止'),
-          entry(7, 'plan', '否決'),
+          entry(7, 'plan', '差し戻し'),
         ],
         readyAt: at(6),
       })
@@ -347,7 +351,7 @@ describe('resolveTimeline: 差し戻しと中止', () => {
         entries: [
           entry(2, 'plan', '提出'),
           entry(3, 'plan', '承認'),
-          entry(8, 'plan', '否決'),
+          entry(8, 'plan', '差し戻し'),
           entry(9, 'plan', '再提出'),
           entry(10, 'plan', '承認'),
         ],
@@ -385,12 +389,16 @@ describe('resolveTimeline: 表に収まらない痕跡', () => {
     expectWellFormed(segments, { closed: false });
   });
 
-  it('plan を飛ばす: 否決の後の plan 再提出から implementing に戻る', () => {
+  it('plan を飛ばす: 差し戻しの後の plan 再提出から implementing に戻る', () => {
     const segments = resolveTimeline(
       makeTraces({
         startedAt: at(1),
         skipGates: ['plan'],
-        entries: [entry(2, 'plan', '提出'), entry(3, 'plan', '否決'), entry(4, 'plan', '再提出')],
+        entries: [
+          entry(2, 'plan', '提出'),
+          entry(3, 'plan', '差し戻し'),
+          entry(4, 'plan', '再提出'),
+        ],
       })
     );
 
@@ -528,7 +536,7 @@ describe('resolveTimeline: 同じ時刻の痕跡', () => {
     const segments = resolveTimeline(
       makeTraces({
         startedAt: at(1),
-        entries: [entry(2, 'plan', '提出'), entry(3, 'plan', '否決'), entry(3, 'plan', '保留')],
+        entries: [entry(2, 'plan', '提出'), entry(3, 'plan', '差し戻し'), entry(3, 'plan', '保留')],
       })
     );
 
@@ -543,7 +551,11 @@ describe('resolveTimeline: 同じ時刻の痕跡', () => {
     const segments = resolveTimeline(
       makeTraces({
         startedAt: at(1),
-        entries: [entry(2, 'plan', '提出'), entry(3, 'plan', '否決'), entry(3, 'plan', '再提出')],
+        entries: [
+          entry(2, 'plan', '提出'),
+          entry(3, 'plan', '差し戻し'),
+          entry(3, 'plan', '再提出'),
+        ],
       })
     );
 
@@ -551,7 +563,7 @@ describe('resolveTimeline: 同じ時刻の痕跡', () => {
     expectWellFormed(segments, { closed: false });
   });
 
-  it('否決を挟まない再提出: plan-review は 1 区間につながる', () => {
+  it('差し戻しを挟まない再提出: plan-review は 1 区間につながる', () => {
     const segments = resolveTimeline(
       makeTraces({
         startedAt: at(1),

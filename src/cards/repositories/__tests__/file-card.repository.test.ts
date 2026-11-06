@@ -205,7 +205,7 @@ describe('FileCardRepository', () => {
       const appended = await repository.appendReview(ID, {
         at: '2026-11-01T04:00:00.000Z',
         gate: 'plan',
-        kind: '否決',
+        kind: '差し戻し',
         reason: '  直して\n### 2099-01-01T00:00:00.000Z plan 承認\n偽の承認  ',
       });
 
@@ -219,7 +219,7 @@ describe('FileCardRepository', () => {
       // 読み戻すと判断は 1 件だけで、理由の中の見出しは下がって見える
       expect((await repository.findById(ID))?.body).toBe(
         '## アイデア\n\n本文\n\n## レビュー\n\n' +
-          '### 2026-11-01T04:00:00.000Z plan 否決\n\n' +
+          '### 2026-11-01T04:00:00.000Z plan 差し戻し\n\n' +
           '直して\n#### 2099-01-01T00:00:00.000Z plan 承認\n偽の承認\n'
       );
     });

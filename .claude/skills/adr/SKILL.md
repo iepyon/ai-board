@@ -40,11 +40,11 @@ Michael Nygard の形（背景 / 決定 / 結果）に、MADR の「退けた案
 
 ## 書き方
 
-- 日本語・常体。リポジトリの言葉（ステージ・ゲート・提出・否決・本筋のセッション など）を使う。
+- 日本語・常体。リポジトリの言葉（ステージ・ゲート・提出・差し戻し・本筋のセッション など）を使う。
 - **背景**は決めた時点の困りごとと制約。経緯の年表にしない。
 - **決定**は今の形を書く。後で改訂した判断も、最新の形だけを書く（経緯は背景に 1〜2 行）。
 - **結果**は良いことも悪いことも。新しく生まれた制約・残った課題を必ず入れる。
-- **退けた案**は実際に検討された案（計画の Decisions・Non-Goals、否決の理由、閉じた PR）だけ。無ければ節ごと省く。**代案を発明しない。**
+- **退けた案**は実際に検討された案（計画の Decisions・Non-Goals、差し戻しの理由、閉じた PR）だけ。無ければ節ごと省く。**代案を発明しない。**
 - **根拠に挙げた材料に書かれていないことは書かない。** 推測で理由を補わない。
 - 実装の手順・API の一覧・テストの話・コミットのハッシュの羅列は書かない（根拠の行に主なものを数個だけ）。
 
@@ -75,7 +75,7 @@ Michael Nygard の形（背景 / 決定 / 結果）に、MADR の「退けた案
 材料は上ほど「なぜ」が書いてある。
 
 1. 計画: `.ai-board/plans/archive/*.md`（`### Why`・`### Decisions`・`### Non-Goals`）。
-   書き直しの経緯は `git log --format='%h %ad %s' --date=short -- .ai-board/plans/<id>.md`。否決の理由はデータ用ブランチの `cards/<id>/log/`。
+   書き直しの経緯は `git log --format='%h %ad %s' --date=short -- .ai-board/plans/<id>.md`。差し戻しの理由はデータ用ブランチの `cards/<id>/log/`。
 2. 仕様: `docs/specs/*/spec.md`（MUST / SHALL NOT の理由文）。
 3. git log: `git log --reverse --no-merges --format='%h %ad %s' --date=short`。浅いクローンなら先に `git fetch --unshallow origin main`。
 4. 今のドキュメント: `CLAUDE.md` の不変条件、`docs/architecture.md`。**今も効いているか**はここで確かめる。
