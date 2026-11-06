@@ -6,6 +6,7 @@
   対象は `.claude/skills/board-loop/SKILL.md` の 2 か所と、`.claude/skills/board-loop/rules.md` の 2 か所である。
   次は残す。ADR 0007・0016 の背景の「ボタンを押す」と、`.claude/HARNESS_VERSIONS.md` の過去の版は、当時の経緯の記録である。
   `implement.md` の証拠の表の例の「ブラウザでの見た目」は、判断の入口ではなく、画面の変わる PR の確かめ方の例である（既定: この線引きのまま）
+  - → 回答（2026-11-06、plan 承認）: 理由なしで承認（既定のまま進む）
 
 承認は、回答の無い項目をすべて既定のまま進めると読む。既定と違う答えは、承認の理由ではなく差し戻しの理由で返してほしい。
 
@@ -84,5 +85,5 @@ v2（`.claude/HARNESS_VERSIONS.md`）で画面のボタンの記述を消した�
 
 ### 1. 手順書の「判断のボタン」を直す
 
-- [ ] `.claude/skills/board-loop/SKILL.md` の 2 か所（止まりの説明の 41 行目、手順 4 の `止まった` カードの伝え方の 155 行目）を直す
-- [ ] `.claude/skills/board-loop/rules.md` の「直しきれないとき — 保留を書いて止まる」の節の 2 か所（119 行目と 122 行目）を直す
+- [x] `.claude/skills/board-loop/SKILL.md` の 2 か所（止まりの説明の 41 行目、手順 4 の `止まった` カードの伝え方の 155 行目）を直す
+- [x] `.claude/skills/board-loop/rules.md` の「直しきれないとき — 保留を書いて止まる」の節の 2 か所（119 行目と 122 行目）を直す
