@@ -3,6 +3,8 @@ import { createCreateCardCommand } from '../commands/create-card.command.js';
 import { createUpdateCardMetaCommand } from '../commands/update-card-meta.command.js';
 import { createUpdateCardBodyCommand } from '../commands/update-card-body.command.js';
 import { createAppendReviewCommand } from '../commands/append-review.command.js';
+import { createSubmitReviewCommand } from '../commands/submit-review.command.js';
+import { createHoldReviewCommand } from '../commands/hold-review.command.js';
 import type { CardRepository } from '../../repositories/card.repository.js';
 import type { Card } from '../../models/card.js';
 import type { CardId } from '../../../shared/schemas/common.js';
@@ -411,5 +413,207 @@ describe('appendReviewCommand', () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.type).toBe('CardNotFound');
+  });
+});
+
+// ============================================================
+// 提出 / 保留
+// ============================================================
+
+const AT = new Date('2026-09-07T00:00:00.000Z');
+
+/** 判断を値のまま足したカードを置く。`startedAt` が null なら着手していない */
+async function placeCard(
+  id: string,
+  {
+    startedAt,
+    kinds = [],
+    skipGates = [],
+  }: {
+    startedAt: string | null;
+    kinds?: readonly ('提出' | '再提出' | '保留' | '承認' | '否決' | '中止')[];
+    skipGates?: readonly 'plan'[];
+  }
+): Promise<CardId> {
+  const cardId = id as CardId;
+  repository.cards.set(id, {
+    id: cardId,
+    title: id,
+    created: '2026-09-01T00:00:00.000Z',
+    startedAt,
+    skipGates,
+    branch: null,
+    mr: null,
+    rank: null,
+    body: '## アイデア\n\nなにかする。\n',
+  });
+  for (const [i, kind] of kinds.entries()) {
+    await repository.appendReview(cardId, {
+      at: `2026-09-0${i + 2}T00:00:00.000Z`,
+      gate: 'plan',
+      kind,
+      reason: '',
+    });
+  }
+  return cardId;
+}
+
+function kindsOf(id: string): string[] {
+  return parseReviewLog(repository.cards.get(id)?.body ?? '').map((entry) => entry.kind);
+}
+
+const STARTED = '2026-09-01T12:00:00.000Z';
+
+describe('submitReviewCommand', () => {
+  it('着手したカードの、未提出の plan に提出を足す', async () => {
+    const id = await placeCard('fresh', { startedAt: STARTED });
+
+    const result = await createSubmitReviewCommand(repository)({
+      id,
+      gate: 'plan',
+      resubmit: false,
+      reason: '判断してほしい点なし',
+      at: AT,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(kindsOf('fresh')).toEqual(['提出']);
+  });
+
+  it('否決の後の再提出を足す', async () => {
+    const id = await placeCard('rejected', { startedAt: STARTED, kinds: ['提出', '否決'] });
+
+    const result = await createSubmitReviewCommand(repository)({
+      id,
+      gate: 'plan',
+      resubmit: true,
+      reason: '直した',
+      at: AT,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(kindsOf('rejected')).toEqual(['提出', '否決', '再提出']);
+  });
+
+  it('着手していないカードには SubmitBeforeStart を返し、何も足さない', async () => {
+    const id = await placeCard('idea', { startedAt: null, skipGates: ['plan'] });
+
+    const result = await createSubmitReviewCommand(repository)({
+      id,
+      gate: 'plan',
+      resubmit: false,
+      reason: '',
+      at: AT,
+    });
+
+    expect(result).toEqual({ ok: false, error: { type: 'SubmitBeforeStart', id: 'idea' } });
+    expect(kindsOf('idea')).toEqual([]);
+  });
+
+  it.each([
+    ['提出済み', ['提出'], 'submitted'],
+    ['承認済み', ['提出', '承認'], 'approved'],
+    ['保留', ['提出', '否決', '保留'], 'held'],
+  ] as const)('plan が %s なら SubmitGateClosed を返し、何も足さない', async (_, kinds, state) => {
+    const id = await placeCard('closed', { startedAt: STARTED, kinds });
+
+    const result = await createSubmitReviewCommand(repository)({
+      id,
+      gate: 'plan',
+      resubmit: true,
+      reason: '',
+      at: AT,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: { type: 'SubmitGateClosed', id: 'closed', gate: 'plan', state },
+    });
+    expect(kindsOf('closed')).toEqual(kinds);
+  });
+
+  it('plan を飛ばすカードでは、提出済み（承認と読まれる）の再提出を SubmitGateClosed にする', async () => {
+    const id = await placeCard('skipped', {
+      startedAt: STARTED,
+      kinds: ['提出'],
+      skipGates: ['plan'],
+    });
+
+    const result = await createSubmitReviewCommand(repository)({
+      id,
+      gate: 'plan',
+      resubmit: true,
+      reason: '',
+      at: AT,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: { type: 'SubmitGateClosed', id: 'skipped', gate: 'plan', state: 'approved' },
+    });
+  });
+
+  it('カードが無ければ CardNotFound を返す', async () => {
+    const result = await createSubmitReviewCommand(repository)({
+      id: 'missing' as CardId,
+      gate: 'plan',
+      resubmit: false,
+      reason: '',
+      at: AT,
+    });
+
+    expect(result).toEqual({ ok: false, error: { type: 'CardNotFound', id: 'missing' } });
+  });
+});
+
+describe('holdReviewCommand', () => {
+  it('plan の最新が否決なら保留を足す', async () => {
+    const id = await placeCard('rejected', { startedAt: STARTED, kinds: ['提出', '否決'] });
+
+    const result = await createHoldReviewCommand(repository)({
+      id,
+      gate: 'plan',
+      reason: '直し方を決めてほしい',
+      at: AT,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(kindsOf('rejected')).toEqual(['提出', '否決', '保留']);
+  });
+
+  it.each([
+    ['未提出', [], 'none'],
+    ['提出済み', ['提出'], 'submitted'],
+    ['承認済み', ['提出', '承認'], 'approved'],
+    ['保留', ['提出', '否決', '保留'], 'held'],
+  ] as const)(
+    'plan が %s なら HoldGateNotRejected を返し、何も足さない',
+    async (_, kinds, state) => {
+      const id = await placeCard('not-rejected', { startedAt: STARTED, kinds });
+
+      const result = await createHoldReviewCommand(repository)({
+        id,
+        gate: 'plan',
+        reason: '止まる',
+        at: AT,
+      });
+
+      expect(result).toEqual({
+        ok: false,
+        error: { type: 'HoldGateNotRejected', id: 'not-rejected', gate: 'plan', state },
+      });
+      expect(kindsOf('not-rejected')).toEqual(kinds);
+    }
+  );
+
+  it('カードが無ければ CardNotFound を返す', async () => {
+    const result = await createHoldReviewCommand(repository)({
+      id: 'missing' as CardId,
+      gate: 'plan',
+      reason: '止まる',
+      at: AT,
+    });
+
+    expect(result).toEqual({ ok: false, error: { type: 'CardNotFound', id: 'missing' } });
   });
 });

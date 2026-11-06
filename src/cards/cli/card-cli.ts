@@ -4,15 +4,15 @@ import type { CommitMessage, DataStore, DataStoreError } from '../../infrastruct
 import type { CardDependencies } from '../composition.js';
 import type { Card } from '../models/card.js';
 import type {
-  AppendReviewError,
   CreateCardError,
+  HoldReviewError,
+  SubmitReviewError,
   UpdateCardBodyError,
   UpdateCardError,
 } from '../errors/card-errors.js';
 import { serializeCard } from '../repositories/card-markdown.js';
 import { CardWriteRefusedError } from '../repositories/file-card.repository.js';
 import { isReviewGate, REVIEW_GATES, type ReviewGate } from '../models/review.js';
-import { gateStates, parseReviewLog } from '../services/review-log.js';
 import { describeDataStoreError, describeOfflineRead } from './data-store-messages.js';
 import { readSeedCards, type SeedFile } from './seed-cards.js';
 
@@ -27,10 +27,12 @@ import { readSeedCards, type SeedFile } from './seed-cards.js';
  * 人の判断であり、ここには入口を置かない（UI と HTTP API からだけ行える）。
  * 本文の差し替えも、`## レビュー` のエントリを変えるものは拒否する
  * （検査は本文の差し替えの usecase が持ち、CLI はその `ReviewEntriesChanged` を出すだけにする）。
+ * 提出 / 保留も、書けるかの検査は提出と保留の usecase が持つ。どちらも種別を中で決めるので、
+ * この CLI には承認 / 否決 / 中止を書く口が型の上でも無い（`CardCliDependencies.cards` に `appendReviewCommand` を渡さない）。
  * 提出 / 保留の判断は値のままリポジトリに渡すので、理由にどんな行を書いても判断は 1 件しか増えない。
  *
  * カードの正本はデータ用ブランチにある。読むコマンドは頭で 1 回取り直してから読み、
- * 書くコマンドは検査（`submitRefusal` など）から usecase までを `DataStore.transact` の中で走らせる。
+ * 書くコマンドは usecase（とその中の検査）を `DataStore.transact` の中で走らせる。
  * push が拒否されると取り直した状態で検査からやり直すので、検査は必ず最新のカードに対して行われる。
  */
 export const CARD_USAGE = `使い方: ai-board card <command> [--root <path>]
@@ -77,21 +79,26 @@ interface ParsedArgs {
 export interface CardCliDependencies {
   /** データのワークツリー。読む前に取り直し、書き込みは `transact` の中で行う */
   readonly store: Pick<DataStore, 'refresh' | 'transact'>;
-  /** `store` のデータのワークツリーを読み書きするカードの依存 */
-  readonly cards: CardDependencies;
+  /**
+   * `store` のデータのワークツリーを読み書きするカードの依存。
+   * AI に許す書き込みの usecase だけを渡す。人の判断を足す `appendReviewCommand` は渡さない
+   */
+  readonly cards: Pick<
+    CardDependencies,
+    | 'cardRepository'
+    | 'createCardCommand'
+    | 'updateCardBodyCommand'
+    | 'updateCardMetaCommand'
+    | 'submitReviewCommand'
+    | 'holdReviewCommand'
+  >;
 }
 
 type Handler = (args: ParsedArgs, deps: CardCliDependencies, io: CardCliIo) => Promise<number>;
 
-/** CLI の検査で書き込みを拒んだ */
-interface Refused {
-  readonly type: 'Refused';
-  readonly message: string;
-}
-
 /** usecase のエラーには、リポジトリの拒否（`CardWriteRefused`）と `transact` の失敗が含まれる */
 type WriteFailure =
-  CreateCardError | UpdateCardError | UpdateCardBodyError | AppendReviewError | Refused;
+  CreateCardError | UpdateCardError | UpdateCardBodyError | SubmitReviewError | HoldReviewError;
 
 const VALUE_FLAGS = new Set(['--title', '--id', '--reason', '--from', '--gate']);
 
@@ -336,15 +343,7 @@ async function runBranch(
 /**
  * AI の手の区切りを `提出` / `再提出` として残す。
  *
- * plan の提出（再提出を含む）は、人が着手したカードにだけ書ける。plan を飛ばす宣言のあるカードでは
- * 提出がそのまま承認と読まれるので、着手していないカードに書けると、人の着手を経ずにアイデアから
- * 実装中へ進めてしまう。宣言の有無で分けないのは、宣言の無いカードでも着手していないカードに
- * AI が計画を出す道は無く、振る舞いの上で失うものが無いためである。
- *
- * plan の提出は、さらに plan ゲートが未提出（`none`）か否決（`rejected`）のときにだけ書ける。
- * 提出済み・承認済み・保留のカードに書けると、plan を飛ばす宣言のあるカードでは `plan 再提出` が承認と
- * 同じに読まれ、人の否決や保留を経ずに計画を出し直せてしまう。
- * 宣言の無いカードでも、否決を受けずに計画を出し直す手は無いので、宣言の有無で分けない。
+ * 書けるか（着手したカードで、ゲートが未提出か否決か）は提出の usecase が確かめる（`submitReviewCommand`）。
  */
 async function runSubmit(
   args: ParsedArgs,
@@ -362,33 +361,26 @@ async function runSubmit(
 
   const reason = args.flags.get('--reason');
 
-  const kind = args.flags.get('--resubmit') === true ? '再提出' : '提出';
+  const resubmit = args.flags.get('--resubmit') === true;
+  const kind = resubmit ? '再提出' : '提出';
   const at = io.now();
 
-  return write(deps, io, `data: ${id} に ${gate} ${kind} を足す`, async () => {
-    const refusal = await submitRefusal(id, gate, deps.cards);
-    if (refusal !== null) return refused(refusal);
-
-    return deps.cards.appendReviewCommand({
+  return write(deps, io, `data: ${id} に ${gate} ${kind} を足す`, () =>
+    deps.cards.submitReviewCommand({
       id,
       gate,
-      kind,
+      resubmit,
       reason: typeof reason === 'string' ? reason : '',
       at,
-    });
-  });
+    })
+  );
 }
 
 /**
  * AI が手を進められずに止まったことを `保留` として残す。
  *
- * 保留はゲートを先へ進めない（どの規則も `held` で前へ進まない）。人が後から承認 / 否決 / 中止を書けば
- * それがゲートの最新エントリになり、保留は自然に外れる。ゲートは取り違えると別の手の止まりになるので
- * 既定を置かず、理由は人が次に何をするかを決める材料なので必須にする。
- *
- * 書けるのは、そのゲートの最新の判断が 否決 のときだけにする。AI が保留を書くのは否決を直す手
- * （`revise-plan`）で止まるときだけで、それ以外で書けると、承認済みの plan に保留を書いて
- * 人の承認を打ち消したり、計画レビューで人を待つカードを AI の列へ落としたりできてしまう。
+ * ゲートは取り違えると別の手の止まりになるので既定を置かず、理由は人が次に何をするかを決める材料なので必須にする。
+ * 書けるか（ゲートの最新の判断が否決か）は保留の usecase が確かめる（`holdReviewCommand`）。
  */
 async function runHold(
   args: ParsedArgs,
@@ -413,15 +405,10 @@ async function runHold(
 
   const at = io.now();
 
-  return write(deps, io, `data: ${id} に ${gate} 保留 を足す`, async () => {
-    if (!(await gateRejected(id, gate, deps.cards))) {
-      return refused(`保留は ${gate} の最新の判断が否決のときにしか書けません`);
-    }
-
-    return deps.cards.appendReviewCommand({ id, gate, kind: '保留', reason: reason.trim(), at });
-  });
+  return write(deps, io, `data: ${id} に ${gate} 保留 を足す`, () =>
+    deps.cards.holdReviewCommand({ id, gate, reason: reason.trim(), at })
+  );
 }
-
 // ============================================================
 // データ用ブランチの読み書き
 // ============================================================
@@ -478,10 +465,6 @@ function transactCard(
   });
 }
 
-function refused(message: string): Result<never, Refused> {
-  return err({ type: 'Refused', message });
-}
-
 // ============================================================
 // ヘルパー
 // ============================================================
@@ -491,46 +474,10 @@ function trimNewlines(text: string): string {
   return text.replace(/^\n+/, '').replace(/\n+$/, '');
 }
 
-/**
- * 提出を拒む理由。書いてよければ null。カードが無ければ null を返し、見つからない旨は追記の usecase に任せる。
- *
- * plan: 人が着手していて、plan ゲートが未提出か否決のときだけ書ける（`runSubmit` を参照）
- */
-async function submitRefusal(
-  id: CardId,
-  gate: ReviewGate,
-  deps: CardDependencies
-): Promise<string | null> {
-  const card = await deps.cardRepository.findById(id);
-  if (card === null) return null;
-
-  const plan = gateStates(parseReviewLog(card.body), card.skipGates).plan;
-
-  if (card.startedAt === null) {
-    return 'plan の提出は着手したカードにしかできません（着手は人が指示します）';
-  }
-  if (plan !== 'none' && plan !== 'rejected') {
-    return `plan の提出は、plan が未提出か否決のときにしかできません（今の plan ゲート: ${plan}）`;
-  }
-  return null;
-}
-
-/** そのゲートの最新の判断が否決か。カードが無ければ true を返し、見つからない旨は追記の usecase に任せる */
-async function gateRejected(
-  id: CardId,
-  gate: ReviewGate,
-  deps: CardDependencies
-): Promise<boolean> {
-  const card = await deps.cardRepository.findById(id);
-  if (card === null) return true;
-
-  return gateStates(parseReviewLog(card.body), card.skipGates)[gate] === 'rejected';
-}
-
-/** `--gate` の値。省略は plan。規定外の値は null */
 /** `--gate` が規定外のときの文。ゲートの一覧から作り、ゲートが変わっても書き直さずに済むようにする */
 const GATE_ERROR = `--gate には ${REVIEW_GATES.join(' か ')} を指定してください`;
 
+/** `--gate` の値。省略は plan。規定外の値は null */
 function parseGate(value: string | true | undefined): ReviewGate | null {
   if (value === undefined) return 'plan';
   return typeof value === 'string' && isReviewGate(value) ? value : null;
@@ -570,8 +517,12 @@ function describeError(error: WriteFailure | DataStoreError): string {
       return `同じ ID のカードが既にあります: ${error.id}`;
     case 'InvalidCardId':
       return `カード ID が不正です: ${error.reason}`;
-    case 'Refused':
-      return error.message;
+    case 'SubmitBeforeStart':
+      return 'plan の提出は着手したカードにしかできません（着手は人が指示します）';
+    case 'SubmitGateClosed':
+      return `${error.gate} の提出は、${error.gate} が未提出か否決のときにしかできません（今の ${error.gate} ゲート: ${error.state}）`;
+    case 'HoldGateNotRejected':
+      return `保留は ${error.gate} の最新の判断が否決のときにしか書けません`;
     case 'CardWriteRefused':
       return `カードのファイルへの書き込みを拒みました（${error.reason}）`;
     case 'ReviewEntriesChanged':

@@ -207,12 +207,12 @@ GitHub に繋がらない試しのデータでは、`decide` の承認 / 否決 
 
 ### 1. 提出と保留を usecase にする
 
-- [ ] `src/cards/errors/card-errors.ts` に `SubmitBeforeStart` / `SubmitGateClosed` / `HoldGateNotRejected` と `SubmitReviewError` / `HoldReviewError` を足す
-- [ ] `src/cards/usecases/commands/submit-review.command.ts` と `hold-review.command.ts` を足す。docstring には、今の `runSubmit` / `runHold` の docstring にある「なぜ拒むか」を移す
-- [ ] `src/cards/composition.ts` の `CardDependencies` と `assemble` に `submitReviewCommand` / `holdReviewCommand` を足す
-- [ ] `src/cards/cli/card-cli.ts` の `runSubmit` / `runHold` を新しい usecase に切り替える。`submitRefusal` / `gateRejected` / `Refused` を消し、`describeError` で新しい種を今と同じ文に直す
-- [ ] `CardCliDependencies.cards` を `Pick` で絞り、`appendReviewCommand` を外す
-- [ ] `src/cards/usecases/__tests__/` に、提出と保留の usecase のテストを足す。書ける場合、各拒否の種、カードが無い場合、拒んだときに何も追記しないことを確かめる
+- [x] `src/cards/errors/card-errors.ts` に `SubmitBeforeStart` / `SubmitGateClosed` / `HoldGateNotRejected` と `SubmitReviewError` / `HoldReviewError` を足す
+- [x] `src/cards/usecases/commands/submit-review.command.ts` と `hold-review.command.ts` を足す。docstring には、今の `runSubmit` / `runHold` の docstring にある「なぜ拒むか」を移す
+- [x] `src/cards/composition.ts` の `CardDependencies` と `assemble` に `submitReviewCommand` / `holdReviewCommand` を足す
+- [x] `src/cards/cli/card-cli.ts` の `runSubmit` / `runHold` を新しい usecase に切り替える。`submitRefusal` / `gateRejected` / `Refused` を消し、`describeError` で新しい種を今と同じ文に直す
+- [x] `CardCliDependencies.cards` を `Pick` で絞り、`appendReviewCommand` を外す
+- [x] `src/cards/usecases/__tests__/` に、提出と保留の usecase のテストを足す。書ける場合、各拒否の種、カードが無い場合、拒んだときに何も追記しないことを確かめる
 
 ### 2. decide の検査を純関数にする
 

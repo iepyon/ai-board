@@ -30,6 +30,14 @@ import {
   type AppendReviewCommand,
 } from './usecases/commands/append-review.command.js';
 import {
+  createSubmitReviewCommand,
+  type SubmitReviewCommand,
+} from './usecases/commands/submit-review.command.js';
+import {
+  createHoldReviewCommand,
+  type HoldReviewCommand,
+} from './usecases/commands/hold-review.command.js';
+import {
   createMoveCardCommand,
   type MoveCardCommand,
 } from './usecases/commands/move-card.command.js';
@@ -48,7 +56,12 @@ export interface CardDependencies {
   readonly createCardCommand: CreateCardCommand;
   readonly updateCardMetaCommand: UpdateCardMetaCommand;
   readonly updateCardBodyCommand: UpdateCardBodyCommand;
+  /** 人の判断（承認 / 否決 / 中止）を足す。AI の CLI（`ai-board card`）には渡さない */
   readonly appendReviewCommand: AppendReviewCommand;
+  /** AI の 提出 / 再提出 を足す。着手とゲートの状態を確かめる */
+  readonly submitReviewCommand: SubmitReviewCommand;
+  /** AI の 保留 を足す。ゲートの最新が否決かを確かめる */
+  readonly holdReviewCommand: HoldReviewCommand;
   readonly moveCardCommand: MoveCardCommand;
   readonly moveIdeaDividerCommand: MoveIdeaDividerCommand;
 }
@@ -210,6 +223,8 @@ function assemble(
     updateCardMetaCommand: createUpdateCardMetaCommand(cardRepository),
     updateCardBodyCommand: createUpdateCardBodyCommand(cardRepository),
     appendReviewCommand: createAppendReviewCommand(cardRepository),
+    submitReviewCommand: createSubmitReviewCommand(cardRepository),
+    holdReviewCommand: createHoldReviewCommand(cardRepository),
     moveCardCommand: createMoveCardCommand(order),
     moveIdeaDividerCommand: createMoveIdeaDividerCommand(order),
   };

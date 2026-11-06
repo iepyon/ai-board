@@ -1,4 +1,5 @@
 import type { DataStoreError } from '../../infrastructure/data-store.js';
+import type { GateState, ReviewGate } from '../models/review.js';
 
 // ============================================================
 // カードコンテキストのエラー（discriminated union）
@@ -35,6 +36,25 @@ export type CardWriteRefused = { readonly type: 'CardWriteRefused'; readonly rea
  */
 export type ReviewEntriesChanged = { readonly type: 'ReviewEntriesChanged'; readonly id: string };
 
+/** 人が着手していないカードへの提出（着手は人が指示する） */
+export type SubmitBeforeStart = { readonly type: 'SubmitBeforeStart'; readonly id: string };
+
+/** ゲートが未提出でも否決でもないときの提出。`state` は今のゲートの状態 */
+export type SubmitGateClosed = {
+  readonly type: 'SubmitGateClosed';
+  readonly id: string;
+  readonly gate: ReviewGate;
+  readonly state: GateState;
+};
+
+/** ゲートの最新の判断が否決でないときの保留。`state` は今のゲートの状態 */
+export type HoldGateNotRejected = {
+  readonly type: 'HoldGateNotRejected';
+  readonly id: string;
+  readonly gate: ReviewGate;
+  readonly state: GateState;
+};
+
 /**
  * データ用ブランチへの書き込みの 1 操作（`DataStore.transact`）が失敗した。
  *
@@ -51,5 +71,8 @@ export type GetCardError = CardNotFound;
 export type UpdateCardError = CardNotFound | CardWriteFailure;
 export type UpdateCardBodyError = UpdateCardError | ReviewEntriesChanged;
 export type AppendReviewError = UpdateCardError;
+export type SubmitReviewError =
+  CardNotFound | SubmitBeforeStart | SubmitGateClosed | CardWriteFailure;
+export type HoldReviewError = CardNotFound | HoldGateNotRejected | CardWriteFailure;
 export type ListCardsError = CardFileMalformed;
 export type MoveCardError = CardNotFound | StaleOrder | CardWriteFailure;

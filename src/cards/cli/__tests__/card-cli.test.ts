@@ -25,7 +25,8 @@ import { demoteHeadings } from '../../repositories/card-files.js';
 
 let tmp: string;
 let origin: string;
-let deps: CardCliDependencies;
+/** CLI に渡す依存。準備（`prepare`）では、CLI に渡さない人の判断の usecase も使うので、カードの依存は全部持つ */
+let deps: CardCliDependencies & { readonly cards: CardDependencies };
 let stdout: string;
 let stderr: string;
 /** `seed` が読むディレクトリの中身。テストごとに差し替える */
@@ -54,7 +55,7 @@ function cloneData(parent: string): string {
   return dir;
 }
 
-function cliDeps(dataDir: string): CardCliDependencies {
+function cliDeps(dataDir: string): typeof deps {
   return {
     store: createDataStore({ dataDir, runner, lockPollMs: 10 }),
     cards: createFileCardDependencies(dataDir),
