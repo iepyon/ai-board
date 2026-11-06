@@ -63,16 +63,6 @@ export const LOOP_FINISH_RESULTS = [
 
 export type LoopFinishResult = (typeof LOOP_FINISH_RESULTS)[number];
 
-/** 画面と `status` に出す結果の語 */
-export const LOOP_RESULT_LABELS: Record<LoopResult, string> = {
-  advanced: '進めた',
-  held: '保留して止まった',
-  stopped: '止まった',
-  failed: '失敗した',
-  unknown: '結果不明',
-  interrupted: '途切れた',
-};
-
 /**
  * 1 手の記録。時刻は ISO 8601。
  *

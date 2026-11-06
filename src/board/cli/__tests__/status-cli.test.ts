@@ -90,8 +90,7 @@ function stubProvider(
 async function run(
   argv: readonly string[],
   provider = stubProvider(),
-  branchPlanRepository?: BranchPlanRepository,
-  repository?: { readonly owner: string; readonly repo: string }
+  branchPlanRepository?: BranchPlanRepository
 ): Promise<number> {
   const cards = createFileCardDependencies(dataDir);
   const board = createBoardDependencies(
@@ -107,7 +106,6 @@ async function run(
     {
       ...board,
       ...(branchPlanRepository ? { branchPlanRepository } : {}),
-      ...(repository ? { repository } : {}),
     },
     {
       stdout: (text) => {
@@ -676,60 +674,6 @@ describe('ai-board status', () => {
 });
 
 // ============================================================
-// --html
-// ============================================================
-
-describe('ai-board status --html', () => {
-  it('判断待ちの提出の本文を含む、1 枚の HTML を出す', async () => {
-    await writeCard(
-      'reviewing',
-      "startedAt: '2026-10-21T00:00:00.000Z'\n",
-      `${review('提出')}\n判断してほしい点がある\n`
-    );
-    await writePlan('reviewing', '# 計画');
-    await writeCard('idea', '');
-
-    expect(await run(['--html'])).toBe(0);
-
-    expect(stdout.startsWith('<!doctype html>')).toBe(true);
-    expect(stdout).toContain('reviewing のタイトル');
-    expect(stdout).toContain('判断してほしい点がある');
-    expect(stdout).toContain('idea のタイトル');
-    expect(stdout).not.toContain('<script');
-  });
-
-  it('--session を渡すと、更新ボタンとセッション ID を入れる', async () => {
-    expect(await run(['--html', '--session', 'session_01ABCDEF'])).toBe(0);
-
-    expect(stdout).toContain('id="refresh-button"');
-    expect(stdout).toContain('"session":"session_01ABCDEF"');
-  });
-
-  it('リポジトリを渡すと、カードの詳細へのリンクを付ける。渡さなければ付けない', async () => {
-    await writeCard('idea', '');
-
-    expect(await run(['--html'], undefined, undefined, { owner: 'o', repo: 'r' })).toBe(0);
-    expect(stdout).toContain('href="https://github.com/o/r/blob/ai-board/data/cards/idea/card.md"');
-
-    stdout = '';
-    expect(await run(['--html'])).toBe(0);
-    expect(stdout).not.toContain('/cards/idea/card.md');
-  });
-
-  it.each([
-    ['形の合わない ID', ['--html', '--session', 'x</script>']],
-    ['session_ で始まらない ID', ['--html', '--session', '01ABCDEF']],
-    ['値が無い', ['--html', '--session']],
-    ['--json と一緒', ['--json', '--session', 'session_01ABCDEF']],
-    ['形の指定が無い', ['--session', 'session_01ABCDEF']],
-  ])('%s は使い方を出して 1 で終わる', async (_name, argv) => {
-    expect(await run(argv)).toBe(1);
-    expect(stderr).toContain('使い方: ai-board status');
-    expect(stdout).toBe('');
-  });
-});
-
-// ============================================================
 // --only
 // ============================================================
 
@@ -781,7 +725,6 @@ describe('ai-board status --json --only', () => {
     ['2 段以上の .', ['--json', '--only', 'cards.mrState.webUrl']],
     ['空の項目', ['--json', '--only', 'cards.']],
     ['値が無い', ['--json', '--only']],
-    ['--html と一緒', ['--html', '--only', 'cards.id']],
     ['形の指定が無い', ['--only', 'next']],
   ])('%s は使い方を出して 1 で終わる', async (_name, argv) => {
     expect(await run(argv)).toBe(1);
@@ -835,11 +778,10 @@ describe('ai-board status の引数', () => {
 });
 
 describe('parseStatusArgs', () => {
-  it('--json / --html の有無、--help、不明な引数を見分ける', () => {
+  it('--json の有無、--help、不明な引数を見分ける', () => {
     expect(parseStatusArgs([])).toEqual({ format: 'text' });
     expect(parseStatusArgs(['--json'])).toEqual({ format: 'json' });
-    expect(parseStatusArgs(['--html'])).toEqual({ format: 'html' });
-    expect(parseStatusArgs(['--json', '--html'])).toBe('invalid');
+    expect(parseStatusArgs(['--html'])).toBe('invalid');
     expect(parseStatusArgs(['--json', '--help'])).toBe('help');
     expect(parseStatusArgs(['-h'])).toBe('help');
     expect(parseStatusArgs(['--jsno'])).toBe('invalid');
@@ -851,23 +793,5 @@ describe('parseStatusArgs', () => {
       ],
     });
     expect(parseStatusArgs(['--json', '--only', 'next', '--only', 'forge'])).toBe('invalid');
-  });
-
-  it('--session は --html のときだけ、形の合う ID を受け取る', () => {
-    expect(parseStatusArgs(['--html', '--session', 'session_01ABCDEF'])).toEqual({
-      format: 'html',
-      session: 'session_01ABCDEF',
-    });
-    expect(parseStatusArgs(['--session', 'session_01ABCDEF', '--html'])).toEqual({
-      format: 'html',
-      session: 'session_01ABCDEF',
-    });
-    expect(parseStatusArgs(['--json', '--session', 'session_01ABCDEF'])).toBe('invalid');
-    expect(parseStatusArgs(['--session', 'session_01ABCDEF'])).toBe('invalid');
-    expect(parseStatusArgs(['--html', '--session', 'session_a-b'])).toBe('invalid');
-    expect(parseStatusArgs(['--html', '--session', `session_${'a'.repeat(129)}`])).toBe('invalid');
-    expect(parseStatusArgs(['--html', '--session', 'session_a', '--session', 'session_b'])).toBe(
-      'invalid'
-    );
   });
 });

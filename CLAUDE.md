@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## このリポジトリは何か
 
-計画ファイル駆動の開発のためのボード。`ai-board` の CLI・チャット（スキル）・`status --html` のダッシュボードで扱う。
+計画ファイル駆動の開発のためのボード。`ai-board` の CLI とチャット（スキル）で扱う。
 カードのステージは計画ファイル・GitHub の PR・カードの実態から**導出**し、`stage` という値はどこにも保存しない。
 
 ```
@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      人            AI            人 ★          AI        人 ★        —
 ```
 
-画面と常駐するサーバはいったん外した（[ADR 0017](docs/adr/0017-remove-web-and-server.md)）。手元で動かす CLI だけで、認証やレート制限は持たない。
+画面と常駐するサーバとダッシュボードはいったん外した（[ADR 0017](docs/adr/0017-remove-web-and-server.md)）。手元で動かす CLI だけで、認証やレート制限は持たない。
 成果物（計画・カード・コミット・ドキュメント）は日本語で書く。
 
 ### 読む場所

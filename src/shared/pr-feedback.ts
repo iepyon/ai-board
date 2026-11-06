@@ -21,7 +21,7 @@ export interface PrFeedbackInput {
  *
  * 質問や承認のコメントも指摘として扱う（GitHub の review の state は、自分の PR に Request changes を付けられず使えない）。
  * 直すものが無ければ AI が返信で戻すので、同じカードで AI の番が続くことは無い。
- * ステージは変えない（PR中 のまま）。ダッシュボードの区画と、ループの次の一手だけがこれを読む。
+ * ステージは変えない（PR中 のまま）。ボードの区画と、ループの次の一手だけがこれを読む。
  */
 export function awaitsPrFix(mr: PrFeedbackInput): boolean {
   if (mr.state !== 'opened' || mr.draft || mr.latestNoteAt === null) return false;
