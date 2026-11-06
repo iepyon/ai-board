@@ -1,0 +1,13 @@
+{
+  "loop": "730cd17e-bca5-4401-9dd6-781af802efa6",
+  "cardId": "cli-rules-to-usecases",
+  "action": "revise-plan",
+  "step": null,
+  "agent": null,
+  "harness": "v3",
+  "startedAt": "2026-11-06T02:57:29.606Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
