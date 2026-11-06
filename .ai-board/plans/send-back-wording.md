@@ -138,6 +138,6 @@ export AI_BOARD_DATA="$S/data"
 
 ### 4. 今の形を書いた文書を直す
 
-- [ ] `CLAUDE.md`・`README.md`・`REVIEW.md`・`docs/architecture.md` の「否決」を直す。「否決の差し戻しに専用ルールは無く」は「差し戻しに専用ルールは無く」にする
-- [ ] `docs/adr/` の 9 本（0001・0002・0004・0005・0006・0007・0009・0012・0013）の「否決」を、今の形として直す
-- [ ] `docs/specs/` の 6 本（`board-hold`・`board-stages`・`board-timeline`・`card-gate-skip`・`card-review-authority`・`card-review-log`）の「否決」を直す
+- [x] `CLAUDE.md`・`README.md`・`REVIEW.md`・`docs/architecture.md` の「否決」を直す。「否決の差し戻しに専用ルールは無く」は「差し戻しに専用ルールは無く」にする
+- [x] `docs/adr/` の 9 本（0001・0002・0004・0005・0006・0007・0009・0012・0013）の「否決」を、今の形として直す
+- [x] `docs/specs/` の 6 本（`board-hold`・`board-stages`・`board-timeline`・`card-gate-skip`・`card-review-authority`・`card-review-log`）の「否決」を直す

@@ -27,7 +27,7 @@ Draft へ戻した時刻は、PR が今 open で Draft のときだけ痕跡に�
 | `idea`           | アイデアの滞留   | 人   | 起票                                                  |
 | `planning`       | 計画を書く       | AI   | 着手                                                  |
 | `plan-review`    | 計画レビュー     | 人   | plan 提出 / 再提出                                    |
-| `plan-rework`    | 計画の差し戻し   | AI   | plan 否決                                             |
+| `plan-rework`    | 計画の差し戻し   | AI   | plan 差し戻し                                         |
 | `plan-held`      | 計画の保留       | 人   | plan 保留                                             |
 | `implementing`   | 実装             | AI   | plan 承認（plan を飛ばすカードは plan 提出 / 再提出） |
 | `pr-review`      | PR レビュー      | 人   | PR を Ready にした                                    |
@@ -59,16 +59,16 @@ PR を最後に Ready にした時刻は、PR のイベントの最後の Ready 
 - **WHEN** 着手されていないカードを見る
 - **THEN** 区間は起票から始まる `idea` の 1 つだけで、終わりを持たない
 
-#### Scenario: 計画の否決と再提出
+#### Scenario: 計画の差し戻しと再提出
 
-- **WHEN** plan が提出・否決・再提出・承認され、PR が Ready になってマージされた
+- **WHEN** plan が提出・差し戻し・再提出・承認され、PR が Ready になってマージされた
 - **THEN** 区間は `idea` → `planning` → `plan-review` → `plan-rework` → `plan-review` → `implementing` → … と並び、
   最後の `pr-review` はマージの時刻で閉じる
 
 #### Scenario: 計画から立て直させた
 
-- **WHEN** 承認済みの計画に plan の否決が記録され、計画が再提出されて承認し直された
-- **THEN** `implementing` は否決の時刻で閉じて `plan-rework` が始まり、承認し直した時刻から再び `implementing` が始まる
+- **WHEN** 承認済みの計画に plan の差し戻しが記録され、計画が再提出されて承認し直された
+- **THEN** `implementing` は差し戻しの時刻で閉じて `plan-rework` が始まり、承認し直した時刻から再び `implementing` が始まる
 
 #### Scenario: 実装を終えて Ready にした
 
