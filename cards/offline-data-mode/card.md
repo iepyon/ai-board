@@ -33,3 +33,12 @@ fetch と push を外して commit だけにしても、読み書きの頭で手
   - 手元モードの間の commit を、後で `origin` に上げる口を今回入れるか
 - ADR 0010（カードはデータ用ブランチに置き、書き込みのたびに push する）に、研修用の手元モードを書き足す
 - `offline-snapshot-view`・`branch-plan-review` と合わせて、オフラインでもアイデアからマージ済みまでをボードに出せるようにする
+- 2026-11-06 の追加の調べ（コードを読んで確かめた）
+  - 書き込みは `no-origin` の道にそのまま乗る。`sync`（`data-store.ts` :371）の「`origin` があるか」の分岐に手元モードを足して `discardTo('HEAD')` へ流し、`attempt` は `base.value === null` なら push を飛ばす（:292）。データストアを組むのは `createBoardDataStore`（`src/cards/composition.ts` :152）の 1 か所
+  - 手元モードで commit した後に既定のモードへ戻すと、次の `sync` の `reset --hard origin/ai-board/data` で手元の commit が黙って消える
+  - `config.yaml` はデータ用ブランチの根から先に読む（`src/shared/config.ts` の `loadConfig`）ので、手元モードの指定をそこに置くと全員に効く
+  - GitHub が「接続済み」でないと、`decide` の着手 / 着手を戻す / 承認 / 差し戻し / 中止は `ForgeUnavailable` で拒まれ（`src/board/services/decision-guards.ts` :33・:61）、`status` の `next` は null になる（`get-status.query.ts` :56）。`github:` を書かない（未設定）でも同じなので、研修で `github:` を書かない運用だけでは足りない
+- 人の答え（2026-11-06、チャットで）
+  - 未設定のときの `decide` の拒否と `next` の null は、このカードでは扱わず、別のカード `forge-unset-decide` で扱う。このカードは書き込みの手元モードに絞る
+  - 手元の commit は、`origin` より先の commit があれば既定のモードでは読み書きを止めて知らせる守りだけを入れる。`origin` に上げる操作は今回入れない
+  - 手元モードの指定の置き場所（環境変数か、git に載らない手元の `.ai-board/config.yaml` か）は、計画で AI が決めて仮定に書く。データ用ブランチの `config.yaml` には置かない
