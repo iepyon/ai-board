@@ -198,5 +198,5 @@ OLD="$S/base/dist/cli.js"; NEW="$WT/dist/cli.js"
 
 ### 5. 文書を今の形に直す
 
-- [ ] `CLAUDE.md` の書き込み境界の段落（`CardCliDependencies.cards` と `appendReviewCommand`）を、`CardCliDependencies.writes` の形に直す
-- [ ] `docs/architecture.md` の、`card-cli.ts` の依存・`decide-cli.ts` の段取り・`status-cli.ts` の `next.step` と `pickFields` を書いた箇所を、usecase と query の名前に直す
+- [x] `CLAUDE.md` の書き込み境界の段落（`CardCliDependencies.cards` と `appendReviewCommand`）を、`CardCliDependencies.writes` の形に直す
+- [x] `docs/architecture.md` の、`card-cli.ts` の依存・`decide-cli.ts` の段取り・`status-cli.ts` の `next.step` と `pickFields` を書いた箇所を、usecase と query の名前に直す

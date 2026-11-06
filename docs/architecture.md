@@ -88,7 +88,9 @@ AI の列（計画提案中 / 実装中）にいても、人の判断を待っ�
 
 CLI（`src/cards/cli/card-cli.ts`）には `startedAt` / `rank` / `skipGates` を書く入口も、承認 / 差し戻し / 中止を追記する入口も無く、
 `body` は `## レビュー` のエントリが変わる差し替えを拒む。
-CLI の依存（`CardCliDependencies.cards`）には、人の判断を足す `appendReviewCommand` を渡さない。
+CLI の書き込みは、AI に許す操作だけを並べた書き込みの usecase（`CardCliDependencies.writes`、`src/cards/usecases/commands/card-write.commands.ts` の `createCardWriteCommands`）を通る。
+書き込みの usecase は、カードの usecase を書き込みの 1 操作（`transactCardWrite`）の中で走らせ、コミットのメッセージも決める。
+人の判断を足す `appendReviewCommand` と、`startedAt` / `skipGates` を書ける `updateCardMetaCommand` は、CLI の依存に渡さない。ブランチは `branch` だけを書く `link-card-branch` の usecase で紐付ける。
 `submit` / `hold` は、種別を中で決める専用の usecase（`src/cards/usecases/commands/submit-review.command.ts` / `hold-review.command.ts`）を通り、書けるかの検査もそこにある。
 `submit` の plan ゲートは、着手したカードで、plan が未提出か差し戻されたときにだけ書ける
 （plan を飛ばすカードの `plan 再提出` は承認と読まれるので、いつでも書けると人の差し戻しや保留を経ずに計画を出し直せてしまう）。
@@ -99,12 +101,13 @@ CLI の依存（`CardCliDependencies.cards`）には、人の判断を足す `ap
 判断の追記と本文の保存は、リポジトリ（`CardRepository`）の別の口に分かれており、判断は文字列を経由せずに値のまま書く。
 判断を偽造させないのは入口ごとの検査ではなく、この作りである。`ai-board card` と `ai-board decide` のどちらから書いても同じに効く。
 
-人の判断の CLI（`src/board/cli/decide-cli.ts`、`ai-board decide`）は、ボードの導出・検査・書き込みを書き込みの 1 操作（`transactCardWrite`）の中で走らせる。
+人の判断の CLI（`src/board/cli/decide-cli.ts`、`ai-board decide`）は、引数を確かめて判断の usecase（`src/board/usecases/commands/decide.command.ts` の `createDecideCommands`）を呼び、結果とエラーを 1 行に直すだけを行う。
+usecase は、ボードの導出・検査・書き込みを書き込みの 1 操作（`transactCardWrite`）の中で走らせ、コミットのメッセージを決める。
 `status` と同じ組み立てでボードを導出し、出せる判断かを純関数（`src/board/services/decision-guards.ts`）で確かめてから、カードの usecase で書く。
 push が拒否されたら、取り直した状態でボードを導き直して検査からやり直すので、検査の後にほかのセッションが書いたカードに古い検査のまま書くことは無い。
 承認 / 差し戻し / 中止は `decisionsFor` にあるもの、着手 / 着手を戻すは今の列と `droppableStages`、並べ替えはアイデアの表（`ideaRows`）にあるカードだけを書く。
 GitHub に接続できないときは承認 / 差し戻し / 中止と着手 / 着手を戻すを拒む（`status` が `next` を `null` にするのと同じ理由。列と下限が PR の状態に依るため）。
-書いた後は、取り直した PR の状態のままボードを組み立て直し、列の移りを 1 行で出す。
+書いた後は、取り直した PR の状態のままボードを組み立て直して移った先の列を返し（読めなければ null）、CLI が列の移りを 1 行で出す。
 `ai-board decide` を誰が呼んでよいかは構造では分けず、手順書の決まり（人がこの会話で頼んだときだけ）で守る（ADR 0007）。
 
 - **判断は値のまま 1 件だけ足す。** `createAppendReviewCommand` は判断（時刻・gate・種別・理由）をリポジトリの `appendReview` に渡し、
@@ -157,7 +160,8 @@ plan を飛ばすカードが実装中で止まっても「計画から立て直
 
 ## `ai-board status` と次の一手
 
-`status` は `createMrStateSource` → `getBoardQuery` の組み立てでステージを導出する。
+`status` と `decide` のボードは `src/board/composition.ts` の `assembleBoard` が組む（`createMrStateSource` → `getBoardQuery`）。
+`status` の見せる形（判断待ち・作業中・アイデアの表・次の一手）は、query（`src/board/usecases/queries/get-status.query.ts` の `createGetStatusQuery`）が組み、CLI（`status-cli.ts`）は引数の解析と整形だけを行う。
 PR の状態は `refresh()` を 1 回だけ待って引き、`branch` から解決した PR 番号の書き戻しもここで起きる。
 
 次の一手は `src/board/services/next-action.ts` の `pickNextAction`（PR中 → 実装中 → 計画提案中、列の中は `rank` の順）が決める。
@@ -166,7 +170,7 @@ PR中 のカードは人の列なので、`mrState.awaitingFix`（下の「PR �
 締めの段が動かした証拠を PR の本文に書いて Ready にするので、Ready にするための別の手は無い。
 ループの 1 手の記録（`loop/`）に残る廃止した手（`revise-impl` / `ready`）は、`LOOP_PAST_ACTIONS` として読めるまま残し、`loop start` では受け付けない。
 `implement` は手の種類を計画の進み具合では分けず、段を `next.step` として添える（`implement` 以外の手では常に `null`）。
-`pickNextAction` は純関数のまま `step: null` を返し、`status-cli.ts` が `implement` のときだけ、選ばれた 1 枚のカードのブランチの計画を読んで埋める。
+`pickNextAction` は純関数のまま `step: null` を返し、`status` の query（`get-status.query.ts`）が `implement` のときだけ、選ばれた 1 枚のカードのブランチの計画を読んで埋める。
 
 - 読み方: `src/board/repositories/` の読み手が `CliRunner` で `git show <ref>:.ai-board/plans/<id>.md` を、無ければ `plans/archive/<id>.md` を読む。
   `<ref>` はローカルの `refs/heads/<branch>` があればそれ、無ければ `refs/remotes/origin/<branch>`。
