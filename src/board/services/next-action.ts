@@ -19,7 +19,7 @@ import type { CardHoldKind } from '../../shared/dashboard-sections.js';
  *                 （未チェックのタスクがあれば `task` / 倒し終えて `## AI レビュー` 節が無ければ `review` /
  *                 節があるか archive 済みなら `close`。ループは段が `review` なら `board-reviewer` を立て、それ以外は自分で進める）
  * - `plan`        計画提案中で、まだ何も提出していない。計画を書いて Draft の PR を出し、提出する
- * - `revise-plan` 計画提案中で、最新の判断が 否決。理由を読んで計画を直し、再提出する
+ * - `revise-plan` 計画提案中で、最新の判断が 差し戻し。理由を読んで計画を直し、再提出する
  * - `fix-pr`      PR中 で、人の指摘に AI が応える番（`awaitsPrFix`）。PR を Ready のまま修正を push するか、
  *                 直すものが無い理由を 1 件返信する。どちらでも人の番（判断待ち）に戻る
  *
@@ -27,7 +27,7 @@ import type { CardHoldKind } from '../../shared/dashboard-sections.js';
  * 手の種類に足すと、`review-log.ts` / `card-cli.ts` / `dashboard-sections.ts` にまで種類が広がる。
  * 段を読むには計画を読む必要があり、その理由と読む場所は `judgeImpling` を参照。
  *
- * かつては動作確認の否決を直す `revise-impl` と、動作確認の後に Ready にする `ready` があったが、
+ * かつては動作確認の差し戻しを直す `revise-impl` と、動作確認の後に Ready にする `ready` があったが、
  * 動作確認の列とともに廃止した（ループの記録に残る過去の手は `loop-step.ts` の `LOOP_PAST_ACTIONS`）。
  */
 export type NextActionKind = 'implement' | 'plan' | 'revise-plan' | 'fix-pr';
@@ -95,12 +95,12 @@ export interface HoldInput {
 /** 止まりの理由。人が何をすればよいかを書く */
 export const HOLD_REASONS = {
   planHeld:
-    'AI が計画を直しきれずに止まった。否決の理由を足して直させるか、中止するかを選んでください',
+    'AI が計画を直しきれずに止まった。差し戻しの理由を足して直させるか、中止するかを選んでください',
   planLost: '計画を提出済みだが、計画ファイルも Draft の PR も見えない',
   forgeFailed: (message: string): string =>
     `PR の状態を引けない（${message}）。時間を置いても続くなら、GitHub で PR を確かめてください`,
   draftReverted: (iid: number): string =>
-    `判断の後に PR #${iid} が Draft に戻された。GitHub で Ready に戻すか、ai-board decide で否決して計画から立て直させるか中止してください`,
+    `判断の後に PR #${iid} が Draft に戻された。GitHub で Ready に戻すか、ai-board decide で差し戻して計画から立て直させるか中止してください`,
 } as const;
 
 /**
@@ -145,7 +145,7 @@ export function pickNextAction(cards: readonly NextActionCard[]): NextAction | n
  *   ほかの止まりより先に見る。前に引けた控えは古いことがあり、人の指摘や Draft への戻しを見落として進めかねないため。
  *   次の取得で引ければひとりでに外れる
  *
- * 人が否決・承認・中止を書けば、そのエントリが最新になって止まりは外れる。
+ * 人が差し戻し・承認・中止を書けば、そのエントリが最新になって止まりは外れる。
  */
 export function resolveHold(card: HoldInput): CardHold | null {
   if (card.aborted) return null;
@@ -244,7 +244,7 @@ function judgePlanning(card: NextActionCard): NextAction | null {
         step: null,
       };
     case 'rejected':
-      return { cardId: card.id, action: 'revise-plan', reason: '計画が否決された', step: null };
+      return { cardId: card.id, action: 'revise-plan', reason: '計画が差し戻された', step: null };
     case 'submitted':
     case 'held':
       // 止まり（`resolveHold`）として扱い、pickNextAction がここへ来る前に飛ばす

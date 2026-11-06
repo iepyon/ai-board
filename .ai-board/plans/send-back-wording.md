@@ -4,11 +4,16 @@
 
 - **`status --json` の種別の値を変えてよいか。** `cards[].latestReview.kind` と `waiting[].decisions[].kind` の値が `否決` から `差し戻し` に変わる。
   値で分岐する読み手がこのリポジトリの外にあれば壊れる（既定: 変える。読み手はこのリポジトリのスキルだけで、同じ PR で直す）
+  - → 回答（2026-11-06、plan 承認）: 理由なしで承認（既定のまま進む）
 - **`board-decide` で「否決して」と頼まれたとき、差し戻しとして受けるか。** 言い慣れた言い方で頼まれることが当面ありうる（既定: 受ける。スキルの読み分けに「否決して」も差し戻しの依頼として挙げる）
+  - → 回答（2026-11-06、plan 承認）: 理由なしで承認（既定のまま進む）
 - **古い言い方の `### <時刻> plan 否決` を読み替えるか。** 古い CLI の `card show` の出力を直して新しい CLI の `card body` に送ると、`否決` の見出しを読めずにエントリが変わったと見なされ、書き込みを拒まれる（既定: 読み替えない。拒まれるだけでデータは壊れず、`card show` を取り直せば通る）
+  - → 回答（2026-11-06、plan 承認）: 理由なしで承認（既定のまま進む）
 - **どこまで書き換えるか。** 今の形を書いた文書（README・CLAUDE.md・REVIEW.md・`docs/architecture.md`・ADR・仕様・スキル）は書き換える。
   archive の計画、既存のカード本文の自由記述、`.claude/HARNESS_VERSIONS.md` の過去の版の記述は、当時の記録として残す（既定: この線引きのまま）
+  - → 回答（2026-11-06、plan 承認）: 理由なしで承認（既定のまま進む）
 - **手順書の版を上げるか。** スキルの読み分けと、`status --json` から読む種別の値が変わるので、`.claude/HARNESS_VERSIONS.md` に `v5` を足す（既定: 上げる）
+  - → 回答（2026-11-06、plan 承認）: 理由なしで承認（既定のまま進む）
 
 承認は、回答の無い項目をすべて既定のまま進めると読む。既定と違う答えは、承認の理由ではなく否決（この計画で「差し戻し」に改める判断。今の CLI では `decide reject`）の理由で返してほしい。
 
@@ -117,9 +122,9 @@ export AI_BOARD_DATA="$S/data"
 
 ### 1. 種別を「差し戻し」に変え、種別を使うコードとテストを合わせる
 
-- [ ] `src/cards/models/review.ts` の `REVIEW_KINDS` の `否決` を `差し戻し` にし、docstring を直す
-- [ ] 種別を使う本体（`review-log.ts`・`card-files.ts`・`stage-timeline.ts`・`dashboard-sections.ts`・`decide-cli.ts`・`next-action.ts`）と、人に見せる文言に「否決」を持つ `card-cli.ts`（使い方とエラー文言）を直す。出せる判断のラベル「否決して差し戻す」は「差し戻す」、`revise-plan` の理由は「計画が差し戻された」、`decide reject` の使い方は「plan を差し戻す（理由は必須）」にする
-- [ ] テスト（`src/**/__tests__/` の 12 ファイル）の `'否決'` と期待する文言を直す
+- [x] `src/cards/models/review.ts` の `REVIEW_KINDS` の `否決` を `差し戻し` にし、docstring を直す
+- [x] 種別を使う本体（`review-log.ts`・`card-files.ts`・`stage-timeline.ts`・`dashboard-sections.ts`・`decide-cli.ts`・`next-action.ts`）と、人に見せる文言に「否決」を持つ `card-cli.ts`（使い方とエラー文言）を直す。出せる判断のラベル「否決して差し戻す」は「差し戻す」、`revise-plan` の理由は「計画が差し戻された」、`decide reject` の使い方は「plan を差し戻す（理由は必須）」にする
+- [x] テスト（`src/**/__tests__/` の 12 ファイル）の `'否決'` と期待する文言を直す
 
 ### 2. コメントと文言だけに「否決」を持つコードを直す
 

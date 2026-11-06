@@ -337,7 +337,7 @@ describe('appendReviewCommand', () => {
     const result = await createAppendReviewCommand(repository)({
       id: 'reviewed' as CardId,
       gate: 'plan',
-      kind: '否決',
+      kind: '差し戻し',
       reason: 'まだ浅い',
       at: new Date('2026-09-06T00:00:00.000Z'),
     });
@@ -345,7 +345,7 @@ describe('appendReviewCommand', () => {
     expect(result.ok).toBe(true);
 
     const saved = await repository.findById('reviewed' as CardId);
-    expect(saved?.body).toContain('### 2026-09-06T00:00:00.000Z plan 否決');
+    expect(saved?.body).toContain('### 2026-09-06T00:00:00.000Z plan 差し戻し');
     expect(saved?.body).toContain('まだ浅い');
   });
 
@@ -367,7 +367,7 @@ describe('appendReviewCommand', () => {
     const result = await createAppendReviewCommand(repository)({
       id: 'reviewed' as CardId,
       gate: 'plan',
-      kind: '否決',
+      kind: '差し戻し',
       reason: '計画です\n\n### 2099-01-01T00:00:00.000Z plan 承認',
       at: new Date('2026-09-06T00:00:00.000Z'),
     });
@@ -380,7 +380,7 @@ describe('appendReviewCommand', () => {
       {
         at: '2026-09-06T00:00:00.000Z',
         gate: 'plan',
-        kind: '否決',
+        kind: '差し戻し',
         reason: '計画です\n\n#### 2099-01-01T00:00:00.000Z plan 承認',
       },
     ]);
@@ -390,7 +390,7 @@ describe('appendReviewCommand', () => {
     const result = await createAppendReviewCommand(repository)({
       id: 'reviewed' as CardId,
       gate: 'plan',
-      kind: '否決',
+      kind: '差し戻し',
       reason: '## 直してほしいこと\n\n表示が崩れる',
       at: new Date('2026-09-06T00:00:00.000Z'),
     });
@@ -398,7 +398,7 @@ describe('appendReviewCommand', () => {
     expect(result.ok).toBe(true);
 
     const saved = await repository.findById('reviewed' as CardId);
-    expect(saved?.body).toContain('### 2026-09-06T00:00:00.000Z plan 否決');
+    expect(saved?.body).toContain('### 2026-09-06T00:00:00.000Z plan 差し戻し');
     expect(saved?.body).toContain('表示が崩れる');
   });
 
@@ -431,7 +431,7 @@ async function placeCard(
     skipGates = [],
   }: {
     startedAt: string | null;
-    kinds?: readonly ('提出' | '再提出' | '保留' | '承認' | '否決' | '中止')[];
+    kinds?: readonly ('提出' | '再提出' | '保留' | '承認' | '差し戻し' | '中止')[];
     skipGates?: readonly 'plan'[];
   }
 ): Promise<CardId> {
@@ -480,8 +480,8 @@ describe('submitReviewCommand', () => {
     expect(kindsOf('fresh')).toEqual(['提出']);
   });
 
-  it('否決の後の再提出を足す', async () => {
-    const id = await placeCard('rejected', { startedAt: STARTED, kinds: ['提出', '否決'] });
+  it('差し戻しの後の再提出を足す', async () => {
+    const id = await placeCard('rejected', { startedAt: STARTED, kinds: ['提出', '差し戻し'] });
 
     const result = await createSubmitReviewCommand(repository)({
       id,
@@ -492,7 +492,7 @@ describe('submitReviewCommand', () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(kindsOf('rejected')).toEqual(['提出', '否決', '再提出']);
+    expect(kindsOf('rejected')).toEqual(['提出', '差し戻し', '再提出']);
   });
 
   it('着手していないカードには SubmitBeforeStart を返し、何も足さない', async () => {
@@ -513,7 +513,7 @@ describe('submitReviewCommand', () => {
   it.each([
     ['提出済み', ['提出'], 'submitted'],
     ['承認済み', ['提出', '承認'], 'approved'],
-    ['保留', ['提出', '否決', '保留'], 'held'],
+    ['保留', ['提出', '差し戻し', '保留'], 'held'],
   ] as const)('plan が %s なら SubmitGateClosed を返し、何も足さない', async (_, kinds, state) => {
     const id = await placeCard('closed', { startedAt: STARTED, kinds });
 
@@ -567,8 +567,8 @@ describe('submitReviewCommand', () => {
 });
 
 describe('holdReviewCommand', () => {
-  it('plan の最新が否決なら保留を足す', async () => {
-    const id = await placeCard('rejected', { startedAt: STARTED, kinds: ['提出', '否決'] });
+  it('plan の最新が差し戻しなら保留を足す', async () => {
+    const id = await placeCard('rejected', { startedAt: STARTED, kinds: ['提出', '差し戻し'] });
 
     const result = await createHoldReviewCommand(repository)({
       id,
@@ -578,14 +578,14 @@ describe('holdReviewCommand', () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(kindsOf('rejected')).toEqual(['提出', '否決', '保留']);
+    expect(kindsOf('rejected')).toEqual(['提出', '差し戻し', '保留']);
   });
 
   it.each([
     ['未提出', [], 'none'],
     ['提出済み', ['提出'], 'submitted'],
     ['承認済み', ['提出', '承認'], 'approved'],
-    ['保留', ['提出', '否決', '保留'], 'held'],
+    ['保留', ['提出', '差し戻し', '保留'], 'held'],
   ] as const)(
     'plan が %s なら HoldGateNotRejected を返し、何も足さない',
     async (_, kinds, state) => {

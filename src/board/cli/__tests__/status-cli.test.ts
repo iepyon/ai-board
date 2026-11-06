@@ -328,7 +328,7 @@ describe('ai-board status --json', () => {
     await writeCard(
       'held',
       "startedAt: '2026-10-20T00:00:00.000Z'\nrank: 1\n",
-      `${review('提出')}\n### 2026-10-21T00:00:00.000Z plan 否決\n\n範囲が広い\n\n### 2026-10-22T00:00:00.000Z plan 保留\n\n論点を決めてほしい\n`
+      `${review('提出')}\n### 2026-10-21T00:00:00.000Z plan 差し戻し\n\n範囲が広い\n\n### 2026-10-22T00:00:00.000Z plan 保留\n\n論点を決めてほしい\n`
     );
     await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\nrank: 2\n");
 
@@ -348,7 +348,7 @@ describe('ai-board status --json', () => {
         reason: HOLD_REASONS.planHeld,
         running: false,
         decisions: [
-          { gate: 'plan', kind: '否決', label: '計画を直させる', reasonRequired: true },
+          { gate: 'plan', kind: '差し戻し', label: '計画を直させる', reasonRequired: true },
           { gate: 'plan', kind: '中止', label: '中止する', reasonRequired: false },
         ],
       },
@@ -409,7 +409,7 @@ describe('ai-board status --json', () => {
     expect(report.cards.find((card) => card.id === 'old-verify')?.stage).toBe('impling');
   });
 
-  it('計画レビューのカードには、出せる判断（承認 / 否決して差し戻す / 中止）を出す', async () => {
+  it('計画レビューのカードには、出せる判断（承認 / 差し戻す / 中止）を出す', async () => {
     await writeCard('reviewing', "startedAt: '2026-10-21T00:00:00.000Z'\n", review('提出'));
     await writePlan('reviewing', '# 計画');
 
@@ -417,7 +417,7 @@ describe('ai-board status --json', () => {
 
     expect(report.waiting[0]?.decisions.map((d) => `${d.gate} ${d.label}`)).toEqual([
       'plan 承認',
-      'plan 否決して差し戻す',
+      'plan 差し戻す',
       'plan 中止する',
     ]);
   });

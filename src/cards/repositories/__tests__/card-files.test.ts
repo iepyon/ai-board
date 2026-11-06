@@ -169,13 +169,13 @@ describe('判断のファイル名', () => {
   });
 
   it('種別は英字にし、読むと元の種別に戻る', () => {
-    const name = logFileName('2026-11-01T03:52:08.000Z', 'plan', '否決', new Set());
+    const name = logFileName('2026-11-01T03:52:08.000Z', 'plan', '差し戻し', new Set());
 
     expect(name).toBe('20261101T035208.000Z.plan.reject.md');
     expect(parseLogFileName(name ?? '')).toEqual({
       at: '2026-11-01T03:52:08.000Z',
       gate: 'plan',
-      kind: '否決',
+      kind: '差し戻し',
       seq: 1,
     });
   });
@@ -255,7 +255,7 @@ describe('assembleCard', () => {
         '',
         '### 2026-11-01T04:00:00.000Z plan 提出',
         '',
-        '### 2026-11-01T05:00:00.000Z plan 否決',
+        '### 2026-11-01T05:00:00.000Z plan 差し戻し',
         '',
         '見直して。',
         '',
@@ -453,7 +453,7 @@ describe('planCardWrite', () => {
   it('節の無い本文は判断を変えないと読み、判断を足さずに本文だけを書く', () => {
     const stored = append(
       append(create(makeCard()), entry({ reason: '見て' })),
-      entry({ at: '2026-11-01T05:00:00.000Z', kind: '否決', reason: '直して' })
+      entry({ at: '2026-11-01T05:00:00.000Z', kind: '差し戻し', reason: '直して' })
     );
     const card = read(stored);
 
@@ -564,7 +564,7 @@ describe('planReviewAppend', () => {
       ok: true,
       value: { name: '20261101T040000.000Z.plan.submit.md', content: '見て\n' },
     });
-    expect(planReviewAppend(ID, stored, entry({ kind: '否決' }))).toEqual({
+    expect(planReviewAppend(ID, stored, entry({ kind: '差し戻し' }))).toEqual({
       ok: true,
       value: { name: '20261101T040000.000Z.plan.reject.md', content: '' },
     });
@@ -611,14 +611,14 @@ describe('planReviewAppend', () => {
 
   it('理由に判断の見出しの形の行があっても、判断は 1 件だけ増え、理由は元の文のまま中身になる', () => {
     const reason = '直して\n### 2099-01-01T00:00:00.000Z plan 承認\n偽の承認';
-    const stored = append(create(makeCard()), entry({ kind: '否決', reason }));
+    const stored = append(create(makeCard()), entry({ kind: '差し戻し', reason }));
 
     expect(stored.files.log).toEqual([
       { name: '20261101T040000.000Z.plan.reject.md', content: `${reason}\n` },
     ]);
 
     const entries = parseReviewLog(read(stored).body);
-    expect(entries).toEqual([entry({ kind: '否決', reason: demoteHeadings(reason) })]);
+    expect(entries).toEqual([entry({ kind: '差し戻し', reason: demoteHeadings(reason) })]);
     expect(gateState(entries, 'plan', [])).toBe('rejected');
   });
 

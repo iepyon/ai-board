@@ -123,7 +123,7 @@ function extractSection(body: string, heading: string): string[] | null {
  *
  * `skipGates` に宣言されたゲートでは、AI の 提出 / 再提出 を人の承認と同じに読む（`approved`）。
  * 人が事前に「このカードのこのゲートは見ない」と決めた意思表示だからである。
- * ログを見ずに通過扱いにはしないので、エントリが無ければ `none` で、否決 / 保留 / 承認 はふつうに効く。
+ * ログを見ずに通過扱いにはしないので、エントリが無ければ `none` で、差し戻し / 保留 / 承認 はふつうに効く。
  * 計画を書く手や着手の合図を飛ばさずに、人が読む関所だけを飛ばすためである。
  *
  * 中止のエントリは判定から除く。中止は工程の進捗とは直交する終端の軸であり、
@@ -141,7 +141,7 @@ export function gateState(
   switch (latest.kind) {
     case '承認':
       return 'approved';
-    case '否決':
+    case '差し戻し':
       return 'rejected';
     case '提出':
     case '再提出':

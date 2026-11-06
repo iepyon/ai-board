@@ -188,7 +188,7 @@ const REVIEW_KIND_NAMES = {
   再提出: 'resubmit',
   保留: 'hold',
   承認: 'approve',
-  否決: 'reject',
+  差し戻し: 'reject',
   中止: 'abort',
 } as const satisfies Record<ReviewKind, string>;
 

@@ -66,7 +66,7 @@ const REVIEWING = card('r', {
 });
 
 // ============================================================
-// 承認 / 否決 / 中止
+// 承認 / 差し戻し / 中止
 // ============================================================
 
 describe('guardReview', () => {
@@ -106,10 +106,10 @@ describe('guardReview', () => {
     });
   });
 
-  it('否決は空白だけの理由を ReasonRequired で拒む', () => {
-    const result = guardReview(board([REVIEWING]), { id: id('r'), kind: '否決', reason: '  ' });
+  it('差し戻しは空白だけの理由を ReasonRequired で拒む', () => {
+    const result = guardReview(board([REVIEWING]), { id: id('r'), kind: '差し戻し', reason: '  ' });
 
-    expect(result).toEqual({ ok: false, error: { type: 'ReasonRequired', kind: '否決' } });
+    expect(result).toEqual({ ok: false, error: { type: 'ReasonRequired', kind: '差し戻し' } });
   });
 });
 

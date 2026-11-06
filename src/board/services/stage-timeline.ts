@@ -40,7 +40,7 @@ type Transition = TimelineKind | typeof CLOSE;
 const REVIEW_TRANSITIONS = {
   'plan:提出': 'plan-review',
   'plan:再提出': 'plan-review',
-  'plan:否決': 'plan-rework',
+  'plan:差し戻し': 'plan-rework',
   'plan:保留': 'plan-held',
   'plan:承認': 'implementing',
   'plan:中止': CLOSE,

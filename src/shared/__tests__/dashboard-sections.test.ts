@@ -285,10 +285,10 @@ const buttons = (card: DecisionCard): string[] =>
   decisionsFor(card).map((decision) => `${decision.gate} ${decision.kind} ${decision.label}`);
 
 describe('decisionsFor', () => {
-  it('計画レビューは plan の 承認 / 否決 / 中止', () => {
+  it('計画レビューは plan の 承認 / 差し戻し / 中止', () => {
     expect(buttons(decisionCard({ stage: 'plan-review' }))).toEqual([
       'plan 承認 承認',
-      'plan 否決 否決して差し戻す',
+      'plan 差し戻し 差し戻す',
       'plan 中止 中止する',
     ]);
   });
@@ -296,13 +296,13 @@ describe('decisionsFor', () => {
   it('実装中で止まっていれば（PR が Draft に戻された）、計画から立て直させる / 中止', () => {
     const card = decisionCard({ stage: 'impling', hold: HOLD, gates: { plan: 'approved' } });
 
-    expect(buttons(card)).toEqual(['plan 否決 計画から立て直させる', 'plan 中止 中止する']);
+    expect(buttons(card)).toEqual(['plan 差し戻し 計画から立て直させる', 'plan 中止 中止する']);
   });
 
   it('計画提案中で plan 保留なら、計画を直させる / 中止', () => {
     const card = decisionCard({ stage: 'planning', hold: HOLD, gates: { plan: 'held' } });
 
-    expect(buttons(card)).toEqual(['plan 否決 計画を直させる', 'plan 中止 中止する']);
+    expect(buttons(card)).toEqual(['plan 差し戻し 計画を直させる', 'plan 中止 中止する']);
   });
 
   it('計画提案中で提出済みなのに成果物が見えなければ、中止だけ', () => {
@@ -311,10 +311,10 @@ describe('decisionsFor', () => {
     expect(buttons(card)).toEqual(['plan 中止 中止する']);
   });
 
-  it('否決はどれも理由が要り、承認と中止は要らない', () => {
+  it('差し戻しはどれも理由が要り、承認と中止は要らない', () => {
     for (const stage of ['plan-review', 'impling'] as const) {
       for (const decision of decisionsFor(decisionCard({ stage, hold: HOLD }))) {
-        expect(decision.reasonRequired).toBe(decision.kind === '否決');
+        expect(decision.reasonRequired).toBe(decision.kind === '差し戻し');
       }
     }
   });
@@ -361,7 +361,7 @@ describe('decisionsFor', () => {
       skipGates: ['plan'],
     };
 
-    expect(buttons(card)).toEqual(['plan 否決 計画から立て直させる', 'plan 中止 中止する']);
+    expect(buttons(card)).toEqual(['plan 差し戻し 計画から立て直させる', 'plan 中止 中止する']);
   });
 });
 

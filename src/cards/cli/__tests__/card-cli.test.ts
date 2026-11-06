@@ -281,7 +281,7 @@ describe('runCardCli', () => {
     expect(await run(['branch', 'missing', 'feat/a'])).toBe(1);
   });
 
-  it('submit は plan 提出を、否決の後の --resubmit で再提出を追記する', async () => {
+  it('submit は plan 提出を、差し戻しの後の --resubmit で再提出を追記する', async () => {
     await seed('a');
     await start('a');
 
@@ -290,7 +290,7 @@ describe('runCardCli', () => {
 
     await seed(
       'b',
-      '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 提出\n\n### 2026-09-25T01:00:00.000Z plan 否決\n\n直して'
+      '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 提出\n\n### 2026-09-25T01:00:00.000Z plan 差し戻し\n\n直して'
     );
     await start('b');
 
@@ -314,7 +314,7 @@ describe('runCardCli', () => {
     ['承認済み', '### 2026-09-25T00:00:00.000Z plan 承認'],
     [
       '保留',
-      '### 2026-09-25T00:00:00.000Z plan 否決\n\n### 2026-09-25T01:00:00.000Z plan 保留\n\n止まる',
+      '### 2026-09-25T00:00:00.000Z plan 差し戻し\n\n### 2026-09-25T01:00:00.000Z plan 保留\n\n止まる',
     ],
   ])(
     'submit は plan ゲートが%sのカードへの plan の提出と再提出を 1 にし、何も追記しない',
@@ -324,7 +324,7 @@ describe('runCardCli', () => {
       const original = await bodyOf('a');
 
       expect(await run(['submit', 'a'])).toBe(1);
-      expect(stderr).toContain('未提出か否決のとき');
+      expect(stderr).toContain('未提出か差し戻されたとき');
       expect(await run(['submit', 'a', '--resubmit', '--reason', 'x'])).toBe(1);
       expect(await bodyOf('a')).toBe(original);
     }
@@ -381,7 +381,7 @@ describe('runCardCli', () => {
   it('hold は理由付きの保留を追記し、ゲートを held にする', async () => {
     await seed(
       'a',
-      '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 提出\n\n### 2026-09-25T01:00:00.000Z plan 否決\n\n範囲が広い'
+      '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 提出\n\n### 2026-09-25T01:00:00.000Z plan 差し戻し\n\n範囲が広い'
     );
 
     expect(await run(['hold', 'a', '--gate', 'plan', '--reason', ' 直すには大きすぎる '])).toBe(0);
@@ -393,7 +393,7 @@ describe('runCardCli', () => {
   });
 
   it('hold は plan の保留を plan の承認前でも追記する', async () => {
-    await seed('a', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 否決\n\n範囲が広い');
+    await seed('a', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 差し戻し\n\n範囲が広い');
 
     expect(await run(['hold', 'a', '--gate', 'plan', '--reason', '論点を決めてほしい'])).toBe(0);
     expect(gateStates(parseReviewLog((await bodyOf('a')) ?? ''), []).plan).toBe('held');
@@ -419,11 +419,11 @@ describe('runCardCli', () => {
     expect(await bodyOf('a')).toBe('');
   });
 
-  it('hold はそのゲートの最新の判断が否決でなければ 1 にし、何も追記しない', async () => {
+  it('hold はそのゲートの最新の判断が差し戻しでなければ 1 にし、何も追記しない', async () => {
     // plan 承認済み: plan の保留は人の承認を打ち消す
     await seed('a', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 承認');
     expect(await run(['hold', 'a', '--gate', 'plan', '--reason', 'x'])).toBe(1);
-    expect(stderr).toContain('否決のときにしか');
+    expect(stderr).toContain('差し戻しのときにしか');
 
     // 計画レビュー中: 人を待つカードを AI の列へ落とさない
     await seed('b', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 提出');
@@ -468,7 +468,7 @@ describe('runCardCli', () => {
   ])(
     '%s は判断の見出しとして読める行を含む理由も 0 で書き、判断は 1 件だけ増える（%s / %j）',
     async (_, command, kind, reason) => {
-      await seed('a', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 否決\n\n直して');
+      await seed('a', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 差し戻し\n\n直して');
       await start('a');
       const logBefore = git(origin, 'ls-tree', '-r', '--name-only', DATA_BRANCH, 'cards/a/log/')
         .split('\n')
@@ -483,7 +483,7 @@ describe('runCardCli', () => {
 
       const body = (await bodyOf('a')) ?? '';
       const entries = parseReviewLog(body);
-      expect(entries.map((entry) => entry.kind)).toEqual(['否決', kind]);
+      expect(entries.map((entry) => entry.kind)).toEqual(['差し戻し', kind]);
       // 理由の中の行は #### へ下がって見え、判断としては読まれない
       expect(body).not.toMatch(/^### 2099-/m);
       expect(body).toMatch(/^#### 2099-01-01T00:00:00\.000Z /m);
@@ -495,14 +495,14 @@ describe('runCardCli', () => {
     ['submit', ['submit', 'a', '--resubmit'], '再提出'],
     ['hold', ['hold', 'a', '--gate', 'plan'], '保留'],
   ])('%s は判断と読まれない見出しを含む理由を書ける', async (_, command, kind) => {
-    await seed('a', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 否決\n\n直して');
+    await seed('a', '## レビュー\n\n### 2026-09-25T00:00:00.000Z plan 差し戻し\n\n直して');
     await start('a');
     const reason = '### 動かす手順\n\n1. 開く\n### 2099-01-01T00:00:00.000Z plan 確認';
 
     expect(await run([...command, '--reason', reason])).toBe(0);
 
     const entries = parseReviewLog((await bodyOf('a')) ?? '');
-    expect(entries.map((entry) => entry.kind)).toEqual(['否決', kind]);
+    expect(entries.map((entry) => entry.kind)).toEqual(['差し戻し', kind]);
     // 読むときは理由の中の見出しを #### へ下げる
     expect(entries.at(-1)?.reason).toBe(demoteHeadings(reason));
   });
@@ -563,7 +563,7 @@ describe('runCardCli とデータ用ブランチ', () => {
 
     // 手元の clone はまだ未提出の状態だが、取り直してから検査するので拒む
     expect(await run(['submit', 'a'])).toBe(1);
-    expect(stderr).toContain('未提出か否決のとき');
+    expect(stderr).toContain('未提出か差し戻されたとき');
   });
 
   it('2 つの clone から同じカードに同時に submit すると、1 つだけが通る（ルーティンの重複起動）', async () => {
@@ -585,7 +585,7 @@ describe('runCardCli とデータ用ブランチ', () => {
     ]);
 
     expect([...codes].sort()).toEqual([0, 1]);
-    expect(`${stderr}${otherStderr}`).toContain('未提出か否決のとき');
+    expect(`${stderr}${otherStderr}`).toContain('未提出か差し戻されたとき');
     expect(originLog().filter((message) => message === 'data: a に plan 提出 を足す')).toHaveLength(
       1
     );

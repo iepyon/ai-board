@@ -32,7 +32,7 @@ import { describeForge } from './status-describe.js';
 // ============================================================
 
 /**
- * 人の判断（承認 / 否決 / 中止、着手 / 着手を戻す、飛ばす宣言、並べ替え）を書く。
+ * 人の判断（承認 / 差し戻し / 中止、着手 / 着手を戻す、飛ばす宣言、並べ替え）を書く。
  *
  * ボードの導出・検査・書き込みを、書き込みの 1 操作（`transactCardWrite`）の中で走らせる（`decide`）。
  * 出せない判断（`decisionsFor` / `droppableStages` / アイデアの表に無いもの）は、検査（`decision-guards.ts`）で拒む。
@@ -48,7 +48,7 @@ board-reviewer とループの周の中では使わない。出せない判断�
 
 Commands:
   approve <id> [--reason <text>]   plan を承認する
-  reject <id> --reason <text>      plan を否決する（理由は必須）
+  reject <id> --reason <text>      plan を差し戻す（理由は必須）
   abort <id> [--reason <text>]     中止する
   start <id>                       着手する（アイデア → 計画提案中）
   unstart <id>                     着手を戻す（計画提案中 → アイデア）
@@ -124,7 +124,11 @@ interface Command {
 
 const COMMANDS: Readonly<Record<string, Command>> = {
   approve: { run: (a, d, io) => runReview('承認', a, d, io), flags: ['--reason'], positionals: 1 },
-  reject: { run: (a, d, io) => runReview('否決', a, d, io), flags: ['--reason'], positionals: 1 },
+  reject: {
+    run: (a, d, io) => runReview('差し戻し', a, d, io),
+    flags: ['--reason'],
+    positionals: 1,
+  },
   abort: { run: (a, d, io) => runReview('中止', a, d, io), flags: ['--reason'], positionals: 1 },
   start: { run: runStart, flags: [], positionals: 1 },
   unstart: { run: runUnstart, flags: [], positionals: 1 },
@@ -200,11 +204,11 @@ function parseArgs(argv: readonly string[], spec: Command): ParsedArgs | string 
 }
 
 // ============================================================
-// 承認 / 否決 / 中止
+// 承認 / 差し戻し / 中止
 // ============================================================
 
 async function runReview(
-  kind: '承認' | '否決' | '中止',
+  kind: '承認' | '差し戻し' | '中止',
   args: ParsedArgs,
   deps: DecideCliDependencies,
   io: DecideCliIo
@@ -447,7 +451,7 @@ function requireCardId(args: ParsedArgs, io: DecideCliIo): CardId | null {
 function describeRefusal(refusal: DecideRefusal, label = ''): string {
   switch (refusal.type) {
     case 'ForgeUnavailable': {
-      const what = refusal.action === 'review' ? '承認 / 否決 / 中止' : '着手 / 着手を戻す';
+      const what = refusal.action === 'review' ? '承認 / 差し戻し / 中止' : '着手 / 着手を戻す';
       return `GitHub に繋がらないので、${what}は書けません（GitHub: ${describeForge(refusal.forge)}）`;
     }
     case 'CardNotFound':

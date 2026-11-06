@@ -144,14 +144,14 @@ export type DecisionGate = 'plan';
 /**
  * 出せる判断 1 つ。書くと（`ai-board decide`）`## レビュー` へ `gate` の `kind` を追記する。
  *
- * plan の否決は、計画提案中へ落として計画を直させる（`revise-plan`）。
+ * plan の差し戻しは、計画提案中へ落として計画を直させる（`revise-plan`）。
  * 実装中のカードに書けば、承認済みの計画から立て直させることになる。
  */
 export interface Decision {
   readonly gate: DecisionGate;
-  readonly kind: '承認' | '否決' | '中止';
+  readonly kind: '承認' | '差し戻し' | '中止';
   readonly label: string;
-  /** 理由が要るか。否決は AI が次の周回で理由を読むので必須 */
+  /** 理由が要るか。差し戻しは AI が次の周回で理由を読むので必須 */
   readonly reasonRequired: boolean;
 }
 
@@ -171,7 +171,7 @@ const approve = (gate: DecisionGate): Decision => ({
 
 const reject = (gate: DecisionGate, label: string): Decision => ({
   gate,
-  kind: '否決',
+  kind: '差し戻し',
   label,
   reasonRequired: true,
 });
@@ -183,14 +183,14 @@ const abort = (gate: DecisionGate): Decision => ({
   reasonRequired: false,
 });
 
-/** 承認済みの計画を否決し、計画提案中へ落として計画から立て直させる */
+/** 承認済みの計画を差し戻し、計画提案中へ落として計画から立て直させる */
 const replan = reject('plan', '計画から立て直させる');
 
 /**
  * そのカードに出せる判断（`status --json` の `waiting[].decisions` と `ai-board decide` の検査が使う）。出せる判断が無ければ空。
  *
  * - **アイデア**: 中止 だけ（要らなくなったアイデアを中止の区画へ片付ける。判断を待っているのではない）
- * - **計画レビュー**: 承認 / 否決して差し戻す / 中止
+ * - **計画レビュー**: 承認 / 差し戻す / 中止
  * - **実装中で止まっている**（判断の後に PR が Draft に戻された）: 計画から立て直させる / 中止
  * - **計画提案中で止まっている**: AI の plan 保留なら 計画を直させる / 中止。
  *   提出済みなのに成果物が見えないなら 中止 だけ（直させる先の計画が見えない）
@@ -199,7 +199,7 @@ const replan = reject('plan', '計画から立て直させる');
  * PR の状態を引けない止まり（`hold.kind` が `forge`）のカードにも出さない（列が控えに依り、出せる判断を決められない）。
  *
  * 飛ばす宣言（`skipGates`）の有無では出し分けない。
- * 宣言のあるゲートでも、AI の 提出 / 再提出 を承認と読むだけで、人の否決 / 承認はふつうに効く（`gateState`）。
+ * 宣言のあるゲートでも、AI の 提出 / 再提出 を承認と読むだけで、人の差し戻し / 承認はふつうに効く（`gateState`）。
  * plan を飛ばすカードでも「計画から立て直させる」を書ける。
  */
 export function decisionsFor(card: DecisionCard): Decision[] {
@@ -211,7 +211,7 @@ export function decisionsFor(card: DecisionCard): Decision[] {
     case 'idea':
       return [abort('plan')];
     case 'plan-review':
-      return [approve('plan'), reject('plan', '否決して差し戻す'), abort('plan')];
+      return [approve('plan'), reject('plan', '差し戻す'), abort('plan')];
     case 'impling':
       return card.hold === null ? [] : [replan, abort('plan')];
     case 'planning':
