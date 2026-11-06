@@ -1,6 +1,6 @@
 import type { Stage } from './schemas/common.js';
 
-/** 列見出しに出す日本語ラベル。画面と `ai-board status` で共有する */
+/** 列見出しに出す日本語ラベル。`ai-board status` と `decide` が使う */
 export const STAGE_LABELS: Record<Stage, string> = {
   idea: 'アイデア',
   planning: '計画提案中',

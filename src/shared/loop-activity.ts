@@ -15,7 +15,7 @@ export interface BoardLoop {
   readonly lastFinishedAt: string | null;
 }
 
-/** 要約の種類。画面は色分けに使う */
+/** 要約の種類 */
 export type LoopActivityState = 'running' | 'idle' | 'none';
 
 export interface LoopActivitySummary {

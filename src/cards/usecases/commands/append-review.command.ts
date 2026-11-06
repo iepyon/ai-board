@@ -25,7 +25,7 @@ export type AppendReviewCommand = (
  * 人の判断を 1 件、カードに足す。
  *
  * ステージは書かない。足した判断を `resolveStage` が読み、
- * 次の `GET /api/board` で列が変わる。
+ * 次にボードを導出したとき（`ai-board status` など）に列が変わる。
  *
  * 判断は値のままリポジトリの `appendReview` に渡し、本文の文字列を経由しない。
  * 理由に判断の見出し（`### <時刻> <gate> <種別>`）の形の行があっても、理由の一部として記録されるだけで、

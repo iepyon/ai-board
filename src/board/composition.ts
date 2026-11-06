@@ -88,7 +88,7 @@ export function createBranchPlanRepository(
 }
 
 /**
- * レビュー要求の状態の供給元を組み立てる。サーバと `ai-board status` で共有する。
+ * レビュー要求の状態の供給元を組み立てる。`ai-board status` と `decide` が使う。
  *
  * CLI の有無とログイン状態はここで 1 度だけ確かめる。
  * 1 分ごとに確認するほど頻繁に変わるものではない。

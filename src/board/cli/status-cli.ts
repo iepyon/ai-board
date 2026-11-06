@@ -19,7 +19,7 @@ import { describeForge, describeLoop, describeNext, describeStuck } from './stat
 import { isCardRunning, type BoardLoop } from '../../shared/loop-activity.js';
 
 // ============================================================
-// ai-board status — サーバを起動せずにボードの状態を読む
+// ai-board status — ボードの状態を読む
 // ============================================================
 
 /**
@@ -45,7 +45,7 @@ function isStatusKey(key: string): key is keyof StatusReport {
 
 export const STATUS_USAGE = `使い方: ai-board status [--json [--only <項目,...>]] [--root <path>]
 
-ボードの状態（導出したステージ、判断待ち、次の一手）を出します。サーバは要りません。
+ボードの状態（導出したステージ、判断待ち、次の一手）を出します。
   --json   機械向けの JSON で出す（AI ループはこちらを読む）
   --only <項目,...>
            --json の出力を、コンマ区切りの項目だけに絞る。項目は <key>（最上位の項目）か
@@ -253,7 +253,7 @@ export async function runStatusCli(
 /**
  * `next.action` が `implement` のときだけ、カードのブランチの計画を読んで `next.step` を埋める。
  *
- * 読むのは `next` に選ばれた 1 枚だけ。サーバとステージの導出には持ち込まない。
+ * 読むのは `next` に選ばれた 1 枚だけ。ステージの導出には持ち込まない。
  * 読めない（読み手が無い、`branch` が null、ブランチや計画が無い）ときは `step: null` のままにし、
  * `status` は失敗させない（次の一手そのものは読めているため）。
  */

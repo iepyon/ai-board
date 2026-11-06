@@ -55,7 +55,7 @@ export interface BoardCardMr {
  * 計画レビューなら plan。待ちの列でなければゲートを問わず最新を選ぶ。
  *
  * 提出の本文には AI が書いた「判断待ちの点」が入り、時刻は人を待ち始めた時刻になる。
- * 本文の `## レビュー` の解析はサーバに閉じ、画面は解析し直さない。
+ * 本文の `## レビュー` の解析はボードの導出で済ませ、読む側（`status --json` など）は解析し直さない。
  */
 export interface BoardCardReview {
   readonly at: string;
@@ -70,7 +70,7 @@ export interface BoardCard {
   readonly created: string;
   readonly stage: Stage;
   readonly reason: string;
-  /** 最新のレビューエントリが 中止 か。UI は既定でこのカードを畳む */
+  /** 最新のレビューエントリが 中止 か。true なら中止の区画に入る（`groupBySection`） */
   readonly aborted: boolean;
   /** 各ゲートの通過状況 */
   readonly gates: Readonly<Record<ReviewGate, GateState>>;
@@ -118,8 +118,6 @@ export interface BoardCard {
 export interface Board {
   readonly cards: readonly BoardCard[];
   readonly forge: ForgeConnection;
-  /** 対応するカードが無い計画ファイルのカード ID（消し忘れの発見に使う） */
-  readonly orphanPlans: readonly string[];
   /**
    * アイデアの表の区切り線の rank。実効値がこれより小さいアイデアが「次にやる」。
    * 一度も動かしていなければ null（すべてのアイデアが「次にやる」）
@@ -134,7 +132,7 @@ export interface Board {
  * Card と導出結果から BoardCard を組み立てる。
  *
  * `entries` は `parseReviewLog(card.body)` の結果。呼び出し側が既に読んでいるので、読み直さずに受け取る。
- * 本文と判断は分けて返し、`body` には `## レビュー` の節を含めない（画面が判断を本文の Markdown として描かないため）。
+ * 本文と判断は分けて返し、`body` には `## レビュー` の節を含めない（判断は `reviews` で値のまま読むため）。
  */
 export function toBoardCard(
   card: Card,

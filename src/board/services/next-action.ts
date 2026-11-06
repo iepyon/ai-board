@@ -59,7 +59,7 @@ export interface CardHold {
   readonly since: string;
 }
 
-/** 判定に要るフィールドだけ。サーバの BoardCard が満たす */
+/** 判定に要るフィールドだけ。`BoardCard` が満たす */
 export interface NextActionCard {
   readonly id: string;
   readonly stage: Stage;
@@ -100,7 +100,7 @@ export const HOLD_REASONS = {
   forgeFailed: (message: string): string =>
     `PR の状態を引けない（${message}）。時間を置いても続くなら、GitHub で PR を確かめてください`,
   draftReverted: (iid: number): string =>
-    `判断の後に PR #${iid} が Draft に戻された。GitHub で Ready に戻すか、下の判断のボタンで計画から立て直させるか中止してください`,
+    `判断の後に PR #${iid} が Draft に戻された。GitHub で Ready に戻すか、ai-board decide で否決して計画から立て直させるか中止してください`,
 } as const;
 
 /**
@@ -227,7 +227,7 @@ function judge(card: NextActionCard): NextAction | null {
  * ボードを動かすチェックアウトからは読めないことが多いため。
  * 同じ理由で、タスクを倒す / AI レビュー / 締め（証拠を PR の本文に書き、archive して Ready にする）、の段も手として分けず、
  * `step` は null にする。段は `status` の CLI が、`next` に選ばれた 1 枚のブランチの計画だけを `git show` で読み、
- * `resolveImplStep` で決めて `next.step` に載せる。ここ（とサーバ・ステージの導出）では読まないので、
+ * `resolveImplStep` で決めて `next.step` に載せる。ここ（とステージの導出）では読まないので、
  * この関数は純関数のままで、「計画ファイルがあれば列が立つ」という読み方とも二重にならない。
  */
 function judgeImpling(card: NextActionCard): NextAction {

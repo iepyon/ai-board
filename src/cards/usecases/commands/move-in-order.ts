@@ -33,7 +33,7 @@ const DIVIDER_CREATED = new Date(0).toISOString();
  *
  * 並び順は全カードと区切り線で 1 本で、列（アイデアの表など）はその部分列にすぎない。
  * 区切り線はカードと同じ 1 項目として並びに入れるので、ここに区切り線だけの分岐は無い。
- * まだ位置を持たない区切り線は画面では末尾に見えているので、隣に指定されたら末尾に置いてから動かす。
+ * まだ位置を持たない区切り線はアイデアの表の末尾にあるとみなす（`ideaRows`）ので、隣に指定されたら末尾に置いてから動かす。
  */
 export async function moveInOrder(
   repositories: OrderRepositories,
@@ -73,7 +73,7 @@ export async function moveInOrder(
 
 /**
  * 区切り線の rank。未設定で、隣に指定されている（`materialize`）ときは
- * 画面で見えている位置＝全カードの末尾に置いて書く。
+ * アイデアの表で見えている位置＝全カードの末尾に置いて書く。
  */
 async function dividerRank(
   repositories: OrderRepositories,

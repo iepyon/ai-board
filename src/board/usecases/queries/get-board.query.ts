@@ -74,7 +74,6 @@ export function createGetBoardQuery(
       });
     }
 
-    const cardIds = new Set<string>(cards.map((card) => card.id));
     const forge = mrProvider.connection();
     const mrKnown = forge.status === 'connected' && mrProvider.synced();
     const stepsByCard = groupByCard(loopSteps);
@@ -93,7 +92,7 @@ export function createGetBoardQuery(
         card,
         entries,
         resolution,
-        // PR の状態を引けないカードは列が控えに依るので、どの列へも動かさせない（画面と `ai-board decide` の両方が従う）
+        // PR の状態を引けないカードは列が控えに依るので、どの列へも動かさせない（`ai-board decide` が従う）
         { floorStage, droppableStages: mrFailure === null ? droppableStages(floorStage) : [] },
         latestReview(entries, resolution.stage),
         toBoardCardPlan(plan),
@@ -121,14 +120,9 @@ export function createGetBoardQuery(
       );
     });
 
-    // カードが無いのに計画ファイルだけ残っているもの。カードを消したか
-    // 名前を変えたときに起きる。UI で気付けるように返す。
-    const orphanPlans = [...planState.keys()].filter((id) => !cardIds.has(id));
-
     return ok({
       cards: boardCards,
       forge,
-      orphanPlans: orphanPlans.sort(),
       ideaDivider,
       loop: toBoardLoop(loopSteps),
       generatedAt: new Date().toISOString(),

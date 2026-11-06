@@ -11,7 +11,7 @@ import type { ImplStepPlan } from '../services/impl-step.js';
  * カードのブランチにコミットされた計画を読む。`status` の CLI が、`next` に選ばれた
  * `implement` の 1 枚の段（`next.step`）を決めるためだけに使う。
  *
- * サーバとステージの導出（`stage-resolver.ts`）は使わない。列はこれまでどおり
+ * ステージの導出（`stage-resolver.ts`）には使わない。列はこれまでどおり
  * メインのチェックアウトの計画ファイルと PR から導く。
  *
  * 読めない（ブランチが無い、`git` が失敗した、計画が無い）ときは例外を投げず null を返す。

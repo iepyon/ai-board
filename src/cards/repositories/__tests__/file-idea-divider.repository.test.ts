@@ -53,12 +53,4 @@ describe('FileIdeaDividerRepository', () => {
     });
     expect(orderYaml()).toBe('ranks: [\n');
   });
-
-  it('書き込みの後に onWrite を呼ぶ', async () => {
-    const onWrite = vi.fn();
-
-    await new FileIdeaDividerRepository(dataDir, onWrite).set(1);
-
-    expect(onWrite).toHaveBeenCalledTimes(1);
-  });
 });

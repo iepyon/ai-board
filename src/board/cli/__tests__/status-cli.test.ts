@@ -361,7 +361,7 @@ describe('ai-board status --json', () => {
     });
   });
 
-  it('1 枚の PR だけを引けないときは、そのカードを判断待ちに出し、ボタンを出さずに後ろのカードを選ぶ', async () => {
+  it('1 枚の PR だけを引けないときは、そのカードを判断待ちに出し、出せる判断を出さずに後ろのカードを選ぶ', async () => {
     await writeCard('failing', "startedAt: '2026-10-20T00:00:00.000Z'\nrank: 1\nbranch: failing\n");
     await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\nrank: 2\n");
     const provider: MrStateProvider = {
@@ -409,7 +409,7 @@ describe('ai-board status --json', () => {
     expect(report.cards.find((card) => card.id === 'old-verify')?.stage).toBe('impling');
   });
 
-  it('計画レビューのカードには、画面と同じ判断（承認 / 否決して差し戻す / 中止）を出す', async () => {
+  it('計画レビューのカードには、出せる判断（承認 / 否決して差し戻す / 中止）を出す', async () => {
     await writeCard('reviewing', "startedAt: '2026-10-21T00:00:00.000Z'\n", review('提出'));
     await writePlan('reviewing', '# 計画');
 
@@ -422,7 +422,7 @@ describe('ai-board status --json', () => {
     ]);
   });
 
-  it('アイデアの表の並びを、区切り線を 1 行として画面と同じ順に出す', async () => {
+  it('アイデアの表の並びを、区切り線を 1 行として ideaRows の順に出す', async () => {
     await writeCard('first', 'rank: 100\n');
     await writeCard('third', 'rank: 300\n');
     await writeCard('second', 'rank: 200\n');

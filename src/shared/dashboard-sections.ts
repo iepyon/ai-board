@@ -29,12 +29,12 @@ export const SECTION_OF_STAGE: Record<Stage, Exclude<DashboardSection, 'aborted'
 /**
  * 止まりが何を待っているか。
  *
- * - `decision`: 人の判断（判断のボタンか GitHub の操作）で解く
- * - `forge`: そのカードの PR の状態を引けない。時間が経てば解けることが多く、判断のボタンは出さない
+ * - `decision`: 人の判断（`ai-board decide` か GitHub の操作）で解く
+ * - `forge`: そのカードの PR の状態を引けない。時間が経てば解けることが多く、出せる判断は無い
  */
 export type CardHoldKind = 'decision' | 'forge';
 
-/** 振り分けと並べ替えに要るフィールドだけ。サーバの BoardCard と web の型の両方が満たす */
+/** 振り分けと並べ替えに要るフィールドだけ。`BoardCard` が満たす */
 export interface SectionCard {
   readonly id: string;
   readonly stage: Stage;
@@ -49,10 +49,10 @@ export interface SectionCard {
     readonly awaitingFix: boolean;
   } | null;
   /**
-   * AI の列にいるが人の判断を待っているときの止まり（サーバの `resolveHold`）。
-   * `src/shared/` は web からも読むので、サーバの型を import せず形だけを書く
+   * AI の列にいるが人の判断を待っているときの止まり（`resolveHold`）。
+   * `src/shared/` はコンテキストの型を import しない（画面を外す前に画面からも読んでいた名残）ので、形だけを書く
    */
-  /** 止まり。`kind` が `forge`（PR の状態を引けない）なら判断のボタンを出さない */
+  /** 止まり。`kind` が `forge`（PR の状態を引けない）なら出せる判断は無い */
   readonly hold: {
     readonly kind: CardHoldKind;
     readonly reason: string;
@@ -135,14 +135,14 @@ export function mergedAt(card: SectionCard): string | null {
 }
 
 // ============================================================
-// 判断のボタン
+// 出せる判断
 // ============================================================
 
 /** 人が判断するゲート。`ReviewGate`（`src/cards/models/review.ts`）と同じ値をリテラルで書く */
 export type DecisionGate = 'plan';
 
 /**
- * 詳細パネルに出す判断のボタン 1 つ。押すと `## レビュー` へ `gate` の `kind` を追記する。
+ * 出せる判断 1 つ。書くと（`ai-board decide`）`## レビュー` へ `gate` の `kind` を追記する。
  *
  * plan の否決は、計画提案中へ落として計画を直させる（`revise-plan`）。
  * 実装中のカードに書けば、承認済みの計画から立て直させることになる。
@@ -151,11 +151,11 @@ export interface Decision {
   readonly gate: DecisionGate;
   readonly kind: '承認' | '否決' | '中止';
   readonly label: string;
-  /** 理由を書かないと押せないか。否決は AI が次の周回で理由を読むので必須 */
+  /** 理由が要るか。否決は AI が次の周回で理由を読むので必須 */
   readonly reasonRequired: boolean;
 }
 
-/** ボタンを決めるのに要るフィールドだけ。サーバの BoardCard と web の型の両方が満たす */
+/** 出せる判断を決めるのに要るフィールドだけ。`BoardCard` が満たす */
 export interface DecisionCard extends Pick<SectionCard, 'stage' | 'aborted' | 'hold'> {
   readonly gates: {
     readonly plan: 'none' | 'submitted' | 'held' | 'approved' | 'rejected';
@@ -187,7 +187,7 @@ const abort = (gate: DecisionGate): Decision => ({
 const replan = reject('plan', '計画から立て直させる');
 
 /**
- * 詳細パネルに出す判断のボタン。出せる判断が無ければ空。
+ * そのカードに出せる判断（`status --json` の `waiting[].decisions` と `ai-board decide` の検査が使う）。出せる判断が無ければ空。
  *
  * - **アイデア**: 中止 だけ（要らなくなったアイデアを中止の区画へ片付ける。判断を待っているのではない）
  * - **計画レビュー**: 承認 / 否決して差し戻す / 中止
@@ -196,15 +196,15 @@ const replan = reject('plan', '計画から立て直させる');
  *   提出済みなのに成果物が見えないなら 中止 だけ（直させる先の計画が見えない）
  *
  * PR中 のカードは GitHub で PR をマージして判断するので出さない。中止のカードにも出さない。
- * PR の状態を引けない止まり（`hold.kind` が `forge`）のカードにも出さない（列が控えに依り、押せる判断を決められない）。
+ * PR の状態を引けない止まり（`hold.kind` が `forge`）のカードにも出さない（列が控えに依り、出せる判断を決められない）。
  *
  * 飛ばす宣言（`skipGates`）の有無では出し分けない。
  * 宣言のあるゲートでも、AI の 提出 / 再提出 を承認と読むだけで、人の否決 / 承認はふつうに効く（`gateState`）。
- * plan を飛ばすカードでも「計画から立て直させる」を押せる。
+ * plan を飛ばすカードでも「計画から立て直させる」を書ける。
  */
 export function decisionsFor(card: DecisionCard): Decision[] {
   if (card.aborted) return [];
-  // PR の状態を引けないカードは列が控えに依り、押せるボタンを決められない
+  // PR の状態を引けないカードは列が控えに依り、出せる判断を決められない
   if (card.hold?.kind === 'forge') return [];
 
   switch (card.stage) {
@@ -292,7 +292,7 @@ export interface IdeaTiers<T> {
  * `rank` の順に並んだアイデアを、区切り線 `divider`（rank の値）の上下に分ける。
  *
  * 比べるのは並び順の実効値（`rank`、無ければ `created` のエポックミリ秒。
- * サーバの `effectiveRank` と同じ規則）。区切り線が未設定なら末尾にあるものとみなし、
+ * `card-order.ts` の `effectiveRank` と同じ規則）。区切り線が未設定なら末尾にあるものとみなし、
  * すべて「次にやる」に入れる。区分は見せ方だけのもので、ステージの導出には使わない。
  */
 export function splitIdeas<T extends { readonly rank: number | null; readonly created: string }>(
@@ -319,8 +319,8 @@ export type IdeaRow<T> =
 /**
  * アイデアの表に並べる行。「次にやる」のカード、区切り線、「あとで考える」のカードの順。
  *
- * 区切り線はカードと同じ 1 行として並びに入れるので、並べ替え（`moveTargetFor` / `applyMove`）を
- * そのまま使える。未設定の区切り線は末尾に置く。
+ * 区切り線はカードと同じ 1 行として並びに入れる（並べ替えの `moveInOrder` も、区切り線をカードと同じ 1 項目として扱う）。
+ * 未設定の区切り線は末尾に置く。
  */
 export function ideaRows<
   T extends { readonly id: string; readonly rank: number | null; readonly created: string },

@@ -19,7 +19,6 @@ import {
 import {
   createUpdateCardMetaCommand,
   type UpdateCardMetaCommand,
-  type UpdateCardMetaPatch,
 } from './usecases/commands/update-card-meta.command.js';
 import {
   createUpdateCardBodyCommand,
@@ -29,6 +28,14 @@ import {
   createAppendReviewCommand,
   type AppendReviewCommand,
 } from './usecases/commands/append-review.command.js';
+import {
+  createSubmitReviewCommand,
+  type SubmitReviewCommand,
+} from './usecases/commands/submit-review.command.js';
+import {
+  createHoldReviewCommand,
+  type HoldReviewCommand,
+} from './usecases/commands/hold-review.command.js';
 import {
   createMoveCardCommand,
   type MoveCardCommand,
@@ -48,7 +55,12 @@ export interface CardDependencies {
   readonly createCardCommand: CreateCardCommand;
   readonly updateCardMetaCommand: UpdateCardMetaCommand;
   readonly updateCardBodyCommand: UpdateCardBodyCommand;
+  /** 人の判断（承認 / 否決 / 中止）を足す。AI の CLI（`ai-board card`）には渡さない */
   readonly appendReviewCommand: AppendReviewCommand;
+  /** AI の 提出 / 再提出 を足す。着手とゲートの状態を確かめる */
+  readonly submitReviewCommand: SubmitReviewCommand;
+  /** AI の 保留 を足す。ゲートの最新が否決かを確かめる */
+  readonly holdReviewCommand: HoldReviewCommand;
   readonly moveCardCommand: MoveCardCommand;
   readonly moveIdeaDividerCommand: MoveIdeaDividerCommand;
 }
@@ -56,81 +68,37 @@ export interface CardDependencies {
 /**
  * データのワークツリーのファイルでカードを読み書きする。
  *
- * リポジトリはコミットと push を持たない。書き込みの usecase は `DataStore.transact` の中で呼ぶ。
+ * リポジトリはコミットと push を持たない。書き込みの usecase は `transactCardWrite` の中で呼ぶ。
  */
-export function createFileCardDependencies(
-  dataDir: string,
-  onWrite?: () => void
-): CardDependencies {
-  return assemble(
-    new FileCardRepository(dataDir, onWrite === undefined ? {} : { onWrite }),
-    new FileIdeaDividerRepository(dataDir, onWrite)
-  );
+export function createFileCardDependencies(dataDir: string): CardDependencies {
+  return assemble(new FileCardRepository(dataDir), new FileIdeaDividerRepository(dataDir));
 }
 
 /**
- * サーバのカードの依存。書き込みの usecase を、それぞれ書き込みの 1 操作（`DataStore.transact`）の中で走らせる。
+ * `op` を書き込みの 1 操作（`DataStore.transact`）の中で走らせる。CLI の書き込みは、どれもここを通す。
  *
- * 読み出しはデータのワークツリーのファイルをそのまま読む。書き込みは取り直した最新の状態に対して usecase を走らせ、
- * コミットと push が終わってから応答を返す。push に失敗すれば `DataStorePushFailed` などのエラーになる。
- * `onWrite` は書き込みが push まで通った後に呼ぶ（SSE で画面へ知らせるため）。
+ * `op` には、書く前の検査から usecase までを入れる。push が拒否されると、`transact` が取り直した最新の状態で
+ * `op` を頭から呼び直すので、検査は必ず最新のカードに対して行われる（ADR 0010）。
+ * そのため `op` は標準出力にも標準エラーにも書かない。拒むときは Err を返す（`transact` が書きかけを捨て、コミットしない）。
  *
- * CLI はコマンドごとの検査も同じ `transact` に入れるので、これではなく `createFileCardDependencies` を使う。
- * `transact` は同じプロセスの中で 1 列に並ぶので、`transact` の中からこれを呼ぶと自分を待って止まる。
+ * 判断の書き換えなど、リポジトリの拒否は `CardWriteRefusedError` の例外で届くので、`CardWriteRefused` の Err に直す。
+ * `transact` は同じプロセスの中で 1 列に並ぶので、`op` の中からこれを呼ぶと自分を待って止まる。
  */
-export function createTransactionalCardDependencies(
-  store: Pick<DataStore, 'dataDir' | 'transact'>,
-  onWrite: () => void = () => undefined
-): CardDependencies {
-  const files = createFileCardDependencies(store.dataDir);
-
-  const inTransaction = <I, T, E>(
-    message: (input: I) => CommitMessage<T>,
-    command: (input: I) => Promise<Result<T, E>>
-  ): ((input: I) => Promise<Result<T, E | CardWriteFailure>>) => {
-    return async (input) => {
-      const result = await store.transact<T, E | CardWriteFailure>(message(input), async () => {
-        try {
-          return await command(input);
-        } catch (error) {
-          // 判断の書き換えなど、リポジトリの拒否は例外で届く。書きかけは transact が捨てる
-          if (error instanceof CardWriteRefusedError) {
-            return err({ type: 'CardWriteRefused', reason: error.reason.type });
-          }
-          throw error;
-        }
-      });
-
-      if (result.ok) onWrite();
-      return result;
-    };
-  };
-
-  // コミットには ID・ゲート・種別・変えた項目の名前だけを入れる。理由・本文・ブランチ名は入れない
-  return {
-    ...files,
-    createCardCommand: inTransaction(
-      () => (card) => `data: ${card.id} を作る`,
-      files.createCardCommand
-    ),
-    updateCardMetaCommand: inTransaction(
-      ({ id, patch }) => `data: ${id} の ${describePatch(patch)} を変える`,
-      files.updateCardMetaCommand
-    ),
-    updateCardBodyCommand: inTransaction(
-      ({ id }) => `data: ${id} の本文を差し替える`,
-      files.updateCardBodyCommand
-    ),
-    appendReviewCommand: inTransaction(
-      ({ id, gate, kind }) => `data: ${id} に ${gate} ${kind} を足す`,
-      files.appendReviewCommand
-    ),
-    moveCardCommand: inTransaction(({ id }) => `data: ${id} を並べ替える`, files.moveCardCommand),
-    moveIdeaDividerCommand: inTransaction(
-      () => 'data: 区切り線を動かす',
-      files.moveIdeaDividerCommand
-    ),
-  };
+export function transactCardWrite<T, E>(
+  store: Pick<DataStore, 'transact'>,
+  message: CommitMessage<T>,
+  op: () => Promise<Result<T, E>>
+): Promise<Result<T, E | CardWriteFailure>> {
+  return store.transact<T, E | CardWriteFailure>(message, async () => {
+    try {
+      return await op();
+    } catch (error) {
+      if (error instanceof CardWriteRefusedError) {
+        return err({ type: 'CardWriteRefused', reason: error.reason.type });
+      }
+      throw error;
+    }
+  });
 }
 
 /**
@@ -175,14 +143,6 @@ export function createTransactionalMrWriter(
   };
 }
 
-/** 変える frontmatter の項目の名前。値は入れない */
-function describePatch(patch: UpdateCardMetaPatch): string {
-  const keys = Object.entries(patch)
-    .filter(([, value]) => value !== undefined)
-    .map(([key]) => key);
-  return keys.length === 0 ? 'frontmatter' : keys.join(', ');
-}
-
 /**
  * 設定の置き場所から、データのワークツリーを読み書きする `DataStore` を組む。
  *
@@ -210,6 +170,8 @@ function assemble(
     updateCardMetaCommand: createUpdateCardMetaCommand(cardRepository),
     updateCardBodyCommand: createUpdateCardBodyCommand(cardRepository),
     appendReviewCommand: createAppendReviewCommand(cardRepository),
+    submitReviewCommand: createSubmitReviewCommand(cardRepository),
+    holdReviewCommand: createHoldReviewCommand(cardRepository),
     moveCardCommand: createMoveCardCommand(order),
     moveIdeaDividerCommand: createMoveIdeaDividerCommand(order),
   };

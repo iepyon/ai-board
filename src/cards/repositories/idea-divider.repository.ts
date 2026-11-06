@@ -6,7 +6,7 @@
  * 区切り線の位置は `rank` と同じ物差しの値で持つ。
  * 実効値（`effectiveRank`）がこれより小さいアイデアが「次にやる」、大きいものが「あとで考える」。
  *
- * 人が並べ替える優先度なので、書くのはサーバ（画面の操作）だけ。
+ * 人が並べ替える優先度なので、書くのは人の判断の CLI（`ai-board decide move-divider`）だけ。
  * `ai-board card` の CLI には入口を作らない。
  */
 export interface IdeaDividerRepository {

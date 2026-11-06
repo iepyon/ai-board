@@ -6,7 +6,6 @@ import type { DataStore } from './infrastructure/data-store.js';
 import {
   createBoardDataStore,
   createFileCardDependencies,
-  createTransactionalCardDependencies,
   createTransactionalMrWriter,
 } from './cards/composition.js';
 import { runCardCli, type CardCliIo } from './cards/cli/card-cli.js';
@@ -66,7 +65,7 @@ function takeValue(argv: readonly string[], index: number, option: string): stri
 }
 
 /**
- * `card` サブコマンド。サーバを起動せず、データのワークツリーを直接読み書きする。
+ * `card` サブコマンド。データのワークツリーを直接読み書きする。
  *
  * 読むコマンドは頭で取り直し、書くコマンドは書き込みの 1 操作（コミットと push）として行う。
  */
@@ -107,11 +106,11 @@ async function runInit(argv: readonly string[]): Promise<number> {
 }
 
 /**
- * `status` サブコマンド。サーバを起動せず、ボードと同じ組み立てでステージを導出する。
+ * `status` サブコマンド。ボードを組み立て、ステージを導出する。
  *
  * カードは頭で 1 回データ用ブランチを取り直してから読む。
  * PR の状態はポーリングせず、`refresh()` を 1 回だけ待ってから読む。
- * `branch` から解決した PR 番号の書き戻しも、サーバと同じくここで起きる。
+ * `branch` から解決した PR 番号の書き戻しも、ここで起きる（`assembleBoard`）。
  */
 async function runStatus(argv: readonly string[]): Promise<number> {
   const { root, rest } = extractRoot(argv);
@@ -152,10 +151,10 @@ async function runStatus(argv: readonly string[]): Promise<number> {
 }
 
 /**
- * `status` と `decide` が使う、サーバと同じ組み立てのボード。データ用ブランチは呼び出し側が取り直しておく。
+ * `status` と `decide` が使うボードの組み立て。データ用ブランチは呼び出し側が取り直しておく。
  *
  * PR の状態はポーリングせず、`refresh()` を 1 回だけ待ってから読む。
- * `branch` から解決した PR 番号の書き戻しも、サーバと同じくここで起きる。
+ * `branch` から解決した PR 番号の書き戻しも、この `refresh()` の中で起きる。
  */
 async function assembleBoard(
   root: string,
@@ -184,10 +183,10 @@ async function assembleBoard(
 }
 
 /**
- * `decide` サブコマンド。人がチャットで頼んだ判断を、サーバを起動せずに書く。
+ * `decide` サブコマンド。人がチャットで頼んだ判断を書く。
  *
- * 書く前に `status` と同じ組み立てでボードを導出し、画面で押せる判断かを確かめる。
- * 書き込みはサーバと同じ組み立て（`createTransactionalCardDependencies`）の usecase で、コミットして push する。
+ * `status` と同じ組み立てのボードを、書き込みの 1 操作（`transactCardWrite`）の中で導出し、出せる判断かを確かめてから、
+ * カードの usecase で書いてコミットして push する。PR の状態は頭で 1 回取り直したものを使い、書き込みの中では問い合わせない。
  * 書いた後のボードは、取り直した PR の状態のまま組み立て直す（列の移りを出すため）。
  */
 async function runDecide(argv: readonly string[]): Promise<number> {
@@ -218,7 +217,11 @@ async function runDecide(argv: readonly string[]): Promise<number> {
 
   return runDecideCli(
     rest,
-    { loadBoard: board.getBoardQuery, cards: createTransactionalCardDependencies(store) },
+    {
+      loadBoard: board.getBoardQuery,
+      store,
+      cards: createFileCardDependencies(store.dataDir),
+    },
     io
   );
 }
@@ -343,7 +346,7 @@ async function readMarkdownDir(dir: string): Promise<Result<readonly SeedFile[],
   }
 }
 
-/** サーバを起動しないサブコマンド。名前から実行する関数を引く */
+/** サブコマンド。名前から実行する関数を引く */
 const SUBCOMMANDS: Readonly<Record<string, (argv: readonly string[]) => Promise<number>>> = {
   card: runCard,
   init: runInit,

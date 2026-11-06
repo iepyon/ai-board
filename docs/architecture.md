@@ -88,16 +88,20 @@ AI の列（計画提案中 / 実装中）にいても、人の判断を待っ�
 
 CLI（`src/cards/cli/card-cli.ts`）には `startedAt` / `rank` / `skipGates` を書く入口も、承認 / 否決 / 中止を追記する入口も無く、
 `body` は `## レビュー` のエントリが変わる差し替えを拒む。
+CLI の依存（`CardCliDependencies.cards`）には、人の判断を足す `appendReviewCommand` を渡さない。
+`submit` / `hold` は、種別を中で決める専用の usecase（`src/cards/usecases/commands/submit-review.command.ts` / `hold-review.command.ts`）を通り、書けるかの検査もそこにある。
 `submit` の plan ゲートは、着手したカードで、plan が未提出か否決のときにだけ書ける
 （plan を飛ばすカードの `plan 再提出` は承認と読まれるので、いつでも書けると人の否決や保留を経ずに計画を出し直せてしまう）。
+`hold` は plan の最新が否決のときにだけ書ける。拒んだ理由は `SubmitBeforeStart` / `SubmitGateClosed` / `HoldGateNotRejected` のエラーで返り、CLI が 1 行に直す。
 `submit` / `hold` の `--gate` は `plan` だけを受け、廃止した `verify` は使い方の誤りとして拒む。
 逆に人の判断の CLI（`ai-board decide`）は 承認 / 否決 / 中止 だけを書き、提出 / 再提出 / 保留 を書く入口を持たない。
 
 判断の追記と本文の保存は、リポジトリ（`CardRepository`）の別の口に分かれており、判断は文字列を経由せずに値のまま書く。
 判断を偽造させないのは入口ごとの検査ではなく、この作りである。`ai-board card` と `ai-board decide` のどちらから書いても同じに効く。
 
-人の判断の CLI（`src/board/cli/decide-cli.ts`、`ai-board decide`）は、カードの usecase を書き込みの 1 操作の組み立て（`createTransactionalCardDependencies`）で呼ぶ。
-書く前に `status` と同じ組み立てでボードを導出し、出せる判断かを確かめる。
+人の判断の CLI（`src/board/cli/decide-cli.ts`、`ai-board decide`）は、ボードの導出・検査・書き込みを書き込みの 1 操作（`transactCardWrite`）の中で走らせる。
+`status` と同じ組み立てでボードを導出し、出せる判断かを純関数（`src/board/services/decision-guards.ts`）で確かめてから、カードの usecase で書く。
+push が拒否されたら、取り直した状態でボードを導き直して検査からやり直すので、検査の後にほかのセッションが書いたカードに古い検査のまま書くことは無い。
 承認 / 否決 / 中止は `decisionsFor` にあるもの、着手 / 着手を戻すは今の列と `droppableStages`、並べ替えはアイデアの表（`ideaRows`）にあるカードだけを書く。
 GitHub に接続できないときは承認 / 否決 / 中止と着手 / 着手を戻すを拒む（`status` が `next` を `null` にするのと同じ理由。列と下限が PR の状態に依るため）。
 書いた後は、取り直した PR の状態のままボードを組み立て直し、列の移りを 1 行で出す。
@@ -236,7 +240,7 @@ Markdown 表現（`card-markdown.ts`）は `card show` の出力にだけ使う�
 
 1. ロックを取る（`data.lock` を排他作成。持ち主の pid が死んでいれば取り直す。5 秒待って取れなければ失敗）
 2. 取り直す（`git fetch origin +refs/heads/ai-board/data:refs/remotes/origin/ai-board/data` → `reset --hard` → `clean`）
-3. 操作を走らせる。usecase と CLI の検査（`submitRefusal` など）はこの中にあり、取り直した最新の状態に対して行われる。何も書かなければコミットしない
+3. 操作を走らせる。検査（提出と保留の usecase の中の検査、`decide` のボードの導出と `decision-guards.ts` の検査）と usecase はこの中にあり、取り直した最新の状態に対して行われる。何も書かなければコミットしない
 4. `git add -A` → `git commit`（メッセージは ID・ゲート・種別だけで、理由の文は入れない）→ `git push origin HEAD:refs/heads/ai-board/data`
 5. push が拒否されたら、rebase せずに 2 に戻り、操作を頭からやり直す（3 回まで）
 

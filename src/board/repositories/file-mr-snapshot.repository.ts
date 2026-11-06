@@ -211,7 +211,7 @@ export class FileMrSnapshotRepository implements MrSnapshotRepository {
   /**
    * 使い捨ての控えを読み、変えて、書き戻す。
    *
-   * サーバと `ai-board status` のポーラーが同時に書きうるので、一時ファイルに書いてから置き換える
+   * `ai-board` の CLI（`status` と `decide`）のポーラーが同時に書きうるので、一時ファイルに書いてから置き換える
    * （読みかけの壊れたファイルを見せない）。後から書いた方が先の変更を消しうるが、控えなので次の問い合わせで戻る。
    */
   private updateCache(change: (cache: Map<CardId, MrSnapshot>) => unknown): void {
