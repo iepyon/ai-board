@@ -3,7 +3,7 @@ id: cli-orchestration-to-usecases
 title: AIエージェントは、判断の書き込みとボードの見せ方の段取りを、CLI の外の usecase と query から呼びたい
 created: '2026-11-06T03:57:20.419Z'
 skipGates: []
-branch: null
+branch: cli-orchestration-to-usecases
 mr: null
 ---
 
