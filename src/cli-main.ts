@@ -1,25 +1,13 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { CONFIG_FILE, loadConfig, resolvePaths } from './shared/config.js';
-import { createCliRunner, type CliRunner } from './infrastructure/cli-runner.js';
-import type { DataStore } from './infrastructure/data-store.js';
-import {
-  createBoardDataStore,
-  createFileCardDependencies,
-  createTransactionalMrWriter,
-} from './cards/composition.js';
+import { createCliRunner } from './infrastructure/cli-runner.js';
+import { createBoardDataStore, createFileCardDependencies } from './cards/composition.js';
 import { runCardCli, type CardCliIo } from './cards/cli/card-cli.js';
 import type { SeedFile } from './cards/cli/seed-cards.js';
 import { runInitCli } from './cards/cli/init-cli.js';
 import { describeDataStoreError, describeOfflineRead } from './cards/cli/data-store-messages.js';
-import {
-  createBoardDependencies,
-  type BoardDependencies,
-  createLoopHistoryRepository,
-  createBranchPlanRepository,
-  createFileMrSnapshotRepository,
-  createMrStateSource,
-} from './board/composition.js';
+import { assembleBoard, createBranchPlanRepository } from './board/composition.js';
 import { parseStatusArgs, runStatusCli, STATUS_USAGE } from './board/cli/status-cli.js';
 import { isPrCommand, runPrCli } from './board/cli/pr-cli.js';
 import { runLoopCli } from './board/cli/loop-cli.js';
@@ -110,7 +98,7 @@ async function runInit(argv: readonly string[]): Promise<number> {
  *
  * カードは頭で 1 回データ用ブランチを取り直してから読む。
  * PR の状態はポーリングせず、`refresh()` を 1 回だけ待ってから読む。
- * `branch` から解決した PR 番号の書き戻しも、ここで起きる（`assembleBoard`）。
+ * `branch` から解決した PR 番号の書き戻しも、ここで起きる（`board/composition.ts` の `assembleBoard`）。
  */
 async function runStatus(argv: readonly string[]): Promise<number> {
   const { root, rest } = extractRoot(argv);
@@ -147,38 +135,6 @@ async function runStatus(argv: readonly string[]): Promise<number> {
       branchPlanRepository: createBranchPlanRepository(runner, paths.root),
     },
     io
-  );
-}
-
-/**
- * `status` と `decide` が使うボードの組み立て。データ用ブランチは呼び出し側が取り直しておく。
- *
- * PR の状態はポーリングせず、`refresh()` を 1 回だけ待ってから読む。
- * `branch` から解決した PR 番号の書き戻しも、この `refresh()` の中で起きる。
- */
-async function assembleBoard(
-  root: string,
-  store: DataStore,
-  runner: CliRunner
-): Promise<BoardDependencies> {
-  const config = loadConfig(root);
-  const cards = createFileCardDependencies(store.dataDir);
-  const { provider, poller } = await createMrStateSource(
-    config.forge,
-    cards.cardRepository,
-    createFileMrSnapshotRepository(store),
-    runner,
-    // ブランチから解決した PR 番号は、コミットして push する。ファイルに書くだけでは次の取り直しで捨てられる
-    { writeMr: createTransactionalMrWriter(store) }
-  );
-  await poller?.refresh();
-
-  return createBoardDependencies(
-    config.paths.plansDir,
-    cards.cardRepository,
-    cards.ideaDividerRepository,
-    provider,
-    createLoopHistoryRepository(store.dataDir)
   );
 }
 

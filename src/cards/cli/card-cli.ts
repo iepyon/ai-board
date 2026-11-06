@@ -1,7 +1,8 @@
 import { isErr, type Result } from '../../shared/result.js';
 import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
 import type { CommitMessage, DataStore, DataStoreError } from '../../infrastructure/data-store.js';
-import { transactCardWrite, type CardDependencies } from '../composition.js';
+import type { CardDependencies } from '../composition.js';
+import { transactCardWrite } from '../usecases/commands/transact-card-write.js';
 import type { Card } from '../models/card.js';
 import type {
   CreateCardError,

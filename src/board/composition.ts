@@ -1,6 +1,7 @@
 import type { CardRepository } from '../cards/repositories/card.repository.js';
+import { createFileCardDependencies, createTransactionalMrWriter } from '../cards/composition.js';
 import type { IdeaDividerRepository } from '../cards/repositories/idea-divider.repository.js';
-import type { ForgeConfig } from '../shared/config.js';
+import { loadConfig, type ForgeConfig } from '../shared/config.js';
 import type { CliRunner } from '../infrastructure/cli-runner.js';
 import { ForgePoller, type ForgePollerOptions } from '../infrastructure/forge-poller.js';
 import type { ForgeClient } from './services/forge-client.js';
@@ -113,4 +114,36 @@ export async function createMrStateSource(
 
   const poller = new ForgePoller(cardRepository, client, snapshotRepository, options);
   return { provider: poller, poller };
+}
+
+/**
+ * `status` と `decide` が使うボードの組み立て。データ用ブランチは呼び出し側が取り直しておく。
+ *
+ * PR の状態はポーリングせず、`refresh()` を 1 回だけ待ってから読む。
+ * `branch` から解決した PR 番号の書き戻しも、この `refresh()` の中で起きる。
+ */
+export async function assembleBoard(
+  root: string,
+  store: DataStore,
+  runner: CliRunner
+): Promise<BoardDependencies> {
+  const config = loadConfig(root);
+  const cards = createFileCardDependencies(store.dataDir);
+  const { provider, poller } = await createMrStateSource(
+    config.forge,
+    cards.cardRepository,
+    createFileMrSnapshotRepository(store),
+    runner,
+    // ブランチから解決した PR 番号は、コミットして push する。ファイルに書くだけでは次の取り直しで捨てられる
+    { writeMr: createTransactionalMrWriter(store) }
+  );
+  await poller?.refresh();
+
+  return createBoardDependencies(
+    config.paths.plansDir,
+    cards.cardRepository,
+    cards.ideaDividerRepository,
+    provider,
+    createLoopHistoryRepository(store.dataDir)
+  );
 }

@@ -5,10 +5,13 @@
 - **`card` の CLI の `updateCardMetaCommand` を、ブランチの紐付けの専用の usecase に替えるか。** 替えると、`card` の CLI の依存から `startedAt` / `skipGates` を書ける口が型の上でも消える。
   PR #88 では「今回は入れない」と答えをもらったが、それは #88 の範囲についての答えで、このカードは計画で決めるとしている。
   このカードでは `card` の書き込みを 1 操作ずつの usecase に包み直すので、紐付けだけ `updateCardMetaCommand` のまま残すと、包み直した口から `startedAt` を書ける形が残る（既定: 入れる）
+  - → 回答（2026-11-06、plan 承認）: 理由なしで承認（既定のまま進む）
 - **push が拒否されて書き込みをやり直すたびに、計画ファイル名の不正などの読み飛ばしの警告が重ねて出る件を、このカードで直すか。** 直すと標準エラーの出力が変わり、このカードの「CLI の出力を変えない」とぶつかる。
   重ねて出るのは push が拒否されたときだけで、出る警告の中身は正しい（既定: 入れない。別のカードにする）
+  - → 回答（2026-11-06、plan 承認）: 理由なしで承認（既定のまま進む）
 - **CLI の外へ移すのを、カードが挙げた 4 つだけにするか。** 4 つは、`decide` の段取り、`status` の見せる形、ボードと `decide` の依存の組み方、`card` のコミットのメッセージである。
   `card` の読む口（`list` / `show` / `seed` の既にある ID の確かめ）は、今のままリポジトリを直に読む。`loop` / `pr` / `init` の CLI にも触らない（既定: 4 つだけ）
+  - → 回答（2026-11-06、plan 承認）: 理由なしで承認（既定のまま進む）
 
 承認は、回答の無い項目をすべて既定のまま進めると読む。既定と違う答えは、承認の理由ではなく差し戻しの理由で返してほしい。
 
@@ -168,8 +171,8 @@ OLD="$S/base/dist/cli.js"; NEW="$WT/dist/cli.js"
 
 ### 1. 書き込みの包み方と、ボードの組み立てを移す
 
-- [ ] `transactCardWrite` を `src/cards/usecases/commands/transact-card-write.ts` へ移し、`cards/composition.ts`・`decide-cli.ts`・`card-cli.ts` の import を直す。`card-errors.ts` の `CardWriteFailure` の説明を直す
-- [ ] `cli-main.ts` の `assembleBoard` を `src/board/composition.ts` へ移す。`status` と `decide` は、取り直しの後にこれを呼ぶだけにする（この節では、返すものは今の `BoardDependencies` のまま）
+- [x] `transactCardWrite` を `src/cards/usecases/commands/transact-card-write.ts` へ移し、`cards/composition.ts`・`decide-cli.ts`・`card-cli.ts` の import を直す。`card-errors.ts` の `CardWriteFailure` の説明を直す
+- [x] `cli-main.ts` の `assembleBoard` を `src/board/composition.ts` へ移す。`status` と `decide` は、取り直しの後にこれを呼ぶだけにする（この節では、返すものは今の `BoardDependencies` のまま）
 
 ### 2. `status` の見せる形を query にする
 

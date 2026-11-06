@@ -1,13 +1,8 @@
 import type { BoardPaths } from '../shared/config.js';
 import type { CliRunner } from '../infrastructure/cli-runner.js';
-import { err, isErr, ok, type Result } from '../shared/result.js';
-import {
-  createDataStore,
-  type CommitMessage,
-  type DataStore,
-} from '../infrastructure/data-store.js';
+import { err, isErr, ok } from '../shared/result.js';
+import { createDataStore, type DataStore } from '../infrastructure/data-store.js';
 import type { MrNumberWriter } from '../infrastructure/forge-poller.js';
-import type { CardWriteFailure } from './errors/card-errors.js';
 import type { CardRepository } from './repositories/card.repository.js';
 import type { IdeaDividerRepository } from './repositories/idea-divider.repository.js';
 import { CardWriteRefusedError, FileCardRepository } from './repositories/file-card.repository.js';
@@ -68,37 +63,10 @@ export interface CardDependencies {
 /**
  * データのワークツリーのファイルでカードを読み書きする。
  *
- * リポジトリはコミットと push を持たない。書き込みの usecase は `transactCardWrite` の中で呼ぶ。
+ * リポジトリはコミットと push を持たない。書き込みの usecase は `transactCardWrite`（`usecases/commands/transact-card-write.ts`）の中で呼ぶ。
  */
 export function createFileCardDependencies(dataDir: string): CardDependencies {
   return assemble(new FileCardRepository(dataDir), new FileIdeaDividerRepository(dataDir));
-}
-
-/**
- * `op` を書き込みの 1 操作（`DataStore.transact`）の中で走らせる。CLI の書き込みは、どれもここを通す。
- *
- * `op` には、書く前の検査から usecase までを入れる。push が拒否されると、`transact` が取り直した最新の状態で
- * `op` を頭から呼び直すので、検査は必ず最新のカードに対して行われる（ADR 0010）。
- * そのため `op` は標準出力にも標準エラーにも書かない。拒むときは Err を返す（`transact` が書きかけを捨て、コミットしない）。
- *
- * 判断の書き換えなど、リポジトリの拒否は `CardWriteRefusedError` の例外で届くので、`CardWriteRefused` の Err に直す。
- * `transact` は同じプロセスの中で 1 列に並ぶので、`op` の中からこれを呼ぶと自分を待って止まる。
- */
-export function transactCardWrite<T, E>(
-  store: Pick<DataStore, 'transact'>,
-  message: CommitMessage<T>,
-  op: () => Promise<Result<T, E>>
-): Promise<Result<T, E | CardWriteFailure>> {
-  return store.transact<T, E | CardWriteFailure>(message, async () => {
-    try {
-      return await op();
-    } catch (error) {
-      if (error instanceof CardWriteRefusedError) {
-        return err({ type: 'CardWriteRefused', reason: error.reason.type });
-      }
-      throw error;
-    }
-  });
 }
 
 /**

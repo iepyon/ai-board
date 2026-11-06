@@ -5,7 +5,8 @@ import { STAGE_LABELS } from '../../shared/stage-labels.js';
 import { withSkipGate } from '../../shared/stage-gates.js';
 import { decisionsFor } from '../../shared/dashboard-sections.js';
 import { REVIEW_GATES, isReviewGate, type ReviewGate } from '../../cards/models/review.js';
-import { transactCardWrite, type CardDependencies } from '../../cards/composition.js';
+import type { CardDependencies } from '../../cards/composition.js';
+import { transactCardWrite } from '../../cards/usecases/commands/transact-card-write.js';
 import type {
   AppendReviewError,
   CardWriteFailure,
