@@ -4,7 +4,7 @@ title: ユーザは、GitHub に届かない研修の環境でも、カードと
 created: '2026-11-06T09:36:42.982Z'
 skipGates: []
 branch: claude/idea-confirmation-7sfhok
-mr: null
+mr: 95
 ---
 
 ## アイデア
