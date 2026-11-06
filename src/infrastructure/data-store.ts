@@ -10,7 +10,7 @@ import {
   parseDataVersion,
   type DataVersionError,
 } from '../cards/repositories/card-files.js';
-import { CONFIG_FILE } from '../shared/config.js';
+import { CONFIG_FILE, type DataMode } from '../shared/config.js';
 import { err, isErr, ok, type Result } from '../shared/result.js';
 import { describeCliError, type CliError, type CliRunner } from './cli-runner.js';
 
@@ -106,6 +106,11 @@ export type DataStoreError =
   /** fetch / push 以外の git の操作に失敗した */
   | { readonly type: 'DataStoreGitFailed'; readonly step: string; readonly message: string }
   /**
+   * 既定のモードで、`origin` のデータ用ブランチに無いコミットが手元の `HEAD` にある（手元モードで書いたものなど）。
+   * 取り直しの `reset --hard` で黙って消さないよう、読み書きの前に止まる
+   */
+  | { readonly type: 'DataStoreLocalAhead'; readonly dataDir: string; readonly count: number }
+  /**
    * 取り直した `ai-board-data.yaml` の版が、この CLI より新しい（`UnsupportedDataVersion`）か読めない（`MalformedDataVersion`）。
    * 古い CLI が新しい形を今の形として読み書きしないよう、中身を読まずに止まる
    */
@@ -117,6 +122,8 @@ export type RefreshOutcome =
   | { readonly kind: 'fetched' }
   /** `origin` が無い（テスト用など）。手元のコミットに合わせた */
   | { readonly kind: 'no-origin' }
+  /** 手元モード。`origin` に触れず、手元のコミットに合わせた */
+  | { readonly kind: 'local' }
   /** fetch に失敗した。手元の内容のまま読む。書き込みは push できないので失敗する */
   | { readonly kind: 'offline'; readonly reason: string };
 
@@ -165,6 +172,13 @@ export interface DataStoreOptions {
   /** データのワークツリーが無いとき、`git worktree add` するリポジトリ。無ければ作らずに失敗する */
   readonly repoRoot?: string;
   readonly runner: CliRunner;
+  /**
+   * 読み書きのモード。既定は `sync`。
+   *
+   * - `sync`: 読み書きのたびに `origin` から取り直し、書いたら push する
+   * - `local`: `origin` に触れず、手元のコミットだけで読み書きする（GitHub に届かない研修の環境向け）
+   */
+  readonly mode?: DataMode;
   /** 既定は `<dataDir の親>/data.lock` */
   readonly lockPath?: string;
   readonly lockTimeoutMs?: number;
@@ -198,6 +212,7 @@ class GitDataStore implements DataStore {
   readonly dataDir: string;
   private readonly repoRoot: string | null;
   private readonly runner: CliRunner;
+  private readonly mode: DataMode;
   private readonly lockPath: string;
   private readonly lockOptions: LockOptions;
   private readonly maxRetries: number;
@@ -214,6 +229,7 @@ class GitDataStore implements DataStore {
     this.dataDir = path.resolve(options.dataDir);
     this.repoRoot = options.repoRoot === undefined ? null : path.resolve(options.repoRoot);
     this.runner = options.runner;
+    this.mode = options.mode ?? 'sync';
     this.lockPath = options.lockPath ?? path.join(path.dirname(this.dataDir), LOCK_FILE);
     this.lockOptions = {
       timeoutMs: options.lockTimeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS,
@@ -291,8 +307,12 @@ class GitDataStore implements DataStore {
     }
     if (!committed.value || base.value === null) return done(written);
 
-    const pushed = await this.git(['push', '--quiet', '--no-verify', 'origin', DATA_PUSH_REFSPEC]);
-    if (isErr(pushed)) return { kind: 'rejected', base: base.value, error: pushed.error };
+    const pushed = await pushData(this.runner, this.dataDir);
+    if (isErr(pushed)) {
+      // 拒否されたコミットを手元に残さない。次の取り直しの守りが、手元モードのコミットと取り違えないように
+      await this.discardTo(base.value);
+      return { kind: 'rejected', base: base.value, error: pushed.error };
+    }
     return done(written);
   }
 
@@ -309,7 +329,7 @@ class GitDataStore implements DataStore {
     if (isErr(synced)) return synced;
 
     const outcome = synced.value;
-    if (outcome.kind === 'no-origin') return ok(null);
+    if (outcome.kind === 'no-origin' || outcome.kind === 'local') return ok(null);
     if (outcome.kind === 'offline') {
       // push の失敗の後に fetch もできない＝拒否ではなくネットワークの失敗
       return err(
@@ -333,9 +353,9 @@ class GitDataStore implements DataStore {
     const inRepo = (args: readonly string[]): Promise<Result<string, CliError>> =>
       runGit(this.runner, repoRoot, args);
 
-    const remotes = await inRepo(['remote']);
-    if (isErr(remotes)) return err(gitFailed('remote', remotes.error));
-    const withOrigin = includesOrigin(remotes.value);
+    const usesOrigin = await this.usesOrigin(repoRoot);
+    if (isErr(usesOrigin)) return usesOrigin;
+    const withOrigin = usesOrigin.value;
 
     if (withOrigin) {
       // fetch の失敗は「ブランチが無い」と「ネットワーク」を分けられないので、先に有無を問う
@@ -348,7 +368,9 @@ class GitDataStore implements DataStore {
     }
 
     const local = await inRepo(['rev-parse', '--verify', '--quiet', `refs/heads/${DATA_BRANCH}`]);
-    if (isErr(local) && !withOrigin) return err({ type: 'DataBranchMissing', dataDir });
+    if (isErr(local) && !withOrigin && !(await this.trackedBranchUsable(repoRoot))) {
+      return err({ type: 'DataBranchMissing', dataDir });
+    }
 
     // 人がデータのワークツリーを消すと登録だけが残り、worktree add が
     // 「missing but already registered worktree」で拒む。消えたワークツリーの登録を先に片付ける
@@ -362,28 +384,56 @@ class GitDataStore implements DataStore {
     return isErr(added) ? err(gitFailed('worktree add', added.error)) : ok(undefined);
   }
 
+  /** 手元モードで、最後に取った origin のデータ用ブランチ（追跡のブランチ）からワークツリーを作れるか */
+  private async trackedBranchUsable(repoRoot: string): Promise<boolean> {
+    if (this.mode !== 'local') return false;
+    const tracked = await runGit(this.runner, repoRoot, [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      DATA_REMOTE_REF,
+    ]);
+    return !isErr(tracked);
+  }
+
+  /**
+   * `dir` のリポジトリで `origin` に問い合わせるか。手元モードでは `git remote` も走らせずに問い合わせない
+   */
+  private async usesOrigin(dir: string): Promise<Result<boolean, DataStoreError>> {
+    if (this.mode === 'local') return ok(false);
+    const remotes = await runGit(this.runner, dir, ['remote']);
+    return isErr(remotes)
+      ? err(gitFailed('remote', remotes.error))
+      : ok(includesOrigin(remotes.value));
+  }
+
   /**
    * fetch して `origin` の最新に合わせる。fetch に失敗したら、最後に知っている `origin` の内容に合わせる。
+   * 手元モードと `origin` の無いワークツリーでは、fetch せずに手元の `HEAD` に合わせる。
+   *
+   * 既定のモードでは、合わせる前に `origin` に無いコミットが手元にあるかを数え、あれば止まる（`guardLocalAhead`）。
+   * 手元モードで書いたコミットを、既定のモードに戻した最初の取り直しで黙って捨てないためである。
    *
    * 合わせた後に形の版を確かめる。`refresh` と `transact`（`op` の前）はどちらもここを通るので、
    * この CLI より新しい版のデータは、読み出しでも書き込みでも中身に触れる前に止まる。
    */
   private async sync(): Promise<Result<RefreshOutcome, DataStoreError>> {
-    const remotes = await this.gitStep('remote', ['remote']);
-    if (isErr(remotes)) return remotes;
+    const useOrigin = await this.usesOrigin(this.dataDir);
+    if (isErr(useOrigin)) return useOrigin;
 
     // reset と clean はブランチを動かし、追跡していないファイルを消す。データ用ブランチの上でしか走らせない
     const onDataBranch = await this.ensureDataBranchHead();
     if (isErr(onDataBranch)) return onDataBranch;
 
-    if (!includesOrigin(remotes.value)) {
+    if (!useOrigin.value) {
       const discarded = await this.discardTo('HEAD');
       if (isErr(discarded)) return discarded;
-      return this.checkVersion({ kind: 'no-origin' });
+      return this.checkVersion({ kind: this.mode === 'local' ? 'local' : 'no-origin' });
     }
 
     const fetched = await this.git(['fetch', '--quiet', 'origin', DATA_FETCH_REFSPEC]);
-    // 押し出せなかったコミットが残っていても、取り直しの後は origin の内容で読む
+    const guarded = await this.guardLocalAhead();
+    if (isErr(guarded)) return guarded;
     const discarded = await this.discardTo(DATA_REMOTE_REF);
     if (isErr(discarded)) return discarded;
 
@@ -392,6 +442,22 @@ class GitDataStore implements DataStore {
         ? { kind: 'offline', reason: describeCliError(fetched.error) }
         : { kind: 'fetched' }
     );
+  }
+
+  /**
+   * `origin` のデータ用ブランチに無いコミットが手元の `HEAD` にあれば、`DataStoreLocalAhead` で止まる。
+   *
+   * 追跡のブランチがまだ無い、まだコミットの無いブランチ（データ用ブランチしか無い `origin` の clone）では
+   * `rev-list` が失敗する。比べる先か先のコミットが無いので数えない（続く `reset --hard` が今どおり扱う）。
+   */
+  private async guardLocalAhead(): Promise<Result<void, DataStoreError>> {
+    const counted = await this.git(['rev-list', '--count', `${DATA_REMOTE_REF}..HEAD`]);
+    if (isErr(counted)) return ok(undefined);
+
+    const count = Number.parseInt(counted.value.trim(), 10);
+    return count > 0
+      ? err({ type: 'DataStoreLocalAhead', dataDir: this.dataDir, count })
+      : ok(undefined);
   }
 
   /**
@@ -534,6 +600,25 @@ class GitDataStore implements DataStore {
     this.queue = queued.catch(() => undefined);
     return queued;
   }
+}
+
+/**
+ * データ用ブランチを `origin` へ push し、通ったら追跡のブランチを進める。
+ *
+ * fetch の refspec が ai-board/data を写さない clone では、push しても追跡のブランチが動かない。
+ * 次の取り直しで fetch に失敗したとき、上げ済みのコミットを守りが「origin に無い」と数えないよう進めておく。
+ * 書き込みは push で済んでいるので、追跡のブランチを進めるのが失敗しても失敗にしない（次の fetch が直す）
+ */
+async function pushData(runner: CliRunner, dataDir: string): Promise<Result<string, CliError>> {
+  const pushed = await runGit(runner, dataDir, [
+    'push',
+    '--quiet',
+    '--no-verify',
+    'origin',
+    DATA_PUSH_REFSPEC,
+  ]);
+  if (!isErr(pushed)) await runGit(runner, dataDir, ['update-ref', DATA_REMOTE_REF, 'HEAD']);
+  return pushed;
 }
 
 function includesOrigin(remotes: string): boolean {
@@ -700,7 +785,7 @@ export async function createDataBranch(
 
   if (!target.withOrigin) return ok({ pushed: false });
 
-  const pushed = await inData(['push', '--quiet', '--no-verify', 'origin', DATA_PUSH_REFSPEC]);
+  const pushed = await pushData(options.runner, dataDir);
   if (isErr(pushed)) {
     await rollbackDataBranch(options.runner, target, dataDir);
     return err(pushFailed(1, pushed.error));

@@ -123,6 +123,9 @@ rebase しないのは、離れた行の編集を git が黙って混ぜ、検�
 読み出しはコマンドの頭で 1 回取り直し、fetch に失敗したら警告して手元の内容で読む（書き込みは失敗にする）。
 `origin` の無いデータのワークツリー（テスト用）では fetch と push を飛ばす。
 
+**手元モード。** `dataDir` の親の `data-mode.yaml` に `mode: local` と書くと、`origin` に触れずに手元の commit だけで読み書きする（研修用。ADR 0010・README）。
+既定のモードの取り直しは、`origin` に無い commit が手元にあれば `DataStoreLocalAhead` で止まる。
+
 ## GitHub の PR の取得
 
 `config.yaml` に `github:` が無ければ PR中 / マージ済み の列が空になるだけでボードは動く。

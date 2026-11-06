@@ -18,6 +18,17 @@ export const DATA_DIR = 'data';
  * ワークツリーで共有のカードを汚さずに試すときに使う。そのディレクトリの `origin` に push する
  */
 export const DATA_ENV = 'AI_BOARD_DATA';
+/**
+ * データ用ブランチの読み書きのモードを書くファイル。データのワークツリーの隣（ロックと同じ親）に置き、git に載せない。
+ * `mode: local` なら手元モード（`origin` に触れずに手元の commit だけで読み書きする）、無ければ既定のモード
+ */
+export const DATA_MODE_FILE = 'data-mode.yaml';
+
+const DataModeSchema = z.enum(['sync', 'local']);
+/** データ用ブランチの読み書きのモード（`DataStoreOptions` の `mode`） */
+export type DataMode = z.infer<typeof DataModeSchema>;
+
+const DataModeFileSchema = z.object({ mode: DataModeSchema });
 
 /** GitHub は API パスが owner/repo 固定なので数値 id を受ける意味が無い */
 const GitHubConfigSchema = z.object({
@@ -77,14 +88,43 @@ export function resolvePaths(root: string, env: NodeJS.ProcessEnv = process.env)
   const dataFromEnv = env[DATA_ENV] ?? '';
   const sharedSource = sharedBoardDir !== boardDir ? 'main-checkout' : 'local';
 
+  const dataDir =
+    dataFromEnv !== '' ? path.resolve(dataFromEnv) : path.join(sharedBoardDir, DATA_DIR);
+
   return {
     root: absoluteRoot,
     boardDir,
     sharedBoardDir,
-    dataDir: dataFromEnv !== '' ? path.resolve(dataFromEnv) : path.join(sharedBoardDir, DATA_DIR),
+    dataDir,
     dataSource: dataFromEnv !== '' ? 'env' : sharedSource,
     plansDir: path.join(boardDir, PLANS_DIR),
   };
+}
+
+/** データのワークツリー `dataDir` に対する、モードのファイルの場所（ロックと同じく `dataDir` の親に置く） */
+export function dataModePath(dataDir: string): string {
+  return path.join(path.dirname(dataDir), DATA_MODE_FILE);
+}
+
+/**
+ * データのワークツリー `dataDir` の読み書きのモードを、モードのファイルから読む。無ければ既定のモード。
+ *
+ * 読めない・形が違うときは、警告して既定のモードにする。既定のモードでも、オフラインなら書き込みは失敗し、
+ * 手元の commit は取り直しの守り（`DataStoreLocalAhead`）が止めるので、黙って消えはしない。
+ */
+export function readDataMode(dataDir: string): DataMode {
+  const file = dataModePath(dataDir);
+  let reason: string;
+  try {
+    const parsed = DataModeFileSchema.safeParse(parseYaml(fs.readFileSync(file, 'utf-8')));
+    if (parsed.success) return parsed.data.mode;
+    reason = 'mode には sync か local を書いてください';
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return 'sync';
+    reason = String(error);
+  }
+  console.warn(`[ai-board] ${file} を読めないため、既定のモード（sync）で動きます: ${reason}`);
+  return 'sync';
 }
 
 function resolveSharedBoardDir(root: string, boardDir: string): string {

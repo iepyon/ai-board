@@ -221,6 +221,24 @@ ai-board decide move-divider --after <ref> --before <ref>   # 区切り線を動
   GraphQL が 403 になる（`gh pr` が動かない）ので、手順書は `ai-board pr ...` を使う。ブランチを消せないので「Automatically delete head branches」を有効にしておく
 - Windows: Git Bash で回せる（PowerShell / cmd は想定しない）。`jq` の代わりに `status --json --only` を使い、改行は `.gitattributes` で LF に揃える。テストは Windows を対象にしていない
 
+### オフラインの研修（手元モード）
+
+GitHub に届かない環境で研修するときは、メインのチェックアウトの `.ai-board/data-mode.yaml` に 1 行書いて手元モードにする（git に載らない）。
+
+```bash
+echo 'mode: local' > .ai-board/data-mode.yaml
+```
+
+手元モードでは、カード・判断・ループの記録を fetch も push もせず、手元のデータ用ブランチへのコミットだけで書く。
+オンラインで回すときはファイルを消す（または `mode: sync` にする）。今どおり書くたびに fetch と push をする。
+fork と clone、`ai-board init` は GitHub に届くうちに済ませておく（`init` は手元モードの対象外）。
+
+既定のモードに戻したとき、手元モードで書いたコミットが `origin` に無ければ、CLI は消さずに止まり、次のどれかを選ぶよう案内する。
+
+- 上げる: `git -C .ai-board/data push origin HEAD:ai-board/data`
+- 捨てる: `git -C .ai-board/data reset --hard origin/ai-board/data`
+- 手元モードで続ける: `data-mode.yaml` に `mode: local` を書き戻す
+
 ### 始め方と board.db からの切り替え
 
 新しいリポジトリでは、`.ai-board/config.yaml` を用意してから、メインのチェックアウトで `node dist/cli.js init` を走らせる。
