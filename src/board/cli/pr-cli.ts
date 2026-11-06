@@ -50,7 +50,7 @@ Commands:
   diff <n>                 PR の差分を unified diff で出す
   ready <n>                PR を Ready にする（gh pr ready を試し、失敗したら ccr/ready_for_review を試す）
   checks <n> [--sha <sha>] [--wait [--timeout <秒>]] [--json]
-                           PR の最新コミット（--sha ならそのコミット）のチェック（check-runs と status）をまとめて出す。
+                           PR の最新コミット（--sha ならそのコミット。7 桁以上の短いハッシュも可）のチェック（check-runs と status）をまとめて出す。
                            --sha のコミットがまだ PR の head でなければ、走っているとして扱う。
                            終了コードは passed / none が 0、failed が 1、pending が 2、読めなかったら 3。
                            --wait は走っている間（push の直後でチェックがまだ無い間は ${CHECKS_GRACE_SECONDS} 秒まで）

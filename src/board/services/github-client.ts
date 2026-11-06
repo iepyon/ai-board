@@ -514,6 +514,7 @@ export class GhPullRequestClient {
    *
    * 見るコミットは `sha`（省けば PR の `head.sha`）。push の直後は GitHub がまだ PR の head を動かしていないことがあるので、
    * `sha` を指定して PR の head がそれと違えば、チェックを引かずに `summary: null` を返す（呼び出し側は走っているとして待つ）。
+   * `sha` は短いハッシュでもよく、head の完全なハッシュの先頭と照らし合わせる（`isSameCommit`）。
    * どちらの応答も配列ではなく `{ ..., check_runs }` / `{ ..., statuses }` なので、`--paginate` の各ページを
    * `--jq` で 1 件 1 行にして繋ぐ（ページを跨いでも 1 本の JSON にならないため）。
    */
@@ -524,7 +525,7 @@ export class GhPullRequestClient {
     const pr = await this.getJson<RawPullRequestDetail>(`${this.base}/pulls/${iid}`);
     if (isErr(pr)) return pr;
     const headSha = pr.value.head.sha;
-    if (sha !== null && sha !== headSha) return ok({ headSha, summary: null });
+    if (sha !== null && !isSameCommit(sha, headSha)) return ok({ headSha, summary: null });
 
     const [runs, status] = await Promise.all([
       this.getJsonLines<RawCheckRun>(`commits/${headSha}/check-runs`, '.check_runs[]'),
@@ -664,4 +665,14 @@ function toComment(raw: RawCommentDetail): PullRequestComment {
     path: raw.path ?? null,
     line: raw.line ?? raw.original_line ?? null,
   };
+}
+
+/**
+ * `sha`（完全なハッシュか、7 桁以上の短いハッシュ）が、完全なハッシュ `headSha` と同じコミットを指すか。
+ *
+ * 比べる相手は PR の head の 1 つだけなので、先頭が一致すれば同じコミットと読む。
+ * 7 桁で別のコミットが先頭まで一致する見込みは 16^7 分の 1 で、`git` 自身も短いハッシュを一意に決まる範囲で受け付ける。
+ */
+export function isSameCommit(sha: string, headSha: string): boolean {
+  return headSha.startsWith(sha);
 }

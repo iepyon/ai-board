@@ -722,6 +722,42 @@ describe('ai-board pr checks', () => {
     expect(stdout).toContain(': passed');
     expect(clock.slept).toHaveLength(11);
   });
+
+  it('--sha に head の短いハッシュを渡しても、待たずにそのコミットのチェックを読む', async () => {
+    const { runner } = fakeRunner(responder([[success]]));
+
+    expect(await runPrCli(['checks', '78', '--sha', SHA.slice(0, 7)], { forge, runner }, io)).toBe(
+      0
+    );
+    expect(stdout).toContain(`最新コミット ${SHA.slice(0, 7)} のチェック: passed`);
+    expect(stdout).not.toContain('head はまだ');
+  });
+
+  it('--wait --sha に head の短いハッシュを渡しても、待たずにそのコミットのチェックで終える', async () => {
+    const { runner } = fakeRunner(responder([[success]]));
+    const clock = fakeClock();
+
+    expect(
+      await runPrCli(
+        ['checks', '78', '--wait', '--sha', SHA.slice(0, 7), '--json'],
+        { forge, runner, clock },
+        io
+      )
+    ).toBe(0);
+    expect(clock.slept).toEqual([]);
+    expect(JSON.parse(stdout)).toMatchObject({ sha: SHA, verdict: 'passed', timedOut: false });
+  });
+
+  it('--sha の短いハッシュが head と別のコミットなら、走っているとして扱う', async () => {
+    const { runner, calls } = fakeRunner(responder([[success]]));
+
+    expect(await runPrCli(['checks', '78', '--sha', '9999999'], { forge, runner }, io)).toBe(2);
+    expect(stdout).toContain('最新コミット 9999999 のチェック: pending');
+    expect(stdout).toContain(
+      `PR の head はまだ ${SHA.slice(0, 7)} で、このコミットになっていません`
+    );
+    expect(calls.some((c) => c.args.some((a) => a.includes('/check-runs')))).toBe(false);
+  });
 });
 
 describe('ai-board pr checks で status を権限で読めないとき', () => {
