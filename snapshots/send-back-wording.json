@@ -1,0 +1,19 @@
+{
+  "fingerprint": "[3,\"closed\",\"2026-11-06T06:42:56Z\",false,\"4685e6328b4a2f20bde8b7c454a31ded25a4cbe9\",0,0,\"2026-11-06T06:42:56Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 91,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "send-back-wording",
+    "title": "計画を返す判断を「否決」から「差し戻し」と呼び替える",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/91",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestAiNoteAt": null,
+    "latestCommitAt": "2026-11-06T06:30:59Z",
+    "mergedAt": "2026-11-06T06:42:56Z",
+    "readyAt": "2026-11-06T06:31:05Z",
+    "convertedToDraftAt": null
+  }
+}
