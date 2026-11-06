@@ -4,8 +4,13 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { createCliRunner } from '../../../infrastructure/cli-runner.js';
-import { createDataStore, DATA_BRANCH } from '../../../infrastructure/data-store.js';
+import {
+  createDataStore,
+  DATA_BRANCH,
+  type DataStore,
+} from '../../../infrastructure/data-store.js';
 import { createFileCardDependencies, type CardDependencies } from '../../composition.js';
+import { createCardWriteCommands } from '../../usecases/commands/card-write.commands.js';
 import {
   parseCommandArgs,
   runCardCli,
@@ -26,7 +31,7 @@ import { demoteHeadings } from '../../repositories/card-files.js';
 let tmp: string;
 let origin: string;
 /** CLI に渡す依存。準備（`prepare`）では、CLI に渡さない人の判断の usecase も使うので、カードの依存は全部持つ */
-let deps: CardCliDependencies & { readonly cards: CardDependencies };
+let deps: CardCliDependencies & { readonly store: DataStore; readonly cards: CardDependencies };
 let stdout: string;
 let stderr: string;
 /** `seed` が読むディレクトリの中身。テストごとに差し替える */
@@ -56,10 +61,12 @@ function cloneData(parent: string): string {
 }
 
 function cliDeps(dataDir: string): typeof deps {
-  return {
-    store: createDataStore({ dataDir, runner, lockPollMs: 10 }),
-    cards: createFileCardDependencies(dataDir),
-  };
+  return depsFor(createDataStore({ dataDir, runner, lockPollMs: 10 }));
+}
+
+function depsFor(store: DataStore): typeof deps {
+  const cards = createFileCardDependencies(store.dataDir);
+  return { store, cards, writes: createCardWriteCommands(store, cards) };
 }
 
 function originLog(): string[] {
@@ -627,10 +634,7 @@ describe('runCardCli とデータ用ブランチ', () => {
     sh(['clone', '--quiet', bare, repo]);
 
     const dataDir = path.join(repo, '.ai-board', 'data');
-    deps = {
-      store: createDataStore({ dataDir, repoRoot: repo, runner, lockPollMs: 10 }),
-      cards: createFileCardDependencies(dataDir),
-    };
+    deps = depsFor(createDataStore({ dataDir, repoRoot: repo, runner, lockPollMs: 10 }));
 
     expect(await run(['list'])).toBe(1);
     expect(stderr).toContain('ai-board init を走らせてください');
@@ -640,10 +644,7 @@ describe('runCardCli とデータ用ブランチ', () => {
     const repo = path.join(tmp, 'code');
     sh(['clone', '--quiet', origin, repo]);
     const dataDir = path.join(repo, '.ai-board', 'data');
-    deps = {
-      store: createDataStore({ dataDir, repoRoot: repo, runner, lockPollMs: 10 }),
-      cards: createFileCardDependencies(dataDir),
-    };
+    deps = depsFor(createDataStore({ dataDir, repoRoot: repo, runner, lockPollMs: 10 }));
     expect(await run(['create', '--title', 'x', '--id', 'before'])).toBe(0);
 
     fs.rmSync(dataDir, { recursive: true, force: true });

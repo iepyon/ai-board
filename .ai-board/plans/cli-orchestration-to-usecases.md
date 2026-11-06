@@ -191,10 +191,10 @@ OLD="$S/base/dist/cli.js"; NEW="$WT/dist/cli.js"
 
 ### 4. `card` のコミットのメッセージを usecase へ寄せる
 
-- [ ] `src/cards/usecases/commands/link-card-branch.command.ts` にブランチの紐付けの usecase を作る
-- [ ] `src/cards/usecases/commands/card-write.commands.ts` に `createCardWriteCommands`（`create` / `replaceBody` / `linkBranch` / `submit` / `hold`）を作り、コミットのメッセージを移す
-- [ ] `CardCliDependencies` を `{ store: Pick<DataStore, 'refresh'>; cards: Pick<CardDependencies, 'cardRepository'>; writes }` にし、`card-cli.ts` の書き込みを `writes` 経由にする。`cards/composition.ts` に組み立てを足し、`cli-main.ts` の `runCard` を直す
-- [ ] `card-cli.test.ts` の依存の組み方を直す（期待値は変えない）。`src/cards/usecases/__tests__/` に、紐付けの usecase と、書き込みの usecase がコミットのメッセージを決めることのテストを足す
+- [x] `src/cards/usecases/commands/link-card-branch.command.ts` にブランチの紐付けの usecase を作る
+- [x] `src/cards/usecases/commands/card-write.commands.ts` に `createCardWriteCommands`（`create` / `replaceBody` / `linkBranch` / `submit` / `hold`）を作り、コミットのメッセージを移す
+- [x] `CardCliDependencies` を `{ store: Pick<DataStore, 'refresh'>; cards: Pick<CardDependencies, 'cardRepository'>; writes }` にし、`card-cli.ts` の書き込みを `writes` 経由にする。`cards/composition.ts` に組み立てを足し、`cli-main.ts` の `runCard` を直す
+- [x] `card-cli.test.ts` の依存の組み方を直す（期待値は変えない）。`src/cards/usecases/__tests__/` に、紐付けの usecase と、書き込みの usecase がコミットのメッセージを決めることのテストを足す
 
 ### 5. 文書を今の形に直す
 

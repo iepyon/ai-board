@@ -39,6 +39,14 @@ import {
   createMoveIdeaDividerCommand,
   type MoveIdeaDividerCommand,
 } from './usecases/commands/move-idea-divider.command.js';
+import {
+  createLinkCardBranchCommand,
+  type LinkCardBranchCommand,
+} from './usecases/commands/link-card-branch.command.js';
+import {
+  createCardWriteCommands,
+  type CardWriteCommands,
+} from './usecases/commands/card-write.commands.js';
 
 // ============================================================
 // Cards コンテキスト 依存性構成
@@ -50,6 +58,8 @@ export interface CardDependencies {
   readonly createCardCommand: CreateCardCommand;
   readonly updateCardMetaCommand: UpdateCardMetaCommand;
   readonly updateCardBodyCommand: UpdateCardBodyCommand;
+  /** ブランチの紐付け。`branch` だけを書き換える（AI の CLI はメタデータをこれでしか書かない） */
+  readonly linkCardBranchCommand: LinkCardBranchCommand;
   /** 人の判断（承認 / 差し戻し / 中止）を足す。AI の CLI（`ai-board card`）には渡さない */
   readonly appendReviewCommand: AppendReviewCommand;
   /** AI の 提出 / 再提出 を足す。着手とゲートの状態を確かめる */
@@ -67,6 +77,24 @@ export interface CardDependencies {
  */
 export function createFileCardDependencies(dataDir: string): CardDependencies {
   return assemble(new FileCardRepository(dataDir), new FileIdeaDividerRepository(dataDir));
+}
+
+/** `ai-board card` が使う依存。読む口と、AI に許す書き込みの口だけ */
+export interface CardCliParts {
+  readonly cards: Pick<CardDependencies, 'cardRepository'>;
+  readonly writes: CardWriteCommands;
+}
+
+/**
+ * `ai-board card` の依存を組む。書き込みは `store` の書き込みの 1 操作としてコミットして push する。
+ * 人の判断を書く usecase（`appendReviewCommand`・`updateCardMetaCommand`）は渡さない。
+ */
+export function createCardCliParts(store: DataStore): CardCliParts {
+  const cards = createFileCardDependencies(store.dataDir);
+  return {
+    cards: { cardRepository: cards.cardRepository },
+    writes: createCardWriteCommands(store, cards),
+  };
 }
 
 /**
@@ -137,6 +165,7 @@ function assemble(
     createCardCommand: createCreateCardCommand(cardRepository),
     updateCardMetaCommand: createUpdateCardMetaCommand(cardRepository),
     updateCardBodyCommand: createUpdateCardBodyCommand(cardRepository),
+    linkCardBranchCommand: createLinkCardBranchCommand(cardRepository),
     appendReviewCommand: createAppendReviewCommand(cardRepository),
     submitReviewCommand: createSubmitReviewCommand(cardRepository),
     holdReviewCommand: createHoldReviewCommand(cardRepository),

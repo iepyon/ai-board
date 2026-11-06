@@ -2,7 +2,11 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { CONFIG_FILE, loadConfig, resolvePaths } from './shared/config.js';
 import { createCliRunner } from './infrastructure/cli-runner.js';
-import { createBoardDataStore, createFileCardDependencies } from './cards/composition.js';
+import {
+  createBoardDataStore,
+  createCardCliParts,
+  createFileCardDependencies,
+} from './cards/composition.js';
 import { runCardCli, type CardCliIo } from './cards/cli/card-cli.js';
 import type { SeedFile } from './cards/cli/seed-cards.js';
 import { runInitCli } from './cards/cli/init-cli.js';
@@ -62,11 +66,7 @@ async function runCard(argv: readonly string[]): Promise<number> {
   const paths = resolvePaths(root);
   const store = createBoardDataStore(paths, createCliRunner());
 
-  return runCardCli(
-    rest,
-    { store, cards: createFileCardDependencies(store.dataDir) },
-    createProcessIo()
-  );
+  return runCardCli(rest, { store, ...createCardCliParts(store) }, createProcessIo());
 }
 
 /**
