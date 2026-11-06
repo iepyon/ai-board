@@ -149,12 +149,14 @@ export function createTransactionalMrWriter(
  *
  * 既定の場所（`.ai-board/data/`）なら、無ければ `root` のリポジトリから `git worktree add` で作る。
  * `AI_BOARD_DATA` は用意済みの clone を指すので、無ければ作らずに失敗させる。
+ * 読み書きのモードは `data-mode.yaml`（`paths.dataMode`）に従う。
  */
 export function createBoardDataStore(paths: BoardPaths, runner: CliRunner): DataStore {
   return createDataStore({
     dataDir: paths.dataDir,
     ...(paths.dataSource === 'env' ? {} : { repoRoot: paths.root }),
     runner,
+    mode: paths.dataMode,
   });
 }
 

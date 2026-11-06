@@ -27,8 +27,10 @@ coverage/
 # 起動中のサーバの場所（URL・pid）。サーバが起動時に書き、止まるときに消す
 /.ai-board/server.json
 
-# 共有のカードを置くデータ用ブランチ（ai-board/data）のワークツリーと、その隣に置く排他のロックと PR の状態の控え。
+# 共有のカードを置くデータ用ブランチ（ai-board/data）のワークツリーと、その隣に置く排他のロックと PR の状態の控え、
+# 読み書きのモード（mode: local で手元モード）。
 # データのワークツリーは ai-board の CLI とサーバが作り、コミットと push もそれらが行う
 /.ai-board/data/
 /.ai-board/cache/
 /.ai-board/data.lock
+/.ai-board/data-mode.yaml

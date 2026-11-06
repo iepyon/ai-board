@@ -10,7 +10,7 @@ import {
   parseDataVersion,
   type DataVersionError,
 } from '../cards/repositories/card-files.js';
-import { CONFIG_FILE } from '../shared/config.js';
+import { CONFIG_FILE, type DataMode } from '../shared/config.js';
 import { err, isErr, ok, type Result } from '../shared/result.js';
 import { describeCliError, type CliError, type CliRunner } from './cli-runner.js';
 
@@ -65,14 +65,6 @@ function runGit(
 ): Promise<Result<string, CliError>> {
   return runner.run('git', ['-C', dir, ...DATA_GIT_CONFIG, ...args]);
 }
-
-/**
- * データ用ブランチの読み書きのモード。
- *
- * - `sync`（既定）: 読み書きのたびに `origin` から取り直し、書いたら push する
- * - `local`: `origin` に触れず、手元のコミットだけで読み書きする（GitHub に届かない研修の環境向け）
- */
-export type DataMode = 'sync' | 'local';
 
 /** 手元の複数のプロセスの書き込みを直列にするロックファイル。データのワークツリーの親に置く */
 export const LOCK_FILE = 'data.lock';
@@ -180,7 +172,12 @@ export interface DataStoreOptions {
   /** データのワークツリーが無いとき、`git worktree add` するリポジトリ。無ければ作らずに失敗する */
   readonly repoRoot?: string;
   readonly runner: CliRunner;
-  /** 読み書きのモード。既定は `sync` */
+  /**
+   * 読み書きのモード。既定は `sync`。
+   *
+   * - `sync`: 読み書きのたびに `origin` から取り直し、書いたら push する
+   * - `local`: `origin` に触れず、手元のコミットだけで読み書きする（GitHub に届かない研修の環境向け）
+   */
   readonly mode?: DataMode;
   /** 既定は `<dataDir の親>/data.lock` */
   readonly lockPath?: string;

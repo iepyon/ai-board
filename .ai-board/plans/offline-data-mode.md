@@ -171,10 +171,10 @@ push が担っている「ほかの環境に渡す」と「同時に書いたと
 
 ### 2. ファイルから手元モードを選ぶ
 
-- [ ] `BoardPaths` に `dataMode` を足し、`resolvePaths` が `<dataDir の親>/data-mode.yaml` を読む（Zod で検査）。無ければ `sync`、読めない・形が違うときは警告して `sync` にする
-- [ ] `createBoardDataStore` が `paths.dataMode` を `mode` に渡す
-- [ ] `.gitignore` に `/.ai-board/data-mode.yaml` を足す
-- [ ] `config.test.ts` にテストを足す: ファイルが無い / `mode: local` / `mode: sync` / 形が違う / `AI_BOARD_DATA` を指したときは指した先の隣のファイルを読む
+- [x] `BoardPaths` に `dataMode` を足し、`resolvePaths` が `<dataDir の親>/data-mode.yaml` を読む（Zod で検査）。無ければ `sync`、読めない・形が違うときは警告して `sync` にする
+- [x] `createBoardDataStore` が `paths.dataMode` を `mode` に渡す
+- [x] `.gitignore` に `/.ai-board/data-mode.yaml` を足す
+- [x] `config.test.ts` にテストを足す: ファイルが無い / `mode: local` / `mode: sync` / 形が違う / `AI_BOARD_DATA` を指したときは指した先の隣のファイルを読む
 
 ### 3. ドキュメントと ADR
 
