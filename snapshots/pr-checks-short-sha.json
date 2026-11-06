@@ -1,5 +1,5 @@
 {
-  "fingerprint": "[2,\"closed\",\"2026-11-06T04:41:23Z\",false,\"510f97f140649dab983eb7e9ba0abdc7b71af108\",0,0,\"2026-11-06T04:41:24Z\"]",
+  "fingerprint": "[3,\"closed\",\"2026-11-06T04:41:23Z\",false,\"510f97f140649dab983eb7e9ba0abdc7b71af108\",0,0,\"2026-11-06T04:41:24Z\"]",
   "mr": {
     "forge": "github",
     "iid": 89,
@@ -10,6 +10,7 @@
     "webUrl": "https://github.com/iepyon/ai-board/pull/89",
     "latestNoteAt": null,
     "noteCount": 0,
+    "latestAiNoteAt": null,
     "latestCommitAt": "2026-11-06T04:38:54Z",
     "mergedAt": "2026-11-06T04:41:23Z",
     "readyAt": "2026-11-06T04:39:00Z",
