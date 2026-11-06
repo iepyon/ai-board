@@ -3,7 +3,7 @@ id: plan-scope-decisions
 title: ユーザは、計画レビューで、範囲の線引きも人に判断してほしいこととして読みたい
 created: '2026-11-06T04:21:26.259Z'
 skipGates: []
-branch: null
+branch: plan-scope-decisions
 mr: null
 ---
 
