@@ -6,8 +6,8 @@
   "agent": "board-reviewer",
   "harness": "v4",
   "startedAt": "2026-11-06T06:15:40.038Z",
-  "finishedAt": null,
-  "result": null,
-  "tokens": null,
-  "durationMs": null
+  "finishedAt": "2026-11-06T06:16:00.508Z",
+  "result": "advanced",
+  "tokens": 491686,
+  "durationMs": 20470
 }
