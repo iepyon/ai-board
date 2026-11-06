@@ -231,9 +231,9 @@ GitHub に繋がらない試しのデータでは、`decide` の承認 / 否決 
 
 ### 4. ドキュメントとコメント
 
-- [ ] `CLAUDE.md` の「`ai-board card` の CLI はこれを構造で強制している」を、提出と保留の usecase と依存の絞り込みで強制する形に直す
-- [ ] `docs/architecture.md` の「判断と区画」（`card-cli` が拒む条件）と「書き込み」の 3（`submitRefusal`）を、今の置き場所に直す。`decide` の検査も `transact` の中にあることを書く
-- [ ] `docs/adr/0006-ai-review-entries-and-hold.md` の「CLI は構造でこれを強制する」を今の形に直す
+- [x] `CLAUDE.md` の「`ai-board card` の CLI はこれを構造で強制している」を、提出と保留の usecase と依存の絞り込みで強制する形に直す
+- [x] `docs/architecture.md` の「判断と区画」（`card-cli` が拒む条件）と「書き込み」の 3（`submitRefusal`）を、今の置き場所に直す。`decide` の検査も `transact` の中にあることを書く
+- [x] `docs/adr/0006-ai-review-entries-and-hold.md` の「CLI は構造でこれを強制する」を今の形に直す
 
 ### 5. 記述の掃除（cards・infrastructure・cli-main）
 
