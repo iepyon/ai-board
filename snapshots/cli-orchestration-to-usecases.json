@@ -1,0 +1,19 @@
+{
+  "fingerprint": "[3,\"closed\",\"2026-11-06T08:28:17Z\",false,\"a8a29e0884d3db467d60a2c4533015f1b34f9ad0\",0,0,\"2026-11-06T08:28:17Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 93,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "cli-orchestration-to-usecases",
+    "title": "判断の書き込みとボードの見せ方の段取りを、CLI の外の usecase と query へ移す",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/93",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestAiNoteAt": null,
+    "latestCommitAt": "2026-11-06T08:06:16Z",
+    "mergedAt": "2026-11-06T08:28:17Z",
+    "readyAt": "2026-11-06T08:06:22Z",
+    "convertedToDraftAt": null
+  }
+}
