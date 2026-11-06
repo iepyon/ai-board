@@ -239,11 +239,11 @@ GitHub に繋がらない試しのデータでは、`decide` の承認 / 否決 
 
 Decisions の「`src/` 全体の記述」の方針で直す。コードは変えない。
 
-- [ ] `src/cli-main.ts` と `src/infrastructure/`（`data-store.ts`、`__tests__/forge-poller.test.ts` のコメント）
-- [ ] `src/cards/cli/card-cli.ts`、`src/cards/composition.ts`、`src/cards/errors/card-errors.ts`
-- [ ] `src/cards/usecases/commands/`（`append-review` / `update-card-body` / `move-in-order`）と `src/cards/services/review-log.ts`
-- [ ] `src/cards/repositories/`（`file-card` / `file-idea-divider` / `idea-divider` / `card-files`）
-- [ ] 節 1〜3 で足したファイルにも、同じ語が無いことを確かめる
+- [x] `src/cli-main.ts` と `src/infrastructure/`（`data-store.ts`、`__tests__/forge-poller.test.ts` のコメント）
+- [x] `src/cards/cli/card-cli.ts`、`src/cards/composition.ts`、`src/cards/errors/card-errors.ts`
+- [x] `src/cards/usecases/commands/`（`append-review` / `update-card-body` / `move-in-order`）と `src/cards/services/review-log.ts`
+- [x] `src/cards/repositories/`（`file-card` / `file-idea-divider` / `idea-divider` / `card-files`）
+- [x] 節 1〜3 で足したファイルにも、同じ語が無いことを確かめる
 
 ### 6. 記述の掃除と、画面のためだけに残ったコードの削除（board・shared）
 

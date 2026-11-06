@@ -452,7 +452,7 @@ export function serializeCardFile(fields: CardFileFields, body: string): string 
  * 1 枚のカードのファイルから `Card` を組み立てる。`card.md` が読めなければ警告して null。
  *
  * 本文は、`card.md` の本文の末尾に、`log/` の判断から作った `## レビュー` の節を付けたものになる。
- * 節は `appendReviewEntry` を判断の順に重ねて作るので、画面や CLI が判断を足したときの本文と同じ形になる。
+ * 節は `appendReviewEntry` を判断の順に重ねて作るので、CLI が判断を足したときの本文と同じ形になる。
  * 判断が 1 件も無ければ `## レビュー` の見出しも付けない。
  * 理由の中の見出しは `####` へ下げる（`demoteHeadings`）。ファイルには元の文のまま残る。
  */

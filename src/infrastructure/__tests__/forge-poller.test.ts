@@ -185,7 +185,7 @@ describe('ForgePoller', () => {
     const repository = new InMemoryCardRepository([makeCard({ branch: 'feat/refresh-token' })]);
     const client = stubClient({
       fetchByBranch: vi.fn(async () => {
-        // gh api の応答を待つ間に、人が画面で承認した
+        // gh api の応答を待つ間に、人が ai-board decide で承認した
         const card = repository.cards.get('refresh-token');
         if (card !== undefined) {
           repository.cards.set('refresh-token', { ...card, body: '## レビュー\n\n承認' });

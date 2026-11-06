@@ -23,7 +23,7 @@ import { readSeedCards, type SeedFile } from './seed-cards.js';
  * エージェントに許す操作だけを並べる。
  *
  * `startedAt`・`rank`・`skipGates` の書き換えと、承認 / 否決 / 中止の追記は
- * 人の判断であり、ここには入口を置かない（UI と HTTP API からだけ行える）。
+ * 人の判断であり、ここには入口を置かない（`ai-board decide` からだけ書く）。
  * 本文の差し替えも、`## レビュー` のエントリを変えるものは拒否する
  * （検査は本文の差し替えの usecase が持ち、CLI はその `ReviewEntriesChanged` を出すだけにする）。
  * 提出 / 保留も、書けるかの検査は提出と保留の usecase が持つ。どちらも種別を中で決めるので、

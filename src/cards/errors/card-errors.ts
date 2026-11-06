@@ -31,7 +31,7 @@ export type CardWriteRefused = { readonly type: 'CardWriteRefused'; readonly rea
  * 本文の差し替えで、`## レビュー` のエントリ（`parseReviewLog` で読んだもの）が今と変わる。
  *
  * 判断は追記の usecase からリポジトリの `appendReview` でだけ足す。リポジトリの `save` も判断の変わる本文を拒むが、
- * そのときは `CardWriteRefused` になるので、人に判断のボタンを案内するこのエラーは差し替えの usecase が手前で返す
+ * そのときは `CardWriteRefused` になるので、人に判断の入口（`ai-board decide` と `card submit`）を案内するこのエラーは差し替えの usecase が手前で返す
  * （`createUpdateCardBodyCommand`）。
  */
 export type ReviewEntriesChanged = { readonly type: 'ReviewEntriesChanged'; readonly id: string };
@@ -59,7 +59,7 @@ export type HoldGateNotRejected = {
  * データ用ブランチへの書き込みの 1 操作（`DataStore.transact`）が失敗した。
  *
  * push の失敗（`DataStorePushFailed`）、取り直しの失敗、ロック待ちの上限などを含む。
- * usecase 自身は返さず、サーバと CLI が usecase を `transact` の中で走らせたときに起きる。
+ * usecase 自身は返さず、CLI が usecase を `transact` の中で走らせたとき（`transactCardWrite`）に起きる。
  */
 export type CardStoreError = DataStoreError;
 

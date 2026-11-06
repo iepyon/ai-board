@@ -259,7 +259,7 @@ function readFileOrNull(file: string): string | null {
 /**
  * `log/` のファイルだけを読む。ディレクトリは読まない。
  *
- * サーバはロックを取らずに読むので、読む間に取り直しや CLI の書き込みが `reset --hard` / `clean` で
+ * 読み出し（`status` など）はロックを取らずに読むので、読む間にほかの CLI の取り直しや書き込みが `reset --hard` / `clean` で
  * `log/` やその中のファイルを消すことがある。消えたもの（ENOENT）は読み飛ばし、ボード全体を 500 にしない。
  */
 function readLogFiles(logDir: string): LogFile[] {
