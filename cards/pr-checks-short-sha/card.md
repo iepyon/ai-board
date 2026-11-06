@@ -3,7 +3,7 @@ id: pr-checks-short-sha
 title: ユーザは、ai-board pr checks の --sha に短いハッシュを渡しても、そのコミットのチェックを読みたい
 created: '2026-11-06T04:21:16.114Z'
 skipGates: []
-branch: null
+branch: pr-checks-short-sha
 mr: null
 ---
 
