@@ -14,7 +14,7 @@ import {
   type LoopStep,
 } from '../../shared/loop-step.js';
 import { fromLogStamp, toLogStamp } from '../../cards/repositories/card-files.js';
-import { segmentMs } from '../../shared/board-metrics.js';
+import { segmentMs } from '../../shared/timeline.js';
 import type { ImplStep } from '../services/impl-step.js';
 import type { NextActionKind } from '../services/next-action.js';
 

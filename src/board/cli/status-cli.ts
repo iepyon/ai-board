@@ -16,7 +16,6 @@ import { resolveImplStep, type ImplStep } from '../services/impl-step.js';
 import type { BranchPlanRepository } from '../repositories/branch-plan.repository.js';
 import { createCardId } from '../../shared/schemas/common.js';
 import { describeForge, describeLoop, describeNext, describeStuck } from './status-describe.js';
-import { formatStatusHtml, type CardRepository } from './status-html.js';
 import { isCardRunning, type BoardLoop } from '../../shared/loop-activity.js';
 
 // ============================================================
@@ -44,7 +43,7 @@ function isStatusKey(key: string): key is keyof StatusReport {
   return Object.hasOwn(STATUS_KEY_KINDS, key);
 }
 
-export const STATUS_USAGE = `使い方: ai-board status [--json [--only <項目,...>] | --html [--session <id>]] [--root <path>]
+export const STATUS_USAGE = `使い方: ai-board status [--json [--only <項目,...>]] [--root <path>]
 
 ボードの状態（導出したステージ、判断待ち、次の一手）を出します。サーバは要りません。
   --json   機械向けの JSON で出す（AI ループはこちらを読む）
@@ -52,14 +51,7 @@ export const STATUS_USAGE = `使い方: ai-board status [--json [--only <項目,
            --json の出力を、コンマ区切りの項目だけに絞る。項目は <key>（最上位の項目）か
            <key>.<field>（最上位の配列の各要素から <field> だけ）。例: --only next,waiting,cards.id
            最上位の項目: ${STATUS_KEYS.join(', ')}
-  --html   ボードを 1 枚の自己完結の HTML（ダッシュボード）で出す（Artifact として公開して読む）
-  --session <id>
-           --html のページに更新ボタンを入れ、押すとこのセッション（session_...）に更新を頼む。
-           無ければボタンもスクリプトも入れず、チャットで頼む案内だけを出す
 `;
-
-/** `--session` に渡せるセッション ID の形。ページのスクリプトに埋め込むので、英数字だけに絞る */
-export const SESSION_ID_PATTERN = /^session_[A-Za-z0-9]{1,128}$/;
 
 interface CardSummary {
   readonly id: string;
@@ -73,7 +65,7 @@ interface CardSummary {
 /**
  * 人の番のカード。判断を待つ列（計画レビュー / PR中）のカードと、
  * AI の列で止まっているカード（`hold`。ループはこれを選ばない）。
- * `decisions` は画面がボタンとして出す判断と同じもの（`decisionsFor`）。PR中 のカードは空
+ * `decisions` は `ai-board decide` が受け付ける判断と同じもの（`decisionsFor`）。PR中 のカードは空
  */
 export interface WaitingCard extends CardSummary {
   readonly decisions: readonly Decision[];
@@ -86,7 +78,7 @@ export interface WorkingCard extends CardSummary {
   readonly stale: boolean;
 }
 
-/** アイデアの表の 1 行。画面の並び（`ideaRows`）と同じ順で、区切り線も 1 行として入る */
+/** アイデアの表の 1 行。`ideaRows` と同じ順で、区切り線も 1 行として入る */
 export type IdeaListRow =
   { readonly id: string; readonly title: string } | { readonly divider: true };
 
@@ -110,22 +102,15 @@ export interface StatusDependencies {
    * 省略時は段を読まず、`next.step` は null のまま
    */
   readonly branchPlanRepository?: BranchPlanRepository;
-  /**
-   * `--html` のページで、カードの詳細（データ用ブランチのカードのファイル）へのリンクを作る GitHub のリポジトリ。
-   * 省略か null なら、リンクを出さない
-   */
-  readonly repository?: CardRepository | null;
 }
 
 /** 出す形。`text` は人向けの数行 */
-export type StatusFormat = 'text' | 'json' | 'html';
+export type StatusFormat = 'text' | 'json';
 
 export type StatusArgs =
   | {
       readonly format: StatusFormat;
       readonly only?: readonly StatusField[];
-      /** 更新ボタンが頼む先のセッション。`--html` のときだけ */
-      readonly session?: string;
     }
   | 'help'
   | 'invalid';
@@ -152,57 +137,34 @@ export function parseStatusArgs(argv: readonly string[]): StatusArgs {
   const format = pickFormat(scanned);
   if (format === null) return 'invalid';
 
-  const { only, session } = scanned;
-  return {
-    format,
-    ...(only === null ? {} : { only }),
-    ...(session === null ? {} : { session }),
-  };
+  const { only } = scanned;
+  return { format, ...(only === null ? {} : { only }) };
 }
 
-/**
- * 出す形を決める。2 つの形を同時には出せない。絞り込みは JSON にだけ、セッションは HTML にだけ効く。
- * 組み合わせが誤っていれば null
- */
-function pickFormat({ json, html, only, session }: ScannedStatusArgs): StatusFormat | null {
-  if (json && html) return null;
+/** 出す形を決める。絞り込みは JSON にだけ効く。組み合わせが誤っていれば null */
+function pickFormat({ json, only }: ScannedStatusArgs): StatusFormat | null {
   if (only !== null && !json) return null;
-  if (session !== null && !html) return null;
 
-  return json ? 'json' : html ? 'html' : 'text';
+  return json ? 'json' : 'text';
 }
 
 interface ScannedStatusArgs {
   json: boolean;
-  html: boolean;
   only: readonly StatusField[] | null;
-  session: string | null;
 }
 
-/**
- * 引数を 1 つずつ読む。不明な引数や、2 回目の `--only` / `--session`、
- * `--only` の値の誤り、`--session` の値が `SESSION_ID_PATTERN` に合わないものは null
- */
+/** 引数を 1 つずつ読む。不明な引数や、2 回目の `--only`、`--only` の値の誤りは null */
 function scanStatusArgs(argv: readonly string[]): ScannedStatusArgs | null {
-  const scanned: ScannedStatusArgs = { json: false, html: false, only: null, session: null };
+  const scanned: ScannedStatusArgs = { json: false, only: null };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--json') scanned.json = true;
-    else if (arg === '--html') scanned.html = true;
     else if (arg === '--only' && scanned.only === null) {
       scanned.only = parseOnly(argv[++i]);
       if (scanned.only === null) return null;
-    } else if (arg === '--session' && scanned.session === null) {
-      scanned.session = parseSession(argv[++i]);
-      if (scanned.session === null) return null;
     } else return null;
   }
   return scanned;
-}
-
-/** `--session` の値。形が合わなければ null（ページのスクリプトに埋め込む前に弾く） */
-function parseSession(value: string | undefined): string | null {
-  return value !== undefined && SESSION_ID_PATTERN.test(value) ? value : null;
 }
 
 /**
@@ -282,10 +244,7 @@ export async function runStatusCli(
 
   io.stdout(
     args.only === undefined
-      ? formatReport(report, args.format, {
-          session: args.session ?? null,
-          repository: deps.repository ?? null,
-        })
+      ? formatReport(report, args.format)
       : `${JSON.stringify(pickFields(report, args.only), null, 2)}\n`
   );
   return 0;
@@ -321,16 +280,10 @@ async function readImplStep(
   return plan === null ? null : resolveImplStep(plan);
 }
 
-function formatReport(
-  report: StatusReport,
-  format: StatusFormat,
-  html: { readonly session: string | null; readonly repository: CardRepository | null }
-): string {
+function formatReport(report: StatusReport, format: StatusFormat): string {
   switch (format) {
     case 'json':
       return `${JSON.stringify(report, null, 2)}\n`;
-    case 'html':
-      return formatStatusHtml(report, html);
     case 'text':
       return formatStatus(report);
   }

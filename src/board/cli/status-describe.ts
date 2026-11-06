@@ -38,7 +38,7 @@ export function describeForge(forge: ForgeConnection): string {
 }
 
 /**
- * ループの様子の 1 行（「ループ: …」）。画面のトップバーと同じ文言（`summarizeLoop`）。
+ * ループの様子の 1 行（「ループ: …」。`summarizeLoop`）。
  * 経過時間は `generatedAt` までを数える
  */
 export function describeLoop(report: {

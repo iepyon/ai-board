@@ -3,7 +3,6 @@
  *
  * 区間は、カードがある工程にいた時間を始まりと終わりの時刻で表したもの。
  * 導出はボード（`src/board/services/stage-timeline.ts`）が痕跡から毎回行い、保存しない。
- * 区間の名前と色を画面からも引くので、web からも読める `src/shared/` に置く。
  */
 
 /**
@@ -82,4 +81,16 @@ export interface TimelinePhase {
  */
 export interface PhasedTimelineSegment extends TimelineSegment {
   readonly phases: readonly TimelinePhase[];
+}
+
+/**
+ * 区間の長さ（ミリ秒）。`end` が null（今いる区間）なら `generatedAt` までを数える。
+ * 時刻が読めないか、終わりが始まりより前なら 0
+ */
+export function segmentMs(
+  segment: Pick<TimelineSegment, 'start' | 'end'>,
+  generatedAt: string
+): number {
+  const span = Date.parse(segment.end ?? generatedAt) - Date.parse(segment.start);
+  return Number.isNaN(span) || span < 0 ? 0 : span;
 }

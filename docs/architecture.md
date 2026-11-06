@@ -188,30 +188,6 @@ PR中 のカードは人の列なので、`mrState.awaitingFix`（下の「PR �
 無い最上位の項目、配列でない項目への `.`、2 段以上の `.`、`--json` 以外との組み合わせは、使い方の誤りとして GitHub に問い合わせる前に失敗する。
 要素に無い `<field>` は、その要素では出さない。手順書（`board-loop` / `board-decide`）が `jq` の代わりに使う。
 
-### `status --html`（ダッシュボード）
-
-`status --html` はボードを 1 枚の自己完結の HTML（ダッシュボード）にする（`src/board/cli/status-html.ts`）。`board-dashboard` のスキルが Artifact として公開する。
-
-- 頭（生成の時刻・ループ・次の一手・更新ボタン）の下を、今 / ログ / 振り返り の 3 つのタブに分ける。
-  タブはラジオボタンと CSS だけで切り替え、スクリプトを使わない（`--session` の無いページにスクリプトを入れないため）
-- 今のタブには、`status` と同じ振り分け（`groupBySection`）で判断待ち・AI 作業中（ループが触っていれば今の手）・アイデア（`ideaRows` の並びと区切り線）を並べる
-- ログのタブには、全カードのループの手（`loopSteps`）と判断の記録（`reviews`）を、`src/shared/board-log.ts` の `buildBoardLog`（純関数）で新しい順の 1 本にして出す。
-  多くても `BOARD_LOG_LIMIT`（200）件で、省いた件数を添える。手の中の動き（コミットやコマンド）はボードのデータに無いので出せない
-- 振り返りのタブの頭に集計を置く。集計は `src/shared/board-metrics.ts` の `computeBoardMetrics`（純関数。今の時刻は読まない。区間を数えるのはマージ済みのカードだけで、閉じていない区間はマージの時刻（無ければ計画の最終更新）で閉じ、どちらも無いカードは工程と人の番の割合から除く。中止したカードは入れない）。
-  主な数字・工程ごとの滞在時間（マージ済みのカードごとに同じ種類の区間を足し、カードを並べた中央値。いちばん長い工程がボトルネック）・日ごとのマージ数（UTC の日付）・
-  ループの手の種類ごとの回数と平均（`durationMs` / `tokens` が null の記録は除き、除いた件数を出す）・手の結果の内訳・手順書の版ごとの成績（`harnessVersions`）を出す。
-  版ごとの成績は、1 手の数字（時間・トークン・止まった割合・やり直し）を記録の `harness` で、カードの数字（否決率・人を待った時間）を最初の 1 手の記録の版で分ける。
-  人を待った時間は、マージ済みのカードの着手の後の人の区間（アイデアを除く）の合計。止まり続けている回数は `src/shared/loop-streak.ts`
-- グラフは `src/board/cli/status-charts.ts` がインラインの SVG の文字列として描く。外部のスクリプトを読まず、色は `:root` のトークンを class で指す
-- 集計の下に、マージ済み・中止の区画を並べる。
-  PR のリンクは `PR_LINK_ATTRIBUTES`（`target="_top"`）で開き、URL を文字でも出す
-- 設定に `github.repository` があれば、カードのタイトルを `cardUrl` の指す GitHub 上のデータ用ブランチのカードのファイル
-  （`https://github.com/<owner>/<repo>/blob/ai-board/data/cards/<id>/card.md`）へのリンクにする（同じ `PR_LINK_ATTRIBUTES` で開く）
-- `--session <id>`（`session_` に英数字。`--html` のときだけ）を渡すと、更新ボタンとスクリプトが入る。
-  スクリプトは `claude.use("mcp")` で `Claude Code Remote` の `send_message` を呼び、埋め込んだセッションに `REFRESH_MESSAGE` を送るだけである。
-  値は JSON にして `<` を逃がして埋め込む。`mcp` が使えない・呼べないときはボタンを隠し、チャットで頼む案内を出す。頼んで 3 分たっても読み直されなければボタンを戻す
-- `--session` が無ければスクリプトもボタンも入れない。判断のボタンはどちらでも置かない（[ADR 0015](adr/0015-dashboard-refresh-via-session.md)）
-
 ## カードの保存
 
 カードの正本は、`origin` の orphan のブランチ `ai-board/data`（データ用ブランチ）にある。コードの履歴とは交わらない。
@@ -389,7 +365,7 @@ GitHub の上限（5,000 回/時）の大半を使う。そこで引いた結果
 区間は `{ kind, owner, start, end }` で、種類（8 種類）と担当（`human` / `ai`）の一覧は `src/shared/timeline.ts` にある。
 今いる区間は `end: null` で、導出は今の時刻を受け取らない（長さを出す側が `generatedAt` までを数える）。
 マージと中止は今の区間を閉じるだけで次の区間を始めない。長さ 0 の区間は落とし、隣り合う同じ種類の区間はつなぐ。
-ダッシュボードの振り返りのタブが、工程ごとの滞在時間の集計に使う。
+`status --json` の `cards[].timeline` に載る。
 
 **待ちと作業。** `GetBoardQuery` は `resolveTimeline` の結果を `src/board/services/timeline-phases.ts` の純関数 `splitAiPhases` に通し、
 各区間に `phases`（`{ kind: 'wait' | 'work', start, end }` の配列、型は `src/shared/timeline.ts` の `PhasedTimelineSegment`）を付ける。
@@ -426,5 +402,4 @@ AI の区間では、そのカードのループの 1 手の記録を区間の�
 
 `GetBoardQuery` は全件を読み、`Board.loop`（`toBoardLoop`。ループごとの最新の終わっていない記録と、最後に終えた時刻）と、
 カードごとの `loopSteps` と、区間の `phases` を組み立てる。ステージの導出・止まり・次の一手には渡さない。
-`status` とダッシュボードの「ループ: …」の 1 行は `src/shared/loop-activity.ts` の `summarizeLoop` が `generatedAt` までを数えて作る（今の時刻は読まない）。
-ダッシュボードのループの手の書式（時間・トークン・結果の語）も同じファイルの純関数にある。
+`status` の「ループ: …」の 1 行は `src/shared/loop-activity.ts` の `summarizeLoop` が `generatedAt` までを数えて作る（今の時刻は読まない）。

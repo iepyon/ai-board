@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { CONFIG_FILE, loadConfig, resolvePaths, type AppConfig } from './shared/config.js';
+import { CONFIG_FILE, loadConfig, resolvePaths } from './shared/config.js';
 import { createCliRunner, type CliRunner } from './infrastructure/cli-runner.js';
 import type { DataStore } from './infrastructure/data-store.js';
 import {
@@ -41,7 +41,7 @@ const USAGE = `使い方: ai-board <command> [--root <path>]
 
 Commands:
   card <command>      カードの読み書き（ai-board card --help）
-  status [--json [--only <項目,...>] | --html]
+  status [--json [--only <項目,...>]]
                       ボードの状態と次の一手
   init                空のデータ用ブランチを作る（ai-board init --help）
   pr <command>        PR の読み書き（gh api の REST。ai-board pr --help）
@@ -138,7 +138,7 @@ async function runStatus(argv: readonly string[]): Promise<number> {
     io.stderr(`${describeOfflineRead(refreshed.value.reason)}\n`);
   }
 
-  const { config, board } = await assembleBoard(root, store, runner);
+  const board = await assembleBoard(root, store, runner);
 
   return runStatusCli(
     rest,
@@ -146,9 +146,6 @@ async function runStatus(argv: readonly string[]): Promise<number> {
       ...board,
       // implement の段（next.step）を、カードのブランチの計画から読む。git fetch はしない
       branchPlanRepository: createBranchPlanRepository(runner, paths.root),
-      // --html のページの、カードの詳細（GitHub 上のデータ用ブランチのカードのファイル）へのリンクに使う
-      repository:
-        config.forge === null ? null : { owner: config.forge.owner, repo: config.forge.repo },
     },
     io
   );
@@ -164,7 +161,7 @@ async function assembleBoard(
   root: string,
   store: DataStore,
   runner: CliRunner
-): Promise<{ readonly config: AppConfig; readonly board: BoardDependencies }> {
+): Promise<BoardDependencies> {
   const config = loadConfig(root);
   const cards = createFileCardDependencies(store.dataDir);
   const { provider, poller } = await createMrStateSource(
@@ -177,15 +174,13 @@ async function assembleBoard(
   );
   await poller?.refresh();
 
-  const board = createBoardDependencies(
+  return createBoardDependencies(
     config.paths.plansDir,
     cards.cardRepository,
     cards.ideaDividerRepository,
     provider,
     createLoopHistoryRepository(store.dataDir)
   );
-
-  return { config, board };
 }
 
 /**
@@ -219,7 +214,7 @@ async function runDecide(argv: readonly string[]): Promise<number> {
     io.stderr(`${describeOfflineRead(refreshed.value.reason)}\n`);
   }
 
-  const { board } = await assembleBoard(root, store, runner);
+  const board = await assembleBoard(root, store, runner);
 
   return runDecideCli(
     rest,
