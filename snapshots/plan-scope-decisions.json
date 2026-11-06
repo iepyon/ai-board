@@ -1,0 +1,18 @@
+{
+  "fingerprint": "[2,\"closed\",\"2026-11-06T05:42:31Z\",false,\"5960a0291cf257131fb893c1866924d4ad91a25c\",0,0,\"2026-11-06T05:42:31Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 90,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "plan-scope-decisions",
+    "title": "計画で、範囲の線引きも人に判断してほしいことに挙げる",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/90",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestCommitAt": "2026-11-06T05:20:33Z",
+    "mergedAt": "2026-11-06T05:42:31Z",
+    "readyAt": "2026-11-06T05:07:52Z",
+    "convertedToDraftAt": null
+  }
+}
