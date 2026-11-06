@@ -100,7 +100,7 @@ export const HOLD_REASONS = {
   forgeFailed: (message: string): string =>
     `PR の状態を引けない（${message}）。時間を置いても続くなら、GitHub で PR を確かめてください`,
   draftReverted: (iid: number): string =>
-    `判断の後に PR #${iid} が Draft に戻された。GitHub で Ready に戻すか、下の判断のボタンで計画から立て直させるか中止してください`,
+    `判断の後に PR #${iid} が Draft に戻された。GitHub で Ready に戻すか、ai-board decide で否決して計画から立て直させるか中止してください`,
 } as const;
 
 /**

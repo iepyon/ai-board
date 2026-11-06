@@ -74,7 +74,6 @@ export function createGetBoardQuery(
       });
     }
 
-    const cardIds = new Set<string>(cards.map((card) => card.id));
     const forge = mrProvider.connection();
     const mrKnown = forge.status === 'connected' && mrProvider.synced();
     const stepsByCard = groupByCard(loopSteps);
@@ -121,14 +120,9 @@ export function createGetBoardQuery(
       );
     });
 
-    // カードが無いのに計画ファイルだけ残っているもの。カードを消したか
-    // 名前を変えたときに起きる。消し忘れに気付けるように返す（画面を外した今は、`status` も出さず読む者がいない）。
-    const orphanPlans = [...planState.keys()].filter((id) => !cardIds.has(id));
-
     return ok({
       cards: boardCards,
       forge,
-      orphanPlans: orphanPlans.sort(),
       ideaDivider,
       loop: toBoardLoop(loopSteps),
       generatedAt: new Date().toISOString(),

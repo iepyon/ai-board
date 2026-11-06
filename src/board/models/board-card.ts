@@ -118,8 +118,6 @@ export interface BoardCard {
 export interface Board {
   readonly cards: readonly BoardCard[];
   readonly forge: ForgeConnection;
-  /** 対応するカードが無い計画ファイルのカード ID（消し忘れの発見に使う） */
-  readonly orphanPlans: readonly string[];
   /**
    * アイデアの表の区切り線の rank。実効値がこれより小さいアイデアが「次にやる」。
    * 一度も動かしていなければ null（すべてのアイデアが「次にやる」）

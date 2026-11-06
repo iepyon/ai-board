@@ -270,3 +270,4 @@ Decisions の「`src/` 全体の記述」の方針で直す。コードは変え
 ### 人に判断してほしいこと
 
 - `src/board/services/next-action.ts:103` の `HOLD_REASONS.draftReverted` の止まりの理由は「下の判断のボタンで計画から立て直させるか中止してください」のままで、今は無い画面のボタンを人に案内する。この文は `status` の判断待ちに、人が何をすればよいか（`hold.reason`、`src/board/cli/status-cli.ts:356`）として出て、`board-decide` が人に伝える。直すなら「`ai-board decide reject` / `abort` で」のように書き換えるが、計画の Non-Goals の「CLI の出力の変更」に踏み込む（探す語に `ボタン` が無く、仮定の「掃除する記述はコメントとテスト名だけ」の洗い出しから漏れた）。この PR で文を直すか、別のカードにするかは人が決める
+  - → 回答（2026-11-06、チャット）: この PR で直して

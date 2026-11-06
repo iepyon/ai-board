@@ -45,7 +45,7 @@ function isStatusKey(key: string): key is keyof StatusReport {
 
 export const STATUS_USAGE = `使い方: ai-board status [--json [--only <項目,...>]] [--root <path>]
 
-ボードの状態（導出したステージ、判断待ち、次の一手）を出します。サーバは要りません。
+ボードの状態（導出したステージ、判断待ち、次の一手）を出します。
   --json   機械向けの JSON で出す（AI ループはこちらを読む）
   --only <項目,...>
            --json の出力を、コンマ区切りの項目だけに絞る。項目は <key>（最上位の項目）か

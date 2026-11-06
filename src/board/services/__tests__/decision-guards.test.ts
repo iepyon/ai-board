@@ -50,7 +50,6 @@ function board(cards: readonly BoardCard[], forge: ForgeConnection = CONNECTED):
   return {
     cards,
     forge,
-    orphanPlans: [],
     ideaDivider: null,
     loop: { running: [], lastFinishedAt: null },
     generatedAt: '2026-11-06T00:00:00.000Z',
