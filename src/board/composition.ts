@@ -119,7 +119,7 @@ export async function createMrStateSource(
 }
 
 /** `status` と `decide` が使う、組み立て済みのボード */
-export interface AssembledBoard extends BoardDependencies {
+export interface AssembledBoard {
   /** ボードの見せる形。`next.step` を、カードのブランチの計画から読む（`git fetch` はしない） */
   readonly getStatusQuery: GetStatusQuery;
   /**
@@ -161,7 +161,6 @@ export async function assembleBoard(
   );
 
   return {
-    ...board,
     getStatusQuery: createGetStatusQuery(
       board.getBoardQuery,
       createBranchPlanRepository(runner, config.paths.root)

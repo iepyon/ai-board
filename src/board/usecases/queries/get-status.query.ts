@@ -47,7 +47,7 @@ export function createGetStatusQuery(
  * 計画レビュー / PR中 のカードが手前の AI の列に落ちて見え、人を待つカードを進めてしまうため。
  * `github:` の無いリポジトリでも同じで、ループは `gh` で PR を出すので GitHub を前提にする。
  */
-export function buildStatusReport(board: Board, now: Date): StatusReport {
+function buildStatusReport(board: Board, now: Date): StatusReport {
   const cards = board.cards.map(({ body: _body, ...rest }) => rest);
   // 判断待ちの区画の振り分け。止まっているカードは inbox に入り、work には入らない
   const sections = groupBySection(cards);

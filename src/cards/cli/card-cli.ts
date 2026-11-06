@@ -1,8 +1,7 @@
 import { isErr, type Result } from '../../shared/result.js';
 import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
-import type { DataStore, DataStoreError } from '../../infrastructure/data-store.js';
-import type { CardDependencies } from '../composition.js';
-import type { CardWriteCommands } from '../usecases/commands/card-write.commands.js';
+import type { DataStore } from '../../infrastructure/data-store.js';
+import type { CardCliParts } from '../composition.js';
 import type { Card } from '../models/card.js';
 import type {
   CreateCardError,
@@ -76,16 +75,10 @@ interface ParsedArgs {
   readonly flags: ReadonlyMap<string, string | true>;
 }
 
-export interface CardCliDependencies {
+/** 読む口（`cards`）と AI に許す書き込みの口（`writes`）は `createCardCliParts` が組む */
+export interface CardCliDependencies extends CardCliParts {
   /** データのワークツリー。読む前に取り直す */
   readonly store: Pick<DataStore, 'refresh'>;
-  /** `store` のデータのワークツリーのカードを読む */
-  readonly cards: Pick<CardDependencies, 'cardRepository'>;
-  /**
-   * AI に許す書き込みだけ（起票・本文・ブランチの紐付け・提出 / 再提出・保留）。
-   * 人の判断を書く口（承認 / 差し戻し / 中止の追記と、`startedAt` / `skipGates` の書き換え）は無い
-   */
-  readonly writes: CardWriteCommands;
 }
 
 type Handler = (args: ParsedArgs, deps: CardCliDependencies, io: CardCliIo) => Promise<number>;
@@ -443,7 +436,7 @@ function requireCardId(args: ParsedArgs, io: CardCliIo): CardId | null {
 }
 
 /** 成功なら書き込んだカードの ID を出す。失敗なら理由を stderr に出す */
-function report(result: Result<Card, WriteFailure | DataStoreError>, io: CardCliIo): number {
+function report(result: Result<Card, WriteFailure>, io: CardCliIo): number {
   if (result.ok) {
     io.stdout(`${result.value.id}\n`);
     return 0;
@@ -453,7 +446,7 @@ function report(result: Result<Card, WriteFailure | DataStoreError>, io: CardCli
   return 1;
 }
 
-function describeError(error: WriteFailure | DataStoreError): string {
+function describeError(error: WriteFailure): string {
   switch (error.type) {
     case 'CardNotFound':
       return `カードが見つかりません: ${error.id}`;

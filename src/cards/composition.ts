@@ -81,7 +81,12 @@ export function createFileCardDependencies(dataDir: string): CardDependencies {
 
 /** `ai-board card` が使う依存。読む口と、AI に許す書き込みの口だけ */
 export interface CardCliParts {
+  /** データのワークツリーのカードを読む */
   readonly cards: Pick<CardDependencies, 'cardRepository'>;
+  /**
+   * AI に許す書き込みだけ（起票・本文・ブランチの紐付け・提出 / 再提出・保留）。
+   * 人の判断を書く口（承認 / 差し戻し / 中止の追記と、`startedAt` / `skipGates` の書き換え）は無い
+   */
   readonly writes: CardWriteCommands;
 }
 
@@ -159,13 +164,15 @@ function assemble(
 ): CardDependencies {
   const order = { cards: cardRepository, divider: ideaDividerRepository };
 
+  const updateCardMetaCommand = createUpdateCardMetaCommand(cardRepository);
+
   return {
     cardRepository,
     ideaDividerRepository,
     createCardCommand: createCreateCardCommand(cardRepository),
-    updateCardMetaCommand: createUpdateCardMetaCommand(cardRepository),
+    updateCardMetaCommand,
     updateCardBodyCommand: createUpdateCardBodyCommand(cardRepository),
-    linkCardBranchCommand: createLinkCardBranchCommand(cardRepository),
+    linkCardBranchCommand: createLinkCardBranchCommand(updateCardMetaCommand),
     appendReviewCommand: createAppendReviewCommand(cardRepository),
     submitReviewCommand: createSubmitReviewCommand(cardRepository),
     holdReviewCommand: createHoldReviewCommand(cardRepository),

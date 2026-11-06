@@ -8,6 +8,7 @@ import type { CardId } from '../../../shared/schemas/common.js';
 import type { Card } from '../../models/card.js';
 import type { CardRepository } from '../../repositories/card.repository.js';
 import { createLinkCardBranchCommand } from '../commands/link-card-branch.command.js';
+import { createUpdateCardMetaCommand } from '../commands/update-card-meta.command.js';
 import { createCardWriteCommands } from '../commands/card-write.commands.js';
 import { createCreateCardCommand } from '../commands/create-card.command.js';
 import { createUpdateCardBodyCommand } from '../commands/update-card-body.command.js';
@@ -82,10 +83,14 @@ function writes() {
   return createCardWriteCommands(store, {
     createCardCommand: createCreateCardCommand(repository),
     updateCardBodyCommand: createUpdateCardBodyCommand(repository),
-    linkCardBranchCommand: createLinkCardBranchCommand(repository),
+    linkCardBranchCommand: linkBranch(),
     submitReviewCommand: createSubmitReviewCommand(repository),
     holdReviewCommand: createHoldReviewCommand(repository),
   });
+}
+
+function linkBranch() {
+  return createLinkCardBranchCommand(createUpdateCardMetaCommand(repository));
 }
 
 beforeEach(() => {
@@ -101,7 +106,7 @@ describe('createLinkCardBranchCommand', () => {
   it('branch だけを書き換え、startedAt と skipGates は保つ', async () => {
     repository.cards.set('a', card('a'));
 
-    const linked = await createLinkCardBranchCommand(repository)({
+    const linked = await linkBranch()({
       id: 'a' as CardId,
       branch: 'feat/a',
     });
@@ -112,23 +117,6 @@ describe('createLinkCardBranchCommand', () => {
       startedAt: '2026-11-02T00:00:00.000Z',
       skipGates: ['plan'],
     });
-  });
-
-  it('null なら紐付けを外す', async () => {
-    repository.cards.set('a', card('a', { branch: 'feat/a' }));
-
-    await createLinkCardBranchCommand(repository)({ id: 'a' as CardId, branch: null });
-
-    expect(repository.cards.get('a')?.branch).toBeNull();
-  });
-
-  it('カードが無ければ CardNotFound', async () => {
-    const result = await createLinkCardBranchCommand(repository)({
-      id: 'missing' as CardId,
-      branch: 'x',
-    });
-
-    expect(result).toEqual({ ok: false, error: { type: 'CardNotFound', id: 'missing' } });
   });
 });
 

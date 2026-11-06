@@ -1,4 +1,4 @@
-import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
+import { CardIdSchema, type CardId, type Stage } from '../../shared/schemas/common.js';
 import { DIVIDER_ID } from '../../shared/card-reorder.js';
 import { STAGE_LABELS } from '../../shared/stage-labels.js';
 import { decisionsFor } from '../../shared/dashboard-sections.js';
@@ -7,8 +7,7 @@ import { describeDataStoreError } from '../../cards/cli/data-store-messages.js';
 import type { OrderRef } from '../../cards/usecases/commands/move-in-order.js';
 import type { Result } from '../../shared/result.js';
 import type { BoardCard } from '../models/board-card.js';
-import type { DecideError } from '../errors/board-errors.js';
-import type { DecideRefusal } from '../services/decision-guards.js';
+import type { DecideError, DecideRefusal } from '../errors/board-errors.js';
 import type { DecideCommands, Decided } from '../usecases/commands/decide.command.js';
 import { describeForge } from './status-describe.js';
 
@@ -189,7 +188,7 @@ async function runStart(
   const id = requireCardId(args, io);
   if (id === null) return 1;
 
-  return reportWrite(await deps.decide.start({ id, at: io.now() }), io, '着手');
+  return reportWrite(await deps.decide.start({ id, at: io.now() }), io);
 }
 
 async function runUnstart(
@@ -200,7 +199,7 @@ async function runUnstart(
   const id = requireCardId(args, io);
   if (id === null) return 1;
 
-  return reportWrite(await deps.decide.unstart({ id }), io, '着手を戻す');
+  return reportWrite(await deps.decide.unstart({ id }), io);
 }
 
 async function runSkip(
@@ -308,12 +307,19 @@ function requireCardId(args: ParsedArgs, io: DecideCliIo): CardId | null {
 }
 
 /**
- * 判断を書けない理由の 1 行。`label` は着手 / 着手を戻すのときの操作の名前（`StageMismatch` で使う）。
+ * 列を確かめて拒んだ操作の名前。`StageMismatch` を返すのは着手（アイデアから）と着手を戻す（計画提案中から）だけ
+ */
+function startedAtLabel(from: Stage): string {
+  return from === 'idea' ? '着手' : '着手を戻す';
+}
+
+/**
+ * 判断を書けない理由の 1 行。
  *
  * GitHub に繋がらないときは、PR の状態が引けないと計画レビューのカードが手前の列に落ちて見え、
  * 出せる判断や戻せる列を取り違えるので拒む（`status` が `next` を `null` にするのと同じ理由）。
  */
-function describeRefusal(refusal: DecideRefusal, label = ''): string {
+function describeRefusal(refusal: DecideRefusal): string {
   switch (refusal.type) {
     case 'ForgeUnavailable': {
       const what = refusal.action === 'review' ? '承認 / 差し戻し / 中止' : '着手 / 着手を戻す';
@@ -327,7 +333,7 @@ function describeRefusal(refusal: DecideRefusal, label = ''): string {
       return `${refusal.kind}には --reason で理由を書いてください`;
     case 'StageMismatch':
       return (
-        `${refusal.id} は${label}できません（今の列: ${STAGE_LABELS[refusal.card.stage]}。` +
+        `${refusal.id} は${startedAtLabel(refusal.from)}できません（今の列: ${STAGE_LABELS[refusal.card.stage]}。` +
         `${STAGE_LABELS[refusal.from]}にあり、${STAGE_LABELS[refusal.to]}へ入れられるカードだけ）` +
         forgeHoldNote(refusal.card)
       );
@@ -355,10 +361,10 @@ function describeChoices(card: BoardCard): string {
 
 /**
  * 書いた結果を出す。成功なら、usecase が書いた後のボードで読んだ列の移りを 1 行で出す
- * （`board-decide` はこの行を人に伝える）。`label` は着手 / 着手を戻すの操作の名前（拒んだ理由の文に使う）。
+ * （`board-decide` はこの行を人に伝える）。
  */
-function reportWrite(result: Result<Decided, DecideError>, io: DecideCliIo, label = ''): number {
-  if (!result.ok) return fail(io, describeDecideError(result.error, label));
+function reportWrite(result: Result<Decided, DecideError>, io: DecideCliIo): number {
+  if (!result.ok) return fail(io, describeDecideError(result.error));
   const { id, what, from, to } = result.value;
 
   const transition =
@@ -372,7 +378,7 @@ function reportWrite(result: Result<Decided, DecideError>, io: DecideCliIo, labe
   return 0;
 }
 
-function describeDecideError(error: DecideError, label = ''): string {
+function describeDecideError(error: DecideError): string {
   switch (error.type) {
     case 'BoardUnreadable':
       return `ボードを読めませんでした: ${error.reason}`;
@@ -388,7 +394,7 @@ function describeDecideError(error: DecideError, label = ''): string {
     case 'StageMismatch':
     case 'CardAborted':
     case 'NotInIdeaTable':
-      return describeRefusal(error, label);
+      return describeRefusal(error);
     default:
       // 残りは DataStoreError。describeDataStoreError の switch が種別を網羅する
       return describeDataStoreError(error);

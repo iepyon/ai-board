@@ -1,8 +1,8 @@
-import { ok, err, type Result } from '../../../shared/result.js';
+import type { Result } from '../../../shared/result.js';
 import type { CardId } from '../../../shared/schemas/common.js';
 import type { Card } from '../../models/card.js';
-import type { CardRepository } from '../../repositories/card.repository.js';
 import type { UpdateCardError } from '../../errors/card-errors.js';
+import type { UpdateCardMetaCommand } from './update-card-meta.command.js';
 
 // ============================================================
 // ブランチの紐付けユースケース
@@ -20,20 +20,11 @@ export type LinkCardBranchCommand = (
 
 /**
  * カードの `branch` だけを書き換える。AI が書いてよい frontmatter の項目はこれだけで、
- * `startedAt` / `skipGates` / `rank`（人の判断）はこの口からは書けない。
+ * 入力が `branch` しか持たないので、`startedAt` / `skipGates`（人の判断）はこの口からは書けない。
+ * 読み書きは frontmatter の部分更新（`updateCardMetaCommand`）に任せる。
  */
-export function createLinkCardBranchCommand(cardRepository: CardRepository): LinkCardBranchCommand {
-  return async ({ id, branch }) => {
-    const existing = await cardRepository.findById(id);
-    if (!existing) {
-      return err({ type: 'CardNotFound', id });
-    }
-
-    const updated: Card = { ...existing, branch };
-    if (!(await cardRepository.save(updated))) {
-      return err({ type: 'CardNotFound', id });
-    }
-
-    return ok(updated);
-  };
+export function createLinkCardBranchCommand(
+  updateCardMetaCommand: UpdateCardMetaCommand
+): LinkCardBranchCommand {
+  return ({ id, branch }) => updateCardMetaCommand({ id, patch: { branch } });
 }
