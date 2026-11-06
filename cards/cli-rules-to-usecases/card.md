@@ -3,7 +3,7 @@ id: cli-rules-to-usecases
 title: AIエージェントは、ボードの拒否のルールを CLI の外の usecase と純関数で読み、確かめたい
 created: '2026-11-06T02:35:47.202Z'
 skipGates: []
-branch: null
+branch: cli-rules-to-usecases
 mr: null
 ---
 
