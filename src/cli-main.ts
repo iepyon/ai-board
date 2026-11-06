@@ -6,7 +6,6 @@ import type { DataStore } from './infrastructure/data-store.js';
 import {
   createBoardDataStore,
   createFileCardDependencies,
-  createTransactionalCardDependencies,
   createTransactionalMrWriter,
 } from './cards/composition.js';
 import { runCardCli, type CardCliIo } from './cards/cli/card-cli.js';
@@ -218,7 +217,11 @@ async function runDecide(argv: readonly string[]): Promise<number> {
 
   return runDecideCli(
     rest,
-    { loadBoard: board.getBoardQuery, cards: createTransactionalCardDependencies(store) },
+    {
+      loadBoard: board.getBoardQuery,
+      store,
+      cards: createFileCardDependencies(store.dataDir),
+    },
     io
   );
 }

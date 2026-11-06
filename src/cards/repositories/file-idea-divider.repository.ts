@@ -10,16 +10,9 @@ import {
 // データのワークツリーのファイルによる区切り線リポジトリ実装
 // ============================================================
 
-/**
- * `order.yaml` の `divider` を読み書きする。`ranks` には触らない。
- *
- * `onWrite` の役割は `FileCardRepository` と同じ（自分の書き込みを SSE へ知らせる）。
- */
+/** `order.yaml` の `divider` を読み書きする。`ranks` には触らない */
 export class FileIdeaDividerRepository implements IdeaDividerRepository {
-  constructor(
-    private readonly dataDir: string,
-    private readonly onWrite: () => void = () => undefined
-  ) {}
+  constructor(private readonly dataDir: string) {}
 
   get(): Promise<number | null> {
     return settle(() => readOrderLeniently(this.dataDir).divider);
@@ -30,7 +23,6 @@ export class FileIdeaDividerRepository implements IdeaDividerRepository {
     return settle(() => {
       const order = readOrderStrictly(this.dataDir);
       writeOrder(this.dataDir, { ...order, divider: rank });
-      this.onWrite();
     });
   }
 }

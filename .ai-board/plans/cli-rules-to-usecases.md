@@ -222,12 +222,12 @@ GitHub に繋がらない試しのデータでは、`decide` の承認 / 否決 
 
 ### 3. 書き込みの包み方を 1 つにし、decide の検査を transact の中へ移す
 
-- [ ] `src/board/usecases/queries/get-board.query.ts` を読み直し、導出が `transact` を呼ばないこと（仮定）を確かめる
-- [ ] `src/cards/composition.ts` に `transactCardWrite` を足し、`card-cli` の `transactCard` をこれに置き換える
-- [ ] `src/board/cli/decide-cli.ts` で、ボードの導出・検査・書き込みを `transactCardWrite` の 1 回の中で走らせる。`DecideCliDependencies` に `store` を足し、コミットのメッセージを今と同じにする
-- [ ] `src/cli-main.ts` の `runDecide` で、`createFileCardDependencies(store.dataDir)` と `store` を渡す。`createTransactionalCardDependencies` と `describePatch` を消す
-- [ ] `onWrite` を `createFileCardDependencies` / `FileCardRepository` / `FileIdeaDividerRepository` とそのテストから消す
-- [ ] `src/board/cli/__tests__/decide-cli.test.ts` を、`op` をそのまま走らせる試しの `store` に切り替える。`transact` の中でカードが変わっていたら（試しの `store` が `op` の前に承認を足す）拒んで何も書かないことと、コミットのメッセージを確かめるテストを足す
+- [x] `src/board/usecases/queries/get-board.query.ts` を読み直し、導出が `transact` を呼ばないこと（仮定）を確かめる
+- [x] `src/cards/composition.ts` に `transactCardWrite` を足し、`card-cli` の `transactCard` をこれに置き換える
+- [x] `src/board/cli/decide-cli.ts` で、ボードの導出・検査・書き込みを `transactCardWrite` の 1 回の中で走らせる。`DecideCliDependencies` に `store` を足し、コミットのメッセージを今と同じにする
+- [x] `src/cli-main.ts` の `runDecide` で、`createFileCardDependencies(store.dataDir)` と `store` を渡す。`createTransactionalCardDependencies` と `describePatch` を消す
+- [x] `onWrite` を `createFileCardDependencies` / `FileCardRepository` / `FileIdeaDividerRepository` とそのテストから消す
+- [x] `src/board/cli/__tests__/decide-cli.test.ts` を、`op` をそのまま走らせる試しの `store` に切り替える。`transact` の中でカードが変わっていたら（試しの `store` が `op` の前に承認を足す）拒んで何も書かないことと、コミットのメッセージを確かめるテストを足す
 
 ### 4. ドキュメントとコメント
 

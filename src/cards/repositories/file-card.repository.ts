@@ -44,8 +44,6 @@ export class CardWriteRefusedError extends Error {
 }
 
 export interface FileCardRepositoryOptions {
-  /** 書き込みが成立した後に呼ばれる（SSE で画面へ知らせるため） */
-  readonly onWrite?: () => void;
   /** 着手を戻した時刻に使う。テストで差し替える */
   readonly now?: () => Date;
 }
@@ -57,14 +55,12 @@ export interface FileCardRepositoryOptions {
  * コミットと push は持たない。書き込みは `DataStore.transact` の中で呼ばれる前提である。
  */
 export class FileCardRepository implements CardRepository {
-  private readonly onWrite: () => void;
   private readonly now: () => Date;
 
   constructor(
     private readonly dataDir: string,
     options: FileCardRepositoryOptions = {}
   ) {
-    this.onWrite = options.onWrite ?? (() => undefined);
     this.now = options.now ?? (() => new Date());
   }
 
@@ -133,7 +129,6 @@ export class FileCardRepository implements CardRepository {
         flag: 'wx',
       });
 
-      this.onWrite();
       return true;
     });
   }
@@ -164,10 +159,6 @@ export class FileCardRepository implements CardRepository {
 
     if (order !== null) {
       writeOrder(this.dataDir, withRank(order, card.id, card.rank));
-    }
-
-    if (cardMd !== null || logFiles.length > 0 || order !== null) {
-      this.onWrite();
     }
   }
 

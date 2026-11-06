@@ -147,11 +147,9 @@ describe('FileCardRepository', () => {
   });
 
   it('save は判断を作らない。判断を本文の末尾に足した保存は、何も書かずに CardWriteRefusedError を投げる', async () => {
-    const onWrite = vi.fn();
-    const repository = repo({ onWrite });
+    const repository = repo();
     await repository.create(makeCard({ body: '## アイデア\n\n本文' }));
     const cardMd = read('cards/refresh-token/card.md');
-    onWrite.mockClear();
 
     const existing = (await repository.findById(ID)) as Card;
     const saving = repository.save({
@@ -171,7 +169,6 @@ describe('FileCardRepository', () => {
     });
     expect(logNames()).toEqual([]);
     expect(read('cards/refresh-token/card.md')).toBe(cardMd);
-    expect(onWrite).not.toHaveBeenCalled();
   });
 
   it('save は判断のあるカードの本文とメタを書き換えても、log/ に何も足さない', async () => {
@@ -201,11 +198,9 @@ describe('FileCardRepository', () => {
 
   describe('appendReview', () => {
     it('判断を値のまま log/ に 1 ファイルで足し、card.md は変えない', async () => {
-      const onWrite = vi.fn();
-      const repository = repo({ onWrite });
+      const repository = repo();
       await repository.create(makeCard({ body: '## アイデア\n\n本文' }));
       const cardMd = read('cards/refresh-token/card.md');
-      onWrite.mockClear();
 
       const appended = await repository.appendReview(ID, {
         at: '2026-11-01T04:00:00.000Z',
@@ -215,7 +210,6 @@ describe('FileCardRepository', () => {
       });
 
       expect(appended).toBe(true);
-      expect(onWrite).toHaveBeenCalledTimes(1);
       expect(logNames()).toEqual(['20261101T040000.000Z.plan.reject.md']);
       // 理由はファイルに元の文のまま（前後の空白だけ落とす）残る
       expect(read('cards/refresh-token/log/20261101T040000.000Z.plan.reject.md')).toBe(
@@ -254,8 +248,7 @@ describe('FileCardRepository', () => {
     });
 
     it('存在しないカードや ID として不正な ID には false を返し、何も書かない', async () => {
-      const onWrite = vi.fn();
-      const repository = repo({ onWrite });
+      const repository = repo();
       const entry = {
         at: '2026-11-01T04:00:00.000Z',
         gate: 'plan',
@@ -266,14 +259,11 @@ describe('FileCardRepository', () => {
       expect(await repository.appendReview(ID, entry)).toBe(false);
       expect(await repository.appendReview('../escape' as CardId, entry)).toBe(false);
       expect(fs.existsSync(path.join(dataDir, 'cards'))).toBe(false);
-      expect(onWrite).not.toHaveBeenCalled();
     });
 
     it('card.md が読めない、時刻がファイル名にできないときは、何も書かずに CardWriteRefusedError を投げる', async () => {
-      const onWrite = vi.fn();
-      const repository = repo({ onWrite });
+      const repository = repo();
       await repository.create(makeCard());
-      onWrite.mockClear();
 
       await expect(
         repository.appendReview(ID, {
@@ -297,7 +287,6 @@ describe('FileCardRepository', () => {
       });
 
       expect(logNames()).toEqual([]);
-      expect(onWrite).not.toHaveBeenCalled();
     });
   });
 
@@ -355,20 +344,6 @@ describe('FileCardRepository', () => {
     expect(read('order.yaml')).toBe('ranks: [\n');
     // rank を変えない保存は通る
     expect(await repository.save(makeCard({ branch: 'feature' }))).toBe(true);
-  });
-
-  it('書き込みが成立したときだけ onWrite を呼ぶ', async () => {
-    const onWrite = vi.fn();
-    const repository = repo({ onWrite });
-
-    await repository.save(makeCard());
-    expect(onWrite).not.toHaveBeenCalled();
-
-    await repository.create(makeCard());
-    await repository.create(makeCard());
-    await repository.save(makeCard({ title: '更新' }));
-    await repository.save(makeCard({ title: '更新' }));
-    expect(onWrite).toHaveBeenCalledTimes(2);
   });
 
   it('rank、無ければ作成日時の順で返す', async () => {

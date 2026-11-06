@@ -1,13 +1,18 @@
-import { isErr, type Result } from '../../shared/result.js';
+import { err, isErr, ok, type Result } from '../../shared/result.js';
 import { CardIdSchema, type CardId, type Stage } from '../../shared/schemas/common.js';
 import { DIVIDER_ID } from '../../shared/card-reorder.js';
 import { STAGE_LABELS } from '../../shared/stage-labels.js';
 import { withSkipGate } from '../../shared/stage-gates.js';
 import { decisionsFor } from '../../shared/dashboard-sections.js';
 import { REVIEW_GATES, isReviewGate, type ReviewGate } from '../../cards/models/review.js';
-import type { CardDependencies } from '../../cards/composition.js';
-import type { Card } from '../../cards/models/card.js';
-import type { CardWriteFailure, MoveCardError } from '../../cards/errors/card-errors.js';
+import { transactCardWrite, type CardDependencies } from '../../cards/composition.js';
+import type {
+  AppendReviewError,
+  CardWriteFailure,
+  MoveCardError,
+  UpdateCardError,
+} from '../../cards/errors/card-errors.js';
+import type { CommitMessage, DataStore } from '../../infrastructure/data-store.js';
 import { describeDataStoreError } from '../../cards/cli/data-store-messages.js';
 import type { OrderRef } from '../../cards/usecases/commands/move-in-order.js';
 import type { Board, BoardCard } from '../models/board-card.js';
@@ -63,15 +68,38 @@ export interface DecideCliIo {
 
 export interface DecideCliDependencies {
   /**
-   * ボードを導出する。初めの呼び出しでデータ用ブランチと PR の状態を取り直し、
-   * 書いた後の呼び出しでは取り直した PR の状態のまま組み立て直す（列の移りを出すため）
+   * ボードを導出する。PR の状態は呼び出し側がコマンドの頭で 1 回取り直したものを使い、ここでは問い合わせない。
+   * 書き込みの 1 操作の中で呼ぶので、`transact` を呼ばない
    */
   readonly loadBoard: () => Promise<Result<Board, GetBoardError>>;
-  /** 書き込みは人の API と同じ usecase。それぞれ `DataStore.transact` の中で走る */
+  /** データのワークツリー。ボードの導出・検査・書き込みを `transact` の 1 回の中で走らせる */
+  readonly store: Pick<DataStore, 'transact'>;
+  /** `store` のデータのワークツリーを読み書きするカードの依存。`transact` の中で呼ぶ */
   readonly cards: Pick<
     CardDependencies,
     'appendReviewCommand' | 'updateCardMetaCommand' | 'moveCardCommand' | 'moveIdeaDividerCommand'
   >;
+}
+
+/** 書き込みの中で読んだボードが読めなかった */
+interface BoardUnreadable {
+  readonly type: 'BoardUnreadable';
+  readonly reason: string;
+}
+
+/** 判断を書けなかった理由。検査の拒否、ボードが読めない、usecase の失敗、`transact` の失敗 */
+type DecideError =
+  | DecideRefusal
+  | BoardUnreadable
+  | AppendReviewError
+  | UpdateCardError
+  | MoveCardError
+  | CardWriteFailure;
+
+/** 書いた判断。`before` は書く直前（`transact` の最後の試み）のカードで、列の移りの「前」になる */
+interface Decided {
+  readonly before: BoardCard;
+  readonly what: string;
 }
 
 interface ParsedArgs {
@@ -187,16 +215,22 @@ async function runReview(
   const reasonFlag = args.flags.get('--reason');
   const reason = typeof reasonFlag === 'string' ? reasonFlag.trim() : '';
 
-  const board = await loadBoard(deps, io);
-  if (board === null) return 1;
+  const at = io.now();
 
-  const target = guardReview(board, { id, kind, reason });
-  if (!target.ok) return fail(io, describeRefusal(target.error));
-  const { card, gate } = target.value;
+  const result = await decide<Decided>(
+    deps,
+    (decided) => `data: ${id} に ${decided.what} を足す`,
+    async (board) => {
+      const target = guardReview(board, { id, kind, reason });
+      if (!target.ok) return target;
+      const { card, gate } = target.value;
 
-  const result = await deps.cards.appendReviewCommand({ id, gate, kind, reason, at: io.now() });
+      const written = await deps.cards.appendReviewCommand({ id, gate, kind, reason, at });
+      return written.ok ? ok({ before: card, what: `${gate} ${kind}` }) : written;
+    }
+  );
 
-  return reportWrite(result, `${gate} ${kind}`, card, deps, io);
+  return reportWrite(result, deps, io);
 }
 
 // ============================================================
@@ -244,19 +278,17 @@ async function runStartedAt(
   const id = requireCardId(args, io);
   if (id === null) return 1;
 
-  const board = await loadBoard(deps, io);
-  if (board === null) return 1;
+  const startedAt = move.startedAt();
 
-  const guarded = guardStartedAt(board, { id, from: move.from, to: move.to });
-  if (!guarded.ok) return fail(io, describeRefusal(guarded.error, move.label));
-  const card = guarded.value;
+  const result = await decide<Decided>(deps, `data: ${id} の startedAt を変える`, async (board) => {
+    const guarded = guardStartedAt(board, { id, from: move.from, to: move.to });
+    if (!guarded.ok) return guarded;
 
-  const result = await deps.cards.updateCardMetaCommand({
-    id,
-    patch: { startedAt: move.startedAt() },
+    const written = await deps.cards.updateCardMetaCommand({ id, patch: { startedAt } });
+    return written.ok ? ok({ before: guarded.value, what: move.label }) : written;
   });
 
-  return reportWrite(result, move.label, card, deps, io);
+  return reportWrite(result, deps, io, move.label);
 }
 
 async function runSkip(
@@ -274,19 +306,21 @@ async function runSkip(
   const gate: ReviewGate = gateFlag;
   const remove = args.flags.get('--remove') === true;
 
-  const board = await loadBoard(deps, io);
-  if (board === null) return 1;
+  const result = await decide<Decided>(deps, `data: ${id} の skipGates を変える`, async (board) => {
+    const guarded = guardSkip(board, { id });
+    if (!guarded.ok) return guarded;
+    const card = guarded.value;
 
-  const guarded = guardSkip(board, { id });
-  if (!guarded.ok) return fail(io, describeRefusal(guarded.error));
-  const card = guarded.value;
+    // 画面のチェックボックスと同じく、1 つのゲートだけを出し入れする
+    const skipGates = withSkipGate(card.skipGates, gate, !remove);
 
-  // 画面のチェックボックスと同じく、1 つのゲートだけを出し入れする
-  const skipGates = withSkipGate(card.skipGates, gate, !remove);
+    const written = await deps.cards.updateCardMetaCommand({ id, patch: { skipGates } });
+    return written.ok
+      ? ok({ before: card, what: `${gate} を飛ばす宣言を${remove ? '外す' : '入れる'}` })
+      : written;
+  });
 
-  const result = await deps.cards.updateCardMetaCommand({ id, patch: { skipGates } });
-
-  return reportWrite(result, `${gate} を飛ばす宣言を${remove ? '外す' : '入れる'}`, card, deps, io);
+  return reportWrite(result, deps, io);
 }
 
 // ============================================================
@@ -308,19 +342,18 @@ async function runMove(
     return fail(io, '自分自身を隣に指定することはできません');
   }
 
-  const board = await loadBoard(deps, io);
-  if (board === null) return 1;
+  const result = await decide(deps, `data: ${id} を並べ替える`, async (board) => {
+    const guarded = guardMove(board, { id, after, before });
+    if (!guarded.ok) return guarded;
 
-  const guarded = guardMove(board, { id, after, before });
-  if (!guarded.ok) return fail(io, describeRefusal(guarded.error));
-
-  const result = await deps.cards.moveCardCommand({
-    id,
-    after: after as OrderRef | null,
-    before: before as OrderRef | null,
+    return deps.cards.moveCardCommand({
+      id,
+      after: after as OrderRef | null,
+      before: before as OrderRef | null,
+    });
   });
 
-  if (!result.ok) return fail(io, describeMoveError(result.error));
+  if (!result.ok) return fail(io, describeDecideError(result.error));
   io.stdout(`${id}: 並べ替えました\n`);
   return 0;
 }
@@ -334,18 +367,17 @@ async function runMoveDivider(
   if ('error' in refs) return fail(io, refs.error);
   const { after, before } = refs;
 
-  const board = await loadBoard(deps, io);
-  if (board === null) return 1;
+  const result = await decide(deps, 'data: 区切り線を動かす', async (board) => {
+    const guarded = guardMoveDivider(board, { after, before });
+    if (!guarded.ok) return guarded;
 
-  const guarded = guardMoveDivider(board, { after, before });
-  if (!guarded.ok) return fail(io, describeRefusal(guarded.error));
-
-  const result = await deps.cards.moveIdeaDividerCommand({
-    after: after as CardId | null,
-    before: before as CardId | null,
+    return deps.cards.moveIdeaDividerCommand({
+      after: after as CardId | null,
+      before: before as CardId | null,
+    });
   });
 
-  if (!result.ok) return fail(io, describeMoveError(result.error));
+  if (!result.ok) return fail(io, describeDecideError(result.error));
   io.stdout('区切り線を動かしました\n');
   return 0;
 }
@@ -378,13 +410,23 @@ function parseRefs(
 // ヘルパー
 // ============================================================
 
-async function loadBoard(deps: DecideCliDependencies, io: DecideCliIo): Promise<Board | null> {
-  const result = await deps.loadBoard();
-  if (isErr(result)) {
-    io.stderr(`ボードを読めませんでした: ${result.error.reason}\n`);
-    return null;
-  }
-  return result.value;
+/**
+ * ボードの導出・検査・書き込みを、書き込みの 1 操作（`transactCardWrite`）の中で走らせる。
+ *
+ * push が拒否されると、`transact` が取り直した最新の状態で `op` を頭から呼び直すので、ボードを導き直して検査からやり直す。
+ * 検査の後、書くまでの間にほかのセッションがカードに書いても、古いボードに対する検査のまま書かない（ADR 0010）。
+ * `op` は呼び直されるので、標準出力にも標準エラーにも書かない。拒むときは Err を返す（コミットしない）。
+ */
+function decide<T>(
+  deps: DecideCliDependencies,
+  message: CommitMessage<T>,
+  op: (board: Board) => Promise<Result<T, DecideError>>
+): Promise<Result<T, DecideError>> {
+  return transactCardWrite(deps.store, message, async () => {
+    const board = await deps.loadBoard();
+    if (isErr(board)) return err({ type: 'BoardUnreadable', reason: board.error.reason });
+    return op(board.value);
+  });
 }
 
 function requireCardId(args: ParsedArgs, io: DecideCliIo): CardId | null {
@@ -444,16 +486,16 @@ function describeChoices(card: BoardCard): string {
 
 /**
  * 書いた結果を出す。成功なら、書き直したボードで列の移りを 1 行で出す
- * （`board-decide` はこの行を人に伝える）。
+ * （`board-decide` はこの行を人に伝える）。`label` は着手 / 着手を戻すの操作の名前（拒んだ理由の文に使う）。
  */
 async function reportWrite(
-  result: Result<Card, CardWriteFailure | { readonly type: 'CardNotFound'; readonly id: string }>,
-  what: string,
-  before: BoardCard,
+  result: Result<Decided, DecideError>,
   deps: DecideCliDependencies,
-  io: DecideCliIo
+  io: DecideCliIo,
+  label = ''
 ): Promise<number> {
-  if (!result.ok) return fail(io, describeWriteError(result.error));
+  if (!result.ok) return fail(io, describeDecideError(result.error, label));
+  const { before, what } = result.value;
 
   const after = await deps.loadBoard();
   const stage = after.ok ? after.value.cards.find((c) => c.id === before.id)?.stage : undefined;
@@ -468,25 +510,26 @@ async function reportWrite(
   return 0;
 }
 
-function describeWriteError(
-  error: CardWriteFailure | { readonly type: 'CardNotFound'; readonly id: string }
-): string {
+function describeDecideError(error: DecideError, label = ''): string {
   switch (error.type) {
+    case 'BoardUnreadable':
+      return `ボードを読めませんでした: ${error.reason}`;
     case 'CardNotFound':
       return `カードが見つかりません: ${error.id}`;
-    case 'CardWriteRefused':
-      return `カードのファイルへの書き込みを拒みました（${error.reason}）`;
-    default:
-      return describeDataStoreError(error);
-  }
-}
-
-function describeMoveError(error: MoveCardError): string {
-  switch (error.type) {
     case 'StaleOrder':
       return `--after（${error.after}）と --before（${error.before}）の並びが今の表と逆です。status で並びを読み直してください`;
+    case 'CardWriteRefused':
+      return `カードのファイルへの書き込みを拒みました（${error.reason}）`;
+    case 'ForgeUnavailable':
+    case 'DecisionUnavailable':
+    case 'ReasonRequired':
+    case 'StageMismatch':
+    case 'CardAborted':
+    case 'NotInIdeaTable':
+      return describeRefusal(error, label);
     default:
-      return describeWriteError(error);
+      // 残りは DataStoreError。describeDataStoreError の switch が種別を網羅する
+      return describeDataStoreError(error);
   }
 }
 

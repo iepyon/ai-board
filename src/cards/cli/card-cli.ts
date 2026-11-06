@@ -1,7 +1,7 @@
-import { err, isErr, type Result } from '../../shared/result.js';
+import { isErr, type Result } from '../../shared/result.js';
 import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
 import type { CommitMessage, DataStore, DataStoreError } from '../../infrastructure/data-store.js';
-import type { CardDependencies } from '../composition.js';
+import { transactCardWrite, type CardDependencies } from '../composition.js';
 import type { Card } from '../models/card.js';
 import type {
   CreateCardError,
@@ -11,7 +11,6 @@ import type {
   UpdateCardError,
 } from '../errors/card-errors.js';
 import { serializeCard } from '../repositories/card-markdown.js';
-import { CardWriteRefusedError } from '../repositories/file-card.repository.js';
 import { isReviewGate, REVIEW_GATES, type ReviewGate } from '../models/review.js';
 import { describeDataStoreError, describeOfflineRead } from './data-store-messages.js';
 import { readSeedCards, type SeedFile } from './seed-cards.js';
@@ -279,7 +278,7 @@ async function runSeed(
     }
 
     const createdAt = io.now();
-    const result = await transactCard(deps, `data: ${card.id} を作る`, () =>
+    const result = await transactCardWrite(deps.store, `data: ${card.id} を作る`, () =>
       deps.cards.createCardCommand({ title: card.title, id: card.id, body: card.body, createdAt })
     );
 
@@ -444,25 +443,7 @@ async function write(
   message: CommitMessage<Card>,
   op: () => Promise<Result<Card, WriteFailure>>
 ): Promise<number> {
-  return report(await transactCard(deps, message, op), deps, io);
-}
-
-/** `op` を書き込みの 1 操作の中で走らせる。リポジトリの拒否は `CardWriteRefused` の Err にする */
-function transactCard(
-  deps: CardCliDependencies,
-  message: CommitMessage<Card>,
-  op: () => Promise<Result<Card, WriteFailure>>
-): Promise<Result<Card, WriteFailure | DataStoreError>> {
-  return deps.store.transact<Card, WriteFailure>(message, async () => {
-    try {
-      return await op();
-    } catch (error) {
-      if (error instanceof CardWriteRefusedError) {
-        return err({ type: 'CardWriteRefused', reason: error.reason.type });
-      }
-      throw error;
-    }
-  });
+  return report(await transactCardWrite(deps.store, message, op), deps, io);
 }
 
 // ============================================================

@@ -10,6 +10,7 @@ import type { CardId } from '../../../shared/schemas/common.js';
 import { createBoardDependencies } from '../../composition.js';
 import type { MrStateProvider } from '../../services/mr-state-provider.js';
 import type { ForgeCardFailure, ForgeConnection } from '../../models/mr-state.js';
+import type { CommitMessage, DataOperation } from '../../../infrastructure/data-store.js';
 import { runDecideCli, type DecideCliDependencies } from '../decide-cli.js';
 
 // ============================================================
@@ -20,6 +21,8 @@ let root: string;
 let dataDir: string;
 let stdout: string;
 let stderr: string;
+/** 試しの store がコミットしたことにしたメッセージ */
+let commits: string[];
 
 const NOW = new Date('2026-11-04T00:00:00.000Z');
 
@@ -28,6 +31,7 @@ beforeEach(async () => {
   dataDir = path.join(root, 'data');
   stdout = '';
   stderr = '';
+  commits = [];
 });
 
 afterEach(async () => {
@@ -95,7 +99,28 @@ const FAILING_B = stubProvider(
   }
 );
 
-async function run(argv: readonly string[], provider = stubProvider()): Promise<number> {
+/**
+ * git を使わない試しの store。`op` をそのまま走らせ、通ったらコミットしたことにしてメッセージを控える。
+ * `beforeOp` は、`transact` が取り直した後、`op` の前に、ほかのセッションが書いた状態を作るのに使う
+ */
+function stubStore(
+  beforeOp: () => Promise<void> = () => Promise.resolve()
+): DecideCliDependencies['store'] {
+  return {
+    transact: async <T, E>(message: CommitMessage<T>, op: DataOperation<T, E>) => {
+      await beforeOp();
+      const result = await op(dataDir);
+      if (result.ok) commits.push(typeof message === 'string' ? message : message(result.value));
+      return result;
+    },
+  };
+}
+
+async function run(
+  argv: readonly string[],
+  provider = stubProvider(),
+  store = stubStore()
+): Promise<number> {
   const cards = createFileCardDependencies(dataDir);
   const board = createBoardDependencies(
     path.join(root, '.ai-board', 'plans'),
@@ -103,7 +128,7 @@ async function run(argv: readonly string[], provider = stubProvider()): Promise<
     cards.ideaDividerRepository,
     provider
   );
-  const deps: DecideCliDependencies = { loadBoard: board.getBoardQuery, cards };
+  const deps: DecideCliDependencies = { loadBoard: board.getBoardQuery, store, cards };
 
   return runDecideCli(argv, deps, {
     stdout: (text) => (stdout += text),
@@ -390,6 +415,56 @@ describe('ai-board decide', () => {
 
       expect(await run(['move-divider', '--after', ':divider', '--before', 'b'])).toBe(1);
       expect(stderr).toContain('カード ID か none');
+    });
+  });
+
+  describe('書き込みの 1 操作', () => {
+    it('ボードの導出と検査を transact の中で行い、取り直した後に変わったカードには書かない', async () => {
+      await writeCard('a', STARTED, review('提出'));
+      await writePlan('a');
+
+      // 検査の前に、ほかのセッションが同じカードを承認していた
+      const approvedElsewhere = stubStore(async () => {
+        const appended = await createFileCardDependencies(dataDir).appendReviewCommand({
+          id: 'a' as CardId,
+          gate: 'plan',
+          kind: '承認',
+          reason: 'ほかのセッション',
+          at: new Date('2026-11-03T12:00:00.000Z'),
+        });
+        if (isErr(appended)) throw new Error('承認を足せません');
+      });
+
+      expect(
+        await run(['reject', 'a', '--reason', '直して'], stubProvider(), approvedElsewhere)
+      ).toBe(1);
+      expect(stderr).toContain('a に 否決 は書けません（今の列: 実装中');
+      expect(parseReviewLog((await readCard('a')).body).map((entry) => entry.kind)).toEqual([
+        '提出',
+        '承認',
+      ]);
+      expect(commits).toEqual([]);
+    });
+
+    it('コミットのメッセージには ID・ゲート・種別・変えた項目の名前だけを入れる', async () => {
+      await writeCard('r', STARTED, review('提出'));
+      await writePlan('r');
+      await writeCard('i', IDEA('2026-11-01T00:00:00.000Z'));
+      await writeCard('j', IDEA('2026-11-02T00:00:00.000Z'));
+
+      expect(await run(['approve', 'r', '--reason', '理由は入れない'])).toBe(0);
+      expect(await run(['start', 'i'])).toBe(0);
+      expect(await run(['skip', 'i', '--gate', 'plan'])).toBe(0);
+      expect(await run(['move', 'j', '--after', 'none', '--before', 'none'])).toBe(0);
+      expect(await run(['move-divider', '--after', 'j', '--before', 'none'])).toBe(0);
+
+      expect(commits).toEqual([
+        'data: r に plan 承認 を足す',
+        'data: i の startedAt を変える',
+        'data: i の skipGates を変える',
+        'data: j を並べ替える',
+        'data: 区切り線を動かす',
+      ]);
     });
   });
 });
