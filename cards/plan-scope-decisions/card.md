@@ -4,7 +4,7 @@ title: ユーザは、計画レビューで、範囲の線引きも人に判断�
 created: '2026-11-06T04:21:26.259Z'
 skipGates: []
 branch: plan-scope-decisions
-mr: null
+mr: 90
 ---
 
 ## 背景
