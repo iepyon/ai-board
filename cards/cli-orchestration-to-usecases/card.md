@@ -4,7 +4,7 @@ title: AIエージェントは、判断の書き込みとボードの見せ方�
 created: '2026-11-06T03:57:20.419Z'
 skipGates: []
 branch: cli-orchestration-to-usecases
-mr: null
+mr: 93
 ---
 
 ## 背景
