@@ -92,3 +92,11 @@ GitHub の PR を読むだけなので、共有のカードには書かない。
 - [x] `src/board/services/github-client.ts` に `isSameCommit(sha, headSha)` を足し、`checks` の照らし合わせをこれに置き換える。`checks` の docstring に短いハッシュのことを書く
 - [x] `src/board/cli/pr-cli.ts` の `PR_USAGE` の `--sha` の説明に「7 桁以上の短いハッシュも可」を足す
 - [x] `docs/architecture.md` の `--sha <sha>` の説明に、短いハッシュも head の先頭と照らし合わせて受け付けることを書く
+
+## AI レビュー
+
+直す指摘なし
+
+### 見送った指摘
+
+- `src/board/services/github-client.ts:676` の `isSameCommit` は `headSha.startsWith(sha)` だけで、`sha` の長さを自分では確かめない。空文字や 6 桁以下の値を渡すと、どの head とも一致したと読む。ただし唯一の呼び手 `src/board/cli/pr-cli.ts:368` に渡る値は、`parseChecksOptions`（`pr-cli.ts:459`）が `/^[0-9a-f]{7,40}$/` で絞っており、今のコードでは起きない。関数の中でも長さを守るのは振る舞いを変えない守りの足しなので見送る
