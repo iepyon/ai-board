@@ -30,7 +30,7 @@ export type UpdateCardBodyCommand = (
  * 判断は追記の usecase（`createAppendReviewCommand`）から、リポジトリの `appendReview` に値のまま渡してだけ足す。
  * 本文の差し替えでは判断を足させない。人に「判断は判断の入口から足す」と返す `ReviewEntriesChanged` は、
  * リポジトリの拒否（`CardWriteRefused`）より手前のここで返す。
- * CLI と API のどちらから書いてもここを通るので、入口ごとに検査を持たない。
+ * どの CLI（`card body` など）から書いてもここを通るので、入口ごとに検査を持たない。
  *
  * 本文の途中に偽の `## レビュー` 節を書いても、`parseReviewLog` は最初の節を読むので、エントリがあれば食い違って拒まれる。
  * エントリが無ければ食い違わず、保存時にその節は消える（`stripReviewSection`）。

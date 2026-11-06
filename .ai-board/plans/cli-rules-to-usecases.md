@@ -258,7 +258,7 @@ Decisions の「`src/` 全体の記述」の方針で直す。コードは変え
 
 ## AI レビュー
 
-- [ ] `src/cards/usecases/commands/update-card-body.command.ts:33` の `createUpdateCardBodyCommand` の docstring に「CLI と API のどちらから書いてもここを通るので、入口ごとに検査を持たない」が残り、今は無い API が書き手として居るように読める（Decisions の「`src/` 全体の記述」の方針と食い違う。探す語に `API` だけの形が無く、grep から漏れた）。「どの CLI から書いてもここを通るので」のように今の使い手に合わせて書き直す。コメントだけで、コードは変えない
+- [x] `src/cards/usecases/commands/update-card-body.command.ts:33` の `createUpdateCardBodyCommand` の docstring に「CLI と API のどちらから書いてもここを通るので、入口ごとに検査を持たない」が残り、今は無い API が書き手として居るように読める（Decisions の「`src/` 全体の記述」の方針と食い違う。探す語に `API` だけの形が無く、grep から漏れた）。「どの CLI から書いてもここを通るので」のように今の使い手に合わせて書き直す。コメントだけで、コードは変えない
 
 ### 見送った指摘
 
