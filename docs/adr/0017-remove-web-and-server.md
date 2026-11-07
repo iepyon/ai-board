@@ -17,7 +17,7 @@ GitHub API の上限対策（`forge-poll-budget`）でサーバのポーリン�
 - **`status --html` のダッシュボードも外す。** 集計・ログ・グラフ・更新ボタンのページと `board-dashboard` のスキルを消す。
 - ボードを見るのは `ai-board status`（人向けの数行と `--json`）で、人の判断は `ai-board decide`（チャットからは `board-decide`）で書く。
 - `ai-board`（引数なし）はサーバを起動せず、使い方を出して終わる。`status` の出力から起動中のサーバの URL（`server`）を消す。
-- 区画・出せる判断・並び順の純関数（`src/shared/board-sections.ts` など）は、`status` と `decide` が使うので残す。
+- 区画・出せる判断・並び順の純関数（`src/board/services/board-sections.ts` など。置き場所は [18](0018-shared-browser-safe.md)）は、`status` と `decide` が使うので残す。
 
 ## 結果
 

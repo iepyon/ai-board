@@ -180,8 +180,8 @@
 
 ### 5. ドキュメントを今の形に直す
 
-- [ ] `docs/architecture.md` のディレクトリの説明（`shared/` の行）と、移したファイルへの参照を直す
-- [ ] `CLAUDE.md` と `REVIEW.md` の `src/shared/board-sections.ts` を、移した先に直す
-- [ ] `.claude/skills/board-loop/fix-pr.md` の `src/shared/pr-feedback.ts` を直す
-- [ ] `docs/adr/0017-remove-web-and-server.md` の `src/shared/board-sections.ts` の場所を直す
-- [ ] `adr` のスキルで `docs/adr/0018-shared-browser-safe.md` を書き、`docs/adr/README.md` の一覧に足す
+- [x] `docs/architecture.md` のディレクトリの説明（`shared/` の行）と、移したファイルへの参照を直す
+- [x] `CLAUDE.md` と `REVIEW.md` の `src/shared/board-sections.ts` を、移した先に直す
+- [x] `.claude/skills/board-loop/fix-pr.md` の `src/shared/pr-feedback.ts` を直す
+- [x] `docs/adr/0017-remove-web-and-server.md` の `src/shared/board-sections.ts` の場所を直す
+- [x] `adr` のスキルで `docs/adr/0018-shared-browser-safe.md` を書き、`docs/adr/README.md` の一覧に足す

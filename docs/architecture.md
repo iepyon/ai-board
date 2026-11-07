@@ -8,10 +8,10 @@
 ```
 src/
   cli.ts / cli-main.ts  CLI の入口（サブコマンドの振り分け）
-  shared/               Result<T,E>・Branded Types・設定・区画と判断の純関数
+  shared/               ブラウザでも動く値と型だけ（Result<T,E>・Branded Types・区切り線の ID・列の見出し）。ADR 0018
   cards/                カードの読み書きのコンテキスト
   board/                3 ソース統合・ステージ導出のコンテキスト
-  infrastructure/       外部コマンド・データのワークツリー・GitHub の問い合わせ
+  infrastructure/       外部コマンド・設定とワークツリーの解決・データのワークツリー・GitHub の問い合わせ
 ```
 
 各コンテキストは `models/ errors/ services/ repositories/ usecases/ cli/ composition.ts` を持つ。
@@ -70,7 +70,7 @@ push が拒否されたら取り直したボードで検査からやり直す。
 
 ## 区画と出せる判断
 
-区画への振り分け・並び・出せる判断は `src/shared/board-sections.ts` の純関数で、ステージの導出とは別物。
+区画への振り分け・並びは `src/board/services/board-sections.ts`、出せる判断は `decision-options.ts`、アイデアの区切りは `idea-tiers.ts` の純関数で、ステージの導出とは別物。
 
 - `sectionOf` / `groupBySection`: 区画は inbox（判断待ち）/ work（AI 作業中）/ idea / merged / aborted。`hold` のあるカードは inbox で、待ち始めは `hold.since`。
   PR中 でも `prState.awaitingFix` なら work の先頭（`isAwaitingPrFix`）
@@ -157,7 +157,7 @@ rebase しないのは、離れた行の編集を git が黙って混ぜ、検�
 
 **PR の指摘に AI が応える番。** AI も人のアカウントで書くので、本文の最後の行が Claude Code のフッター（`CLAUDE_CODE_FOOTER`）であるコメントを AI のもの（`isAiComment`）とする。
 引用の中のフッターで人の指摘を見落とさないよう、含むだけでは読まない。`ai-board pr comment` はフッターを足す（`withClaudeCodeFooter`）。
-`src/shared/pr-feedback.ts` の `awaitsPrFix` は、Ready で開いた PR で人の最新のコメントが最新コミットと AI の最新のコメントより後のときに真で、
+`src/board/services/pr-feedback.ts` の `awaitsPrFix` は、Ready で開いた PR で人の最新のコメントが最新コミットと AI の最新のコメントより後のときに真で、
 `BoardCardPr.awaitingFix` に載る。読むのは区画と次の一手（`fix-pr`）だけで、ステージは変えない。
 
 **控え。** PR 1 枚で 4 回以上引くので、結果を控えて問い合わせを省く（`src/board/repositories/file-pr-snapshot.repository.ts`）。
@@ -183,7 +183,7 @@ rebase しないのは、離れた行の編集を git が黙って混ぜ、検�
 
 ## ループの 1 手の記録
 
-型は `src/shared/loop-step.ts`、読み書きは `src/board/repositories/loop-history.repository.ts`、CLI は `src/board/cli/loop-cli.ts`。
+型は `src/board/models/loop-step.ts`、読み書きは `src/board/repositories/loop-history.repository.ts`、CLI は `src/board/cli/loop-cli.ts`。
 
 - ファイル名は `loop/<開始の時刻>.<ループの識別子>.json`（時刻は `toLogStamp`、重なれば `-2`）。識別子は `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`
 - 中身は `{ loop, cardId, action, step, agent, startedAt, finishedAt, result }`。`start` で作り、`finish` で 1 度だけ埋める
@@ -194,4 +194,4 @@ rebase しないのは、離れた行の編集を git が黙って混ぜ、検�
 - 手と段の語は `LOOP_VOCABULARY_IN_SYNC` で `NextActionKind` / `ImplStep` と食い違えば型エラーになる
 
 `GetBoardQuery` が全件を読んで `Board.loop`（`toBoardLoop`）と `loopSteps` を組む。導出・止まり・次の一手には渡さない。
-「ループ: …」の行は `src/shared/loop-activity.ts` の `summarizeLoop`。
+「ループ: …」の行は `src/board/services/loop-activity.ts` の `summarizeLoop`。

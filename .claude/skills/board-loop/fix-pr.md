@@ -2,7 +2,7 @@
 
 `board-loop` の手順で、`next.action` が `fix-pr` のときに、本筋のセッションが自分で行う手順である。
 
-PR中 のカードは人の番だが、人が PR に指摘（コメント）を書き、その後に修正コミットも AI の返信も無いときだけ、AI の番になる（`src/shared/pr-feedback.ts` の `awaitsPrFix`）。
+PR中 のカードは人の番だが、人が PR に指摘（コメント）を書き、その後に修正コミットも AI の返信も無いときだけ、AI の番になる（`src/board/services/pr-feedback.ts` の `awaitsPrFix`）。
 この手は、PR を Ready のまま修正を push するか、直すものが無い理由を 1 件返信して、カードを人の番（判断待ちの区画）に戻す。
 ステージは PR中 のまま変わらない。
 

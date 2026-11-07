@@ -29,7 +29,7 @@
 
 ## 必ず確かめること
 
-- 区画や判断を含むロジックを CLI の出力の組み立ての中に埋めず、`src/shared/board-sections.ts` などの純関数へ切り出してテストしているか。
+- 区画や判断を含むロジックを CLI の出力の組み立ての中に埋めず、`src/board/services/board-sections.ts` などの純関数へ切り出してテストしているか。
 - 足したテストが `src/**/__tests__/**/*.test.ts` の glob の中にあるか。外にあると vitest が黙って無視する。
 - 依存を usecase やリポジトリの中で `new` せず、`composition.ts` で組んでいるか。
 - ID を生の string で渡さず、`createCardId` などのファクトリを通しているか。
