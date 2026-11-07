@@ -1,4 +1,4 @@
-import type { Decision } from '../services/board-sections.js';
+import type { Decision } from '../services/decision-options.js';
 import type { Stage } from '../../shared/schemas/common.js';
 import type { BoardLoop } from '../services/loop-activity.js';
 import type { NextAction } from '../services/next-action.js';

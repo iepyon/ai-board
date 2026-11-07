@@ -1,7 +1,7 @@
 import { CardIdSchema, type CardId, type Stage } from '../../shared/schemas/common.js';
 import { DIVIDER_ID } from '../../shared/card-reorder.js';
 import { STAGE_LABELS } from '../../shared/stage-labels.js';
-import { decisionsFor } from '../services/board-sections.js';
+import { decisionsFor } from '../services/decision-options.js';
 import { REVIEW_GATES, isReviewGate, type ReviewGate } from '../../cards/models/review.js';
 import { describeDataStoreError } from '../../cards/cli/data-store-messages.js';
 import type { OrderRef } from '../../cards/usecases/commands/move-in-order.js';

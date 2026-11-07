@@ -1,13 +1,9 @@
 import { err, ok, type Result } from '../../shared/result.js';
 import type { CardId, Stage } from '../../shared/schemas/common.js';
 import { DIVIDER_ID } from '../../shared/card-reorder.js';
-import {
-  decisionsFor,
-  groupBySection,
-  ideaRows,
-  type Decision,
-  type DecisionGate,
-} from './board-sections.js';
+import { groupBySection } from './board-sections.js';
+import { decisionsFor, type Decision, type DecisionGate } from './decision-options.js';
+import { ideaRows } from './idea-tiers.js';
 import type { Board, BoardCard } from '../models/board-card.js';
 import type { DecideRefusal } from '../errors/board-errors.js';
 import { forgeTrusted } from '../models/pr-state.js';

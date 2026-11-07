@@ -1,6 +1,8 @@
 import { ok, type Result } from '../../../shared/result.js';
 import { createCardId } from '../../../shared/schemas/common.js';
-import { decisionsFor, groupBySection, ideaRows, isStale } from '../../services/board-sections.js';
+import { groupBySection, isStale } from '../../services/board-sections.js';
+import { decisionsFor } from '../../services/decision-options.js';
+import { ideaRows } from '../../services/idea-tiers.js';
 import { isCardRunning, type BoardLoop } from '../../services/loop-activity.js';
 import type { Board } from '../../models/board-card.js';
 import { forgeTrusted } from '../../models/pr-state.js';

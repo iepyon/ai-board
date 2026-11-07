@@ -162,11 +162,11 @@
 
 ### 2. `board-sections.ts` を 3 つに分ける
 
-- [ ] 分ける前の `board-sections.test.ts` のテストの件数を控える
-- [ ] 出せる判断を `decision-options.ts` へ、アイデアの区切りを `idea-tiers.ts` へ分け、テストも同じ単位で分ける
-- [ ] `effectiveRankOf` を消し、`effectiveRank` を import する
-- [ ] 引く側（`get-status.query.ts`・`decision-guards.ts`・`decide-cli.ts`・`status-report.ts`・`board-errors.ts`・`next-action.ts`）の import を直す
-- [ ] 分けた後のテストの件数の合計が、控えた件数と同じであることを確かめる
+- [x] 分ける前の `board-sections.test.ts` のテストの件数を控える
+- [x] 出せる判断を `decision-options.ts` へ、アイデアの区切りを `idea-tiers.ts` へ分け、テストも同じ単位で分ける
+- [x] `effectiveRankOf` を消し、`effectiveRank` を import する
+- [x] 引く側（`get-status.query.ts`・`decision-guards.ts`・`decide-cli.ts`・`status-report.ts`・`board-errors.ts`・`next-action.ts`）の import を直す
+- [x] 分けた後のテストの件数の合計が、控えた件数と同じであることを確かめる
 
 ### 3. 設定とワークツリーの解決を infrastructure へ移す
 
