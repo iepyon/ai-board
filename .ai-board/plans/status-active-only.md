@@ -164,3 +164,10 @@ GitHub への問い合わせは読むだけ（`gh api` の GET）で、本物の
 - [x] `.claude/skills/board-decide/SKILL.md` の手順 1 の読み出しに `--active` を足す
 - [x] `docs/architecture.md` の `status` の出力の箇条に `--active` を、「控え」の箇条に中止のカードを引き直さないことを書く
 - [x] `README.md` の `status` の使い方に `--active` を、「GitHub との接続」の問い合わせの対象の説明に中止のカードの扱いを書く
+
+## AI レビュー
+
+### 見送った指摘
+
+- `CLAUDE.md` の CLI の一覧の行 `ai-board status [--json [--only <項目,...>]]` に `--active` が無い。一覧は主なサブコマンドの要約で、ほかの細かい指定も載せておらず、`README.md`・`docs/architecture.md`・`STATUS_USAGE` は直っているので見送る
+- `src/infrastructure/pr-fetcher.ts` の `refreshCard` は、中止のカードの PR が控えを取った後にマージされても引き直さないので、`snapshots/<id>.json` にマージ済みの控えが書かれない。中止のカードは区画が 中止 に固定され、計画の Risks / Trade-offs が受け入れた「中止のあいだは控えの古い状態のまま見える」の範囲なので見送る
