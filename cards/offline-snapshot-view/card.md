@@ -4,7 +4,7 @@ title: ユーザは、GitHub に届かなくても、手元の PR の控えで�
 created: '2026-11-06T09:36:50.098Z'
 skipGates: []
 branch: ccr-bb1fbf36-7v5cd6
-mr: null
+mr: 99
 ---
 
 ## アイデア
