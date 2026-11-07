@@ -1,5 +1,7 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { mkdtempSync, realpathSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { describeForge, describeLoop, describeNext } from '../board/cli/status-describe.js';
 import { STAGE_LABELS } from '../shared/stage-labels.js';
@@ -37,6 +39,7 @@ interface RenderModule {
   MARKER: string;
   buildPageData(report: unknown, helpers: unknown): PageData;
   renderHtml(template: string, data: unknown): string;
+  isInvokedDirectly(moduleUrl: string, argv1: string | undefined): boolean;
 }
 
 async function loadRender(): Promise<RenderModule> {
@@ -163,5 +166,23 @@ describe('board-view の render.mjs', () => {
     const { renderHtml } = await loadRender();
 
     expect(() => renderHtml('<p>印なし</p>', {})).toThrow('印');
+  });
+
+  it('シンボリックリンクを通った道筋で走らせても、直接走らされたと分かる', async () => {
+    const { isInvokedDirectly } = await loadRender();
+    const skillDir = realpathSync(fileURLToPath(SKILL_DIR));
+    const moduleUrl = pathToFileURL(path.join(skillDir, 'render.mjs')).href;
+    const dir = mkdtempSync(path.join(tmpdir(), 'board-view-'));
+    try {
+      const link = path.join(dir, 'skill');
+      symlinkSync(skillDir, link);
+
+      expect(isInvokedDirectly(moduleUrl, path.join(skillDir, 'render.mjs'))).toBe(true);
+      expect(isInvokedDirectly(moduleUrl, path.join(link, 'render.mjs'))).toBe(true);
+      expect(isInvokedDirectly(moduleUrl, path.join(dir, 'missing.mjs'))).toBe(false);
+      expect(isInvokedDirectly(moduleUrl, undefined)).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

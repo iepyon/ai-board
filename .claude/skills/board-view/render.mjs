@@ -10,7 +10,7 @@
 // 文言（「GitHub:」「ループ:」「次の一手:」）とステージの名前は、人向けの status と同じ本体の関数で作る。
 // テストは純関数（buildPageData / renderHtml）だけを import し、文言の関数に src/ のものを渡す。
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -109,10 +109,21 @@ async function main() {
   process.stdout.write(renderHtml(template, data));
 }
 
-const invokedDirectly =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+/**
+ * `moduleUrl` のモジュールが、`argv1` の道筋で直接走らされたか。
+ * Node は main のモジュールの URL をシンボリックリンクを解いた実パスで持つので、`argv1` も実パスにしてから比べる
+ * （解かないと、リンクを通して走らせたときに何も出さず終了コード 0 で終わる）。実パスにできなければ偽
+ */
+export function isInvokedDirectly(moduleUrl, argv1) {
+  if (argv1 === undefined) return false;
+  try {
+    return moduleUrl === pathToFileURL(realpathSync(path.resolve(argv1))).href;
+  } catch {
+    return false;
+  }
+}
 
-if (invokedDirectly) {
+if (isInvokedDirectly(import.meta.url, process.argv[1])) {
   main().catch((error) => {
     process.stderr.write(`board-view: ${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;
