@@ -4,7 +4,7 @@ title: ユーザは、GitHub を設定していない研修のボードでも、
 created: '2026-11-07T01:34:41.396Z'
 skipGates: []
 branch: unset-impl-close
-mr: null
+mr: 98
 ---
 
 ## アイデア
