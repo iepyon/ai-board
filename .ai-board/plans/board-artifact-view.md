@@ -174,3 +174,7 @@ PR #102 で `status --json --active` が入り、終わったカードを外し�
 
 - [x] `docs/adr/0019-board-view-artifact.md` を書き、`docs/adr/README.md` の一覧に足し、ADR 0017 の結果に 0019 への 1 行を足す
 - [x] `README.md` のボードの見方と、`CLAUDE.md` の読む場所に `board-view` のスキルを足す
+
+## AI レビュー
+
+- [ ] `.claude/skills/board-view/render.mjs:194` の `invokedDirectly` は、`import.meta.url`（Node が main のモジュールをシンボリックリンクを解いた実パスで持つ）と `path.resolve(process.argv[1])`（リンクを解かない）を比べている。シンボリックリンクを通った道筋で走らせると `main()` が呼ばれず、何も出さずに終了コード 0 で終わる（リンクを通して `echo '{}' | node <リンク>/.claude/skills/board-view/render.mjs` を走らせると、出力 0 バイト・終了コード 0 になるのを確かめた）。スキルの手順 2 はこれを成功と読んで空の `board-view.html` に置き換え、空のページを公開してしまう。`process.argv[1]` を `realpathSync` で実パスにしてから比べる（`realpathSync` が失敗したら直接走らせていないとみなす）
