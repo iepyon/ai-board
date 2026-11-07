@@ -4,6 +4,7 @@
 
 - **手順書の版を上げるか。** `board-loop` の `SKILL.md`（止まる条件）と `board-decide` の `SKILL.md`（拒まれる場合）の説明を、未設定なら止まらない・拒まない形に直す。
   ループの振る舞い（未設定のボードで次の手に進む）が変わるので、`.claude/HARNESS_VERSIONS.md` に v6 を足す。既定: 上げる
+  - → 回答（2026-11-07、plan 承認）: 理由なしで承認（既定のまま進む）
 - **未設定のボードで PR 番号を持つカードを、そのカードだけの止まり（`forge`）にするか。** 既定: する。
   止まりの理由は `PR #<n> を持つが、GitHub が未設定なので PR の状態を引けない。config.yaml に github: を戻すか、中止してください` とし、判断のボタンは出さず、`decide` の判断と着手 / 着手を戻すも拒む。
   `branch` だけを持ち PR 番号を持たないカードは、PR があるか分からないが止まりにしない（`### 仮定`・`### Risks / Trade-offs`）
@@ -181,11 +182,11 @@
 
 ### 1. 未設定を見分け、判断の検査と次の一手で通す
 
-- [ ] `src/board/models/mr-state.ts` に `isForgeUnset` と `forgeTrusted` を足し、`ForgeConnection` の docstring に未設定の見分け方を書く
-- [ ] `src/board/services/decision-guards.ts` の `guardReview` / `guardStartedAt` を `forgeTrusted` で判定し、docstring を直す
-- [ ] `src/board/usecases/queries/get-status.query.ts` の `next` を `forgeTrusted` で判定し、docstring を直す
-- [ ] `src/board/cli/status-describe.ts` の `describeNext` を `forgeTrusted` で分け、`src/board/cli/decide-cli.ts` の `describeRefusal` の docstring を直す
-- [ ] テスト: `mr-state` の見分け（未設定・使えません・エラー・接続済み）、`decision-guards`（未設定なら通す、使えませんなら拒む）、`get-status.query`（未設定なら `next` が出る、使えませんなら null）、`status-describe`、`decide-cli`（未設定のボードで着手が書ける）
+- [x] `src/board/models/mr-state.ts` に `isForgeUnset` と `forgeTrusted` を足し、`ForgeConnection` の docstring に未設定の見分け方を書く
+- [x] `src/board/services/decision-guards.ts` の `guardReview` / `guardStartedAt` を `forgeTrusted` で判定し、docstring を直す
+- [x] `src/board/usecases/queries/get-status.query.ts` の `next` を `forgeTrusted` で判定し、docstring を直す
+- [x] `src/board/cli/status-describe.ts` の `describeNext` を `forgeTrusted` で分け、`src/board/cli/decide-cli.ts` の `describeRefusal` の docstring を直す
+- [x] テスト: `mr-state` の見分け（未設定・使えません・エラー・接続済み）、`decision-guards`（未設定なら通す、使えませんなら拒む）、`get-status.query`（未設定なら `next` が出る、使えませんなら null）、`status-describe`、`decide-cli`（未設定のボードで着手が書ける）
 
 ### 2. 未設定のボードで PR 番号を持つカードを止める
 

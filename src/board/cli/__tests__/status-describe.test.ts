@@ -40,9 +40,15 @@ describe('describeNext', () => {
     );
   });
 
-  it('次の一手が無ければ、GitHub につながっているかで理由を分ける', () => {
+  it('次の一手が無ければ、GitHub が接続済みか未設定かで理由を分ける', () => {
     expect(describeNext(null, CONNECTED)).toBe('なし（AI が進められるカードはありません）');
     expect(describeNext(null, { status: 'disabled', kind: null, reason: null })).toBe(
+      'なし（AI が進められるカードはありません）'
+    );
+    expect(describeNext(null, { status: 'disabled', kind: 'github', reason: 'gh が無い' })).toBe(
+      'なし（GitHub に接続できないため、ループは止まります）'
+    );
+    expect(describeNext(null, { status: 'error', kind: 'github', message: '失敗' })).toBe(
       'なし（GitHub に接続できないため、ループは止まります）'
     );
   });

@@ -10,6 +10,7 @@ import {
 } from '../../shared/dashboard-sections.js';
 import type { Board, BoardCard } from '../models/board-card.js';
 import type { DecideRefusal } from '../errors/board-errors.js';
+import { forgeTrusted } from '../models/mr-state.js';
 
 // ============================================================
 // 人の判断の検査 — `ai-board decide` が書く前に、導出したボードで確かめる純関数
@@ -25,12 +26,13 @@ export interface ReviewTarget {
  * 承認 / 差し戻し / 中止を書けるか。そのカードに出ている判断（`decisionsFor`）だけを通す。
  *
  * 理由の要る判断（差し戻し）は、空白だけの理由も拒む。
+ * GitHub が接続済みか未設定（`forgeTrusted`）でなければ、列を取り違えうるので拒む。
  */
 export function guardReview(
   board: Board,
   input: { readonly id: CardId; readonly kind: Decision['kind']; readonly reason: string }
 ): Result<ReviewTarget, DecideRefusal> {
-  if (board.forge.status !== 'connected') {
+  if (!forgeTrusted(board.forge)) {
     return err({ type: 'ForgeUnavailable', action: 'review', forge: board.forge });
   }
 
@@ -52,13 +54,14 @@ export function guardReview(
  * 着手 / 着手を戻すを書けるか。カードを隣の列へ入れるのと同じで、今の列が `from` にあり、
  * `to` へ入れられる（`droppableStages`）カードだけを通す。
  *
- * 列と入れられる列は PR の状態に依る（Draft の PR だけが計画の成果物のときなど）ので、GitHub に繋がらなければ拒む。
+ * 列と入れられる列は PR の状態に依る（Draft の PR だけが計画の成果物のときなど）ので、
+ * GitHub が接続済みか未設定（`forgeTrusted`）でなければ拒む。未設定のボードには PR が無い。
  */
 export function guardStartedAt(
   board: Board,
   input: { readonly id: CardId; readonly from: Stage; readonly to: Stage }
 ): Result<BoardCard, DecideRefusal> {
-  if (board.forge.status !== 'connected') {
+  if (!forgeTrusted(board.forge)) {
     return err({ type: 'ForgeUnavailable', action: 'startedAt', forge: board.forge });
   }
 

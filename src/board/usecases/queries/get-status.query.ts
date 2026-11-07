@@ -8,6 +8,7 @@ import {
 } from '../../../shared/dashboard-sections.js';
 import { isCardRunning, type BoardLoop } from '../../../shared/loop-activity.js';
 import type { Board } from '../../models/board-card.js';
+import { forgeTrusted } from '../../models/mr-state.js';
 import type { CardSummary, StatusCard, StatusReport } from '../../models/status-report.js';
 import type { GetBoardError } from '../../errors/board-errors.js';
 import { pickNextAction } from '../../services/next-action.js';
@@ -43,9 +44,10 @@ export function createGetStatusQuery(
 /**
  * ボードから、ループと人が読むための要約を組み立てる。
  *
- * GitHub につながっていないときは次の一手を出さない。PR の状態が引けないと、
+ * GitHub が接続済みか未設定（`forgeTrusted`）でなければ次の一手を出さない。PR の状態が引けないと、
  * 計画レビュー / PR中 のカードが手前の AI の列に落ちて見え、人を待つカードを進めてしまうため。
- * `github:` の無いリポジトリでも同じで、ループは `gh` で PR を出すので GitHub を前提にする。
+ * `github:` の無い（未設定の）ボードには PR が無いので、落ちて見えるカードが無く、次の一手を出す
+ * （途中で設定を外して PR 番号が残ったカードは止まりになり、選ばれない）。
  */
 function buildStatusReport(board: Board, now: Date): StatusReport {
   const cards = board.cards.map(({ body: _body, ...rest }) => rest);
@@ -53,7 +55,7 @@ function buildStatusReport(board: Board, now: Date): StatusReport {
   const sections = groupBySection(cards);
 
   return {
-    next: board.forge.status === 'connected' ? pickNextAction(cards) : null,
+    next: forgeTrusted(board.forge) ? pickNextAction(cards) : null,
     waiting: sections.inbox.map((card) => ({
       ...toSummary(card, board.loop),
       decisions: decisionsFor(card),

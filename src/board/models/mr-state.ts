@@ -90,9 +90,31 @@ export type ForgeKind = (typeof FORGE_KINDS)[number];
  *
  * ボードは未接続でもカードと計画ファイルだけで動く。
  * `disabled` は設定が無い場合と、CLI が無い・未ログインの場合の両方を表し、
- * どちらであるかは `reason` に出す。
+ * どちらであるかは `reason` に出す。設定が無い（未設定）ときだけ `kind` が null になる（`isForgeUnset`）。
  */
 export type ForgeConnection =
   | { readonly status: 'disabled'; readonly kind: ForgeKind | null; readonly reason: string | null }
   | { readonly status: 'connected'; readonly kind: ForgeKind }
   | { readonly status: 'error'; readonly kind: ForgeKind; readonly message: string };
+
+/**
+ * 取得先が未設定か（`config.yaml` に `github:` が無い）。
+ *
+ * `kind` が null の `disabled` は、設定が無いときにだけ作られる（`createMrStateSource`）。
+ * 設定があって CLI が無い・未ログイン・届かないときは `kind` が付くので、偽になる。
+ * `reason` の文言には依らない。
+ */
+export function isForgeUnset(forge: ForgeConnection): boolean {
+  return forge.status === 'disabled' && forge.kind === null;
+}
+
+/**
+ * このボードの列を、PR の状態を取り違えずに導けているか。人の判断の検査と次の一手が使う。
+ *
+ * 接続済みなら PR の状態を引けている。未設定なら PR がそもそも無いので、手前の列に落ちて見えるカードが無い
+ * （途中で設定を外して PR 番号が残ったカードは、そのカードだけを止まりにする。`resolveHold` の `unsetPr`）。
+ * 設定があって使えない・エラーのときは、計画レビュー / PR中 のカードが手前の AI の列に落ちて見えうるので偽。
+ */
+export function forgeTrusted(forge: ForgeConnection): boolean {
+  return forge.status === 'connected' || isForgeUnset(forge);
+}

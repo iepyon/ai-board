@@ -342,7 +342,7 @@ describe('ai-board decide', () => {
     await writeCard('a', IDEA('2026-11-01T00:00:00.000Z'));
     await writeCard('b', IDEA('2026-11-02T00:00:00.000Z'));
     await writeCard('c', STARTED);
-    const offline = stubProvider({ status: 'disabled', kind: null, reason: null });
+    const offline = stubProvider({ status: 'disabled', kind: 'github', reason: 'gh が無い' });
 
     expect(await run(['start', 'a'], offline)).toBe(1);
     expect(stderr).toContain('GitHub に繋がらないので、着手 / 着手を戻すは書けません');
@@ -353,6 +353,23 @@ describe('ai-board decide', () => {
 
     expect(await run(['skip', 'a', '--gate', 'plan'], offline)).toBe(0);
     expect(await run(['move', 'b', '--after', 'none', '--before', 'a'], offline)).toBe(0);
+  });
+
+  it('GitHub が未設定なら、着手 / 着手を戻す / 承認を接続済みと同じに書ける', async () => {
+    await writeCard('a', IDEA('2026-11-01T00:00:00.000Z'));
+    await writeCard('c', STARTED);
+    await writeCard('r', STARTED, review('提出'));
+    await writePlan('r');
+    const unset = stubProvider({ status: 'disabled', kind: null, reason: null });
+
+    expect(await run(['start', 'a'], unset)).toBe(0);
+    expect((await readCard('a')).startedAt).toBe(NOW.toISOString());
+
+    expect(await run(['unstart', 'c'], unset)).toBe(0);
+    expect((await readCard('c')).startedAt).toBeNull();
+
+    expect(await run(['approve', 'r'], unset)).toBe(0);
+    expect(stdout).toContain('r: plan 承認 を書きました（計画レビュー → 実装中）');
   });
 
   describe('飛ばす宣言', () => {
