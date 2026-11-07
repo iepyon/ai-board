@@ -3,7 +3,7 @@ import { promises as fs, existsSync, readFileSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type { CliError, CliRunner } from '../../../infrastructure/cli-runner.js';
-import type { ForgeConfig } from '../../../shared/config.js';
+import type { ForgeConfig } from '../../../infrastructure/config.js';
 import { err, ok, type Result } from '../../../shared/result.js';
 import { isPrCommand, runPrCli } from '../pr-cli.js';
 import { CLAUDE_CODE_FOOTER } from '../../services/github-client.js';

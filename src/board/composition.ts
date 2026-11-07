@@ -1,7 +1,7 @@
 import type { CardRepository } from '../cards/repositories/card.repository.js';
 import { createFileCardDependencies, createTransactionalPrWriter } from '../cards/composition.js';
 import type { IdeaDividerRepository } from '../cards/repositories/idea-divider.repository.js';
-import { loadConfig, type ForgeConfig } from '../shared/config.js';
+import { loadConfig, type ForgeConfig } from '../infrastructure/config.js';
 import type { CliRunner } from '../infrastructure/cli-runner.js';
 import { PrFetcher, type PrFetcherOptions } from '../infrastructure/pr-fetcher.js';
 import type { ForgeClient } from './services/forge-client.js';

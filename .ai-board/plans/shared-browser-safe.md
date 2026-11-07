@@ -170,8 +170,8 @@
 
 ### 3. 設定とワークツリーの解決を infrastructure へ移す
 
-- [ ] `git mv` で `config.ts`・`git-worktree.ts` とテストを `src/infrastructure/` と `src/infrastructure/__tests__/` へ移す
-- [ ] 引く側（`cli-main.ts`・`board/composition.ts`・`board/services/github-client.ts`・`board/cli/pr-cli.ts`・`cards/composition.ts`・`cards/cli/init-cli.ts`・`cards/cli/data-store-messages.ts`・`infrastructure/data-store.ts` とテスト）の import を直す
+- [x] `git mv` で `config.ts`・`git-worktree.ts` とテストを `src/infrastructure/` と `src/infrastructure/__tests__/` へ移す
+- [x] 引く側（`cli-main.ts`・`board/composition.ts`・`board/services/github-client.ts`・`board/cli/pr-cli.ts`・`cards/composition.ts`・`cards/cli/init-cli.ts`・`cards/cli/data-store-messages.ts`・`infrastructure/data-store.ts` とテスト）の import を直す
 
 ### 4. eslint で `src/shared/` の決まりを強制する
 

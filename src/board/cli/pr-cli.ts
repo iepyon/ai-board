@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import type { CardCliIo } from '../../cards/cli/card-cli.js';
-import type { ForgeConfig } from '../../shared/config.js';
+import type { ForgeConfig } from '../../infrastructure/config.js';
 import type { PullRequestNumber } from '../../shared/schemas/common.js';
 import { isErr } from '../../shared/result.js';
 import {

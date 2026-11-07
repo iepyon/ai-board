@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type { PullRequestNumber } from '../../shared/schemas/common.js';
-import type { ForgeConfig } from '../../shared/config.js';
+import type { ForgeConfig } from '../../infrastructure/config.js';
 import type { ForgeKind, PrLifecycleState, PrSnapshot, PrState } from '../models/pr-state.js';
 import {
   asArray,
