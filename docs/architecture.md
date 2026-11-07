@@ -31,12 +31,15 @@ src/
 Draft の PR は計画レビューの列を立てるが、その規則は plan が未承認のときだけ当たるので、実装中の Draft の PR は巻き戻らない。
 GitHub が未設定のボードでは、Draft の PR の代わりにカードのブランチの `plans/<id>.md` を読む（`GitBranchPlanRepository.findActive`）。
 読むのは `branchPlanTarget`（`src/board/services/branch-plan-target.ts`）が選んだカード（着手済み・`branch` あり・メインに計画なし・plan が規則 4 の `planReviewable`）だけで、`get-board.query.ts` がメインの計画の無いところに重ねる。
-ブランチの `archive/` は読まない。読むと、締めで archive して Ready にした PR中 のカードがマージ前にマージ済み（規則 1）に見える。
+ブランチの `archive/` はステージの導出には読まない。読むと、締めで archive して Ready にした PR中 のカードがマージ前にマージ済み（規則 1）に見える。
+未設定のボードでは、締めが済んだか（ブランチに `plans/<id>.md` が無く `plans/archive/<id>.md` がある）だけを `GitBranchPlanRepository.findClosed` で読み、マージ待ちの止まりにだけ使う。
+読むのは `branchCloseTarget` が選んだカード（着手済み・`branch` あり・メインに計画なし・plan が `approved`）だけ。人がメインのチェックアウトで `git merge --no-ff <branch>` すれば、メインに archive が入って規則 1 でマージ済みになる。
 `draft` だけでは「まだ Ready にしていない」と「人が Draft に戻した」を見分けられないので、
 最後の `convert_to_draft` の時刻を `MrState.convertedToDraftAt` に持つ。
 
 止まりは `src/board/services/next-action.ts` の `resolveHold` が導き、`BoardCard.hold`（`{ kind, reason, since }` か `null`）に載る。
 `kind` は人の判断で解く `decision` と、PR の状態を引けない `forge` の 2 つ。`reason` の文は `HOLD_REASONS`。
+未設定のボードのブランチのマージ待ち（`branchClosed`）は `decision` で、出せる判断は Draft に戻された止まりと同じ 計画から立て直させる / 中止。
 
 - `forge`: そのカードの PR だけを直近の取得で引けなかった（`MrStateProvider.failure`）。アイデア / マージ済み / 中止を除いて立ち、ほかより先に見る。
   前に引けた控えは古いことがあるので、`decisionsFor` と `droppableStages` を空にし、`ai-board decide` も判断と着手を拒む

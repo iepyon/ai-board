@@ -185,8 +185,8 @@
 
 ### 2. ループの手順書とドキュメント
 
-- [ ] `.claude/skills/board-loop/implement.md` の 1・段の表・2.1 の 5・2.2・5・ハードルールを、未設定のボードでは push と `ai-board pr` を飛ばし、証拠を計画の末尾に書く形に直す
-- [ ] `.claude/agents/board-reviewer.md` を、未設定のボードでは `mr` が null でも止まらず、`git diff main...HEAD` を読み、push しない形に直す
-- [ ] `.claude/skills/board-loop/rules.md` の「GitHub が未設定のボード」と `SKILL.md` の止まる条件・止まりの一覧を直す
-- [ ] `docs/adr/0004-plans-in-draft-pr.md` を書き直し（`adr` のスキル）、`docs/specs/board-hold/spec.md`・`docs/architecture.md`・`README.md` を直す
-- [ ] `.claude/HARNESS_VERSIONS.md` に v8 を足す（人の判断で上げないなら、このタスクを外す）
+- [x] `.claude/skills/board-loop/implement.md` の 1・段の表・2.1 の 5・2.2・5・ハードルールを、未設定のボードでは push と `ai-board pr` を飛ばし、証拠を計画の末尾に書く形に直す
+- [x] `.claude/agents/board-reviewer.md` を、未設定のボードでは `mr` が null でも止まらず、`git diff main...HEAD` を読み、push しない形に直す
+- [x] `.claude/skills/board-loop/rules.md` の「GitHub が未設定のボード」と `SKILL.md` の止まる条件・止まりの一覧を直す
+- [x] `docs/adr/0004-plans-in-draft-pr.md` を書き直し（`adr` のスキル）、`docs/specs/board-hold/spec.md`・`docs/architecture.md`・`README.md` を直す
+- [x] `.claude/HARNESS_VERSIONS.md` に v8 を足す（人の判断で上げないなら、このタスクを外す）

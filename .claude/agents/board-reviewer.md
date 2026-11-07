@@ -1,6 +1,6 @@
 ---
 name: board-reviewer
-description: board-loop を動かした本筋のセッションから、`next.step` が review の ai-board の実装中のカード 1 枚（cardId / MAIN）を受け取り、まっさらな文脈で自分でワークツリーに入って、カードの PR の差分と計画を読み、指摘を計画の末尾の `## AI レビュー` 節に書き足してコミットし push するサブエージェント。指摘を「直す」「見送る」「人に判断してほしい」に分けるだけで、コードは直さない。board-loop のスキルのレビューの段からだけ呼ぶ。
+description: board-loop を動かした本筋のセッションから、`next.step` が review の ai-board の実装中のカード 1 枚（cardId / MAIN）を受け取り、まっさらな文脈で自分でワークツリーに入って、カードの PR の差分（GitHub が未設定のボードではブランチの差分）と計画を読み、指摘を計画の末尾の `## AI レビュー` 節に書き足してコミットし push するサブエージェント。指摘を「直す」「見送る」「人に判断してほしい」に分けるだけで、コードは直さない。board-loop のスキルのレビューの段からだけ呼ぶ。
 ---
 
 # board-reviewer — 指摘を計画に書くだけのレビュー
@@ -31,11 +31,13 @@ description: board-loop を動かした本筋のセッションから、`next.st
 次のどれかに当たれば、何も変えずに止まって報告する。
 
 - カードの `branch` が null
-- カードの `mr`（PR の番号）が null。PR 番号は推測で作らない
+- カードの `mr`（PR の番号）が null。PR 番号は推測で作らない（GitHub が未設定のボードでは止まらない。PR が無いのが正しい）
 - ワークツリーに未コミットの変更が残っている（前の手が途中で止まっている）
 - `git pull --ff-only` が失敗した
 
 以下、カードの `mr` を `<mr>` と書く。
+
+**GitHub が未設定のボード**（共通の決まりの「GitHub が未設定のボード」）では、`git pull --ff-only`・push・`# branch.ab +0 -0` の確かめ・`ai-board pr` をすべて飛ばす。
 
 ## 2. 前提を確かめる
 
@@ -54,7 +56,8 @@ description: board-loop を動かした本筋のセッションから、`next.st
 2. `$WT/REVIEW.md` を読む。何を重く見て、何を報告しないかはここに従う
 3. PR の差分を `/code-review` にかける（`cd "$WT"` で PR 番号 `<mr>` を対象にする）。
    `--fix` と `--comment` は付けない（コードを直さず、PR にも書かない）。
-   `/code-review` を呼べないときは、`ai-board pr diff <mr>` を `REVIEW.md` の観点で自分で読む
+   `/code-review` を呼べないときは、`ai-board pr diff <mr>` を `REVIEW.md` の観点で自分で読む。
+   GitHub が未設定のボードでは、`/code-review` も `ai-board pr diff` も使わず、`git -C "$WT" diff main...HEAD`（手元の `main` から分かれた後の差分）を `REVIEW.md` の観点で自分で読む
 
 `/code-review` の指摘も、自分で読んで見つけた指摘も、共通の決まりの「指摘の分け方」でうのみにせず確かめてから採る。
 
@@ -104,7 +107,8 @@ description: board-loop を動かした本筋のセッションから、`next.st
 3. `git -C "$WT" add .ai-board/plans/<cardId>.md` → コミット（`docs: <cardId> の AI レビューの指摘を計画に書く`。末尾の署名は、そのセッションの指示に従う）→ `git -C "$WT" push origin <branch>`。
    push が失敗したらやり直さずに止まり、コミットが手元にだけあることを報告する
 4. `git -C "$WT" status --porcelain=v2 --branch` で、`# branch.ab +0 -0` の行があり、変更の行が無いことを確かめる（`origin/<branch>` と一致し、未コミットの変更が無い）。
-   満たされなければ止まって報告する（次の手は、ワークツリーと `origin` の状態から続きを選ぶ）
+   満たされなければ止まって報告する（次の手は、ワークツリーと `origin` の状態から続きを選ぶ）。
+   GitHub が未設定のボードでは、3 の push と、この確かめのうち `# branch.ab +0 -0` を飛ばし、変更の行が無いことだけを確かめる
 
 ## 7. 報告
 
@@ -113,7 +117,7 @@ description: board-loop を動かした本筋のセッションから、`next.st
 - 結果: `進めた` / `止まった` のどちらか 1 つ（本筋のセッションはこの語で次の動きを変えるので、言い換えない。`保留して止まった` は使わない）
 - 件数: 直す N 件 / 見送る N 件 / 人に判断してほしい N 件（指摘なしならそう書く）
 - コミット: コミットのハッシュと、push して `origin/<branch>` と一致したか
-- レビューの手段: `/code-review` で行った / 代わりに `ai-board pr diff` を読んだ
+- レビューの手段: `/code-review` で行った / 代わりに `ai-board pr diff` を読んだ / 未設定のボードで `git diff main...HEAD` を読んだ
 - 止まった理由と、人にしてほしいこと（止まったときだけ）
 
 ## ハードルール

@@ -59,6 +59,17 @@ push は、各手順書で「push」とだけ書いたところも、`git -C "$W
 `ai-board status --json --only forge` の `forge` が `{"status":"disabled","kind":null,…}`（人向けの出力では「GitHub: 未設定」）のボードは、`config.yaml` に `github:` が無い。研修のように GitHub に届かない環境で使う。
 このボードでは `git fetch` / `git pull` / `git push` と `ai-board pr` を使わず、カードのブランチは手元にだけ置く。
 ボードは Draft の PR の代わりに、カードのブランチの `plans/<id>.md` を読んで計画レビューを立てる（`archive/` は読まない）。
+
+手ごとに飛ばすものは次のとおり（詳しくは各手順書）。
+
+- 計画の手（`plan.md`）: push と `ai-board pr create`。コミット → `card branch` → `card submit` だけをする
+- 実装の手（`implement.md`）: 節ごとの push と `# branch.ab +0 -0` の確かめ。締めの段の `ai-board pr checks` / `pr edit` / `pr ready`。
+  締めの段は、PR の本文の代わりに、archive する前の計画の末尾に `## 動作確認の結果`・`## 判断してほしいこと`・`## 見送った AI レビューの指摘` を書く
+- レビューの段（`board-reviewer`）: PR の差分の代わりに `git -C "$WT" diff main...HEAD` を読む。push と `# branch.ab +0 -0` の確かめはしない
+
+締めの段で計画を archive したカードは、列は 実装中 のまま、ブランチのマージ待ちの止まりになって `waiting` に出る（ループは飛ばす）。
+人がメインのチェックアウト（`main`）で `git merge --no-ff <branch>` を打つと、archive した計画がメインに入り、カードはマージ済みになる。
+ループはマージしない。直したいときは、人が `ai-board decide reject` で計画から立て直させるか、自分で直す。
 `forge` の `kind` が `github` の「使えません」のボードは未設定ではない（`status` は `next` を出さず、ループは止まる）。
 
 ## タスクの数え方と `## AI レビュー` 節
