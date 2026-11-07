@@ -111,19 +111,23 @@ export class GhForgeClient implements ForgeClient {
    * コメント・コミット・イベントの問い合わせは PR 1 枚につき 4 回以上かかる。
    * 変化の無い PR でこれを毎回繰り返すと、問い合わせのたびに PR の枚数の 4 倍以上を使い、GitHub の上限（5,000 回/時）に近づく。
    */
-  async fetchByIid(
-    iid: PullRequestNumber,
+  async fetchByNumber(
+    number: PullRequestNumber,
     previous: PrSnapshot | null = null
   ): Promise<PrSnapshot | null> {
-    const pr = await this.get<RawPullRequest>(`pulls/${iid}`);
-    if (pr === null) return null;
+    const raw = await this.get<RawPullRequest>(`pulls/${number}`);
+    if (raw === null) return null;
 
-    const fingerprint = fingerprintOf(pr);
-    if (previous !== null && previous.mr.iid === iid && previous.fingerprint === fingerprint) {
+    const fingerprint = fingerprintOf(raw);
+    if (
+      previous !== null &&
+      previous.pr.number === number &&
+      previous.fingerprint === fingerprint
+    ) {
       return previous;
     }
 
-    return this.enrich(pr, fingerprint);
+    return this.enrich(raw, fingerprint);
   }
 
   async fetchByBranch(branch: string): Promise<PrSnapshot | null> {
@@ -132,9 +136,9 @@ export class GhForgeClient implements ForgeClient {
     const query = `head=${head}&state=all&sort=updated&direction=desc&per_page=1`;
     const list = await this.get<RawPullRequest[]>(`pulls?${query}`);
 
-    const pr = asArray(list)[0];
+    const raw = asArray(list)[0];
 
-    return pr === undefined ? null : this.enrich(pr, fingerprintOf(pr));
+    return raw === undefined ? null : this.enrich(raw, fingerprintOf(raw));
   }
 
   /**
@@ -151,15 +155,15 @@ export class GhForgeClient implements ForgeClient {
    * 順序ではなく全ページを読んで最大値を取る（`latestOf` が最大値を選ぶので
    * 並び順は問わない）。件数も同じ理由で全ページを数えないと頭打ちになる。
    */
-  private async enrich(pr: RawPullRequest, fingerprint: string): Promise<PrSnapshot> {
-    const state = toLifecycleState(pr.state, pr.merged_at);
-    const draft = pr.draft === true;
+  private async enrich(raw: RawPullRequest, fingerprint: string): Promise<PrSnapshot> {
+    const state = toLifecycleState(raw.state, raw.merged_at);
+    const draft = raw.draft === true;
 
     const [issueComments, reviewComments, headCommit, events] = await Promise.all([
-      this.getAll<RawComment>(`issues/${pr.number}/comments`),
-      this.getAll<RawComment>(`pulls/${pr.number}/comments`),
-      this.get<RawCommit>(`commits/${pr.head.sha}`),
-      this.getAll<RawIssueEvent>(`issues/${pr.number}/events`),
+      this.getAll<RawComment>(`issues/${raw.number}/comments`),
+      this.getAll<RawComment>(`pulls/${raw.number}/comments`),
+      this.get<RawCommit>(`commits/${raw.head.sha}`),
+      this.getAll<RawIssueEvent>(`issues/${raw.number}/events`),
     ]);
 
     // 自動生成のコメントは人のレビューではない。AI が人のアカウントで書いたコメントは別に数える
@@ -167,23 +171,23 @@ export class GhForgeClient implements ForgeClient {
     const comments = notes.filter((comment) => !isAiComment(comment));
     const aiComments = notes.filter(isAiComment);
 
-    const mr = {
+    const pr = {
       forge: this.kind,
-      iid: toPullRequestNumber(pr.number),
+      number: toPullRequestNumber(raw.number),
       state,
       draft,
-      sourceBranch: pr.head.ref,
-      title: pr.title,
-      webUrl: pr.html_url,
+      sourceBranch: raw.head.ref,
+      title: raw.title,
+      webUrl: raw.html_url,
       latestNoteAt: latestOf(comments.map((comment) => comment.created_at)),
       noteCount: comments.length,
       latestAiNoteAt: latestOf(aiComments.map((comment) => comment.created_at)),
       latestCommitAt: commitDate(headCommit),
-      mergedAt: pr.merged_at,
-      ...draftTransitionsOf(events, state, draft, pr.created_at ?? null),
+      mergedAt: raw.merged_at,
+      ...draftTransitionsOf(events, state, draft, raw.created_at ?? null),
     };
 
-    return { mr, fingerprint };
+    return { pr, fingerprint };
   }
 
   /** 404 は「存在しない」として null を返す。それ以外の失敗は例外にする */
@@ -246,16 +250,16 @@ export function toLifecycleState(raw: string, mergedAt: string | null): PrLifecy
  * 一覧（`pulls?head=`）の応答には件数が無いので、ブランチから解決した直後の指紋は
  * 番号で引いたときの指紋と一致せず、次の周で 1 度だけ引き直す。
  */
-function fingerprintOf(pr: RawPullRequest): string {
+function fingerprintOf(raw: RawPullRequest): string {
   return JSON.stringify([
     FINGERPRINT_VERSION,
-    pr.state,
-    pr.merged_at,
-    pr.draft === true,
-    pr.head.sha,
-    pr.comments ?? null,
-    pr.review_comments ?? null,
-    pr.updated_at ?? null,
+    raw.state,
+    raw.merged_at,
+    raw.draft === true,
+    raw.head.sha,
+    raw.comments ?? null,
+    raw.review_comments ?? null,
+    raw.updated_at ?? null,
   ]);
 }
 
@@ -459,8 +463,8 @@ export class GhPullRequestClient {
     return ok({ number: created.value.number, url: created.value.html_url });
   }
 
-  async view(iid: PullRequestNumber): Promise<Result<PullRequestView, CliError>> {
-    const pr = await this.getJson<RawPullRequestDetail>(`${this.base}/pulls/${iid}`);
+  async view(number: PullRequestNumber): Promise<Result<PullRequestView, CliError>> {
+    const pr = await this.getJson<RawPullRequestDetail>(`${this.base}/pulls/${number}`);
     if (isErr(pr)) return pr;
 
     const raw = pr.value;
@@ -481,10 +485,10 @@ export class GhPullRequestClient {
    * PR 全体への返信（issue comment）とコード行への指摘（review comment）を、時刻の順に並べて返す。
    * どちらの一覧も既定は 1 ページ目だけなので、全ページを読む。
    */
-  async comments(iid: PullRequestNumber): Promise<Result<PullRequestComment[], CliError>> {
+  async comments(number: PullRequestNumber): Promise<Result<PullRequestComment[], CliError>> {
     const [issueComments, reviewComments] = await Promise.all([
-      this.getAllJson<RawCommentDetail>(`${this.base}/issues/${iid}/comments`),
-      this.getAllJson<RawCommentDetail>(`${this.base}/pulls/${iid}/comments`),
+      this.getAllJson<RawCommentDetail>(`${this.base}/issues/${number}/comments`),
+      this.getAllJson<RawCommentDetail>(`${this.base}/pulls/${number}/comments`),
     ]);
     if (isErr(issueComments)) return issueComments;
     if (isErr(reviewComments)) return reviewComments;
@@ -494,15 +498,15 @@ export class GhPullRequestClient {
   }
 
   /** PR の本文を差し替え、PR の URL を返す */
-  async editBody(iid: PullRequestNumber, body: string): Promise<Result<string, CliError>> {
-    const edited = await this.send<RawCreated>('PATCH', `${this.base}/pulls/${iid}`, { body });
+  async editBody(number: PullRequestNumber, body: string): Promise<Result<string, CliError>> {
+    const edited = await this.send<RawCreated>('PATCH', `${this.base}/pulls/${number}`, { body });
 
     return isErr(edited) ? edited : ok(edited.value.html_url);
   }
 
   /** PR にコメントを書き、コメントの URL を返す */
-  async comment(iid: PullRequestNumber, body: string): Promise<Result<string, CliError>> {
-    const created = await this.send<RawCreated>('POST', `${this.base}/issues/${iid}/comments`, {
+  async comment(number: PullRequestNumber, body: string): Promise<Result<string, CliError>> {
+    const created = await this.send<RawCreated>('POST', `${this.base}/issues/${number}/comments`, {
       body,
     });
 
@@ -519,10 +523,10 @@ export class GhPullRequestClient {
    * `--jq` で 1 件 1 行にして繋ぐ（ページを跨いでも 1 本の JSON にならないため）。
    */
   async checks(
-    iid: PullRequestNumber,
+    number: PullRequestNumber,
     sha: string | null = null
   ): Promise<Result<PullRequestChecks, CliError>> {
-    const pr = await this.getJson<RawPullRequestDetail>(`${this.base}/pulls/${iid}`);
+    const pr = await this.getJson<RawPullRequestDetail>(`${this.base}/pulls/${number}`);
     if (isErr(pr)) return pr;
     const headSha = pr.value.head.sha;
     if (sha !== null && !isSameCommit(sha, headSha)) return ok({ headSha, summary: null });
@@ -556,8 +560,8 @@ export class GhPullRequestClient {
   }
 
   /** PR の差分を unified diff の文字列で返す */
-  async diff(iid: PullRequestNumber): Promise<Result<string, CliError>> {
-    return this.runner.run(GH, ['api', '-H', DIFF_ACCEPT, `${this.base}/pulls/${iid}`]);
+  async diff(number: PullRequestNumber): Promise<Result<string, CliError>> {
+    return this.runner.run(GH, ['api', '-H', DIFF_ACCEPT, `${this.base}/pulls/${number}`]);
   }
 
   /**
@@ -566,16 +570,16 @@ export class GhPullRequestClient {
    * 手元では `gh pr ready` が通り、クラウドでは GraphQL が 403 で `ccr/` の経路が通る見込みである。
    * どちらも失敗したら、両方の理由を返す。
    */
-  async ready(iid: PullRequestNumber): Promise<Result<ReadyRoute, ReadyFailure>> {
+  async ready(number: PullRequestNumber): Promise<Result<ReadyRoute, ReadyFailure>> {
     const repo = `${this.config.owner}/${this.config.repo}`;
-    const viaGh = await this.runner.run(GH, ['pr', 'ready', String(iid), '--repo', repo]);
+    const viaGh = await this.runner.run(GH, ['pr', 'ready', String(number), '--repo', repo]);
     if (!isErr(viaGh)) return ok('gh');
 
     const viaCcr = await this.runner.run(GH, [
       'api',
       '--method',
       'POST',
-      `${this.base}/pulls/${iid}/ccr/ready_for_review`,
+      `${this.base}/pulls/${number}/ccr/ready_for_review`,
     ]);
     if (!isErr(viaCcr)) return ok('ccr');
 

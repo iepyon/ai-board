@@ -77,7 +77,7 @@ describe('createPrStateSource', () => {
   });
 
   describe('gh が使えないとき', () => {
-    function card(id: string, mr: number | null): Card {
+    function card(id: string, pr: number | null): Card {
       return {
         id: id as CardId,
         title: id,
@@ -85,23 +85,23 @@ describe('createPrStateSource', () => {
         startedAt: '2026-11-02T00:00:00.000Z',
         skipGates: [],
         branch: id,
-        mr: mr as PullRequestNumber | null,
+        pr: pr as PullRequestNumber | null,
         rank: null,
         body: '',
       };
     }
 
-    function merged(iid: number): PrSnapshot {
+    function merged(number: number): PrSnapshot {
       return {
-        fingerprint: `[${iid}]`,
-        mr: {
+        fingerprint: `[${number}]`,
+        pr: {
           forge: 'github',
-          iid: iid as PullRequestNumber,
+          number: number as PullRequestNumber,
           state: 'merged',
           draft: false,
           sourceBranch: 'x',
           title: 'x',
-          webUrl: `https://github.com/acme/board/pull/${iid}`,
+          webUrl: `https://github.com/acme/board/pull/${number}`,
           latestNoteAt: null,
           noteCount: 0,
           latestAiNoteAt: null,
@@ -140,7 +140,7 @@ describe('createPrStateSource', () => {
 
       expect(source.fetcher).toBeNull();
       expect(source.provider.connection()).toMatchObject({ status: 'disabled', kind: 'github' });
-      expect(source.provider.get('done')).toEqual(merged(7).mr);
+      expect(source.provider.get('done')).toEqual(merged(7).pr);
       expect(source.provider.get('renumbered')).toBeNull();
     });
 

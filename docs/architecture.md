@@ -73,7 +73,7 @@ push が拒否されたら取り直したボードで検査からやり直す。
 区画への振り分け・並び・出せる判断は `src/shared/board-sections.ts` の純関数で、ステージの導出とは別物。
 
 - `sectionOf` / `groupBySection`: 区画は inbox（判断待ち）/ work（AI 作業中）/ idea / merged / aborted。`hold` のあるカードは inbox で、待ち始めは `hold.since`。
-  PR中 でも `mrState.awaitingFix` なら work の先頭（`isAwaitingPrFix`）
+  PR中 でも `prState.awaitingFix` なら work の先頭（`isAwaitingPrFix`）
 - `decisionsFor`: 出せる判断（表は README）。どの判断も plan に書き、`skipGates` の有無では出し分けない
 - `droppableStages` / `resolveFloorStage`: 着手を戻せる下限（`startedAt` を外したときに残るステージ）
 - 動きなし（`stale`）: AI 作業中のカードで、計画ファイルの更新（計画が無ければ `startedAt`）から 3 日。PR中 のカードは数えない
@@ -101,10 +101,10 @@ PR の状態は `refresh()` を 1 回待って引き、`branch` から解決し�
 データ用ブランチの中身（形は `src/cards/repositories/card-files.ts` の純関数が読み書きする）:
 
 ```
-ai-board-data.yaml                      形の版（version: 1）。CLI はこれより新しい版を読まずに止まる
+ai-board-data.yaml                      形の版（version: 2）。CLI はこれより新しい版を読まずに止まり、古い版は書き換える
 config.yaml                             GitHub の接続設定（ai-board init が .ai-board/config.yaml を写す）
 order.yaml                              rank とアイデアの区切り線（{ divider, ranks: { <id>: <数> } }）
-cards/<id>/card.md                      frontmatter（id, title, created, skipGates, branch, mr）と本文
+cards/<id>/card.md                      frontmatter（id, title, created, skipGates, branch, pr）と本文
 cards/<id>/log/<時刻>.<gate>.<種別>.md   判断 1 件。中身は理由の本文。追記だけで、書き換えも削除もしない
 snapshots/<id>.json                     マージ済みの PR の控え
 loop/<時刻>.<ループの識別子>.json        ループの 1 手の記録。カードではない
@@ -112,6 +112,11 @@ loop/<時刻>.<ループの識別子>.json        ループの 1 手の記録。
 
 `startedAt` は `log/` の着手・着手を戻すの最新から、`rank` は `order.yaml` から、`## レビュー` の節は `log/` から組み立てる（`card.md` の節は読まない）。
 `card.md` が読めない・項目が不正・`id` がディレクトリ名と食い違うカードは、警告して読み飛ばす。
+
+**形の版の移行。** 取り直した版がこの CLI より古ければ、`src/infrastructure/data-migration.ts` の `migrateData` がワークツリーのファイルを今の版へ書き換える。
+読み出しでは書き換えるだけでコミットしない（取り直すたびに書き換え直す）。書き込みでは `op` の前に書き換えを `data: 形の版を <版> に上げる` の 1 コミットにし、`op` のコミットと一緒に push する。
+push した後は古い CLI が `UnsupportedDataVersion` で止まるので、メインのチェックアウトを pull してビルドし直す。
+版 2 はカードの PR 番号を `mr` から `pr` に、控えの `mr` / `iid` を `pr` / `number` に改めた。
 
 **置き場所。** メインのチェックアウトの `.ai-board/data/` に `git worktree add` で置く（`dataDir`）。`sharedBoardDir` がどのワークツリーからもここに解決する。
 `AI_BOARD_DATA` を指すとそのディレクトリを使い、その `origin` に push する。`data.lock` と `cache/` は `dataDir` の親に置き、git に載せない。
@@ -137,7 +142,7 @@ rebase しないのは、離れた行の編集を git が黙って混ぜ、検�
 `config.yaml` に `github:` が無ければ（未設定。`isForgeUnset`）PR中 / マージ済み の列が空になるだけでボードは動き、人の判断と次の一手も接続済みと同じに通す（`forgeTrusted`）。
 未設定のボードで PR 番号を持つカード（途中で `github:` を外した）は、そのカードだけを止まり（`forge`、`unsetPr`）にする。
 `github:` があって使えない・エラーのときは、判断と着手を拒み `next` を出さない（列を取り違えるため）。
-使えない（`checkAuth` が失敗した）あいだも、データ用ブランチのマージ済みの控えのうち、カードの `mr` と番号が合うものだけは PR の状態として出す（`matchMergedSnapshots`、`unavailablePrStateProvider`）。
+使えない（`checkAuth` が失敗した）あいだも、データ用ブランチのマージ済みの控えのうち、カードの `pr` と番号が合うものだけは PR の状態として出す（`matchMergedSnapshots`、`unavailablePrStateProvider`）。
 マージ済みは二度と変わらないので古さを気にしない。マージ前の控え（`cache/`）は古いことがあるので使わず、`synced` も偽のままにする。
 
 - 引けるかは CLI を動かすたびに `gh api repos/<owner>/<repo>` を 1 回引いて確かめる（`ForgeClient.checkAuth`）。クラウドでは `gh auth status` が失敗するので使わない
@@ -148,7 +153,7 @@ rebase しないのは、離れた行の編集を git が黙って混ぜ、検�
 - コメントは issue comment と review comment を `--paginate` で全ページ引いて合算する。`user.type === 'Bot'` は外す
 - 最新コミットは `head.sha`。`issues/{n}/events` から最後の `ready_for_review`（無く Ready なら作成時刻）を `readyAt`、
   最後の `convert_to_draft`（今 open かつ Draft のときだけ）を `convertedToDraftAt` にする（`draftTransitionsOf`）
-- PR 一覧は引かず、カードごとに `mr`、無ければ `branch` から解決して番号を書き戻す（`PrFetcher.fetchFor`、`createTransactionalPrWriter`）
+- PR 一覧は引かず、カードごとに `pr`、無ければ `branch` から解決して番号を書き戻す（`PrFetcher.fetchFor`、`createTransactionalPrWriter`）
 
 **PR の指摘に AI が応える番。** AI も人のアカウントで書くので、本文の最後の行が Claude Code のフッター（`CLAUDE_CODE_FOOTER`）であるコメントを AI のもの（`isAiComment`）とする。
 引用の中のフッターで人の指摘を見落とさないよう、含むだけでは読まない。`ai-board pr comment` はフッターを足す（`withClaudeCodeFooter`）。
@@ -158,7 +163,7 @@ rebase しないのは、離れた行の編集を git が黙って混ぜ、検�
 **控え。** PR 1 枚で 4 回以上引くので、結果を控えて問い合わせを省く（`src/board/repositories/file-pr-snapshot.repository.ts`）。
 
 - マージ済みの PR は二度と引かず（`isSettled`）、データ用ブランチの `snapshots/<id>.json` に `transact` で書く
-- それ以外は `pulls/{n}` の指紋（`fingerprintOf`）が前回と同じなら詳細を引かない。控えは `<dataDir の親>/cache/mr-snapshots.json`
+- それ以外は `pulls/{n}` の指紋（`fingerprintOf`）が前回と同じなら詳細を引かない。控えは `<dataDir の親>/cache/pr-snapshots.json`
 - GitHub に届かないときは、マージ済みの控え（`findMerged`）だけを読み、書かない（`PrFetcher` を作らない）
 - 控えは導出の入力ではないので、書けなくても警告だけ。`PrState` に項目を足すと古い控えは検証で外れ、`enrich` を変えたら `FINGERPRINT_VERSION` を上げる
 
@@ -173,7 +178,7 @@ rebase しないのは、離れた行の編集を git が黙って混ぜ、検�
 
 ## カードの JSON
 
-`status --json` の `cards[]` は本文を除いたカードに、`hold`・`mrState`（`readyAt` / `convertedToDraftAt` / `awaitingFix` など）・`loopSteps`・`reviews`（`{ at, gate, kind, reason }`）を足したもの。
+`status --json` の `cards[]` は本文を除いたカードに、`hold`・`prState`（`readyAt` / `convertedToDraftAt` / `awaitingFix` など）・`loopSteps`・`reviews`（`{ at, gate, kind, reason }`）を足したもの。
 `reviews` の理由は組み立てた本文から読むので、見出しは `####` に下がっている。
 
 ## ループの 1 手の記録

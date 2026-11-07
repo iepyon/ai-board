@@ -7,15 +7,15 @@ import { matchMergedSnapshots, unavailablePrStateProvider } from '../pr-state-pr
 // GitHub に届かないときの供給元と、マージ済みの控えの照らし合わせ
 // ============================================================
 
-function mergedPr(iid: number): PrState {
+function mergedPr(number: number): PrState {
   return {
     forge: 'github',
-    iid: iid as PullRequestNumber,
+    number: number as PullRequestNumber,
     state: 'merged',
     draft: false,
     sourceBranch: 'done',
     title: 'done',
-    webUrl: `https://github.com/acme/board/pull/${iid}`,
+    webUrl: `https://github.com/acme/board/pull/${number}`,
     latestNoteAt: null,
     noteCount: 0,
     latestAiNoteAt: null,
@@ -26,8 +26,8 @@ function mergedPr(iid: number): PrState {
   };
 }
 
-function snapshot(iid: number): PrSnapshot {
-  return { mr: mergedPr(iid), fingerprint: `[${iid}]` };
+function snapshot(number: number): PrSnapshot {
+  return { pr: mergedPr(number), fingerprint: `[${number}]` };
 }
 
 describe('unavailablePrStateProvider', () => {
@@ -58,14 +58,14 @@ describe('matchMergedSnapshots', () => {
   it('カードの PR 番号と合う控えだけを採る', () => {
     const matched = matchMergedSnapshots(
       [
-        { id: 'same', mr: 7 },
-        { id: 'renumbered', mr: 9 },
-        { id: 'no-mr', mr: null },
+        { id: 'same', pr: 7 },
+        { id: 'renumbered', pr: 9 },
+        { id: 'no-pr', pr: null },
       ],
       new Map([
         ['same', snapshot(7)],
         ['renumbered', snapshot(8)],
-        ['no-mr', snapshot(10)],
+        ['no-pr', snapshot(10)],
         ['gone', snapshot(11)],
       ])
     );

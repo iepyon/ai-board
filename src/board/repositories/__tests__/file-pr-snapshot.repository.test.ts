@@ -64,12 +64,12 @@ function write(file: string, content: string): void {
 
 const id = 'refresh-token' as CardId;
 
-function makeSnapshot(overrides: Partial<PrSnapshot['mr']> = {}): PrSnapshot {
+function makeSnapshot(overrides: Partial<PrSnapshot['pr']> = {}): PrSnapshot {
   return {
     fingerprint: '[1,"open"]',
-    mr: {
+    pr: {
       forge: 'github',
-      iid: 42 as PullRequestNumber,
+      number: 42 as PullRequestNumber,
       state: 'opened',
       draft: true,
       sourceBranch: 'refresh-token',
@@ -87,7 +87,7 @@ function makeSnapshot(overrides: Partial<PrSnapshot['mr']> = {}): PrSnapshot {
   };
 }
 
-function merged(overrides: Partial<PrSnapshot['mr']> = {}): PrSnapshot {
+function merged(overrides: Partial<PrSnapshot['pr']> = {}): PrSnapshot {
   return {
     ...makeSnapshot({
       state: 'merged',
@@ -101,7 +101,7 @@ function merged(overrides: Partial<PrSnapshot['mr']> = {}): PrSnapshot {
 }
 
 beforeEach(() => {
-  tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-board-mr-snapshot-'));
+  tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-board-pr-snapshot-'));
 
   const globalConfig = path.join(tmp, 'gitconfig');
   fs.writeFileSync(globalConfig, '');
@@ -119,7 +119,7 @@ beforeEach(() => {
   const seed = path.join(tmp, 'seed');
   sh(['clone', '--quiet', origin, seed]);
   git(seed, 'checkout', '--quiet', '--orphan', DATA_BRANCH);
-  write(path.join(seed, 'ai-board-data.yaml'), 'version: 1\n');
+  write(path.join(seed, 'ai-board-data.yaml'), 'version: 2\n');
   git(seed, 'add', '-A');
   git(seed, 'commit', '--quiet', '-m', 'data: 始める');
   git(seed, 'push', '--quiet', 'origin', `HEAD:refs/heads/${DATA_BRANCH}`);
@@ -152,7 +152,7 @@ describe('FilePrSnapshotRepository の開いている PR の控え', () => {
     const found = await repository.findAll();
     expect(found.size).toBe(1);
     expect(found.get(id)?.fingerprint).toBe('next');
-    expect(found.get(id)?.mr.draft).toBe(false);
+    expect(found.get(id)?.pr.draft).toBe(false);
   });
 
   it('マージ済みの控えが無ければ、書くのも消すのも取り直しと push を走らせない', async () => {
@@ -216,7 +216,7 @@ describe('FilePrSnapshotRepository のマージ済みの PR の控え', () => {
     const open = 'open-card' as CardId;
 
     await repository.save(id, merged());
-    await repository.save(open, makeSnapshot({ iid: 43 as PullRequestNumber }));
+    await repository.save(open, makeSnapshot({ number: 43 as PullRequestNumber }));
 
     expect(await repository.findMerged()).toEqual(new Map([[id, merged()]]));
     expect((await repository.findAll()).has(open)).toBe(true);
@@ -230,7 +230,7 @@ describe('FilePrSnapshotRepository のマージ済みの PR の控え', () => {
     // 項目の順が違っても、同じ中身なら同じファイルになる
     const reordered = merged();
     await new FilePrSnapshotRepository(b).save(id, {
-      mr: Object.fromEntries(Object.entries(reordered.mr).reverse()) as PrSnapshot['mr'],
+      pr: Object.fromEntries(Object.entries(reordered.pr).reverse()) as PrSnapshot['pr'],
       fingerprint: reordered.fingerprint,
     });
 
@@ -243,7 +243,7 @@ describe('FilePrSnapshotRepository のマージ済みの PR の控え', () => {
   it('番号を付け替えて開いている PR を書くと、前のマージ済みの控えを消す', async () => {
     const repository = new FilePrSnapshotRepository(cloneData('a'));
 
-    await repository.save(id, merged({ iid: 41 as PullRequestNumber }));
+    await repository.save(id, merged({ number: 41 as PullRequestNumber }));
     await repository.save(id, makeSnapshot());
 
     expect(await repository.findAll()).toEqual(new Map([[id, makeSnapshot()]]));
@@ -274,7 +274,7 @@ describe('FilePrSnapshotRepository のマージ済みの PR の控え', () => {
       expect.stringContaining('マージ済みの PR の控えを書けませんでした')
     );
     // 古い開いている控えが残るので、次のプロセスはマージ済みとみなさずに引き直す
-    expect((await repository.findAll()).get(id)?.mr.state).toBe('opened');
+    expect((await repository.findAll()).get(id)?.pr.state).toBe('opened');
     expect(originLog()).toEqual(['data: 始める']);
   });
 });
@@ -290,7 +290,7 @@ describe('FilePrSnapshotRepository の読めない控え', () => {
     write(
       cacheFile(store),
       JSON.stringify({
-        'missing-field': { fingerprint: 'x', mr: { iid: 1 } },
+        'missing-field': { fingerprint: 'x', pr: { number: 1 } },
         'Bad Name': makeSnapshot(),
         [id]: makeSnapshot(),
       })
@@ -304,10 +304,10 @@ describe('FilePrSnapshotRepository の読めない控え', () => {
   it('readyAt を持たない古い控えは外す', async () => {
     // マージ済みの PR は二度と引き直さないので、ここで外さないと readyAt が入らないまま残る
     const store = cloneData('a');
-    const { readyAt: _readyAt, ...old } = merged().mr;
+    const { readyAt: _readyAt, ...old } = merged().pr;
     write(
       path.join(store.dataDir, SNAPSHOTS_DIR, 'refresh-token.json'),
-      JSON.stringify({ fingerprint: '[1,"closed"]', mr: old })
+      JSON.stringify({ fingerprint: '[1,"closed"]', pr: old })
     );
 
     expect((await new FilePrSnapshotRepository(store).findAll()).size).toBe(0);
@@ -328,11 +328,11 @@ describe('FilePrSnapshotRepository の読めない控え', () => {
 
 describe('parsePrSnapshot', () => {
   it('latestAiNoteAt を持たない古い控えは null で読む', () => {
-    const { latestAiNoteAt: _dropped, ...old } = makeSnapshot().mr;
+    const { latestAiNoteAt: _dropped, ...old } = makeSnapshot().pr;
 
-    const parsed = parsePrSnapshot({ fingerprint: '[1,"open"]', mr: old });
+    const parsed = parsePrSnapshot({ fingerprint: '[1,"open"]', pr: old });
 
-    expect(parsed?.mr.latestAiNoteAt).toBeNull();
-    expect(parsed?.mr.noteCount).toBe(3);
+    expect(parsed?.pr.latestAiNoteAt).toBeNull();
+    expect(parsed?.pr.noteCount).toBe(3);
   });
 });

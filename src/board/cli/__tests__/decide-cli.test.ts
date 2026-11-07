@@ -380,9 +380,9 @@ describe('ai-board decide', () => {
   });
 
   it('GitHub が未設定のボードで PR 番号を持つカードには、判断と着手を戻すを書かない', async () => {
-    await writeCard('r', `${STARTED}mr: 7\n`, review('提出'));
+    await writeCard('r', `${STARTED}pr: 7\n`, review('提出'));
     await writePlan('r');
-    await writeCard('c', `${STARTED}mr: 8\n`);
+    await writeCard('c', `${STARTED}pr: 8\n`);
     const unset = stubProvider({ status: 'disabled', kind: null, reason: null });
 
     expect(await run(['approve', 'r'], unset)).toBe(1);

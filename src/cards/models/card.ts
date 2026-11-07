@@ -10,7 +10,7 @@ import type { ReviewGate } from './review.js';
  * `## レビュー` の判断と着手は `log/` の 1 件 1 ファイルに、`rank` は根の `order.yaml` にあり、
  * 読むときにこれらから組み立てる（`repositories/card-files.ts` の `assembleCard`）。
  *
- * `id` は不変で、`branch` / `mr` が進行に応じて後から埋まる。
+ * `id` は不変で、`branch` / `pr` が進行に応じて後から埋まる。
  * カードは全ステージを通じて存在し続ける（マージ済みでも削除しない）ため、
  * アイデアメモ → 計画 → ブランチ → PR → archive を 1 本の線でつなげる。
  *
@@ -30,7 +30,7 @@ export interface Card {
   /** 人が事前に「見ない」と宣言したゲート。AI はここで止まらない */
   readonly skipGates: readonly ReviewGate[];
   readonly branch: string | null;
-  readonly mr: PullRequestNumber | null;
+  readonly pr: PullRequestNumber | null;
   /**
    * 並び順。小さいほど上に並ぶ。null なら `created` のエポックミリ秒とみなす
    * （`services/card-order.ts`）。優先度は人の判断であり、エージェントは書かない。

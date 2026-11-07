@@ -23,13 +23,13 @@ export interface PrFeedbackInput {
  * 直すものが無ければ AI が返信で戻すので、同じカードで AI の番が続くことは無い。
  * ステージは変えない（PR中 のまま）。ボードの区画と、ループの次の一手だけがこれを読む。
  */
-export function awaitsPrFix(mr: PrFeedbackInput): boolean {
-  if (mr.state !== 'opened' || mr.draft || mr.latestNoteAt === null) return false;
+export function awaitsPrFix(pr: PrFeedbackInput): boolean {
+  if (pr.state !== 'opened' || pr.draft || pr.latestNoteAt === null) return false;
 
-  const noteMs = Date.parse(mr.latestNoteAt);
+  const noteMs = Date.parse(pr.latestNoteAt);
   if (Number.isNaN(noteMs)) return false;
 
-  return [mr.latestCommitAt, mr.latestAiNoteAt].every((at) => {
+  return [pr.latestCommitAt, pr.latestAiNoteAt].every((at) => {
     if (at === null) return true;
     const ms = Date.parse(at);
     return Number.isNaN(ms) || noteMs > ms;

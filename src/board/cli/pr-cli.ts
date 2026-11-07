@@ -222,8 +222,8 @@ async function runView(
   client: GhPullRequestClient,
   io: PrCliIo
 ): Promise<number> {
-  const iid = requireIid(args, io);
-  if (iid === null) return 1;
+  const number = requireNumber(args, io);
+  if (number === null) return 1;
 
   const withComments = args.flags.has('--comments');
   const bodyOnly = args.flags.has('--body');
@@ -232,8 +232,8 @@ async function runView(
     return 1;
   }
 
-  const pr = await client.view(iid);
-  if (isErr(pr)) return fail(io, `PR #${iid} を読めませんでした`, pr.error);
+  const pr = await client.view(number);
+  if (isErr(pr)) return fail(io, `PR #${number} を読めませんでした`, pr.error);
 
   if (bodyOnly) {
     io.stdout(withTrailingNewline(pr.value.body));
@@ -243,8 +243,9 @@ async function runView(
   let text = formatPullRequest(pr.value);
 
   if (withComments) {
-    const comments = await client.comments(iid);
-    if (isErr(comments)) return fail(io, `PR #${iid} のコメントを読めませんでした`, comments.error);
+    const comments = await client.comments(number);
+    if (isErr(comments))
+      return fail(io, `PR #${number} のコメントを読めませんでした`, comments.error);
     text += formatComments(comments.value);
   }
 
@@ -257,14 +258,15 @@ async function runEdit(
   client: GhPullRequestClient,
   io: PrCliIo
 ): Promise<number> {
-  const iid = requireIid(args, io);
-  if (iid === null) return 1;
+  const number = requireNumber(args, io);
+  if (number === null) return 1;
 
   const body = await readBodyFile(args, io);
   if (body === null) return 1;
 
-  const edited = await client.editBody(iid, body);
-  if (isErr(edited)) return fail(io, `PR #${iid} の本文を書き換えられませんでした`, edited.error);
+  const edited = await client.editBody(number, body);
+  if (isErr(edited))
+    return fail(io, `PR #${number} の本文を書き換えられませんでした`, edited.error);
 
   io.stdout(`${edited.value}\n`);
   return 0;
@@ -275,15 +277,15 @@ async function runComment(
   client: GhPullRequestClient,
   io: PrCliIo
 ): Promise<number> {
-  const iid = requireIid(args, io);
-  if (iid === null) return 1;
+  const number = requireNumber(args, io);
+  if (number === null) return 1;
 
   const body = await readBodyFile(args, io);
   if (body === null) return 1;
 
   // AI が人のアカウントで書くので、フッターで人の指摘と見分ける（`isAiComment`）
-  const created = await client.comment(iid, withClaudeCodeFooter(body));
-  if (isErr(created)) return fail(io, `PR #${iid} にコメントを書けませんでした`, created.error);
+  const created = await client.comment(number, withClaudeCodeFooter(body));
+  if (isErr(created)) return fail(io, `PR #${number} にコメントを書けませんでした`, created.error);
 
   io.stdout(`${created.value}\n`);
   return 0;
@@ -294,11 +296,11 @@ async function runDiff(
   client: GhPullRequestClient,
   io: PrCliIo
 ): Promise<number> {
-  const iid = requireIid(args, io);
-  if (iid === null) return 1;
+  const number = requireNumber(args, io);
+  if (number === null) return 1;
 
-  const diff = await client.diff(iid);
-  if (isErr(diff)) return fail(io, `PR #${iid} の差分を読めませんでした`, diff.error);
+  const diff = await client.diff(number);
+  if (isErr(diff)) return fail(io, `PR #${number} の差分を読めませんでした`, diff.error);
 
   io.stdout(diff.value);
   return 0;
@@ -309,13 +311,13 @@ async function runReady(
   client: GhPullRequestClient,
   io: PrCliIo
 ): Promise<number> {
-  const iid = requireIid(args, io);
-  if (iid === null) return 1;
+  const number = requireNumber(args, io);
+  if (number === null) return 1;
 
-  const ready = await client.ready(iid);
+  const ready = await client.ready(number);
   if (isErr(ready)) {
     io.stderr(
-      `PR #${iid} を Ready にできませんでした\n` +
+      `PR #${number} を Ready にできませんでした\n` +
         `  gh pr ready: ${describePrError(ready.error.gh)}\n` +
         `  ccr/ready_for_review: ${describePrError(ready.error.ccr)}\n`
     );
@@ -323,7 +325,7 @@ async function runReady(
   }
 
   const route = ready.value === 'gh' ? 'gh pr ready' : 'ccr/ready_for_review';
-  io.stdout(`PR #${iid} を Ready にしました（${route}）\n`);
+  io.stdout(`PR #${number} を Ready にしました（${route}）\n`);
   return 0;
 }
 
@@ -358,16 +360,18 @@ async function runChecks(
   io: PrCliIo,
   clock: WaitClock
 ): Promise<number> {
-  const iid = requireIid(args, io);
-  const options = iid === null ? null : parseChecksOptions(args, io);
-  if (iid === null || options === null) return 1;
+  const number = requireNumber(args, io);
+  const options = number === null ? null : parseChecksOptions(args, io);
+  if (number === null || options === null) return 1;
 
   const json = args.flags.has('--json');
   const wait = { ...options, startedAt: clock.now(), watchingSince: null as number | null };
   for (;;) {
-    const fetched = await client.checks(iid, options.sha);
+    const fetched = await client.checks(number, options.sha);
     if (isErr(fetched)) {
-      io.stderr(`PR #${iid} のチェックを読めませんでした（${describePrError(fetched.error)}）\n`);
+      io.stderr(
+        `PR #${number} のチェックを読めませんでした（${describePrError(fetched.error)}）\n`
+      );
       return CHECKS_UNREADABLE_EXIT;
     }
 
@@ -377,7 +381,7 @@ async function runChecks(
 
     const step = nextCheckStep(fetched.value, wait, now);
     if (step.kind === 'report') {
-      return reportChecks(iid, step.summary, json, step.timedOut, io, fetched.value.headSha);
+      return reportChecks(number, step.summary, json, step.timedOut, io, fetched.value.headSha);
     }
     await clock.sleep(CHECKS_INTERVAL_SECONDS * 1000);
   }
@@ -465,7 +469,7 @@ function parseChecksOptions(
 }
 
 function reportChecks(
-  iid: PullRequestNumber,
+  number: PullRequestNumber,
   summary: ChecksSummary,
   json: boolean,
   timedOut: boolean,
@@ -478,7 +482,7 @@ function reportChecks(
   }
 
   const lines = [
-    `PR #${iid} の最新コミット ${summary.sha.slice(0, 7)} のチェック: ${summary.verdict}` +
+    `PR #${number} の最新コミット ${summary.sha.slice(0, 7)} のチェック: ${summary.verdict}` +
       (timedOut ? '（待ち切れませんでした）' : ''),
   ];
   if (headSha !== summary.sha) {
@@ -506,7 +510,7 @@ function reportChecks(
 // ============================================================
 
 /** 位置引数の PR 番号を 1 つだけ取り出す。正の整数でなければ null */
-function requireIid(args: ParsedArgs, io: PrCliIo): PullRequestNumber | null {
+function requireNumber(args: ParsedArgs, io: PrCliIo): PullRequestNumber | null {
   const [raw, ...extra] = args.positionals;
 
   if (raw === undefined) {

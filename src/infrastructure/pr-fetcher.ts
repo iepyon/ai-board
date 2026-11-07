@@ -21,7 +21,7 @@ import type {
  * 書く直前にカードを読み直し、番号以外は触らない。番号が既に入っていれば何も書かない。
  * 書けなかったときは例外を投げずに警告にとどめる（番号は次の問い合わせでブランチから解決し直される）。
  */
-export type PrNumberWriter = (cardId: CardId, iid: PrState['iid']) => Promise<void>;
+export type PrNumberWriter = (cardId: CardId, number: PrState['number']) => Promise<void>;
 
 export interface PrFetcherOptions {
   /**
@@ -61,7 +61,7 @@ export class PrFetcher implements PrStateProvider {
   }
 
   get(cardId: string): PrState | null {
-    return this.cache.get(cardId as CardId)?.mr ?? null;
+    return this.cache.get(cardId as CardId)?.pr ?? null;
   }
 
   failure(cardId: string): ForgeCardFailure | null {
@@ -83,7 +83,7 @@ export class PrFetcher implements PrStateProvider {
       await this.load();
 
       const cards = await this.cardRepository.findAll();
-      const targets = cards.filter((card) => card.mr !== null || card.branch !== null);
+      const targets = cards.filter((card) => card.pr !== null || card.branch !== null);
 
       await this.forgetUntracked(targets);
       let firstError: string | null = null;
@@ -183,8 +183,8 @@ export class PrFetcher implements PrStateProvider {
       await this.snapshotRepository.save(card.id, snapshot);
     }
 
-    if (card.mr !== snapshot.mr.iid) {
-      await (this.options.writePr ?? this.savePr)(card.id, snapshot.mr.iid);
+    if (card.pr !== snapshot.pr.number) {
+      await (this.options.writePr ?? this.savePr)(card.id, snapshot.pr.number);
     }
   }
 
@@ -194,18 +194,18 @@ export class PrFetcher implements PrStateProvider {
    * `refresh()` の最初に読んだカードは、問い合わせを待つ数秒のうちに古くなっている
    * （人が承認・着手・並べ替えをしているかもしれない）。書く直前に読み直し、番号以外は触らない。
    */
-  private readonly savePr: PrNumberWriter = async (cardId, iid) => {
+  private readonly savePr: PrNumberWriter = async (cardId, number) => {
     const latest = await this.cardRepository.findById(cardId);
 
-    if (latest !== null && latest.mr !== iid) {
-      await this.cardRepository.save({ ...latest, mr: iid });
+    if (latest !== null && latest.pr !== number) {
+      await this.cardRepository.save({ ...latest, pr: number });
     }
   };
 
   /** 番号が分かっていれば番号で、無ければブランチから解決する */
   private async fetchFor(card: Card, previous: PrSnapshot | null): Promise<PrSnapshot | null> {
-    if (card.mr !== null) {
-      return this.client.fetchByIid(card.mr, previous);
+    if (card.pr !== null) {
+      return this.client.fetchByNumber(card.pr, previous);
     }
 
     if (card.branch !== null) {
@@ -218,7 +218,7 @@ export class PrFetcher implements PrStateProvider {
 
 /** 何を引こうとしたか。番号が分かっていれば番号、無ければブランチ */
 function describeTarget(card: Card): string {
-  if (card.mr !== null) return `PR #${card.mr} の取得`;
+  if (card.pr !== null) return `PR #${card.pr} の取得`;
   return `ブランチ ${card.branch ?? ''} の PR の解決`;
 }
 

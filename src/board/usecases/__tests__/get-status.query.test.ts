@@ -30,22 +30,22 @@ function implementing(branch: string | null): Card {
     startedAt: '2026-11-02T00:00:00.000Z',
     skipGates: [],
     branch,
-    mr: null,
+    pr: null,
     rank: null,
     body: '## レビュー\n\n### 2026-11-03T00:00:00.000Z plan 承認\n',
   };
 }
 
 /** マージ済みの PR の状態（控え） */
-function mergedPr(iid: number): PrState {
+function mergedPr(number: number): PrState {
   return {
     forge: 'github',
-    iid: iid as PullRequestNumber,
+    number: number as PullRequestNumber,
     state: 'merged',
     draft: false,
     sourceBranch: 'done',
     title: 'done',
-    webUrl: `https://github.com/acme/board/pull/${iid}`,
+    webUrl: `https://github.com/acme/board/pull/${number}`,
     latestNoteAt: null,
     noteCount: 0,
     latestAiNoteAt: null,
@@ -143,7 +143,7 @@ describe('GetStatusQuery', () => {
     const withPr: Card = {
       ...implementing(null),
       id: 'with-pr' as CardId,
-      mr: 7 as PullRequestNumber,
+      pr: 7 as PullRequestNumber,
     };
     const result = await createGetStatusQuery(boardQuery([withPr, implementing(null)], unset))(NOW);
     if (!result.ok) throw new Error('ボードを読めない');
@@ -162,7 +162,7 @@ describe('GetStatusQuery', () => {
     const mergedCard: Card = {
       ...implementing('done'),
       id: 'done' as CardId,
-      mr: 7 as PullRequestNumber,
+      pr: 7 as PullRequestNumber,
     };
     const provider = unavailablePrStateProvider(
       'github',
@@ -177,8 +177,8 @@ describe('GetStatusQuery', () => {
     expect(result.value.next).toBeNull();
     const done = result.value.cards.find((card) => card.id === 'done');
     expect(done?.stage).toBe('merged');
-    expect(done?.mrState).toMatchObject({
-      iid: 7,
+    expect(done?.prState).toMatchObject({
+      number: 7,
       state: 'merged',
       mergedAt: '2026-11-04T00:00:00Z',
     });

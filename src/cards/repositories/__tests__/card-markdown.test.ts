@@ -20,7 +20,7 @@ function makeCard(overrides: Partial<Card> = {}): Card {
     startedAt: null,
     skipGates: [],
     branch: null,
-    mr: null,
+    pr: null,
     rank: null,
     body: '',
     ...overrides,
@@ -41,7 +41,7 @@ describe('parseCard', () => {
       'startedAt: 2026-09-05T00:00:00.000Z',
       'skipGates: [plan]',
       'change: refresh-token',
-      'mr: 42',
+      'pr: 42',
       '---',
       '',
       '## アイデア',
@@ -53,7 +53,7 @@ describe('parseCard', () => {
     expect(card).not.toBeNull();
     expect(card?.startedAt).toBe('2026-09-05T00:00:00.000Z');
     expect(card?.skipGates).toEqual(['plan']);
-    expect(card?.mr).toBe(42);
+    expect(card?.pr).toBe(42);
     expect(card?.body).toBe('## アイデア\n本文');
   });
 
@@ -151,7 +151,7 @@ describe('serializeCard', () => {
       startedAt: '2026-09-04T10:12:00.000Z',
       skipGates: ['plan'],
       branch: 'feat/refresh-token',
-      mr: 42 as PullRequestNumber,
+      pr: 42 as PullRequestNumber,
       rank: 1500.5,
       body: '## アイデア\n本文',
     });
@@ -163,15 +163,15 @@ describe('serializeCard', () => {
 
   it('PR 番号を読む', () => {
     const raw =
-      '---\nid: refresh-token\ntitle: T\ncreated: 2026-09-01T00:00:00.000Z\nbranch: feat/x\nmr: 42\n---\n';
+      '---\nid: refresh-token\ntitle: T\ncreated: 2026-09-01T00:00:00.000Z\nbranch: feat/x\npr: 42\n---\n';
 
-    expect(parseCard('/tmp/refresh-token.md', raw)?.mr).toBe(42);
+    expect(parseCard('/tmp/refresh-token.md', raw)?.pr).toBe(42);
   });
 
   it('null のフィールドを保ったまま書き出せる', () => {
     const restored = parseCard('/tmp/refresh-token.md', serializeCard(makeCard()));
 
-    expect(restored?.mr).toBeNull();
+    expect(restored?.pr).toBeNull();
     expect(restored?.startedAt).toBeNull();
     expect(restored?.skipGates).toEqual([]);
   });

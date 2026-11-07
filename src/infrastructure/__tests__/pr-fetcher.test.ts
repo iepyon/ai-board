@@ -63,7 +63,7 @@ class InMemoryPrSnapshotRepository implements PrSnapshotRepository {
     return new Map(this.rows);
   }
   async findMerged(): Promise<Map<CardId, PrSnapshot>> {
-    return new Map([...this.rows].filter(([, snapshot]) => snapshot.mr.state === 'merged'));
+    return new Map([...this.rows].filter(([, snapshot]) => snapshot.pr.state === 'merged'));
   }
   async save(cardId: CardId, snapshot: PrSnapshot): Promise<void> {
     this.saves += 1;
@@ -82,7 +82,7 @@ function makeCard(overrides: Partial<Card> = {}): Card {
     startedAt: null,
     skipGates: [],
     branch: null,
-    mr: null,
+    pr: null,
     rank: null,
     body: '',
     ...overrides,
@@ -92,7 +92,7 @@ function makeCard(overrides: Partial<Card> = {}): Card {
 function makePr(overrides: Partial<PrState> = {}): PrState {
   return {
     forge: 'github',
-    iid: 42 as PullRequestNumber,
+    number: 42 as PullRequestNumber,
     state: 'opened',
     draft: false,
     sourceBranch: 'feat/refresh-token',
@@ -111,8 +111,8 @@ function makePr(overrides: Partial<PrState> = {}): PrState {
 
 /** 指紋は中身から作る。中身が同じなら同じ指紋になる */
 function snap(overrides: Partial<PrState> = {}): PrSnapshot {
-  const mr = makePr(overrides);
-  return { mr, fingerprint: JSON.stringify(mr) };
+  const pr = makePr(overrides);
+  return { pr, fingerprint: JSON.stringify(pr) };
 }
 
 function failed(httpStatus: number): CliError {
@@ -122,7 +122,7 @@ function failed(httpStatus: number): CliError {
 function stubClient(overrides: Partial<ForgeClient> = {}): ForgeClient {
   return {
     kind: 'github',
-    fetchByIid: vi.fn(async () => null),
+    fetchByNumber: vi.fn(async () => null),
     fetchByBranch: vi.fn(async () => null),
     checkAuth: vi.fn(async () => null),
     ...overrides,
@@ -141,7 +141,7 @@ beforeEach(() => {
 
 describe('PrFetcher', () => {
   it('初回の refresh を終えるまで synced は偽', async () => {
-    const repository = new InMemoryCardRepository([makeCard({ mr: 42 as PullRequestNumber })]);
+    const repository = new InMemoryCardRepository([makeCard({ pr: 42 as PullRequestNumber })]);
     const fetcher = new PrFetcher(repository, stubClient({}), snapshots);
 
     expect(fetcher.synced()).toBe(false);
@@ -149,26 +149,26 @@ describe('PrFetcher', () => {
     expect(fetcher.synced()).toBe(true);
   });
 
-  it('iid が既知なら iid で問い合わせる', async () => {
-    const repository = new InMemoryCardRepository([makeCard({ mr: 42 as PullRequestNumber })]);
-    const client = stubClient({ fetchByIid: vi.fn(async () => snap()) });
+  it('PR 番号が既知なら番号で問い合わせる', async () => {
+    const repository = new InMemoryCardRepository([makeCard({ pr: 42 as PullRequestNumber })]);
+    const client = stubClient({ fetchByNumber: vi.fn(async () => snap()) });
     const fetcher = new PrFetcher(repository, client, snapshots);
 
     await fetcher.refresh();
 
-    expect(client.fetchByIid).toHaveBeenCalledWith(42, null);
+    expect(client.fetchByNumber).toHaveBeenCalledWith(42, null);
     expect(client.fetchByBranch).not.toHaveBeenCalled();
-    expect(fetcher.get('refresh-token')?.iid).toBe(42);
+    expect(fetcher.get('refresh-token')?.number).toBe(42);
   });
 
-  it('iid が無ければブランチから解決し、iid を書き戻す', async () => {
+  it('PR 番号が無ければブランチから解決し、番号を書き戻す', async () => {
     const repository = new InMemoryCardRepository([makeCard({ branch: 'feat/refresh-token' })]);
     const client = stubClient({ fetchByBranch: vi.fn(async () => snap()) });
 
     await new PrFetcher(repository, client, snapshots).refresh();
 
     expect(client.fetchByBranch).toHaveBeenCalledWith('feat/refresh-token');
-    expect(repository.cards.get('refresh-token')?.mr).toBe(42);
+    expect(repository.cards.get('refresh-token')?.pr).toBe(42);
   });
 
   it('writePr を渡せば、リポジトリへ直接書かずにそれで書き戻す', async () => {
@@ -179,7 +179,7 @@ describe('PrFetcher', () => {
     await new PrFetcher(repository, client, snapshots, { writePr }).refresh();
 
     expect(writePr).toHaveBeenCalledWith('refresh-token', 42);
-    expect(repository.cards.get('refresh-token')?.mr).toBeNull();
+    expect(repository.cards.get('refresh-token')?.pr).toBeNull();
   });
 
   it('問い合わせ中に人が書いた内容を、書き戻しで上書きしない', async () => {
@@ -197,24 +197,24 @@ describe('PrFetcher', () => {
 
     await new PrFetcher(repository, client, snapshots).refresh();
 
-    expect(repository.cards.get('refresh-token')?.mr).toBe(42);
+    expect(repository.cards.get('refresh-token')?.pr).toBe(42);
     expect(repository.cards.get('refresh-token')?.body).toBe('## レビュー\n\n承認');
   });
 
-  it('mr も branch も無いカードは問い合わせない', async () => {
+  it('pr も branch も無いカードは問い合わせない', async () => {
     const client = stubClient();
 
     await new PrFetcher(new InMemoryCardRepository([makeCard()]), client, snapshots).refresh();
 
-    expect(client.fetchByIid).not.toHaveBeenCalled();
+    expect(client.fetchByNumber).not.toHaveBeenCalled();
     expect(client.fetchByBranch).not.toHaveBeenCalled();
   });
 
   it('取得先が落ちてもキャッシュを保ったまま error 状態にする', async () => {
-    const repository = new InMemoryCardRepository([makeCard({ mr: 42 as PullRequestNumber })]);
+    const repository = new InMemoryCardRepository([makeCard({ pr: 42 as PullRequestNumber })]);
     let shouldFail = false;
     const client = stubClient({
-      fetchByIid: vi.fn(async () => {
+      fetchByNumber: vi.fn(async () => {
         if (shouldFail) throw new Error('ECONNREFUSED');
         return snap();
       }),
@@ -233,19 +233,19 @@ describe('PrFetcher', () => {
       message: 'refresh-token: PR #42 の取得に失敗した（ECONNREFUSED）',
     });
     // 直近の値は残す。ボードを空にしない
-    expect(fetcher.get('refresh-token')?.iid).toBe(42);
+    expect(fetcher.get('refresh-token')?.number).toBe(42);
   });
 
   it('1 枚の PR だけに効く失敗では接続を止めず、そのカードの失敗として持つ', async () => {
     const repository = new InMemoryCardRepository([
-      makeCard({ id: 'a' as CardId, mr: 42 as PullRequestNumber }),
-      makeCard({ id: 'b' as CardId, mr: 68 as PullRequestNumber }),
+      makeCard({ id: 'a' as CardId, pr: 42 as PullRequestNumber }),
+      makeCard({ id: 'b' as CardId, pr: 68 as PullRequestNumber }),
     ]);
     let shouldFail = false;
     const client = stubClient({
-      fetchByIid: vi.fn(async (iid) => {
-        if (shouldFail && iid === 68) throw new ForgeRequestError('pulls/68', failed(422));
-        return snap({ iid });
+      fetchByNumber: vi.fn(async (number) => {
+        if (shouldFail && number === 68) throw new ForgeRequestError('pulls/68', failed(422));
+        return snap({ number });
       }),
     });
     const fetcher = new PrFetcher(repository, client, snapshots);
@@ -258,16 +258,16 @@ describe('PrFetcher', () => {
     expect(fetcher.failure('b')?.message).toBe('PR #68 の取得（pulls/68）が HTTP 422 で失敗した');
     expect(fetcher.failure('a')).toBeNull();
     // 前に引けた控えは残す。手前の AI の列に落とさない
-    expect(fetcher.get('b')?.iid).toBe(68);
+    expect(fetcher.get('b')?.number).toBe(68);
   });
 
   it('失敗が続くあいだは最初の時刻を保ち、引けたら消す', async () => {
-    const repository = new InMemoryCardRepository([makeCard({ mr: 68 as PullRequestNumber })]);
+    const repository = new InMemoryCardRepository([makeCard({ pr: 68 as PullRequestNumber })]);
     let shouldFail = true;
     const client = stubClient({
-      fetchByIid: vi.fn(async () => {
+      fetchByNumber: vi.fn(async () => {
         if (shouldFail) throw new ForgeRequestError('pulls/68', failed(422));
-        return snap({ iid: 68 as PullRequestNumber });
+        return snap({ number: 68 as PullRequestNumber });
       }),
     });
     const fetcher = new PrFetcher(repository, client, snapshots);
@@ -307,9 +307,9 @@ describe('PrFetcher', () => {
   });
 
   it('全体に効く失敗（認証など）は、どのカードのどの問い合わせかを添えて接続を error にする', async () => {
-    const repository = new InMemoryCardRepository([makeCard({ mr: 42 as PullRequestNumber })]);
+    const repository = new InMemoryCardRepository([makeCard({ pr: 42 as PullRequestNumber })]);
     const client = stubClient({
-      fetchByIid: vi.fn(async () => {
+      fetchByNumber: vi.fn(async () => {
         throw new ForgeRequestError('pulls/42', failed(401));
       }),
     });
@@ -326,9 +326,9 @@ describe('PrFetcher', () => {
   });
 
   it('問い合わせの対象から外れたカードの失敗を消す', async () => {
-    const repository = new InMemoryCardRepository([makeCard({ mr: 68 as PullRequestNumber })]);
+    const repository = new InMemoryCardRepository([makeCard({ pr: 68 as PullRequestNumber })]);
     const client = stubClient({
-      fetchByIid: vi.fn(async () => {
+      fetchByNumber: vi.fn(async () => {
         throw new ForgeRequestError('pulls/68', failed(422));
       }),
     });
@@ -344,9 +344,9 @@ describe('PrFetcher', () => {
   });
 
   it('PR が消えたらキャッシュから外す', async () => {
-    const repository = new InMemoryCardRepository([makeCard({ mr: 42 as PullRequestNumber })]);
+    const repository = new InMemoryCardRepository([makeCard({ pr: 42 as PullRequestNumber })]);
     let found = true;
-    const client = stubClient({ fetchByIid: vi.fn(async () => (found ? snap() : null)) });
+    const client = stubClient({ fetchByNumber: vi.fn(async () => (found ? snap() : null)) });
     const fetcher = new PrFetcher(repository, client, snapshots);
 
     await fetcher.refresh();
@@ -362,53 +362,53 @@ describe('PrFetcher', () => {
 // ============================================================
 
 describe('PrFetcher の問い合わせの省略', () => {
-  const card = () => makeCard({ mr: 42 as PullRequestNumber });
+  const card = () => makeCard({ pr: 42 as PullRequestNumber });
 
   it('マージ済みの PR は 2 回目から問い合わせない', async () => {
-    const client = stubClient({ fetchByIid: vi.fn(async () => snap({ state: 'merged' })) });
+    const client = stubClient({ fetchByNumber: vi.fn(async () => snap({ state: 'merged' })) });
     const fetcher = new PrFetcher(new InMemoryCardRepository([card()]), client, snapshots);
 
     await fetcher.refresh();
     await fetcher.refresh();
 
-    expect(client.fetchByIid).toHaveBeenCalledTimes(1);
+    expect(client.fetchByNumber).toHaveBeenCalledTimes(1);
     expect(fetcher.get('refresh-token')?.state).toBe('merged');
   });
 
   it('マージされずに閉じた PR は reopen がありうるので問い合わせ続ける', async () => {
-    const client = stubClient({ fetchByIid: vi.fn(async () => snap({ state: 'closed' })) });
+    const client = stubClient({ fetchByNumber: vi.fn(async () => snap({ state: 'closed' })) });
     const fetcher = new PrFetcher(new InMemoryCardRepository([card()]), client, snapshots);
 
     await fetcher.refresh();
     await fetcher.refresh();
 
-    expect(client.fetchByIid).toHaveBeenCalledTimes(2);
+    expect(client.fetchByNumber).toHaveBeenCalledTimes(2);
   });
 
   it('カードの番号が控えと違えば、マージ済みでも問い合わせる', async () => {
     snapshots.rows.set(
       'refresh-token' as CardId,
-      snap({ state: 'merged', iid: 41 as PullRequestNumber })
+      snap({ state: 'merged', number: 41 as PullRequestNumber })
     );
-    const client = stubClient({ fetchByIid: vi.fn(async () => snap()) });
+    const client = stubClient({ fetchByNumber: vi.fn(async () => snap()) });
 
     await new PrFetcher(new InMemoryCardRepository([card()]), client, snapshots).refresh();
 
-    expect(client.fetchByIid).toHaveBeenCalledWith(
+    expect(client.fetchByNumber).toHaveBeenCalledWith(
       42,
       expect.objectContaining({ fingerprint: expect.any(String) })
     );
   });
 
   it('前回の結果を client に渡す', async () => {
-    const client = stubClient({ fetchByIid: vi.fn(async () => snap()) });
+    const client = stubClient({ fetchByNumber: vi.fn(async () => snap()) });
     const fetcher = new PrFetcher(new InMemoryCardRepository([card()]), client, snapshots);
 
     await fetcher.refresh();
     await fetcher.refresh();
 
-    expect(client.fetchByIid).toHaveBeenNthCalledWith(1, 42, null);
-    expect(client.fetchByIid).toHaveBeenNthCalledWith(
+    expect(client.fetchByNumber).toHaveBeenNthCalledWith(1, 42, null);
+    expect(client.fetchByNumber).toHaveBeenNthCalledWith(
       2,
       42,
       snapshots.rows.get('refresh-token' as CardId)
@@ -417,7 +417,7 @@ describe('PrFetcher の問い合わせの省略', () => {
 
   it('client が前回の結果をそのまま返したら、控えを書き直さない', async () => {
     const client = stubClient({
-      fetchByIid: vi.fn(async (_iid, previous?: PrSnapshot | null) => previous ?? snap()),
+      fetchByNumber: vi.fn(async (_number, previous?: PrSnapshot | null) => previous ?? snap()),
     });
     const fetcher = new PrFetcher(new InMemoryCardRepository([card()]), client, snapshots);
 
@@ -429,20 +429,20 @@ describe('PrFetcher の問い合わせの省略', () => {
 
   it('新しいプロセスの `PrFetcher` は控えから始め、マージ済みの PR を問い合わせない', async () => {
     // ai-board status は呼ばれるたびに新しいプロセスで 1 度だけ refresh する
-    const first = stubClient({ fetchByIid: vi.fn(async () => snap({ state: 'merged' })) });
+    const first = stubClient({ fetchByNumber: vi.fn(async () => snap({ state: 'merged' })) });
     await new PrFetcher(new InMemoryCardRepository([card()]), first, snapshots).refresh();
 
     const second = stubClient();
     const fetcher = new PrFetcher(new InMemoryCardRepository([card()]), second, snapshots);
     await fetcher.refresh();
 
-    expect(second.fetchByIid).not.toHaveBeenCalled();
+    expect(second.fetchByNumber).not.toHaveBeenCalled();
     expect(fetcher.get('refresh-token')?.state).toBe('merged');
   });
 
   it('PR 番号もブランチも外されたカードの控えを消す', async () => {
     const repository = new InMemoryCardRepository([card()]);
-    const client = stubClient({ fetchByIid: vi.fn(async () => snap()) });
+    const client = stubClient({ fetchByNumber: vi.fn(async () => snap()) });
     const fetcher = new PrFetcher(repository, client, snapshots);
 
     await fetcher.refresh();
@@ -455,7 +455,7 @@ describe('PrFetcher の問い合わせの省略', () => {
 
   it('PR が消えたら控えも消す', async () => {
     let found = true;
-    const client = stubClient({ fetchByIid: vi.fn(async () => (found ? snap() : null)) });
+    const client = stubClient({ fetchByNumber: vi.fn(async () => (found ? snap() : null)) });
     const fetcher = new PrFetcher(new InMemoryCardRepository([card()]), client, snapshots);
 
     await fetcher.refresh();
@@ -472,7 +472,7 @@ describe('PrFetcher の問い合わせの省略', () => {
 
 // 本物の git を何度も走らせるので、既定の 5 秒では遅い CI で足りないことがある
 describe('PrFetcher と FilePrSnapshotRepository', { timeout: 30_000 }, () => {
-  const card = () => makeCard({ mr: 42 as PullRequestNumber });
+  const card = () => makeCard({ pr: 42 as PullRequestNumber });
   let tmp: string;
   let origin: string;
 
@@ -515,7 +515,7 @@ describe('PrFetcher と FilePrSnapshotRepository', { timeout: 30_000 }, () => {
     const seed = path.join(tmp, 'seed');
     sh(['clone', '--quiet', origin, seed]);
     sh(['-C', seed, 'checkout', '--quiet', '--orphan', DATA_BRANCH]);
-    fs.writeFileSync(path.join(seed, 'ai-board-data.yaml'), 'version: 1\n');
+    fs.writeFileSync(path.join(seed, 'ai-board-data.yaml'), 'version: 2\n');
     sh(['-C', seed, 'add', '-A']);
     sh(['-C', seed, 'commit', '--quiet', '-m', 'data: 始める']);
     sh(['-C', seed, 'push', '--quiet', 'origin', `HEAD:refs/heads/${DATA_BRANCH}`]);
@@ -530,27 +530,27 @@ describe('PrFetcher と FilePrSnapshotRepository', { timeout: 30_000 }, () => {
     // クラウドのセッションは毎回新しい clone から始まる。マージ済みの PR を毎回引き直さない
     await poll(
       cloneSnapshots('a'),
-      stubClient({ fetchByIid: vi.fn(async () => snap({ state: 'merged' })) })
+      stubClient({ fetchByNumber: vi.fn(async () => snap({ state: 'merged' })) })
     );
 
     const second = stubClient();
     const fetcher = await poll(cloneSnapshots('b'), second);
 
-    expect(second.fetchByIid).not.toHaveBeenCalled();
+    expect(second.fetchByNumber).not.toHaveBeenCalled();
     expect(fetcher.get('refresh-token')?.state).toBe('merged');
   });
 
   it('開いている PR は、同じ clone の新しい `PrFetcher` は控えから始め、別の clone は引き直す', async () => {
     const opened = snap();
     const local = cloneSnapshots('a');
-    await poll(local, stubClient({ fetchByIid: vi.fn(async () => opened) }));
+    await poll(local, stubClient({ fetchByNumber: vi.fn(async () => opened) }));
 
-    const same = stubClient({ fetchByIid: vi.fn(async () => opened) });
+    const same = stubClient({ fetchByNumber: vi.fn(async () => opened) });
     await poll(local, same);
-    expect(same.fetchByIid).toHaveBeenCalledWith(42, opened);
+    expect(same.fetchByNumber).toHaveBeenCalledWith(42, opened);
 
-    const other = stubClient({ fetchByIid: vi.fn(async () => opened) });
+    const other = stubClient({ fetchByNumber: vi.fn(async () => opened) });
     await poll(cloneSnapshots('b'), other);
-    expect(other.fetchByIid).toHaveBeenCalledWith(42, null);
+    expect(other.fetchByNumber).toHaveBeenCalledWith(42, null);
   });
 });

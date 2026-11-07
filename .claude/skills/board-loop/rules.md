@@ -31,7 +31,7 @@ PR は `node "$MAIN/dist/cli.js" pr ... --root "$MAIN"` で読み書きする（
 
 どの手でも、`board-reviewer` でも使う。手ごとに自分でカードのワークツリーに入る。
 作業は必ずカードのブランチのワークツリーで行い、`$MAIN` では作業しない。
-`ai-board card show <cardId>` で本文と `branch` / `mr` / `skipGates` を読んでから入る。
+`ai-board card show <cardId>` で本文と `branch` / `pr` / `skipGates` を読んでから入る。
 
 - **`plan` の手で `branch` が null:** カード ID と同じ名前のブランチを `origin/main` から切る。
   ```bash

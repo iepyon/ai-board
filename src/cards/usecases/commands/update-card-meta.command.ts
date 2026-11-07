@@ -20,7 +20,7 @@ export interface UpdateCardMetaPatch {
   readonly startedAt?: string | null | undefined;
   readonly skipGates?: readonly ReviewGate[] | undefined;
   readonly branch?: string | null | undefined;
-  readonly mr?: number | null | undefined;
+  readonly pr?: number | null | undefined;
 }
 
 export interface UpdateCardMetaInput {
@@ -45,7 +45,7 @@ export function createUpdateCardMetaCommand(cardRepository: CardRepository): Upd
       startedAt: pick(patch.startedAt, existing.startedAt),
       skipGates: patch.skipGates ?? existing.skipGates,
       branch: pick(patch.branch, existing.branch),
-      mr: pick(patch.mr, existing.mr) as PullRequestNumber | null,
+      pr: pick(patch.pr, existing.pr) as PullRequestNumber | null,
     };
 
     const saved = await cardRepository.save(updated);

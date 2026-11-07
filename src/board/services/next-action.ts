@@ -68,7 +68,7 @@ export interface NextActionCard {
   /** 人の判断を待っていれば、その止まり。`resolveHold` で導く */
   readonly hold: CardHold | null;
   /** PR の状態のうち、人の指摘に AI が応える番か（`awaitsPrFix`）。PR が無ければ null */
-  readonly mrState: { readonly awaitingFix: boolean } | null;
+  readonly prState: { readonly awaitingFix: boolean } | null;
 }
 
 /** 止まりの判定に要るもの */
@@ -79,22 +79,22 @@ export interface HoldInput {
   /** カード本文の `## レビュー` のエントリ */
   readonly entries: readonly ReviewEntry[];
   /** PR の状態のうち、Draft に戻されたことの判定に要るもの。PR が無ければ null */
-  readonly mr: { readonly iid: number; readonly convertedToDraftAt: string | null } | null;
+  readonly pr: { readonly number: number; readonly convertedToDraftAt: string | null } | null;
   /**
    * PR の状態を引けているか（取得先に接続し、初回の取得を終えている）。
-   * 偽なら `mr: null` は「PR が無い」ではなく「分からない」なので、成果物が見えないことを止まりにしない
+   * 偽なら `pr: null` は「PR が無い」ではなく「分からない」なので、成果物が見えないことを止まりにしない
    */
-  readonly mrKnown: boolean;
+  readonly prKnown: boolean;
   /**
    * そのカードの PR を直近の取得で引けなかったか（`PrStateProvider.failure`）。引けていれば null。
-   * 引けなかったカードの `mr` は前に引けた控えで、古いことがある
+   * 引けなかったカードの `pr` は前に引けた控えで、古いことがある
    */
-  readonly mrFailure: ForgeCardFailure | null;
+  readonly prFailure: ForgeCardFailure | null;
   /**
-   * GitHub が未設定（`isForgeUnset`）のボードで、カードが PR 番号（`mr`）を持つときの、その番号と止まりの起点。それ以外は null。
+   * GitHub が未設定（`isForgeUnset`）のボードで、カードが PR 番号（`pr`）を持つときの、その番号と止まりの起点。それ以外は null。
    * 途中で `github:` を外したボードでは PR の状態が引けず、計画レビュー / PR中 のカードが手前の列に落ちて見えるため
    */
-  readonly unsetPr: { readonly iid: number; readonly since: string } | null;
+  readonly unsetPr: { readonly number: number; readonly since: string } | null;
   /**
    * GitHub が未設定（`isForgeUnset`）のボードで、実装中のカードの締めが済んだ（カードのブランチで計画が archive 済み。`findClosed`）ときの、
    * そのブランチ名と止まりの起点（archive のコミットの時刻）。それ以外は null。
@@ -110,12 +110,12 @@ export const HOLD_REASONS = {
   planLost: '計画を提出済みだが、計画ファイルも Draft の PR も見えない',
   forgeFailed: (message: string): string =>
     `PR の状態を引けない（${message}）。時間を置いても続くなら、GitHub で PR を確かめてください`,
-  forgeUnset: (iid: number): string =>
-    `PR #${iid} を持つが、GitHub が未設定なので PR の状態を引けない。config.yaml に github: を戻すか、中止してください`,
+  forgeUnset: (number: number): string =>
+    `PR #${number} を持つが、GitHub が未設定なので PR の状態を引けない。config.yaml に github: を戻すか、中止してください`,
   branchMerge: (branch: string): string =>
     `ブランチ ${branch} の実装と締めが済んだ。メインのチェックアウトで git merge --no-ff ${branch} を打ってマージするか、ai-board decide で差し戻して計画から立て直させるか中止してください`,
-  draftReverted: (iid: number): string =>
-    `判断の後に PR #${iid} が Draft に戻された。GitHub で Ready に戻すか、ai-board decide で差し戻して計画から立て直させるか中止してください`,
+  draftReverted: (number: number): string =>
+    `判断の後に PR #${number} が Draft に戻された。GitHub で Ready に戻すか、ai-board decide で差し戻して計画から立て直させるか中止してください`,
 } as const;
 
 /**
@@ -157,9 +157,9 @@ export function pickNextAction(cards: readonly NextActionCard[]): NextAction | n
  *   人がメインのチェックアウトでブランチをマージすれば、計画の archive がメインに入ってマージ済みになり、止まりは外れる
  * - **提出済みなのに成果物が見えない**（計画提案中で plan が提出済み）: どちらかがあれば
  *   計画レビュー に上がるはずである。作り直すと PR やブランチを二重に作りかねないので、推測で動かない。
- *   PR の状態を引けていない（`mrKnown` が偽）ときは、PR が無いのか分からないので止まりにしない
+ *   PR の状態を引けていない（`prKnown` が偽）ときは、PR が無いのか分からないので止まりにしない
  *
- * - **PR の状態を引けない**（アイデア / マージ済み 以外）: そのカードの PR だけを直近の取得で引けなかった（`mrFailure`）。
+ * - **PR の状態を引けない**（アイデア / マージ済み 以外）: そのカードの PR だけを直近の取得で引けなかった（`prFailure`）。
  *   ほかの止まりより先に見る。前に引けた控えは古いことがあり、人の指摘や Draft への戻しを見落として進めかねないため。
  *   次の取得で引ければひとりでに外れる
  * - **GitHub が未設定で PR 番号を持つ**（アイデア / マージ済み 以外）: 途中で `github:` を外したボードで、PR を持つカード（`unsetPr`）。
@@ -178,7 +178,7 @@ export function resolveHold(card: HoldInput): CardHold | null {
       return draftReverted(card) ?? mergeWaited(card);
     case 'planning':
       if (card.gates.plan === 'submitted') {
-        return card.mrKnown ? since(card, 'plan', HOLD_REASONS.planLost) : null;
+        return card.prKnown ? since(card, 'plan', HOLD_REASONS.planLost) : null;
       }
       return heldBy(card, 'plan', HOLD_REASONS.planHeld);
     default:
@@ -186,15 +186,15 @@ export function resolveHold(card: HoldInput): CardHold | null {
   }
 }
 
-/** PR の状態を信じられないカードの止まり（`forge`）。引けなかった（`mrFailure`）か、未設定のボードで PR 番号を持つ（`unsetPr`）か */
+/** PR の状態を信じられないカードの止まり（`forge`）。引けなかった（`prFailure`）か、未設定のボードで PR 番号を持つ（`unsetPr`）か */
 function forgeHold(card: HoldInput): CardHold | null {
-  if (card.mrFailure !== null) {
-    const { message, since } = card.mrFailure;
+  if (card.prFailure !== null) {
+    const { message, since } = card.prFailure;
     return { kind: 'forge', reason: HOLD_REASONS.forgeFailed(message), since };
   }
   if (card.unsetPr !== null) {
-    const { iid, since } = card.unsetPr;
-    return { kind: 'forge', reason: HOLD_REASONS.forgeUnset(iid), since };
+    const { number, since } = card.unsetPr;
+    return { kind: 'forge', reason: HOLD_REASONS.forgeUnset(number), since };
   }
   return null;
 }
@@ -206,14 +206,14 @@ function forgeHold(card: HoldInput): CardHold | null {
  * 人の最新の判断は plan の承認（plan を飛ばす宣言のカードなら `plan 提出`）で、それより後に戻された時点で止まる。
  */
 function draftReverted(card: HoldInput): CardHold | null {
-  const { mr } = card;
-  if (mr === null || mr.convertedToDraftAt === null) return null;
+  const { pr } = card;
+  if (pr === null || pr.convertedToDraftAt === null) return null;
 
-  const convertedAt = mr.convertedToDraftAt;
+  const convertedAt = pr.convertedToDraftAt;
   const latest = latestGateEntry(card.entries);
   if (latest !== null && Date.parse(convertedAt) <= Date.parse(latest.at)) return null;
 
-  return { kind: 'decision', reason: HOLD_REASONS.draftReverted(mr.iid), since: convertedAt };
+  return { kind: 'decision', reason: HOLD_REASONS.draftReverted(pr.number), since: convertedAt };
 }
 
 /** GitHub が未設定のボードで、締めが済んだブランチを人がマージするのを待っているか */
@@ -239,7 +239,7 @@ function judge(card: NextActionCard): NextAction | null {
 
   switch (card.stage) {
     case 'pr':
-      return card.mrState?.awaitingFix === true
+      return card.prState?.awaitingFix === true
         ? {
             cardId: card.id,
             action: 'fix-pr',

@@ -79,7 +79,7 @@ beforeEach(() => {
   const seed = path.join(tmp, 'seed');
   sh(['clone', '--quiet', origin, seed]);
   git(seed, 'checkout', '--quiet', '--orphan', DATA_BRANCH);
-  write(seed, 'ai-board-data.yaml', 'version: 1\n');
+  write(seed, 'ai-board-data.yaml', 'version: 2\n');
   git(seed, 'add', '-A');
   git(seed, 'commit', '--quiet', '-m', 'data: 始める');
   git(seed, 'push', '--quiet', 'origin', `HEAD:refs/heads/${DATA_BRANCH}`);
@@ -262,7 +262,7 @@ describe('transact', () => {
     const dir = path.join(tmp, 'local', 'data');
     fs.mkdirSync(dir, { recursive: true });
     git(dir, 'init', '--quiet', '--initial-branch', DATA_BRANCH);
-    write(dir, 'ai-board-data.yaml', 'version: 1\n');
+    write(dir, 'ai-board-data.yaml', 'version: 2\n');
     git(dir, 'add', '-A');
     git(dir, 'commit', '--quiet', '-m', 'data: 始める');
 
@@ -430,16 +430,16 @@ describe('形の版', () => {
 
   it('取り直した版がこの CLI より新しければ、refresh は UnsupportedDataVersion で止まる', async () => {
     const a = cloneData(path.join(tmp, 'a'));
-    pushVersionFile('version: 2\n');
+    pushVersionFile('version: 3\n');
 
     expect(await store(a).refresh()).toEqual(
-      err({ type: 'UnsupportedDataVersion', found: 2, supported: 1 })
+      err({ type: 'UnsupportedDataVersion', found: 3, supported: 2 })
     );
   });
 
   it('取り直した版がこの CLI より新しければ、transact は op を走らせずに止まり、何も push しない', async () => {
     const a = cloneData(path.join(tmp, 'a'));
-    pushVersionFile('version: 2\n');
+    pushVersionFile('version: 3\n');
     const before = originLog();
     let calls = 0;
 
@@ -449,7 +449,7 @@ describe('形の版', () => {
       return ok(undefined);
     });
 
-    expect(result).toEqual(err({ type: 'UnsupportedDataVersion', found: 2, supported: 1 }));
+    expect(result).toEqual(err({ type: 'UnsupportedDataVersion', found: 3, supported: 2 }));
     expect(calls).toBe(0);
     expect(originLog()).toEqual(before);
     expect(git(a, 'status', '--porcelain')).toBe('');
@@ -464,12 +464,12 @@ describe('形の版', () => {
 
   it('origin に届かなくても、手元の版が新しければ止まる', async () => {
     const a = cloneData(path.join(tmp, 'a'));
-    pushVersionFile('version: 2\n');
+    pushVersionFile('version: 3\n');
     git(a, 'fetch', '--quiet', 'origin');
     git(a, 'remote', 'set-url', 'origin', path.join(tmp, 'missing.git'));
 
     expect(await store(a).refresh()).toEqual(
-      err({ type: 'UnsupportedDataVersion', found: 2, supported: 1 })
+      err({ type: 'UnsupportedDataVersion', found: 3, supported: 2 })
     );
   });
 
@@ -478,6 +478,49 @@ describe('形の版', () => {
     pushVersionFile(null);
 
     expect(await store(a).refresh()).toEqual(ok({ kind: 'fetched' }));
+  });
+
+  describe('版 1 のデータ', () => {
+    /** ほかの clone から、版 1 の形（`mr:` のカード）を push する */
+    function pushVersion1(): void {
+      const other = cloneData(path.join(tmp, 'other'));
+      write(other, 'ai-board-data.yaml', 'version: 1\n');
+      write(other, 'cards/x/card.md', '---\nid: x\nmr: 7\n---\n\n本文\n');
+      git(other, 'add', '-A');
+      git(other, 'commit', '--quiet', '-m', 'data: 版 1');
+      git(other, 'push', '--quiet', 'origin', `HEAD:refs/heads/${DATA_BRANCH}`);
+    }
+
+    it('refresh は今の版へ書き換えて読ませるが、コミットも push もしない', async () => {
+      pushVersion1();
+      const a = cloneData(path.join(tmp, 'a'));
+
+      expect(await store(a).refresh()).toEqual(ok({ kind: 'fetched' }));
+
+      expect(fs.readFileSync(path.join(a, 'cards/x/card.md'), 'utf-8')).toBe(
+        '---\nid: x\npr: 7\n---\n\n本文\n'
+      );
+      expect(fs.readFileSync(path.join(a, 'ai-board-data.yaml'), 'utf-8')).toBe('version: 2\n');
+      expect(originLog()[0]).toBe('data: 版 1');
+    });
+
+    it('transact は書き換えを別のコミットにしてから op を走らせ、一緒に push する', async () => {
+      pushVersion1();
+      const a = cloneData(path.join(tmp, 'a'));
+
+      const result = await store(a).transact('data: y を足す', async (dir) => {
+        write(dir, 'cards/y/card.md', 'y\n');
+        return ok(undefined);
+      });
+
+      expect(result).toEqual(ok(undefined));
+      expect(originLog().slice(0, 3)).toEqual([
+        'data: y を足す',
+        'data: 形の版を 2 に上げる',
+        'data: 版 1',
+      ]);
+      expect(git(origin, 'show', `${DATA_BRANCH}:cards/x/card.md`)).toContain('pr: 7');
+    });
   });
 });
 
@@ -589,7 +632,7 @@ describe('prepare', () => {
     const result = await store(dataDir, { repoRoot: repo }).prepare();
 
     expect(result).toEqual(ok(undefined));
-    expect(fs.readFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'utf-8')).toBe('version: 1\n');
+    expect(fs.readFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'utf-8')).toBe('version: 2\n');
     expect(git(dataDir, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe(DATA_BRANCH);
   });
 
@@ -619,7 +662,7 @@ describe('prepare', () => {
     fs.rmSync(path.join(dataDir, 'cards'), { recursive: true, force: true });
     expect(await dataStore.refresh()).toEqual(ok({ kind: 'fetched' }));
 
-    expect(fs.readFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'utf-8')).toBe('version: 1\n');
+    expect(fs.readFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'utf-8')).toBe('version: 2\n');
     expect(fs.readFileSync(path.join(dataDir, 'cards/x/card.md'), 'utf-8')).not.toContain('\r');
   });
 
@@ -641,7 +684,7 @@ describe('prepare', () => {
     fs.rmSync(path.join(dataDir, 'cards'), { recursive: true, force: true });
     expect(await dataStore.refresh()).toEqual(ok({ kind: 'fetched' }));
 
-    expect(fs.readFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'utf-8')).toBe('version: 1\n');
+    expect(fs.readFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'utf-8')).toBe('version: 2\n');
     expect(fs.readFileSync(path.join(dataDir, 'cards/x/card.md'), 'utf-8')).not.toContain('\r');
   });
 
@@ -656,7 +699,7 @@ describe('prepare', () => {
     const result = await store(dataDir, { repoRoot: repo }).prepare();
 
     expect(result).toEqual(ok(undefined));
-    expect(fs.readFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'utf-8')).toBe('version: 1\n');
+    expect(fs.readFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'utf-8')).toBe('version: 2\n');
     expect(git(dataDir, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe(DATA_BRANCH);
   });
 
@@ -774,7 +817,7 @@ describe('git の呼び出し', () => {
       'data: x',
       async (dir) => {
         write(dir, 'cards/x/card.md', 'x\n');
-        write(dir, 'ai-board-data.yaml', 'version: 1\nchanged: true\n');
+        write(dir, 'ai-board-data.yaml', 'version: 2\nchanged: true\n');
         return ok(undefined);
       }
     );
@@ -782,7 +825,7 @@ describe('git の呼び出し', () => {
     expect(result).toMatchObject(err({ type: 'DataStoreGitFailed', step: 'commit' }));
     expect(git(dataDir, 'status', '--porcelain')).toBe('');
     expect(fs.existsSync(path.join(dataDir, 'cards', 'x', 'card.md'))).toBe(false);
-    expect(fs.readFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'utf-8')).toBe('version: 1\n');
+    expect(fs.readFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'utf-8')).toBe('version: 2\n');
     expect(originLog()).toEqual(['data: 始める']);
   });
 
@@ -878,7 +921,7 @@ describe('手元モード', () => {
 
     expect(result).toEqual(ok(undefined));
     expect(git(dataDir, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe(DATA_BRANCH);
-    expect(fs.readFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'utf-8')).toBe('version: 1\n');
+    expect(fs.readFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'utf-8')).toBe('version: 2\n');
   });
 
   it('手元にも追跡にもデータ用ブランチが無ければ DataBranchMissing で止まる', async () => {

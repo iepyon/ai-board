@@ -19,13 +19,13 @@ function makeCard(overrides: Partial<SectionCard> & Pick<SectionCard, 'id'>): Se
     startedAt: null,
     latestReview: null,
     plan: null,
-    mrState: null,
+    prState: null,
     hold: null,
     ...overrides,
   };
 }
 
-function mr(overrides: Partial<NonNullable<SectionCard['mrState']>> = {}): SectionCard['mrState'] {
+function pr(overrides: Partial<NonNullable<SectionCard['prState']>> = {}): SectionCard['prState'] {
   return { latestCommitAt: null, mergedAt: null, awaitingFix: false, ...overrides };
 }
 
@@ -57,9 +57,9 @@ describe('groupBySection', () => {
     const sections = groupBySection([
       makeCard({ id: 'planning', stage: 'planning' }),
       makeCard({ id: 'impling', stage: 'impling' }),
-      makeCard({ id: 'fix-a', stage: 'pr', mrState: mr({ awaitingFix: true }) }),
-      makeCard({ id: 'waiting-pr', stage: 'pr', mrState: mr({ awaitingFix: false }) }),
-      makeCard({ id: 'fix-b', stage: 'pr', mrState: mr({ awaitingFix: true }) }),
+      makeCard({ id: 'fix-a', stage: 'pr', prState: pr({ awaitingFix: true }) }),
+      makeCard({ id: 'waiting-pr', stage: 'pr', prState: pr({ awaitingFix: false }) }),
+      makeCard({ id: 'fix-b', stage: 'pr', prState: pr({ awaitingFix: true }) }),
     ]);
 
     // 指摘に応えるカードどうしと、残りのカードは受け取った並び（rank の順）を保つ
@@ -69,7 +69,7 @@ describe('groupBySection', () => {
 
   it('中止された PR中 のカードは、指摘があっても中止の区画へ寄せる', () => {
     const sections = groupBySection([
-      makeCard({ id: 'x', stage: 'pr', aborted: true, mrState: mr({ awaitingFix: true }) }),
+      makeCard({ id: 'x', stage: 'pr', aborted: true, prState: pr({ awaitingFix: true }) }),
     ]);
 
     expect(ids(sections.aborted)).toEqual(['x']);
@@ -151,7 +151,7 @@ describe('groupBySection', () => {
     const sections = groupBySection([
       makeCard({ id: 'new', stage: 'plan-review', latestReview: { at: '2026-09-25T00:00:00Z' } }),
       makeCard({ id: 'unknown', stage: 'plan-review' }),
-      makeCard({ id: 'pr', stage: 'pr', mrState: mr({ latestCommitAt: '2026-09-21T00:00:00Z' }) }),
+      makeCard({ id: 'pr', stage: 'pr', prState: pr({ latestCommitAt: '2026-09-21T00:00:00Z' }) }),
       makeCard({ id: 'mid', stage: 'plan-review', latestReview: { at: '2026-09-23T00:00:00Z' } }),
       makeCard({ id: 'old', stage: 'plan-review', latestReview: { at: '2026-09-20T00:00:00Z' } }),
     ]);
@@ -162,9 +162,9 @@ describe('groupBySection', () => {
 
   it('マージ済みはマージの新しい順に並べる', () => {
     const sections = groupBySection([
-      makeCard({ id: 'old', stage: 'merged', mrState: mr({ mergedAt: '2026-09-10T00:00:00Z' }) }),
+      makeCard({ id: 'old', stage: 'merged', prState: pr({ mergedAt: '2026-09-10T00:00:00Z' }) }),
       makeCard({ id: 'archived', stage: 'merged', plan: { updatedAt: '2026-09-15T00:00:00Z' } }),
-      makeCard({ id: 'new', stage: 'merged', mrState: mr({ mergedAt: '2026-09-25T00:00:00Z' }) }),
+      makeCard({ id: 'new', stage: 'merged', prState: pr({ mergedAt: '2026-09-25T00:00:00Z' }) }),
     ]);
 
     expect(ids(sections.merged)).toEqual(['new', 'archived', 'old']);
@@ -223,7 +223,7 @@ describe('waitingSince', () => {
       id: 'a',
       stage: 'pr',
       latestReview: { at: '2026-09-01T00:00:00Z' },
-      mrState: mr({ latestCommitAt: '2026-09-21T00:00:00Z' }),
+      prState: pr({ latestCommitAt: '2026-09-21T00:00:00Z' }),
     });
 
     expect(waitingSince(card)).toBe('2026-09-21T00:00:00Z');
@@ -234,7 +234,7 @@ describe('waitingSince', () => {
       id: 'a',
       stage: 'pr',
       latestReview: { at: '2026-09-01T00:00:00Z' },
-      mrState: mr(),
+      prState: pr(),
     });
 
     expect(waitingSince(card)).toBe('2026-09-01T00:00:00Z');
@@ -247,7 +247,7 @@ describe('mergedAt', () => {
       id: 'a',
       stage: 'merged',
       plan: { updatedAt: '2026-09-22T00:00:00Z' },
-      mrState: mr({ mergedAt: '2026-09-20T00:00:00Z' }),
+      prState: pr({ mergedAt: '2026-09-20T00:00:00Z' }),
     });
 
     expect(mergedAt(card)).toBe('2026-09-20T00:00:00Z');
@@ -373,7 +373,7 @@ describe('isStale', () => {
       id: 'fixing',
       stage: 'pr',
       plan: { updatedAt: '2026-01-01T00:00:00Z' },
-      mrState: mr({ awaitingFix: true }),
+      prState: pr({ awaitingFix: true }),
     });
 
     expect(isStale(card, new Date('2026-11-04T00:00:00Z'))).toBe(false);

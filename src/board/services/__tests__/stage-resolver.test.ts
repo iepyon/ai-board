@@ -23,7 +23,7 @@ function makeCard(overrides: Partial<Card> = {}): Card {
     startedAt: null,
     skipGates: [],
     branch: null,
-    mr: null,
+    pr: null,
     rank: null,
     body: '',
     ...overrides,
@@ -43,7 +43,7 @@ function makePlan(overrides: Partial<PlanDoc> = {}): PlanDoc {
 function makePr(overrides: Partial<PrState> = {}): PrState {
   return {
     forge: 'github',
-    iid: 42 as PullRequestNumber,
+    number: 42 as PullRequestNumber,
     state: 'opened',
     draft: false,
     sourceBranch: 'feat/refresh-token',
@@ -121,28 +121,28 @@ describe('resolveStage — 自動導出', () => {
     name: string;
     card: Card;
     plan: PlanDoc | null;
-    mr: PrState | null;
+    pr: PrState | null;
     expected: Stage;
   }> = [
     {
       name: '何も無ければ idea',
       card: makeCard(),
       plan: null,
-      mr: null,
+      pr: null,
       expected: 'idea',
     },
     {
       name: 'startedAt が打たれていれば planning',
       card: makeCard({ startedAt: T1 }),
       plan: null,
-      mr: null,
+      pr: null,
       expected: 'planning',
     },
     {
       name: '探索メモがあってもステージは動かない',
       card: makeCard({ startedAt: T1, body: makeBody({ exploreNote: true }) }),
       plan: null,
-      mr: null,
+      pr: null,
       expected: 'planning',
     },
     {
@@ -158,28 +158,28 @@ describe('resolveStage — 自動導出', () => {
         }),
       }),
       plan: null,
-      mr: null,
+      pr: null,
       expected: 'planning',
     },
     {
       name: 'startedAt が無ければ探索メモがあっても idea',
       card: makeCard({ body: makeBody({ exploreNote: true }) }),
       plan: null,
-      mr: null,
+      pr: null,
       expected: 'idea',
     },
     {
       name: '計画ファイルがあれば plan-review',
       card: makeCard({ startedAt: T1 }),
       plan: makePlan(),
-      mr: null,
+      pr: null,
       expected: 'plan-review',
     },
     {
       name: '計画ファイルがあり plan のログが無くても plan-review に着地する',
       card: makeCard({ startedAt: T1, body: makeBody({ exploreNote: true }) }),
       plan: makePlan(),
-      mr: null,
+      pr: null,
       expected: 'plan-review',
     },
     {
@@ -189,14 +189,14 @@ describe('resolveStage — 自動導出', () => {
         body: makeBody({ entries: [{ at: T3, gate: 'plan', kind: '差し戻し' }] }),
       }),
       plan: makePlan(),
-      mr: null,
+      pr: null,
       expected: 'planning',
     },
     {
       name: 'plan が承認され tasks に未完があれば impling',
       card: makeCard({ startedAt: T1, body: planApproved() }),
       plan: makePlan({ tasks: { completed: 3, total: 10 } }),
-      mr: null,
+      pr: null,
       expected: 'impling',
     },
     {
@@ -205,7 +205,7 @@ describe('resolveStage — 自動導出', () => {
       name: 'plan が承認されていれば tasks を全部倒しても impling のまま',
       card: makeCard({ startedAt: T1, body: planApproved() }),
       plan: makePlan({ tasks: { completed: 10, total: 10 } }),
-      mr: null,
+      pr: null,
       expected: 'impling',
     },
     {
@@ -216,21 +216,21 @@ describe('resolveStage — 自動導出', () => {
         body: makeBody({ entries: [{ at: T2, gate: 'plan', kind: '提出' }] }),
       }),
       plan: makePlan({ tasks: { completed: 0, total: 0 } }),
-      mr: null,
+      pr: null,
       expected: 'impling',
     },
     {
       name: 'PR が opened なら pr',
       card: makeCard({ startedAt: T1 }),
       plan: null,
-      mr: makePr({ state: 'opened' }),
+      pr: makePr({ state: 'opened' }),
       expected: 'pr',
     },
     {
       name: '計画ファイルが見えなくても Draft の PR があれば plan-review',
       card: makeCard({ startedAt: T1 }),
       plan: null,
-      mr: makePr({ draft: true }),
+      pr: makePr({ draft: true }),
       expected: 'plan-review',
     },
     {
@@ -240,7 +240,7 @@ describe('resolveStage — 自動導出', () => {
         body: makeBody({ entries: [{ at: T2, gate: 'plan', kind: '提出' }] }),
       }),
       plan: null,
-      mr: makePr({ draft: true }),
+      pr: makePr({ draft: true }),
       expected: 'plan-review',
     },
     {
@@ -250,14 +250,14 @@ describe('resolveStage — 自動導出', () => {
         body: makeBody({ entries: [{ at: T3, gate: 'plan', kind: '差し戻し' }] }),
       }),
       plan: null,
-      mr: makePr({ draft: true }),
+      pr: makePr({ draft: true }),
       expected: 'planning',
     },
     {
       name: 'Draft の PR で plan が承認されていれば impling',
       card: makeCard({ startedAt: T1, body: planApproved() }),
       plan: null,
-      mr: makePr({ draft: true }),
+      pr: makePr({ draft: true }),
       expected: 'impling',
     },
     {
@@ -265,14 +265,14 @@ describe('resolveStage — 自動導出', () => {
       name: '廃止した verify の提出が残っていても impling',
       card: makeCard({ startedAt: T1, body: verifyAfterPlanApproved('提出') }),
       plan: makePlan(),
-      mr: makePr({ draft: true }),
+      pr: makePr({ draft: true }),
       expected: 'impling',
     },
     {
       name: '廃止した verify の承認が残っていて PR が Ready なら pr',
       card: makeCard({ startedAt: T1, body: verifyAfterPlanApproved('提出', '承認') }),
       plan: makePlan(),
-      mr: makePr({ draft: false }),
+      pr: makePr({ draft: false }),
       expected: 'pr',
     },
     {
@@ -287,42 +287,42 @@ describe('resolveStage — 自動導出', () => {
         }),
       }),
       plan: null,
-      mr: makePr({ draft: true }),
+      pr: makePr({ draft: true }),
       expected: 'planning',
     },
     {
       name: 'Draft でも マージされていれば merged',
       card: makeCard({ startedAt: T1 }),
       plan: null,
-      mr: makePr({ state: 'merged', draft: true }),
+      pr: makePr({ state: 'merged', draft: true }),
       expected: 'merged',
     },
     {
       name: 'Draft の PR が閉じられていれば計画の成果物として数えない',
       card: makeCard({ startedAt: T1 }),
       plan: null,
-      mr: makePr({ state: 'closed', draft: true }),
+      pr: makePr({ state: 'closed', draft: true }),
       expected: 'planning',
     },
     {
       name: 'PR が merged なら merged',
       card: makeCard({ startedAt: T1 }),
       plan: null,
-      mr: makePr({ state: 'merged' }),
+      pr: makePr({ state: 'merged' }),
       expected: 'merged',
     },
     {
       name: '計画が archive されていれば merged',
       card: makeCard({ startedAt: T1 }),
       plan: makePlan({ archived: true }),
-      mr: null,
+      pr: null,
       expected: 'merged',
     },
   ];
 
   for (const testCase of cases) {
     it(testCase.name, () => {
-      expect(resolveStage(testCase.card, testCase.plan, testCase.mr).stage).toBe(testCase.expected);
+      expect(resolveStage(testCase.card, testCase.plan, testCase.pr).stage).toBe(testCase.expected);
     });
   }
 
@@ -580,9 +580,9 @@ describe('hasFixAfterReview', () => {
 
   it('再レビュー待ちでもステージは pr のまま', () => {
     const card = makeCard({ startedAt: T1 });
-    const mr = makePr({ state: 'opened', latestNoteAt: T1, latestCommitAt: T2, noteCount: 1 });
+    const pr = makePr({ state: 'opened', latestNoteAt: T1, latestCommitAt: T2, noteCount: 1 });
 
-    const resolution = resolveStage(card, null, mr);
+    const resolution = resolveStage(card, null, pr);
 
     expect(resolution.stage).toBe('pr');
     expect(resolution.reason).toBe('PR #42 にレビュー後の修正コミットあり（再レビュー待ち）');

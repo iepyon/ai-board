@@ -47,7 +47,7 @@ function makeCard(overrides: Partial<Card> = {}): Card {
     startedAt: null,
     skipGates: [],
     branch: null,
-    mr: null,
+    pr: null,
     rank: null,
     body: '## アイデア\n\nトークンを更新する。',
     ...overrides,
@@ -370,7 +370,7 @@ describe('planCardWrite', () => {
     const card = makeCard({
       skipGates: ['plan'],
       branch: 'refresh-token',
-      mr: 42 as PullRequestNumber,
+      pr: 42 as PullRequestNumber,
       rank: 1500,
     });
 

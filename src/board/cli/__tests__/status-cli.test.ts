@@ -154,21 +154,21 @@ describe('ai-board status --json', () => {
 
   it('PR中 で人の指摘に AI が応える番のカードは、next の fix-pr になり、waiting でなく working の先頭に出る', async () => {
     await writeCard('impling', "startedAt: '2026-10-21T00:00:00.000Z'\n", review('承認'));
-    await writeCard('fixing', "startedAt: '2026-10-19T00:00:00.000Z'\nmr: 12\n", review('承認'));
+    await writeCard('fixing', "startedAt: '2026-10-19T00:00:00.000Z'\npr: 12\n", review('承認'));
     await writeCard(
       'waiting-pr',
-      "startedAt: '2026-10-19T00:00:00.000Z'\nmr: 13\n",
+      "startedAt: '2026-10-19T00:00:00.000Z'\npr: 13\n",
       review('承認')
     );
 
-    const pr = (iid: number, latestNoteAt: string | null): PrState => ({
+    const pr = (number: number, latestNoteAt: string | null): PrState => ({
       forge: 'github',
-      iid: iid as PullRequestNumber,
+      number: number as PullRequestNumber,
       state: 'opened',
       draft: false,
-      sourceBranch: `branch-${iid}`,
-      title: `PR ${iid}`,
-      webUrl: `https://github.com/acme/board/pull/${iid}`,
+      sourceBranch: `branch-${number}`,
+      title: `PR ${number}`,
+      webUrl: `https://github.com/acme/board/pull/${number}`,
       latestNoteAt,
       noteCount: latestNoteAt === null ? 0 : 1,
       latestAiNoteAt: null,
@@ -685,7 +685,7 @@ describe('ai-board status --json --only', () => {
   it.each([
     ['無い最上位の項目', ['--json', '--only', 'nosuch']],
     ['配列でない項目への .', ['--json', '--only', 'next.cardId']],
-    ['2 段以上の .', ['--json', '--only', 'cards.mrState.webUrl']],
+    ['2 段以上の .', ['--json', '--only', 'cards.prState.webUrl']],
     ['空の項目', ['--json', '--only', 'cards.']],
     ['値が無い', ['--json', '--only']],
     ['形の指定が無い', ['--only', 'next']],

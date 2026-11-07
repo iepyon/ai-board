@@ -29,7 +29,7 @@ ROOT=$(git rev-parse --show-toplevel)
 [ -d "$ROOT/node_modules" ] || (cd "$ROOT" && npm ci)
 node "$ROOT/dist/cli.js" dist-check --root "$ROOT" || npm --prefix "$ROOT" run build
 node "$ROOT/dist/cli.js" status --json --root "$ROOT" \
-  --only waiting,ideas,cards.id,cards.title,cards.stage,cards.skipGates,cards.latestReview,cards.mrState ||
+  --only waiting,ideas,cards.id,cards.title,cards.stage,cards.skipGates,cards.latestReview,cards.prState ||
   echo "status が失敗した"
 ```
 
@@ -77,7 +77,7 @@ node "$ROOT/dist/cli.js" status --json --root "$ROOT" \
 
 上の表で「確かめる」の操作は、書く前に AskUserQuestion で 1 回確かめる。選択肢は「書く」と「やめる」。
 見せるのは、カードの ID・タイトル・今の列、書く判断（例: `plan 中止`、「計画提案中 → アイデア」、宣言なら「待っている提出が承認と読まれ、計画レビュー → 実装中」）、
-送る理由（空ならそう書く）、提出の本文（`latestReview.reason`）と PR の URL（`mrState.webUrl`）。計画や差分を読みに行って要約しない。
+送る理由（空ならそう書く）、提出の本文（`latestReview.reason`）と PR の URL（`prState.webUrl`）。計画や差分を読みに行って要約しない。
 
 ## 4. 書く
 

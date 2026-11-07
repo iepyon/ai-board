@@ -53,7 +53,7 @@ export const CardFrontmatterSchema = z.object({
   /** Git のブランチ名。PR 番号の自動解決に使う */
   branch: nullableField(z.string().min(1).max(200)).default(null),
   /** レビュー要求の識別番号（GitHub の PR number） */
-  mr: nullableField(z.number().int().positive()).default(null),
+  pr: nullableField(z.number().int().positive()).default(null),
   /** 並び順。無ければ created から補う */
   rank: nullableField(z.number().finite()).default(null),
 });

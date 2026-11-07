@@ -42,7 +42,7 @@ export interface SectionCard {
   readonly startedAt: string | null;
   readonly latestReview: { readonly at: string } | null;
   readonly plan: { readonly updatedAt: string } | null;
-  readonly mrState: {
+  readonly prState: {
     readonly latestCommitAt: string | null;
     readonly mergedAt: string | null;
     /** PR中 で、人の指摘に AI が応える番か（`awaitsPrFix`） */
@@ -102,8 +102,8 @@ function sectionOf(card: SectionCard): BoardSection {
 }
 
 /** PR中 で、人の指摘に AI が応える番のカードか */
-export function isAwaitingPrFix(card: Pick<SectionCard, 'stage' | 'mrState'>): boolean {
-  return card.stage === 'pr' && card.mrState?.awaitingFix === true;
+export function isAwaitingPrFix(card: Pick<SectionCard, 'stage' | 'prState'>): boolean {
+  return card.stage === 'pr' && card.prState?.awaitingFix === true;
 }
 
 /**
@@ -120,7 +120,7 @@ export function waitingSince(card: SectionCard): string | null {
   if (card.hold !== null) return card.hold.since;
 
   if (card.stage === 'pr') {
-    return card.mrState?.latestCommitAt ?? card.latestReview?.at ?? null;
+    return card.prState?.latestCommitAt ?? card.latestReview?.at ?? null;
   }
 
   return card.latestReview?.at ?? card.plan?.updatedAt ?? null;
@@ -131,7 +131,7 @@ export function waitingSince(card: SectionCard): string | null {
  * PR を経ずに archive だけでマージ済みになったカードもあるため。
  */
 export function mergedAt(card: SectionCard): string | null {
-  return card.mrState?.mergedAt ?? card.plan?.updatedAt ?? null;
+  return card.prState?.mergedAt ?? card.plan?.updatedAt ?? null;
 }
 
 // ============================================================

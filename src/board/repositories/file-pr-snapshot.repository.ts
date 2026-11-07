@@ -16,7 +16,7 @@ import type { PrSnapshotRepository } from './pr-snapshot.repository.js';
 export const SNAPSHOTS_DIR = 'snapshots';
 /** 開いている PR の控えを置く、git に載せないファイル（データのワークツリーの親からの相対）。名前は手元の控えを読み続けるため変えない */
 /** 開いている PR の控えを置く、git に載せないファイル（データのワークツリーの親からの相対） */
-export const PR_SNAPSHOT_CACHE_FILE = path.join('cache', 'mr-snapshots.json');
+export const PR_SNAPSHOT_CACHE_FILE = path.join('cache', 'pr-snapshots.json');
 
 /** マージ済みの PR の控えのファイル名 */
 export function snapshotFileName(cardId: CardId): string {
@@ -25,7 +25,7 @@ export function snapshotFileName(cardId: CardId): string {
 
 const PrStateSchema = z.object({
   forge: z.enum(FORGE_KINDS),
-  iid: z.number().int().positive(),
+  number: z.number().int().positive(),
   state: z.enum(PR_STATES),
   draft: z.boolean(),
   sourceBranch: z.string(),
@@ -44,7 +44,7 @@ const PrStateSchema = z.object({
 
 const PrSnapshotSchema = z.object({
   fingerprint: z.string(),
-  mr: PrStateSchema,
+  pr: PrStateSchema,
 });
 
 /**
@@ -56,8 +56,8 @@ export function parsePrSnapshot(json: unknown): PrSnapshot | null {
   const parsed = PrSnapshotSchema.safeParse(json);
   if (!parsed.success) return null;
 
-  const mr: PrState = { ...parsed.data.mr, iid: parsed.data.mr.iid as PullRequestNumber };
-  return { mr, fingerprint: parsed.data.fingerprint };
+  const pr: PrState = { ...parsed.data.pr, number: parsed.data.pr.number as PullRequestNumber };
+  return { pr, fingerprint: parsed.data.fingerprint };
 }
 
 /**
@@ -70,7 +70,7 @@ export function serializeMergedSnapshot(snapshot: PrSnapshot): string {
 }
 
 export interface FilePrSnapshotRepositoryOptions {
-  /** 開いている PR の控えのファイル。既定は `<dataDir の親>/cache/mr-snapshots.json` */
+  /** 開いている PR の控えのファイル。既定は `<dataDir の親>/cache/pr-snapshots.json` */
   readonly cacheFile?: string;
 }
 
@@ -79,7 +79,7 @@ export interface FilePrSnapshotRepositoryOptions {
  *
  * - マージ済みの PR は、データ用ブランチの `snapshots/<id>.json` に置く（`DataStore.transact` を通す）。
  *   二度と変わらないので、全員で 1 度引けば足りる。クラウドの新しい clone でも引き直さずに済む
- * - それ以外は、git に載せない使い捨ての `<dataDir の親>/cache/mr-snapshots.json` に置く。
+ * - それ以外は、git に載せない使い捨ての `<dataDir の親>/cache/pr-snapshots.json` に置く。
  *   データのワークツリーの外なので、取り直しの `clean` で消えない。クラウドでは毎回空から始まる
  *
  * 控えはステージの導出の入力ではなく、gh の問い合わせを省くためのものである。
@@ -116,7 +116,7 @@ export class FilePrSnapshotRepository implements PrSnapshotRepository {
   }
 
   async save(cardId: CardId, snapshot: PrSnapshot): Promise<void> {
-    if (snapshot.mr.state === 'merged') {
+    if (snapshot.pr.state === 'merged') {
       const written = await this.writeMerged(cardId, snapshot);
       if (written) this.updateCache((cache) => cache.delete(cardId));
       return;

@@ -21,7 +21,7 @@ import { createTransactionalPrWriter } from '../composition.js';
 
 const CARD_ID = 'refresh-token' as CardId;
 const BRANCH = 'feat/refresh-token';
-const WRITE_BACK_MESSAGE = `data: ${CARD_ID} の mr を書き戻す`;
+const WRITE_BACK_MESSAGE = `data: ${CARD_ID} の PR 番号を書き戻す`;
 
 function makeCard(overrides: Partial<Card> = {}): Card {
   return {
@@ -31,7 +31,7 @@ function makeCard(overrides: Partial<Card> = {}): Card {
     startedAt: null,
     skipGates: [],
     branch: BRANCH,
-    mr: null,
+    pr: null,
     rank: null,
     body: '## アイデア\n\nトークンを更新する\n',
     ...overrides,
@@ -41,7 +41,7 @@ function makeCard(overrides: Partial<Card> = {}): Card {
 function makePr(): PrState {
   return {
     forge: 'github',
-    iid: 42 as PullRequestNumber,
+    number: 42 as PullRequestNumber,
     state: 'opened',
     draft: true,
     sourceBranch: BRANCH,
@@ -64,7 +64,7 @@ class InMemoryPrSnapshotRepository implements PrSnapshotRepository {
     return new Map(this.rows);
   }
   async findMerged(): Promise<Map<CardId, PrSnapshot>> {
-    return new Map([...this.rows].filter(([, snapshot]) => snapshot.mr.state === 'merged'));
+    return new Map([...this.rows].filter(([, snapshot]) => snapshot.pr.state === 'merged'));
   }
   async save(cardId: CardId, snapshot: PrSnapshot): Promise<void> {
     this.rows.set(cardId, snapshot);
@@ -78,10 +78,10 @@ class InMemoryPrSnapshotRepository implements PrSnapshotRepository {
 function branchClient(beforeResolve: () => Promise<void> = async () => undefined): ForgeClient {
   return {
     kind: 'github',
-    fetchByIid: vi.fn(async () => ({ mr: makePr(), fingerprint: 'f' })),
+    fetchByNumber: vi.fn(async () => ({ pr: makePr(), fingerprint: 'f' })),
     fetchByBranch: vi.fn(async () => {
       await beforeResolve();
-      return { mr: makePr(), fingerprint: 'f' };
+      return { pr: makePr(), fingerprint: 'f' };
     }),
     checkAuth: vi.fn(async () => null),
   };
@@ -116,7 +116,7 @@ describe('createTransactionalPrWriter', { timeout: 30_000 }, () => {
   }
 
   beforeEach(async () => {
-    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-board-mr-writer-'));
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-board-pr-writer-'));
 
     const globalConfig = path.join(tmp, 'gitconfig');
     fs.writeFileSync(globalConfig, '');
@@ -132,7 +132,7 @@ describe('createTransactionalPrWriter', { timeout: 30_000 }, () => {
     const seed = path.join(tmp, 'seed');
     git(['clone', '--quiet', origin, seed]);
     git(['-C', seed, 'checkout', '--quiet', '--orphan', DATA_BRANCH]);
-    fs.writeFileSync(path.join(seed, 'ai-board-data.yaml'), 'version: 1\n');
+    fs.writeFileSync(path.join(seed, 'ai-board-data.yaml'), 'version: 2\n');
     await new FileCardRepository(seed).create(makeCard());
     git(['-C', seed, 'add', '-A']);
     git(['-C', seed, 'commit', '--quiet', '-m', 'data: 始める']);
@@ -154,7 +154,7 @@ describe('createTransactionalPrWriter', { timeout: 30_000 }, () => {
     await fetcher.refresh();
 
     expect(originLog()[0]).toBe(WRITE_BACK_MESSAGE);
-    expect((await readFromOrigin('b'))?.mr).toBe(42);
+    expect((await readFromOrigin('b'))?.pr).toBe(42);
     expect(fetcher.connection()).toEqual({ status: 'connected', kind: 'github' });
   });
 
@@ -192,7 +192,7 @@ describe('createTransactionalPrWriter', { timeout: 30_000 }, () => {
     ).refresh();
 
     const card = await readFromOrigin('b');
-    expect(card?.mr).toBe(42);
+    expect(card?.pr).toBe(42);
     expect(card?.body).toContain('書き直した');
   });
 
@@ -214,6 +214,6 @@ describe('createTransactionalPrWriter', { timeout: 30_000 }, () => {
 
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('DataStorePushFailed'));
     expect(fetcher.connection()).toEqual({ status: 'connected', kind: 'github' });
-    expect(fetcher.get(CARD_ID)?.iid).toBe(42);
+    expect(fetcher.get(CARD_ID)?.number).toBe(42);
   });
 });

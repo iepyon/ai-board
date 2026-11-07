@@ -117,18 +117,18 @@ export function createTransactionalPrWriter(
   store: Pick<DataStore, 'transact'>,
   warn: (message: string) => void = (message) => console.warn(message)
 ): PrNumberWriter {
-  return async (cardId, iid) => {
+  return async (cardId, number) => {
     const result = await store.transact<void, CardWriteRefusedError['reason']>(
-      `data: ${cardId} の mr を書き戻す`,
+      `data: ${cardId} の PR 番号を書き戻す`,
       async (dataDir) => {
         const repository = new FileCardRepository(dataDir);
         const latest = await repository.findById(cardId);
 
         // 取り直した後に番号が既に入っていれば、何も書かない（transact はコミットしない）
-        if (latest === null || latest.mr === iid) return ok(undefined);
+        if (latest === null || latest.pr === number) return ok(undefined);
 
         try {
-          await repository.save({ ...latest, mr: iid });
+          await repository.save({ ...latest, pr: number });
         } catch (error) {
           // 今の card.md が読めないなど。書きかけは transact が捨てる
           if (error instanceof CardWriteRefusedError) return err(error.reason);

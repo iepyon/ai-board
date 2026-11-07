@@ -23,7 +23,7 @@ export interface BoardCardPlan {
 
 export interface BoardCardPr {
   readonly forge: ForgeKind;
-  readonly iid: number;
+  readonly number: number;
   readonly state: PrLifecycleState;
   /** Draft か。計画の PR として人に読ませている段階 */
   readonly draft: boolean;
@@ -82,7 +82,7 @@ export interface BoardCard {
   readonly startedAt: string | null;
   readonly skipGates: readonly ReviewGate[];
   readonly branch: string | null;
-  readonly mr: number | null;
+  readonly pr: number | null;
   /** 並び順。`cards` はこの実効値の順に並んで届く */
   readonly rank: number | null;
   /** `## レビュー` の節を除いた本文。判断は `reviews` で別に返す */
@@ -95,7 +95,7 @@ export interface BoardCard {
   /** 計画ファイルがまだ無ければ null */
   readonly plan: BoardCardPlan | null;
   /** PR が未紐付け、または GitHub 未接続なら null */
-  readonly mrState: BoardCardPr | null;
+  readonly prState: BoardCardPr | null;
   /**
    * AI の列にいるが人の判断を待っているときの止まり（`resolveHold`）。止まっていなければ null。
    * ステージとは別の軸で、どこにも保存しない。ループはこのカードを選ばない
@@ -137,7 +137,7 @@ export function toBoardCard(
   },
   latestReview: BoardCardReview | null,
   plan: BoardCardPlan | null,
-  mrState: BoardCardPr | null,
+  prState: BoardCardPr | null,
   hold: CardHold | null,
   loopSteps: readonly LoopStep[]
 ): BoardCard {
@@ -155,12 +155,12 @@ export function toBoardCard(
     startedAt: card.startedAt,
     skipGates: card.skipGates,
     branch: card.branch,
-    mr: card.mr,
+    pr: card.pr,
     rank: card.rank,
     body: stripReviewSection(card.body),
     reviews: entries.map(toBoardCardReview),
     plan,
-    mrState,
+    prState,
     hold,
     loopSteps,
   };

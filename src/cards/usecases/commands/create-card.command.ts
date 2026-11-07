@@ -32,7 +32,7 @@ export function createCreateCardCommand(cardRepository: CardRepository): CreateC
       startedAt: null,
       skipGates: [],
       branch: null,
-      mr: null,
+      pr: null,
       rank: null,
       body: input.body ?? '',
     };

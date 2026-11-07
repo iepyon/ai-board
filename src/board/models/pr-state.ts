@@ -11,7 +11,7 @@ export type PrLifecycleState = (typeof PR_STATES)[number];
 export interface PrState {
   /** どの取得先から引いた状態か */
   readonly forge: ForgeKind;
-  readonly iid: PullRequestNumber;
+  readonly number: PullRequestNumber;
   readonly state: PrLifecycleState;
   /**
    * Draft か。AI は計画をコミットした時点で Draft の PR を出し、
@@ -60,10 +60,10 @@ export interface PrState {
  * 引いた PR の状態と、それを引いたときの PR 本体の「指紋」。
  *
  * 指紋は PR 本体 1 回の問い合わせで分かる値（状態・Draft・head の sha・コメントの件数・更新時刻）を
- * つないだもの。次に引いたとき指紋が同じなら、コメントやコミットを引き直さずに `mr` を使い回す。
+ * つないだもの。次に引いたとき指紋が同じなら、コメントやコミットを引き直さずに `pr` を使い回す。
  */
 export interface PrSnapshot {
-  readonly mr: PrState;
+  readonly pr: PrState;
   readonly fingerprint: string;
 }
 

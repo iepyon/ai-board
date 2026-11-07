@@ -48,7 +48,7 @@ export function createBoardDependencies(
   plansDir: string,
   cardRepository: CardRepository,
   ideaDividerRepository: IdeaDividerRepository,
-  mrProvider: PrStateProvider = disabledPrStateProvider,
+  prProvider: PrStateProvider = disabledPrStateProvider,
   loopHistoryRepository: LoopHistoryRepository = emptyLoopHistoryRepository,
   branchPlanRepository: BranchPlanRepository = emptyBranchPlanRepository
 ): BoardDependencies {
@@ -60,7 +60,7 @@ export function createBoardDependencies(
       cardRepository,
       ideaDividerRepository,
       planRepository,
-      mrProvider,
+      prProvider,
       loopHistoryRepository,
       branchPlanRepository
     ),

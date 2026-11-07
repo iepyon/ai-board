@@ -134,7 +134,7 @@ describe('createCardCommand', () => {
     if (result.ok) {
       expect(result.value.startedAt).toBeNull();
       expect(result.value.skipGates).toEqual([]);
-      expect(result.value.mr).toBeNull();
+      expect(result.value.pr).toBeNull();
     }
   });
 });
@@ -182,16 +182,16 @@ describe('updateCardMetaCommand', () => {
     expect(result.ok && result.value.branch).toBe('my-branch');
   });
 
-  it('branch / mr を紐付けられる', async () => {
+  it('branch / pr を紐付けられる', async () => {
     const result = await createUpdateCardMetaCommand(repository)({
       id: 'target' as CardId,
-      patch: { branch: 'feat/refresh-token', mr: 42 },
+      patch: { branch: 'feat/refresh-token', pr: 42 },
     });
 
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.branch).toBe('feat/refresh-token');
-      expect(result.value.mr).toBe(42);
+      expect(result.value.pr).toBe(42);
     }
   });
 
@@ -443,7 +443,7 @@ async function placeCard(
     startedAt,
     skipGates,
     branch: null,
-    mr: null,
+    pr: null,
     rank: null,
     body: '## アイデア\n\nなにかする。\n',
   });

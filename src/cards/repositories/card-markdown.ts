@@ -65,7 +65,7 @@ export function parseCard(filePath: string, raw: string): Card | null {
     startedAt: frontmatter.startedAt,
     skipGates: frontmatter.skipGates,
     branch: frontmatter.branch,
-    mr: frontmatter.mr as PullRequestNumber | null,
+    pr: frontmatter.pr as PullRequestNumber | null,
     rank: frontmatter.rank,
     body: normalizeBody(parsed.content),
   };
@@ -85,7 +85,7 @@ export function serializeCard(card: Card): string {
     startedAt: card.startedAt,
     skipGates: card.skipGates,
     branch: card.branch,
-    mr: card.mr,
+    pr: card.pr,
     // 並べ替えたことの無いカードに null の行を足さない（保存し直しても差分を生まない）
     ...(card.rank === null ? {} : { rank: card.rank }),
   };

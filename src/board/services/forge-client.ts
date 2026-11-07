@@ -19,7 +19,10 @@ export interface ForgeClient {
    * 識別番号が既知のレビュー要求を取得する。
    * `previous` から変わっていなければ、詳細を引き直さずに `previous` を返す
    */
-  fetchByIid(iid: PullRequestNumber, previous?: PrSnapshot | null): Promise<PrSnapshot | null>;
+  fetchByNumber(
+    number: PullRequestNumber,
+    previous?: PrSnapshot | null
+  ): Promise<PrSnapshot | null>;
   /** source branch からレビュー要求を解決する。複数ある場合は最新の 1 件 */
   fetchByBranch(branch: string): Promise<PrSnapshot | null>;
   /** 取得先へ問い合わせられる状態かを確かめる。理由文を返す（null なら利用可能） */

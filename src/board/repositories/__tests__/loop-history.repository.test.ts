@@ -342,7 +342,7 @@ describe('古い CLI の書き込み', () => {
 
   it('loop を除いた add・clean・reset の後も、追跡済みの loop/ のファイルは消えない', () => {
     git(dataDir, 'init', '--quiet', '--initial-branch', 'ai-board/data');
-    fs.writeFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'version: 1\n');
+    fs.writeFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'version: 2\n');
     unwrap(writeLoopStart(dataDir, START));
     git(dataDir, 'add', '-A');
     git(dataDir, 'commit', '--quiet', '-m', 'loop: start card-a implement');

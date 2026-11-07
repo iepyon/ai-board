@@ -28,9 +28,9 @@ import {
  * データ用ブランチ（`ai-board/data`）の中身は次のとおり。
  *
  * ```
- * ai-board-data.yaml                      形の版（version: 1）
+ * ai-board-data.yaml                      形の版（version: 2）
  * order.yaml                              rank とアイデアの区切り線
- * cards/<id>/card.md                      frontmatter（id, title, created, skipGates, branch, mr）と本文
+ * cards/<id>/card.md                      frontmatter（id, title, created, skipGates, branch, pr）と本文
  * cards/<id>/log/<時刻>.<gate>.<種別>.md   判断 1 件。中身は理由の本文
  * snapshots/<id>.json                    マージ済みの PR の控え（file-pr-snapshot.repository.ts）
  * loop/<時刻>.<ループの識別子>.json        ループの 1 手の記録（loop-history.repository.ts）
@@ -47,8 +47,11 @@ export const CARDS_DIR = 'cards';
 export const CARD_FILE = 'card.md';
 export const LOG_DIR = 'log';
 
-/** この版の CLI が読み書きできる形の版。これより新しい版は読まずに止まる */
-export const DATA_VERSION = 1;
+/**
+ * この版の CLI が読み書きできる形の版。これより新しい版は読まずに止まり、古い版は取り直した後に書き換える
+ * （`src/infrastructure/data-migration.ts`）。2 で PR 番号の項目を `mr` から `pr` に改めた
+ */
+export const DATA_VERSION = 2;
 
 // ============================================================
 // エラー
@@ -406,7 +409,7 @@ function parseCardFile(id: string, raw: string): ParsedCardFile | null {
     created: data['created'],
     skipGates: data['skipGates'],
     branch: data['branch'],
-    mr: data['mr'],
+    pr: data['pr'],
   });
 
   if (!result.success) {
@@ -427,7 +430,7 @@ function parseCardFile(id: string, raw: string): ParsedCardFile | null {
       created: frontmatter.created,
       skipGates: frontmatter.skipGates,
       branch: frontmatter.branch,
-      mr: frontmatter.mr as PullRequestNumber | null,
+      pr: frontmatter.pr as PullRequestNumber | null,
     },
     body: stripReviewSection(parsed.content),
   };
@@ -441,7 +444,7 @@ export function serializeCardFile(fields: CardFileFields, body: string): string 
     created: fields.created,
     skipGates: fields.skipGates,
     branch: fields.branch,
-    mr: fields.mr,
+    pr: fields.pr,
   };
   const normalized = trimNewlines(body);
 

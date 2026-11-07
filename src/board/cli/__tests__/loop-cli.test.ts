@@ -76,7 +76,7 @@ beforeEach(() => {
   const seed = path.join(tmp, 'seed');
   execFileSync('git', ['clone', '--quiet', origin, seed], { stdio: 'ignore' });
   git(seed, 'checkout', '--quiet', '--orphan', DATA_BRANCH);
-  fs.writeFileSync(path.join(seed, 'ai-board-data.yaml'), 'version: 1\n');
+  fs.writeFileSync(path.join(seed, 'ai-board-data.yaml'), 'version: 2\n');
   git(seed, 'add', '-A');
   git(seed, 'commit', '--quiet', '-m', 'data: 始める');
   git(seed, 'push', '--quiet', 'origin', `HEAD:refs/heads/${DATA_BRANCH}`);

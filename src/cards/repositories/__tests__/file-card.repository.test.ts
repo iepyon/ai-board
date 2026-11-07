@@ -52,7 +52,7 @@ function makeCard(overrides: Partial<Card> = {}): Card {
     startedAt: null,
     skipGates: [],
     branch: null,
-    mr: null,
+    pr: null,
     rank: null,
     body: '',
     ...overrides,
@@ -88,7 +88,7 @@ describe('FileCardRepository', () => {
       startedAt: '2026-09-05T00:00:00.000Z',
       skipGates: ['plan'],
       branch: 'feat/refresh-token',
-      mr: 42 as PullRequestNumber,
+      pr: 42 as PullRequestNumber,
       rank: 1500,
       body: '## アイデア\n本文',
     });
@@ -370,7 +370,7 @@ describe('FileCardRepository', () => {
     await repository.create(makeCard({ id: 'good' as CardId }));
     write(
       'cards/bad/card.md',
-      '---\nid: bad\ntitle: x\ncreated: x\nskipGates:\n  - explore\nbranch: null\nmr: null\n---\n'
+      '---\nid: bad\ntitle: x\ncreated: x\nskipGates:\n  - explore\nbranch: null\npr: null\n---\n'
     );
     write('cards/no-card-md/log/20261101T040000.000Z.plan.submit.md', '');
     write('cards/Not Valid/card.md', '---\nid: Not Valid\n---\n');

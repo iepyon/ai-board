@@ -66,21 +66,21 @@ export function unavailablePrStateProvider(
  * `PrFetcher` はこれが真なら引き直さず、届かないときの供給元はこれが真の控えだけを出す
  */
 export function isSettled(
-  card: { readonly mr: number | null },
+  card: { readonly pr: number | null },
   snapshot: PrSnapshot | null
 ): boolean {
-  return snapshot !== null && snapshot.mr.state === 'merged' && card.mr === snapshot.mr.iid;
+  return snapshot !== null && snapshot.pr.state === 'merged' && card.pr === snapshot.pr.number;
 }
 
 /** 決まった控え（`isSettled`）だけを、カード ID ごとの PR の状態にする。届かないときの供給元に渡す */
 export function matchMergedSnapshots(
-  cards: readonly { readonly id: string; readonly mr: number | null }[],
+  cards: readonly { readonly id: string; readonly pr: number | null }[],
   snapshots: ReadonlyMap<string, PrSnapshot>
 ): Map<string, PrState> {
   const matched = new Map<string, PrState>();
   for (const card of cards) {
     const snapshot = snapshots.get(card.id) ?? null;
-    if (snapshot !== null && isSettled(card, snapshot)) matched.set(card.id, snapshot.mr);
+    if (snapshot !== null && isSettled(card, snapshot)) matched.set(card.id, snapshot.pr);
   }
   return matched;
 }

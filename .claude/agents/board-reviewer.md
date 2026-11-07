@@ -31,11 +31,11 @@ description: board-loop を動かした本筋のセッションから、`next.st
 次のどれかに当たれば、何も変えずに止まって報告する。
 
 - カードの `branch` が null
-- カードの `mr`（PR の番号）が null。PR 番号は推測で作らない（GitHub が未設定のボードでは止まらない。PR が無いのが正しい）
+- カードの `pr`（PR の番号）が null。PR 番号は推測で作らない（GitHub が未設定のボードでは止まらない。PR が無いのが正しい）
 - ワークツリーに未コミットの変更が残っている（前の手が途中で止まっている）
 - `git pull --ff-only` が失敗した
 
-以下、カードの `mr` を `<mr>` と書く。
+以下、カードの `pr` を `<pr>` と書く。
 
 **GitHub が未設定のボード**（共通の決まりの「GitHub が未設定のボード」）では、`git pull --ff-only`・push・`# branch.ab +0 -0` の確かめ・`ai-board pr` をすべて飛ばす。
 
@@ -54,9 +54,9 @@ description: board-loop を動かした本筋のセッションから、`next.st
 
 1. `ai-board card show <cardId>` のカード本文（アイデア / 背景 / 論点 / `## レビュー`）と、計画の全体（特に `## 設計` の Decisions / 仮定 / Non-Goals と `## タスク`）を読む
 2. `$WT/REVIEW.md` を読む。何を重く見て、何を報告しないかはここに従う
-3. PR の差分を `/code-review` にかける（`cd "$WT"` で PR 番号 `<mr>` を対象にする）。
+3. PR の差分を `/code-review` にかける（`cd "$WT"` で PR 番号 `<pr>` を対象にする）。
    `--fix` と `--comment` は付けない（コードを直さず、PR にも書かない）。
-   `/code-review` を呼べないときは、`ai-board pr diff <mr>` を `REVIEW.md` の観点で自分で読む。
+   `/code-review` を呼べないときは、`ai-board pr diff <pr>` を `REVIEW.md` の観点で自分で読む。
    GitHub が未設定のボードでは、`/code-review` も `ai-board pr diff` も使わず、`git -C "$WT" diff main...HEAD`（手元の `main` から分かれた後の差分）を `REVIEW.md` の観点で自分で読む
 
 `/code-review` の指摘も、自分で読んで見つけた指摘も、共通の決まりの「指摘の分け方」でうのみにせず確かめてから採る。

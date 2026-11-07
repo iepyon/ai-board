@@ -27,11 +27,11 @@ describe('readSeedCards', () => {
     expect(result.ok && result.value[0]?.id).toBe('status-counts');
   });
 
-  it('rank・startedAt・skipGates・branch・mr・created などは、不正な値でも読まない', () => {
+  it('rank・startedAt・skipGates・branch・pr・created などは、不正な値でも読まない', () => {
     const result = readSeedCards([
       file(
         'a.md',
-        'title: A\nrank: not-a-number\nstartedAt: いつか\nskipGates: [plan]\nbranch: x\nmr: -1\ncreated: きのう\nextra: 1'
+        'title: A\nrank: not-a-number\nstartedAt: いつか\nskipGates: [plan]\nbranch: x\npr: -1\ncreated: きのう\nextra: 1'
       ),
     ]);
 

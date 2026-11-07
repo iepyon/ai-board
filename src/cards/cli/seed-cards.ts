@@ -36,7 +36,7 @@ const MARKDOWN_EXTENSION = '.md';
  * - 読むのは frontmatter の `id` と `title` と本文だけ。`id` は省けばファイル名から補い、
  *   書いてあればファイル名と一致しなければならない（`parseCard` と同じ決まり）。`title` は省けない
  *   （`parseCard` はファイル名で補うが、題材では書き忘れとして拒む）
- * - `rank`・`startedAt`・`skipGates`・`branch`・`mr`・`created` などは書いてあっても読まない。
+ * - `rank`・`startedAt`・`skipGates`・`branch`・`pr`・`created` などは書いてあっても読まない。
  *   並び順と着手は人が決め、起票の時刻は取り込んだ時刻にする
  * - 1 つでも読めないファイルがあれば、読めないファイルを理由付きで全部返す（呼び出し側は 1 枚も起票しない）
  *

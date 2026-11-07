@@ -27,7 +27,7 @@ function card(id: string, overrides: Partial<Card> = {}): Card {
     startedAt: '2026-11-02T00:00:00.000Z',
     skipGates: [],
     branch: null,
-    mr: null,
+    pr: null,
     rank: null,
     body: '',
     ...overrides,
@@ -121,7 +121,7 @@ describe('GetBoardQuery のループの記録', () => {
 
 describe('GetBoardQuery の GitHub が未設定のボード', () => {
   // どちらも計画提案中（着手済みで、まだ提出していない）。止まらなければ アイデア / 計画提案中 へ動かせる
-  const withPr = card('with-pr', { mr: 7 as PullRequestNumber });
+  const withPr = card('with-pr', { pr: 7 as PullRequestNumber });
   const withoutPr = card('without-pr', { branch: 'without-pr' });
 
   it('PR 番号を持つカードだけを止まりにし、どの列へも動かさせない', async () => {
