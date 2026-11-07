@@ -3,7 +3,7 @@ id: status-active-only
 title: ユーザは、終わったカードのぶんの GitHub への問い合わせと status の出力を減らしたい
 created: '2026-11-07T20:15:39.218Z'
 skipGates: []
-branch: null
+branch: ccr-01d0954b-chx3cl
 pr: null
 ---
 
