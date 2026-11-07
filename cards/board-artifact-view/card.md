@@ -42,6 +42,11 @@ ADR 0017 で画面・サーバ・`status --html` のダッシュボードを外�
 ## 探索メモ
 
 - 人と決めた（2026-11-07）: Artifact の DB は使わない。手元のデータ用ブランチを読み、PR の状態は `status` と同じく `gh` で引いてよい。出し先は Artifact の公開
+- 人と決めた（2026-11-07、論点への答え）
+  - ひな形の置き場所: 新しいスキル（`.claude/skills/board-view/`）に、ひな形の HTML と流し込みのスクリプトを置く。本体（`src/`）は変えない
+  - URL: セッションの中だけ同じ URL に出し直す。セッションをまたいで覚えない（新しいセッションでは新しい URL）
+  - 出す区画: 判断待ち・AI 作業中・アイデア（区切り線つき）の 3 区画と、GitHub の接続・ループの様子・次の一手。マージ済みは出さない
+  - 出すとき: 「ボードを見せて」と頼まれたときだけ。判断の後やループの手ごとには出し直さない（`board-artifact-loop-republish` に残す）
 - 外す前の形は、コミット 981587f の親にある（`src/board/cli/status-html.ts`、`.claude/skills/board-dashboard/SKILL.md`、消した ADR 0015）。更新ボタンの仕組みは `board-artifact-dashboard`（PR #71）
 - `status --json --active` は PR #102 で入った。2026-11-07 の時点で約 11KB（付けないと約 239KB）
 - ループの手ごとに出し直すのは `board-artifact-loop-republish`。このカードでは扱わない
