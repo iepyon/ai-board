@@ -3,7 +3,7 @@ id: unset-impl-close
 title: ユーザは、GitHub を設定していない研修のボードでも、承認した計画を実装からマージ済みまで進めたい
 created: '2026-11-07T01:34:41.396Z'
 skipGates: []
-branch: null
+branch: unset-impl-close
 mr: null
 ---
 
