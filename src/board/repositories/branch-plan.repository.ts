@@ -34,6 +34,16 @@ export interface BranchPlanRepository {
 const PLANS_DIR = '.ai-board/plans';
 const ARCHIVE_DIR = `${PLANS_DIR}/archive`;
 
+function activePath(cardId: CardId): string {
+  return `${PLANS_DIR}/${cardId}.md`;
+}
+
+/** 何も読まない読み手。ブランチの計画を読まない組み立て（テストなど）の既定 */
+export const emptyBranchPlanRepository: BranchPlanRepository = {
+  find: () => Promise.resolve(null),
+  findActive: () => Promise.resolve(null),
+};
+
 /**
  * `git -C <repoRoot>` で読む。引数は配列で渡し、shell を通さない（`cli-runner.ts`）。
  *
@@ -54,36 +64,29 @@ export class GitBranchPlanRepository implements BranchPlanRepository {
   ) {}
 
   async find(cardId: CardId, branch: string): Promise<ImplStepPlan | null> {
-    if (!(await this.isValidBranchName(branch))) return null;
-
-    const ref = await this.resolveRef(branch);
+    const ref = await this.ref(branch);
     if (ref === null) return null;
 
-    const active = await this.git(['show', '--no-textconv', `${ref}:${PLANS_DIR}/${cardId}.md`]);
+    const active = await this.show(ref, activePath(cardId));
     if (active !== null) return { location: 'active', text: active };
 
-    const archived = await this.git([
-      'show',
-      '--no-textconv',
-      `${ref}:${ARCHIVE_DIR}/${cardId}.md`,
-    ]);
+    const archived = await this.show(ref, `${ARCHIVE_DIR}/${cardId}.md`);
     if (archived !== null) return { location: 'archived' };
 
     return null;
   }
 
   async findActive(cardId: CardId, branch: string): Promise<PlanDoc | null> {
-    if (!(await this.isValidBranchName(branch))) return null;
-
-    const ref = await this.resolveRef(branch);
+    const ref = await this.ref(branch);
     if (ref === null) return null;
 
-    const file = `${PLANS_DIR}/${cardId}.md`;
-    const text = await this.git(['show', '--no-textconv', `${ref}:${file}`]);
-    if (text === null) return null;
-
-    const committedAt = (await this.git(['log', '-1', '--format=%cI', ref, '--', file]))?.trim();
-    if (committedAt === undefined || committedAt === '') return null;
+    const file = activePath(cardId);
+    const [text, log] = await Promise.all([
+      this.show(ref, file),
+      this.git(['log', '-1', '--format=%cI', ref, '--', file]),
+    ]);
+    const committedAt = log?.trim();
+    if (text === null || !committedAt) return null;
 
     return {
       cardId,
@@ -91,6 +94,15 @@ export class GitBranchPlanRepository implements BranchPlanRepository {
       archived: false,
       updatedAt: new Date(committedAt).toISOString(),
     };
+  }
+
+  /** 検査を通ったブランチの完全な参照（`refs/heads/…` か `refs/remotes/origin/…`）。通らない・無ければ null */
+  private async ref(branch: string): Promise<string | null> {
+    return (await this.isValidBranchName(branch)) ? this.resolveRef(branch) : null;
+  }
+
+  private show(ref: string, file: string): Promise<string | null> {
+    return this.git(['show', '--no-textconv', `${ref}:${file}`]);
   }
 
   /**

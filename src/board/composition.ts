@@ -10,6 +10,7 @@ import { FsPlanRepository, type PlanRepository } from './repositories/plan.repos
 import type { MrSnapshotRepository } from './repositories/mr-snapshot.repository.js';
 import { FileMrSnapshotRepository } from './repositories/file-mr-snapshot.repository.js';
 import {
+  emptyBranchPlanRepository,
   GitBranchPlanRepository,
   type BranchPlanRepository,
 } from './repositories/branch-plan.repository.js';
@@ -47,7 +48,7 @@ export function createBoardDependencies(
   ideaDividerRepository: IdeaDividerRepository,
   mrProvider: MrStateProvider = disabledMrStateProvider,
   loopHistoryRepository: LoopHistoryRepository = emptyLoopHistoryRepository,
-  branchPlanRepository?: BranchPlanRepository
+  branchPlanRepository: BranchPlanRepository = emptyBranchPlanRepository
 ): BoardDependencies {
   const planRepository = new FsPlanRepository(plansDir);
 

@@ -9,7 +9,10 @@ import { isErr } from '../../../shared/result.js';
 import type { CardId } from '../../../shared/schemas/common.js';
 import { createBoardDependencies } from '../../composition.js';
 import type { MrStateProvider } from '../../services/mr-state-provider.js';
-import type { BranchPlanRepository } from '../../repositories/branch-plan.repository.js';
+import {
+  emptyBranchPlanRepository,
+  type BranchPlanRepository,
+} from '../../repositories/branch-plan.repository.js';
 import type { ForgeCardFailure, ForgeConnection } from '../../models/mr-state.js';
 import type { CommitMessage, DataOperation } from '../../../infrastructure/data-store.js';
 import { runDecideCli } from '../decide-cli.js';
@@ -396,7 +399,7 @@ describe('ai-board decide', () => {
     await writeCard('r', `${STARTED}branch: r\n`, review('提出'));
     const unset = stubProvider({ status: 'disabled', kind: null, reason: null });
     const branchPlans: BranchPlanRepository = {
-      find: () => Promise.resolve(null),
+      ...emptyBranchPlanRepository,
       findActive: (cardId) =>
         Promise.resolve({
           cardId,

@@ -147,7 +147,7 @@ const RULES: ReadonlyArray<(facts: Facts) => Derivation | null> = [
 
   // 4. plan-review — 成果物があることを正とし、ログの欠落で人待ちを取りこぼさない
   ({ gates, plan, mr }) => {
-    if (gates.plan !== 'none' && gates.plan !== 'submitted') return null;
+    if (!planReviewable(gates.plan)) return null;
 
     if (mr?.state === 'opened' && mr.draft) {
       return {
@@ -186,6 +186,14 @@ function deriveStage(facts: Facts): Derivation {
   }
 
   return DEFAULT_DERIVATION;
+}
+
+/**
+ * 規則 4（計画レビュー）が当たりうる plan ゲートの状態か。計画の成果物があれば計画レビューになる。
+ * GitHub が未設定のボードで、ブランチの計画を読むカードを選ぶのにも使う（`branchPlanTarget`）
+ */
+export function planReviewable(gate: GateState): boolean {
+  return gate === 'none' || gate === 'submitted';
 }
 
 /**

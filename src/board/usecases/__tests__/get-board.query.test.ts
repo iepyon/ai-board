@@ -6,7 +6,10 @@ import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js'
 import type { LoopStep } from '../../../shared/loop-step.js';
 import type { LoopHistoryRepository } from '../../repositories/loop-history.repository.js';
 import type { PlanRepository } from '../../repositories/plan.repository.js';
-import type { BranchPlanRepository } from '../../repositories/branch-plan.repository.js';
+import {
+  emptyBranchPlanRepository,
+  type BranchPlanRepository,
+} from '../../repositories/branch-plan.repository.js';
 import type { PlanDoc, PlanState } from '../../models/plan-state.js';
 import { createCardId } from '../../../shared/schemas/common.js';
 import {
@@ -166,8 +169,8 @@ describe('GetBoardQuery のブランチの計画', () => {
   function reader(): BranchPlanRepository & { readonly calls: string[] } {
     const calls: string[] = [];
     return {
+      ...emptyBranchPlanRepository,
       calls,
-      find: () => Promise.resolve(null),
       findActive: (cardId) => {
         calls.push(cardId);
         return Promise.resolve(cardId === 'submitted' ? branchDoc : null);
