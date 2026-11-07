@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   groupBySection,
+  isActiveCard,
   isStale,
   mergedAt,
   waitingSince,
@@ -301,5 +302,21 @@ describe('isStale', () => {
 
   it('時刻がどちらも無ければ false', () => {
     expect(isStale(makeCard({ id: 'a', stage: 'planning' }), now)).toBe(false);
+  });
+});
+
+describe('isActiveCard', () => {
+  it('アイデア・AI が進めている・判断待ちのカードは真', () => {
+    expect(isActiveCard(makeCard({ id: 'idea' }))).toBe(true);
+    expect(isActiveCard(makeCard({ id: 'planning', stage: 'planning' }))).toBe(true);
+    expect(isActiveCard(makeCard({ id: 'impling', stage: 'impling' }))).toBe(true);
+    expect(isActiveCard(makeCard({ id: 'review', stage: 'plan-review' }))).toBe(true);
+    expect(isActiveCard(makeCard({ id: 'pr', stage: 'pr' }))).toBe(true);
+  });
+
+  it('マージ済みと、どのステージでも中止のカードは偽', () => {
+    expect(isActiveCard(makeCard({ id: 'merged', stage: 'merged' }))).toBe(false);
+    expect(isActiveCard(makeCard({ id: 'aborted-idea', aborted: true }))).toBe(false);
+    expect(isActiveCard(makeCard({ id: 'aborted-pr', stage: 'pr', aborted: true }))).toBe(false);
   });
 });

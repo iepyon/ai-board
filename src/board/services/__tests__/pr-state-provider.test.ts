@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import type { PullRequestNumber } from '../../../shared/schemas/common.js';
 import type { PrSnapshot, PrState } from '../../models/pr-state.js';
-import { matchMergedSnapshots, unavailablePrStateProvider } from '../pr-state-provider.js';
+import {
+  canReuseSnapshot,
+  matchMergedSnapshots,
+  unavailablePrStateProvider,
+} from '../pr-state-provider.js';
 
 // ============================================================
 // GitHub に届かないときの供給元と、マージ済みの控えの照らし合わせ
@@ -71,5 +75,37 @@ describe('matchMergedSnapshots', () => {
     );
 
     expect(matched).toEqual(new Map([['same', mergedPr(7)]]));
+  });
+});
+
+describe('canReuseSnapshot', () => {
+  const log = (...kinds: string[]): string =>
+    `## レビュー\n\n${kinds
+      .map((kind, i) => `### 2026-11-03T0${i}:00:00.000Z plan ${kind}\n\n理由\n`)
+      .join('\n')}`;
+
+  it('最新が 中止 で、控えの番号がカードと合えば真', () => {
+    expect(canReuseSnapshot({ pr: 7, body: log('提出', '中止') }, snapshot(7))).toBe(true);
+  });
+
+  it('マージ済みで番号が合えば、中止でなくても真', () => {
+    expect(canReuseSnapshot({ pr: 7, body: '' }, snapshot(7))).toBe(true);
+  });
+
+  it('マージ前の控えで、中止でなければ偽', () => {
+    const open = { ...snapshot(7), pr: { ...mergedPr(7), state: 'closed' as const } };
+    expect(canReuseSnapshot({ pr: 7, body: '' }, open)).toBe(false);
+    expect(canReuseSnapshot({ pr: 7, body: log('提出') }, open)).toBe(false);
+  });
+
+  it('中止の後に別の判断が書かれ、最新が 中止 でなくなれば偽', () => {
+    const open = { ...snapshot(7), pr: { ...mergedPr(7), state: 'closed' as const } };
+    expect(canReuseSnapshot({ pr: 7, body: log('中止', '提出') }, open)).toBe(false);
+  });
+
+  it('控えが無い・番号が違えば偽', () => {
+    expect(canReuseSnapshot({ pr: 7, body: log('中止') }, null)).toBe(false);
+    expect(canReuseSnapshot({ pr: 8, body: log('中止') }, snapshot(7))).toBe(false);
+    expect(canReuseSnapshot({ pr: null, body: log('中止') }, snapshot(7))).toBe(false);
   });
 });

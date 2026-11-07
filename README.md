@@ -31,8 +31,9 @@ node dist/cli.js status --root /path/to/your-project   # .ai-board/ を持つプ
 
 ## ボードの見方
 
-`ai-board status` は人向けの数行を、`status --json [--only <項目,...>]` はループや手順書が読む JSON を出す。
+`ai-board status` は人向けの数行を、`status --json [--active] [--only <項目,...>]` はループや手順書が読む JSON を出す。
 人向けの形は「GitHub:」「ループ:」の行・判断待ち・AI 作業中・次の一手を出し、JSON はそれに全カード（`cards`）とアイデアの表（`ideas`）を足す。
+`--active` を付けると、`cards` からマージ済みと中止のカードを外す。
 
 - **判断待ち（`waiting`）:** 計画レビュー / PR中 と、止まっているカード。待ち始めの古い順で、止まった理由と出せる判断（`decisions`）が付く
 - **AI 作業中（`working`）:** 計画提案中 / 実装中（止まっているものを除く）と、人の指摘に AI が応える番の PR中（先頭）。`rank` の順。
@@ -263,7 +264,7 @@ cp .ai-board/config.example.yaml .ai-board/config.yaml   # github: { repository:
 
 設定はデータ用ブランチの根の `config.yaml`、無ければ `.ai-board/config.yaml` から読む。
 アクセストークンは受け取らず、問い合わせは `gh api` で行う（認証は `gh auth login` に委ねる）。
-使えないときは連携が無効になり、理由が `status` の「GitHub:」の行に出る。使えないあいだも、マージ済みの PR はデータ用ブランチの手元の控えで出る（リンクと Ready・マージの時刻、区間の時間）。マージ前の PR は出さず、次の一手と判断も止まる。問い合わせるのは `branch` か `pr` のあるカードだけ。
+使えないときは連携が無効になり、理由が `status` の「GitHub:」の行に出る。使えないあいだも、マージ済みの PR はデータ用ブランチの手元の控えで出る（リンクと Ready・マージの時刻、区間の時間）。マージ前の PR は出さず、次の一手と判断も止まる。問い合わせるのは `branch` か `pr` のあるカードだけで、中止のカードの PR は一度控えを取った後は引き直さない。
 
 ## 開発
 

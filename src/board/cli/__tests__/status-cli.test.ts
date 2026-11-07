@@ -696,6 +696,40 @@ describe('ai-board status --json --only', () => {
   });
 });
 
+describe('ai-board status --json --active', () => {
+  beforeEach(async () => {
+    await writeCard('idea', '');
+    await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\n");
+    await writeCard('dropped', "startedAt: '2026-10-21T00:00:00.000Z'\n", review('中止'));
+    await writeCard('done', "startedAt: '2026-10-20T00:00:00.000Z'\n");
+    await writePlan('archive/done', '# 計画\n\n- [x] 1');
+  });
+
+  it('cards からマージ済みと中止のカードを外し、ほかの項目は変えない', async () => {
+    expect(await run(['--json'])).toBe(0);
+    const all = JSON.parse(stdout) as StatusReport;
+    stdout = '';
+    expect(await run(['--json', '--active'])).toBe(0);
+    const active = JSON.parse(stdout) as StatusReport;
+
+    expect(all.cards.map((card) => card.id).sort()).toEqual(['done', 'dropped', 'idea', 'started']);
+    expect(active.cards.map((card) => card.id).sort()).toEqual(['idea', 'started']);
+    expect(active.next).toEqual(all.next);
+    expect(active.waiting).toEqual(all.waiting);
+    expect(active.working).toEqual(all.working);
+    expect(active.ideas).toEqual(all.ideas);
+  });
+
+  it('--only と組み合わせられる', async () => {
+    expect(await run(['--json', '--active', '--only', 'cards.id,next'])).toBe(0);
+    const report = JSON.parse(stdout) as Record<string, unknown>;
+
+    expect(Object.keys(report)).toEqual(['cards', 'next']);
+    expect(report['cards']).toEqual(expect.arrayContaining([{ id: 'idea' }, { id: 'started' }]));
+    expect(report['cards']).toHaveLength(2);
+  });
+});
+
 describe('pickFields', () => {
   const report = {
     next: null,
@@ -756,5 +790,13 @@ describe('parseStatusArgs', () => {
       ],
     });
     expect(parseStatusArgs(['--json', '--only', 'next', '--only', 'forge'])).toBe('invalid');
+    expect(parseStatusArgs(['--json', '--active'])).toEqual({ format: 'json', active: true });
+    expect(parseStatusArgs(['--active', '--json', '--only', 'next'])).toEqual({
+      format: 'json',
+      only: [{ key: 'next', field: null }],
+      active: true,
+    });
+    expect(parseStatusArgs(['--active'])).toBe('invalid');
+    expect(parseStatusArgs(['--json', '--active', '--active'])).toBe('invalid');
   });
 });

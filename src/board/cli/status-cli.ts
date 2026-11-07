@@ -1,6 +1,7 @@
 import type { CardCliIo } from '../../cards/cli/card-cli.js';
 import { STAGE_LABELS } from '../../shared/stage-labels.js';
 import type { StatusReport, CardSummary } from '../models/status-report.js';
+import { isActiveCard } from '../services/board-sections.js';
 import type { GetStatusQuery } from '../usecases/queries/get-status.query.js';
 import { describeForge, describeLoop, describeNext, describeStuck } from './status-describe.js';
 
@@ -29,10 +30,11 @@ function isStatusKey(key: string): key is keyof StatusReport {
   return Object.hasOwn(STATUS_KEY_KINDS, key);
 }
 
-export const STATUS_USAGE = `使い方: ai-board status [--json [--only <項目,...>]] [--root <path>]
+export const STATUS_USAGE = `使い方: ai-board status [--json [--active] [--only <項目,...>]] [--root <path>]
 
 ボードの状態（導出したステージ、判断待ち、次の一手）を出します。
   --json   機械向けの JSON で出す（AI ループはこちらを読む）
+  --active --json の cards から、マージ済みと中止のカードを外す（ほかの項目は変わらない）
   --only <項目,...>
            --json の出力を、コンマ区切りの項目だけに絞る。項目は <key>（最上位の項目）か
            <key>.<field>（最上位の配列の各要素から <field> だけ）。例: --only next,waiting,cards.id
@@ -51,6 +53,8 @@ export type StatusArgs =
   | {
       readonly format: StatusFormat;
       readonly only?: readonly StatusField[];
+      /** `cards` を生きているカード（`isActiveCard`）だけに絞る。JSON にだけ効く */
+      readonly active?: true;
     }
   | 'help'
   | 'invalid';
@@ -77,13 +81,13 @@ export function parseStatusArgs(argv: readonly string[]): StatusArgs {
   const format = pickFormat(scanned);
   if (format === null) return 'invalid';
 
-  const { only } = scanned;
-  return { format, ...(only === null ? {} : { only }) };
+  const { only, active } = scanned;
+  return { format, ...(only === null ? {} : { only }), ...(active ? { active } : {}) };
 }
 
 /** 出す形を決める。絞り込みは JSON にだけ効く。組み合わせが誤っていれば null */
-function pickFormat({ json, only }: ScannedStatusArgs): StatusFormat | null {
-  if (only !== null && !json) return null;
+function pickFormat({ json, only, active }: ScannedStatusArgs): StatusFormat | null {
+  if ((only !== null || active) && !json) return null;
 
   return json ? 'json' : 'text';
 }
@@ -91,14 +95,16 @@ function pickFormat({ json, only }: ScannedStatusArgs): StatusFormat | null {
 interface ScannedStatusArgs {
   json: boolean;
   only: readonly StatusField[] | null;
+  active: boolean;
 }
 
-/** 引数を 1 つずつ読む。不明な引数や、2 回目の `--only`、`--only` の値の誤りは null */
+/** 引数を 1 つずつ読む。不明な引数や、2 回目の `--only` / `--active`、`--only` の値の誤りは null */
 function scanStatusArgs(argv: readonly string[]): ScannedStatusArgs | null {
-  const scanned: ScannedStatusArgs = { json: false, only: null };
+  const scanned: ScannedStatusArgs = { json: false, only: null, active: false };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--json') scanned.json = true;
+    else if (arg === '--active' && !scanned.active) scanned.active = true;
     else if (arg === '--only' && scanned.only === null) {
       scanned.only = parseOnly(argv[++i]);
       if (scanned.only === null) return null;
@@ -178,7 +184,7 @@ export async function runStatusCli(
     io.stderr(`ボードを読めませんでした: ${result.error.reason}\n`);
     return 1;
   }
-  const report = result.value;
+  const report = args.active ? onlyActiveCards(result.value) : result.value;
 
   io.stdout(
     args.only === undefined
@@ -186,6 +192,14 @@ export async function runStatusCli(
       : `${JSON.stringify(pickFields(report, args.only), null, 2)}\n`
   );
   return 0;
+}
+
+/**
+ * `cards` を生きているカード（`isActiveCard`）だけに絞る。ほかの項目は変えない
+ * （`waiting` / `working` / `ideas` は今も生きているカードだけを持つ）
+ */
+function onlyActiveCards(report: StatusReport): StatusReport {
+  return { ...report, cards: report.cards.filter(isActiveCard) };
 }
 
 function formatReport(report: StatusReport, format: StatusFormat): string {
