@@ -59,21 +59,28 @@ export function unavailableMrStateProvider(
 }
 
 /**
- * マージ済みの控えのうち、カードの PR 番号（`mr`）と番号が合うものだけを、カード ID ごとの PR の状態にする。
+ * 控えがもう変わらず、今もそのカードの PR のものか。マージ済みの PR は二度と変わらない。
  *
- * 接続済みなら、番号の違う控えはポーラーが引き直し、カードの無い控えは消す。
- * 届かないときは引き直せないので、合わない控えは古い PR のものとみなして使わない
+ * カードの番号が控えの番号と違えば（ブランチを付け替えて番号が外れた・変わった）、控えは古い。
+ * マージされずに閉じた PR は reopen されうるので、決まったとはみなさない。
+ * ポーラーはこれが真なら引き直さず、届かないときの供給元はこれが真の控えだけを出す
  */
+export function isSettled(
+  card: { readonly mr: number | null },
+  snapshot: MrSnapshot | null
+): boolean {
+  return snapshot !== null && snapshot.mr.state === 'merged' && card.mr === snapshot.mr.iid;
+}
+
+/** 決まった控え（`isSettled`）だけを、カード ID ごとの PR の状態にする。届かないときの供給元に渡す */
 export function matchMergedSnapshots(
   cards: readonly { readonly id: string; readonly mr: number | null }[],
   snapshots: ReadonlyMap<string, MrSnapshot>
 ): Map<string, MrState> {
   const matched = new Map<string, MrState>();
   for (const card of cards) {
-    const snapshot = snapshots.get(card.id);
-    if (snapshot !== undefined && card.mr !== null && snapshot.mr.iid === card.mr) {
-      matched.set(card.id, snapshot.mr);
-    }
+    const snapshot = snapshots.get(card.id) ?? null;
+    if (snapshot !== null && isSettled(card, snapshot)) matched.set(card.id, snapshot.mr);
   }
   return matched;
 }

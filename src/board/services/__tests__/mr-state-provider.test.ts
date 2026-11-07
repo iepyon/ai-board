@@ -31,7 +31,7 @@ function snapshot(iid: number): MrSnapshot {
 }
 
 describe('unavailableMrStateProvider', () => {
-  it('渡したマージ済みの PR の状態を返し、無いカードは null', () => {
+  it('渡したマージ済みの PR の状態だけを返し、接続は使えないまま・引き終えていないまま', () => {
     const provider = unavailableMrStateProvider(
       'github',
       'gh が無い',
@@ -40,15 +40,6 @@ describe('unavailableMrStateProvider', () => {
 
     expect(provider.get('done')).toEqual(mergedPr(7));
     expect(provider.get('other')).toBeNull();
-  });
-
-  it('控えを渡しても、接続は使えないまま・引き終えていないまま', () => {
-    const provider = unavailableMrStateProvider(
-      'github',
-      'gh が無い',
-      new Map([['done', mergedPr(7)]])
-    );
-
     expect(provider.connection()).toEqual({
       status: 'disabled',
       kind: 'github',

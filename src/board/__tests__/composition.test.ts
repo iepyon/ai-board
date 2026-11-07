@@ -113,22 +113,22 @@ describe('createMrStateSource', () => {
       };
     }
 
-    function snapshots(merged: Map<string, MrSnapshot>): MrSnapshotRepository {
-      return {
-        ...noSnapshots,
-        findMerged: () => Promise.resolve(merged as Map<CardId, MrSnapshot>),
-      };
+    /** マージ済みの控えの読み方だけを差し替えたリポジトリ */
+    function snapshots(findMerged: MrSnapshotRepository['findMerged']): MrSnapshotRepository {
+      return { ...noSnapshots, findMerged };
     }
 
     it('マージ済みの控えのうち、カードの PR 番号と合うものだけを返す', async () => {
       const { cardRepository } = createFileCardDependencies(dataDir);
       await cardRepository.create(card('done', 7));
       await cardRepository.create(card('renumbered', 9));
-      const repository = snapshots(
-        new Map([
-          ['done', merged(7)],
-          ['renumbered', merged(8)],
-        ])
+      const repository = snapshots(() =>
+        Promise.resolve(
+          new Map([
+            ['done' as CardId, merged(7)],
+            ['renumbered' as CardId, merged(8)],
+          ])
+        )
       );
 
       const source = await createMrStateSource(
@@ -148,10 +148,7 @@ describe('createMrStateSource', () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       const { cardRepository } = createFileCardDependencies(dataDir);
       await cardRepository.create(card('done', 7));
-      const repository: MrSnapshotRepository = {
-        ...noSnapshots,
-        findMerged: () => Promise.reject(new Error('壊れた')),
-      };
+      const repository = snapshots(() => Promise.reject(new Error('壊れた')));
 
       const source = await createMrStateSource(
         forge,
