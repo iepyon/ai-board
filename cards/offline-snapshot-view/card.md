@@ -3,7 +3,7 @@ id: offline-snapshot-view
 title: ユーザは、GitHub に届かなくても、手元の PR の控えでボードを描き、いつの状態かを知りたい
 created: '2026-11-06T09:36:50.098Z'
 skipGates: []
-branch: null
+branch: ccr-bb1fbf36-7v5cd6
 mr: null
 ---
 
