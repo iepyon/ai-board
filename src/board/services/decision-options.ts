@@ -1,4 +1,4 @@
-import type { ReviewGate } from '../../cards/models/review.js';
+import type { GateState, ReviewGate } from '../../cards/models/review.js';
 import type { SectionCard } from './board-sections.js';
 
 // ============================================================
@@ -25,7 +25,7 @@ export interface Decision {
 /** 出せる判断を決めるのに要るフィールドだけ。`BoardCard` が満たす */
 export interface DecisionCard extends Pick<SectionCard, 'stage' | 'aborted' | 'hold'> {
   readonly gates: {
-    readonly plan: 'none' | 'submitted' | 'held' | 'approved' | 'rejected';
+    readonly plan: GateState;
   };
 }
 

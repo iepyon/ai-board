@@ -188,7 +188,7 @@
 
 ## AI レビュー
 
-- [ ] `src/board/services/decision-options.ts:28` の `DecisionCard.gates.plan` が、`cards/models/review.ts:52` の `GateState` を `'none' | 'submitted' | 'held' | 'approved' | 'rejected'` と書き写したまま残っている。この PR の目的（Why の「書き写しを import に置き換える」、ADR 0018 の結果「書き写しが消えた」）と食い違い、`GateState` に値を足すと黙ってずれる。`import type { GateState } from '../../cards/models/review.js'` で引き、`readonly plan: GateState` にする（`next-action.ts` の `NextActionCard` と同じ形）。振る舞いは変わらないので、品質ゲートが通ることを確かめる
+- [x] `src/board/services/decision-options.ts:28` の `DecisionCard.gates.plan` が、`cards/models/review.ts:52` の `GateState` を `'none' | 'submitted' | 'held' | 'approved' | 'rejected'` と書き写したまま残っている。この PR の目的（Why の「書き写しを import に置き換える」、ADR 0018 の結果「書き写しが消えた」）と食い違い、`GateState` に値を足すと黙ってずれる。`import type { GateState } from '../../cards/models/review.js'` で引き、`readonly plan: GateState` にする（`next-action.ts` の `NextActionCard` と同じ形）。振る舞いは変わらないので、品質ゲートが通ることを確かめる
 
 ### 見送った指摘
 

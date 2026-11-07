@@ -44,12 +44,6 @@ export interface NextAction {
 }
 
 /**
- * AI の列（計画提案中 / 実装中）にいるが、人の判断を待っているカードの止まり。
- *
- * ステージではない。ステージは「工程のどこにいるか」、止まりは「その工程で誰を待っているか」で、軸が違う。
- * どこにも保存せず、ボードを組み立てるたびに `resolveHold` で導く。
- */
-/**
  * 止まりが何を待っているか。
  *
  * - `decision`: 人の判断（`ai-board decide` か GitHub の操作）で解く
@@ -57,6 +51,12 @@ export interface NextAction {
  */
 export type CardHoldKind = 'decision' | 'forge';
 
+/**
+ * AI の列（計画提案中 / 実装中）にいるが、人の判断を待っているカードの止まり。
+ *
+ * ステージではない。ステージは「工程のどこにいるか」、止まりは「その工程で誰を待っているか」で、軸が違う。
+ * どこにも保存せず、ボードを組み立てるたびに `resolveHold` で導く。
+ */
 export interface CardHold {
   /** 何を待っているか（`CardHoldKind`） */
   readonly kind: CardHoldKind;
