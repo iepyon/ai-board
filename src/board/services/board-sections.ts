@@ -88,6 +88,15 @@ function sectionOf(card: SectionCard): BoardSection {
   return SECTION_OF_STAGE[card.stage];
 }
 
+/**
+ * 生きているカードか。区画が マージ済み でも 中止 でもなければ真。
+ * `status --json --active` が `cards` を絞るのに使う。区画の決め方は `sectionOf` 1 つに残す
+ */
+export function isActiveCard(card: SectionCard): boolean {
+  const section = sectionOf(card);
+  return section !== 'merged' && section !== 'aborted';
+}
+
 /** PR中 で、人の指摘に AI が応える番のカードか */
 export function isAwaitingPrFix(card: Pick<SectionCard, 'stage' | 'prState'>): boolean {
   return card.stage === 'pr' && card.prState?.awaitingFix === true;

@@ -155,9 +155,9 @@ GitHub への問い合わせは読むだけ（`gh api` の GET）で、本物の
 
 ### 2. `status --json --active`
 
-- [ ] `src/board/services/board-sections.ts` に `isActiveCard` を足す（区画が マージ済み でも 中止 でもなければ真）
-- [ ] `src/board/cli/status-cli.ts` に `--active` を足す（解釈・`--json` 無しや 2 回目は誤り・`cards` の絞り込み・`--only` との組み合わせ・使い方）
-- [ ] テスト: `isActiveCard`（各区画）、`parseStatusArgs`（`--active` の組み合わせと誤り）、`runStatusCli`（`--active` で `cards` が絞られ、ほかの項目は変わらない・`--only` と組み合わさる）
+- [x] `src/board/services/board-sections.ts` に `isActiveCard` を足す（区画が マージ済み でも 中止 でもなければ真）
+- [x] `src/board/cli/status-cli.ts` に `--active` を足す（解釈・`--json` 無しや 2 回目は誤り・`cards` の絞り込み・`--only` との組み合わせ・使い方）
+- [x] テスト: `isActiveCard`（各区画）、`parseStatusArgs`（`--active` の組み合わせと誤り）、`runStatusCli`（`--active` で `cards` が絞られ、ほかの項目は変わらない・`--only` と組み合わさる）
 
 ### 3. 手順書とドキュメント
 
