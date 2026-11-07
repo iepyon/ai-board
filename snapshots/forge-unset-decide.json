@@ -1,0 +1,19 @@
+{
+  "fingerprint": "[3,\"closed\",\"2026-11-07T01:26:45Z\",false,\"83526c84ec81e3a4054f00582cf85a4b3130ce52\",0,0,\"2026-11-07T01:26:45Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 96,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "ccr-bb1fbf36-7v5cd6",
+    "title": "GitHub が未設定のボードでも、判断を書けて次の一手が出る",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/96",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestAiNoteAt": null,
+    "latestCommitAt": "2026-11-07T00:51:07Z",
+    "mergedAt": "2026-11-07T01:26:45Z",
+    "readyAt": "2026-11-07T00:30:22Z",
+    "convertedToDraftAt": null
+  }
+}
