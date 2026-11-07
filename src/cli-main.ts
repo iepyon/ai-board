@@ -16,8 +16,6 @@ import { parseStatusArgs, runStatusCli, STATUS_USAGE } from './board/cli/status-
 import { isPrCommand, runPrCli } from './board/cli/pr-cli.js';
 import { runLoopCli } from './board/cli/loop-cli.js';
 import { DECIDE_USAGE, isDecideCommand, runDecideCli } from './board/cli/decide-cli.js';
-import { readHarnessVersion } from './infrastructure/harness-version.js';
-import { readSessionTokens } from './infrastructure/session-usage.js';
 import { readMtimeMs, runDistCheckCli } from './infrastructure/dist-check-cli.js';
 import { err, isErr, ok, type Result } from './shared/result.js';
 import { CardIdSchema, type CardId } from './shared/schemas/common.js';
@@ -185,8 +183,6 @@ async function runLoop(argv: readonly string[]): Promise<number> {
         const parsed = CardIdSchema.safeParse(id);
         return parsed.success && (await cardRepository.findById(parsed.data as CardId)) !== null;
       },
-      harnessVersion: () => readHarnessVersion(root),
-      countTokens: readSessionTokens,
     },
     createProcessIo()
   );

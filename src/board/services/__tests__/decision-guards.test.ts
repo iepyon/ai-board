@@ -37,7 +37,6 @@ function card(id: string, overrides: Partial<BoardCard> = {}): BoardCard {
     plan: null,
     mrState: null,
     hold: null,
-    timeline: [],
     loopSteps: [],
     ...overrides,
   };

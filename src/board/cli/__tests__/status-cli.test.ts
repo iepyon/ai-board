@@ -212,42 +212,7 @@ describe('ai-board status --json', () => {
     expect(report.cards[0]).not.toHaveProperty('body');
   });
 
-  it('カードごとに区間の並び（timeline）を出す', async () => {
-    await writeCard(
-      'reviewing',
-      "created: '2026-10-19T00:00:00.000Z'\nstartedAt: '2026-10-19T12:00:00.000Z'\n",
-      review('提出')
-    );
-    await writePlan('reviewing', '# 計画\n\n- [ ] 1');
-
-    const report = await runJson();
-
-    expect(report.cards[0]?.timeline).toEqual([
-      {
-        kind: 'idea',
-        owner: 'human',
-        start: '2026-10-19T00:00:00.000Z',
-        end: '2026-10-19T12:00:00.000Z',
-        phases: [],
-      },
-      {
-        kind: 'planning',
-        owner: 'ai',
-        start: '2026-10-19T12:00:00.000Z',
-        end: '2026-10-20T00:00:00.000Z',
-        phases: [],
-      },
-      {
-        kind: 'plan-review',
-        owner: 'human',
-        start: '2026-10-20T00:00:00.000Z',
-        end: null,
-        phases: [],
-      },
-    ]);
-  });
-
-  it('ループの 1 手の記録を、ループの様子・カードの手の一覧・AI の区間の待ちと作業に載せる', async () => {
+  it('ループの 1 手の記録を、ループの様子とカードの手の一覧に載せる', async () => {
     await writeCard(
       'reviewing',
       "created: '2026-10-19T00:00:00.000Z'\nstartedAt: '2026-10-19T12:00:00.000Z'\n",
@@ -261,15 +226,12 @@ describe('ai-board status --json', () => {
       action: 'plan',
       step: null,
       agent: 'board-planner',
-      harness: null,
       startedAt: '2026-10-19T18:00:00.000Z',
     });
     writeLoopFinish(dataDir, {
       loop: 'session-a',
       cardId: 'reviewing',
       result: 'advanced',
-      tokens: 100,
-      durationMs: 3_600_000,
       finishedAt: '2026-10-19T19:00:00.000Z',
     });
     writeLoopStart(dataDir, {
@@ -278,7 +240,6 @@ describe('ai-board status --json', () => {
       action: 'plan',
       step: null,
       agent: null,
-      harness: null,
       startedAt: '2026-10-22T23:30:00.000Z',
     });
 
@@ -288,11 +249,6 @@ describe('ai-board status --json', () => {
     expect(report.loop.running.map((step) => step.cardId)).toEqual(['started']);
     expect(report.loop.lastFinishedAt).toBe('2026-10-19T19:00:00.000Z');
     expect(reviewing?.loopSteps.map((step) => step.result)).toEqual(['advanced']);
-    expect(reviewing?.timeline[1]?.phases).toEqual([
-      { kind: 'wait', start: '2026-10-19T12:00:00.000Z', end: '2026-10-19T18:00:00.000Z' },
-      { kind: 'work', start: '2026-10-19T18:00:00.000Z', end: '2026-10-19T19:00:00.000Z' },
-      { kind: 'wait', start: '2026-10-19T19:00:00.000Z', end: '2026-10-20T00:00:00.000Z' },
-    ]);
     expect(report.working.find((card) => card.id === 'started')?.running).toBe(true);
     expect(report.waiting.find((card) => card.id === 'reviewing')?.running).toBe(false);
   });
@@ -614,7 +570,6 @@ describe('ai-board status', () => {
       action: 'implement',
       step: 'task',
       agent: null,
-      harness: null,
       startedAt: '2026-10-22T23:48:00.000Z',
     });
 
@@ -633,15 +588,12 @@ describe('ai-board status', () => {
         action: 'implement',
         step: null,
         agent: null,
-        harness: 'v1',
         startedAt,
       });
       writeLoopFinish(dataDir, {
         loop: 'session-a',
         cardId: 'impl',
         result: 'stopped',
-        tokens: null,
-        durationMs: null,
         finishedAt: startedAt.replace(':00:00', ':30:00'),
       });
     }

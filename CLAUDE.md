@@ -18,7 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### 読む場所
 
 - 使い方・ステージの判定表・止まり・1 周の流れ・AI ループ: `README.md`
-- 実装の細部（ゲートの状態・止まり・書き込みの境界・区画・`status`・保存・GitHub の取得・timeline・ループの記録）: `docs/architecture.md`
+- 実装の細部（ゲートの状態・止まり・書き込みの境界・区画・`status`・保存・GitHub の取得・ループの記録）: `docs/architecture.md`
 - 仕様: `docs/specs/*/spec.md`、PR レビューだけに効く指示: `REVIEW.md`
 - 設計判断の理由と捨てた代案: `docs/adr/`（ADR。不変条件を外したくなったら先に読む。書くときは `adr` のスキル）
 - ループの手順: `.claude/skills/board-loop/SKILL.md`（手ごとの手順は隣の `plan.md` / `implement.md` / `fix-pr.md`、共通の決まりは `rules.md`）、AI レビューのサブエージェント: `.claude/agents/board-reviewer.md`

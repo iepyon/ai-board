@@ -171,27 +171,22 @@ rebase しないのは、離れた行の編集を git が黙って混ぜ、検�
 - `--wait` は 15 秒おきに引き直し、チェックがまだ無い間も head になってから 120 秒は待つ。`--timeout`（既定 900 秒）で `pending`
 - `status` が 403 / 404（クラウドの GitHub App）なら `check-runs` だけで判定し、`statusUnreadable` に理由を出す
 
-## カードの JSON と区間の並び
+## カードの JSON
 
-`status --json` の `cards[]` は本文を除いたカードに、`hold`・`mrState`（`readyAt` / `convertedToDraftAt` / `awaitingFix` など）・`timeline`・`loopSteps`・`reviews`（`{ at, gate, kind, reason }`）を足したもの。
+`status --json` の `cards[]` は本文を除いたカードに、`hold`・`mrState`（`readyAt` / `convertedToDraftAt` / `awaitingFix` など）・`loopSteps`・`reviews`（`{ at, gate, kind, reason }`）を足したもの。
 `reviews` の理由は組み立てた本文から読むので、見出しは `####` に下がっている。
-
-`timeline` は `src/board/services/stage-timeline.ts` の純関数 `resolveTimeline` が痕跡（`created`・`startedAt`・`## レビュー` の全エントリ・`readyAt`・`convertedToDraftAt`・`mergedAt`）から導く。
-今は効いていない古いエントリも区間の境目になるので全部読む。区間は `{ kind, owner, start, end }` で、種類と担当は `src/shared/timeline.ts`。
-今いる区間は `end: null` で、今の時刻は受け取らない。マージと中止は区間を閉じるだけ。長さ 0 は落とし、隣の同じ種類はつなぐ。
-`src/board/services/timeline-phases.ts` の `splitAiPhases` が AI の区間をループの記録と重ねて `phases`（`wait` / `work`）に分ける。記録が重ならない区間と人の区間は空。
 
 ## ループの 1 手の記録
 
 型は `src/shared/loop-step.ts`、読み書きは `src/board/repositories/loop-history.repository.ts`、CLI は `src/board/cli/loop-cli.ts`。
 
 - ファイル名は `loop/<開始の時刻>.<ループの識別子>.json`（時刻は `toLogStamp`、重なれば `-2`）。識別子は `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`
-- 中身は `{ loop, cardId, action, step, agent, harness, startedAt, finishedAt, result, tokens, durationMs }`。`start` で作り、`finish` で 1 度だけ埋める
-- `agent` はレビューの段で立てた `board-reviewer`、自分で進めた手は `null`。`harness` は `.claude/HARNESS_VERSIONS.md` の先頭の版（`harness-version.ts`）
-- `durationMs` は `--duration-ms` が無ければ開始からの時間。`tokens` は `--tokens` が無ければ会話の記録から数える（`session-usage.ts`、数えられなければ `null`）
+- 中身は `{ loop, cardId, action, step, agent, startedAt, finishedAt, result }`。`start` で作り、`finish` で 1 度だけ埋める
+- 以前の記録に残る `harness` / `tokens` / `durationMs` は、読むときにスキーマが落とす
+- `agent` はレビューの段で立てた `board-reviewer`、自分で進めた手は `null`
 - `result` は `advanced` / `held` / `stopped` / `failed` / `unknown` と、`loop start` が同じループの終わっていない記録を閉じるときの `interrupted`
 - `finish` は終わっていない記録が無いか `--card` が食い違えば拒む。`loop-cli.ts` はカードの存在を読む関数だけを受け取り、カードを書けない
 - 手と段の語は `LOOP_VOCABULARY_IN_SYNC` で `NextActionKind` / `ImplStep` と食い違えば型エラーになる
 
-`GetBoardQuery` が全件を読んで `Board.loop`（`toBoardLoop`）・`loopSteps`・`phases` を組む。導出・止まり・次の一手には渡さない。
+`GetBoardQuery` が全件を読んで `Board.loop`（`toBoardLoop`）と `loopSteps` を組む。導出・止まり・次の一手には渡さない。
 「ループ: …」の行は `src/shared/loop-activity.ts` の `summarizeLoop`。

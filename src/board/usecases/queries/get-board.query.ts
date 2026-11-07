@@ -11,8 +11,6 @@ import {
 } from '../../services/stage-resolver.js';
 import { latestGateEntry, parseReviewLog } from '../../../cards/services/review-log.js';
 import { resolveHold, type HoldInput } from '../../services/next-action.js';
-import { resolveTimeline } from '../../services/stage-timeline.js';
-import { splitAiPhases } from '../../services/timeline-phases.js';
 import type { LoopHistoryRepository } from '../../repositories/loop-history.repository.js';
 import type { LoopStep } from '../../../shared/loop-step.js';
 import { toBoardLoop } from '../../../shared/loop-activity.js';
@@ -52,7 +50,7 @@ export type GetBoardQuery = () => Promise<Result<Board, GetBoardError>>;
  * ここは I/O と組み立てだけを担当する。
  * GitHub が未設定のボードでは、メインに計画の無いカードのブランチの計画を `branchPlanRepository` で補う（`branchPlanTarget`）。
  * 同じく、実装中のカードの締めが済んだか（ブランチで計画が archive 済みか）を読み、マージ待ちの止まりにだけ使う（`branchCloseTarget`）。
- * ループの 1 手の記録は、ループの様子（`Board.loop`）・カードの手の一覧・区間の小区間にだけ使い、
+ * ループの 1 手の記録は、ループの様子（`Board.loop`）とカードの手の一覧にだけ使い、
  * ステージの導出と止まりには渡さない。
  */
 export function createGetBoardQuery(
@@ -105,7 +103,6 @@ export function createGetBoardQuery(
       const resolution = resolveStage(card, plan, mr);
       const floorStage = resolveFloorStage(card, plan, mr);
       const entries = parseReviewLog(card.body);
-      const steps = stepsByCard.get(card.id) ?? [];
 
       return toBoardCard(
         card,
@@ -125,19 +122,7 @@ export function createGetBoardQuery(
           unsetPr,
           branchClosed: closedOf(card.id),
         }),
-        splitAiPhases(
-          resolveTimeline({
-            created: card.created,
-            startedAt: card.startedAt,
-            skipGates: card.skipGates,
-            entries,
-            readyAt: mr?.readyAt ?? null,
-            mergedAt: mr?.mergedAt ?? null,
-            convertedToDraftAt: mr?.convertedToDraftAt ?? null,
-          }),
-          steps
-        ),
-        steps
+        stepsByCard.get(card.id) ?? []
       );
     });
 

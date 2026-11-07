@@ -212,7 +212,7 @@ git merge --no-ff <branch>                           # マージする
 - 実装を書いたセッションが自分の差分を審査しないよう、AI レビューだけを別の文脈に切り分ける（[ADR 0011](docs/adr/0011-loop-single-session.md)）
 - 止まっているカード・計画レビューのカードには触らない。GitHub に接続できないときは何もせずに止まる（`github:` が無い未設定のボードは止まらず、push と PR を飛ばし、締めの後のマージ待ちまで進む）
 - 手を終えたら同じ手番で次の手へ進み、`止まった`・失敗・`next` が null で終える。同じ手で止まり続けるカードには `止まった ×N` の印が付く
-- 1 手ごとに `ai-board loop start` / `finish` でデータ用ブランチの `loop/` に記録を残す（時間・トークン・手順書の版）。記録は表示にだけ使う（[ADR 0014](docs/adr/0014-loop-step-record.md)）
+- 1 手ごとに `ai-board loop start` / `finish` でデータ用ブランチの `loop/` に記録を残す。記録は表示にだけ使う（[ADR 0014](docs/adr/0014-loop-step-record.md)）
 
 ### ループの許可ルール
 

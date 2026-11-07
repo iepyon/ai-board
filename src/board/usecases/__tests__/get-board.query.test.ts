@@ -41,12 +41,9 @@ function step(overrides: Partial<LoopStep> = {}): LoopStep {
     action: 'plan',
     step: null,
     agent: null,
-    harness: null,
     startedAt: '2026-11-02T01:00:00.000Z',
     finishedAt: '2026-11-02T02:00:00.000Z',
     result: 'stopped',
-    tokens: null,
-    durationMs: null,
     ...overrides,
   };
 }
@@ -80,7 +77,7 @@ function query(
 }
 
 describe('GetBoardQuery のループの記録', () => {
-  it('カードごとに手の一覧を分け、ループの様子をまとめ、AI の区間を待ちと作業に分ける', async () => {
+  it('カードごとに手の一覧を分け、ループの様子をまとめる', async () => {
     const running = step({
       cardId: 'card-b',
       startedAt: '2026-11-02T03:00:00.000Z',
@@ -98,10 +95,6 @@ describe('GetBoardQuery のループの記録', () => {
     expect(a?.loopSteps).toEqual([step()]);
     expect(b?.loopSteps).toEqual([running]);
     expect(board.loop).toEqual({ running: [running], lastFinishedAt: '2026-11-02T02:00:00.000Z' });
-    expect(a?.timeline.map((segment) => segment.phases.map((p) => p.kind))).toEqual([
-      [],
-      ['wait', 'work', 'wait'],
-    ]);
   });
 
   it('記録はステージの導出に使わない', async () => {
