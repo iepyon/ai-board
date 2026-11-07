@@ -3,7 +3,7 @@ id: shared-browser-safe
 title: AIエージェントは、src/shared をブラウザでも動く値と型だけに絞り、board 専用の純関数を board へ移したい
 created: '2026-11-07T13:23:04.411Z'
 skipGates: []
-branch: null
+branch: ccr-928118c1-4dfsdf
 pr: null
 ---
 
