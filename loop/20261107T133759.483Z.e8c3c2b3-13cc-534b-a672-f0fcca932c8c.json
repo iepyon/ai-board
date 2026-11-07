@@ -1,0 +1,10 @@
+{
+  "loop": "e8c3c2b3-13cc-534b-a672-f0fcca932c8c",
+  "cardId": "shared-browser-safe",
+  "action": "implement",
+  "step": "review",
+  "agent": "board-reviewer",
+  "startedAt": "2026-11-07T13:37:59.483Z",
+  "finishedAt": null,
+  "result": null
+}
