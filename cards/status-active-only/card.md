@@ -4,7 +4,7 @@ title: ユーザは、終わったカードのぶんの GitHub への問い合�
 created: '2026-11-07T20:15:39.218Z'
 skipGates: []
 branch: ccr-01d0954b-chx3cl
-pr: null
+pr: 102
 ---
 
 ## アイデア
