@@ -147,3 +147,16 @@
 
 - [x] `docs/architecture.md` の「GitHub の PR の取得」と「控え」に、届かないときはマージ済みの控えだけを読むことを書く
 - [x] `README.md` の「GitHub との接続」に、使えないあいだもマージ済みの PR は手元の控えで出ることを書く
+
+## AI レビュー
+
+直す指摘は無い。
+
+### 見送った指摘
+
+- `src/board/services/mr-state-provider.ts:74` の `matchMergedSnapshots` は番号だけを照らし、`snapshot.mr.state === 'merged'` を確かめない。`snapshots/` に `merged` 以外の控えが手で置かれれば、届かないあいだにそれを出す。`snapshots/` に書くのは `FileMrSnapshotRepository.save` の `state === 'merged'` の枝だけで、計画の仮定「マージ済みかは置き場所で決める」のとおりなので見送る
+- `src/board/composition.ts:142` の `readMergedSnapshots` は、カードの読み込みと控えの読み込みを 1 つの try/catch で包むので、カードを読めない失敗も「マージ済みの PR の控えを読めませんでした」と警告する。その後のボードの読み込みが本当の原因で失敗するので振る舞いは変わらず、警告の文言だけの話なので見送る
+- `src/board/composition.ts:122` で、届かないときにカードを `get-board` とは別にもう 1 度読み、`checkAuth` が失敗してから読み始める。手元のファイルを読むだけで、計画の Risks / Trade-offs で受け入れた費用なので見送る
+- `src/board/services/mr-state-provider.ts:66` の番号の照らし合わせが、`src/infrastructure/forge-poller.ts:268` の `isSettled` と同じ判定の重複になっている。振る舞いを変えない整理なので見送る
+- `src/board/services/mr-state-provider.ts:74` で、控えの `forge`・`sourceBranch` を今の設定やカードの `branch` と照らさない。接続済みのポーラーにも同じ照らし合わせは無く、この PR の目的の外なので見送る
+- マージ済みの `MrState` の組み立てが、`mr-state-provider.test.ts`・`composition.test.ts`・`get-status.query.test.ts` の 3 か所に重複している。テストの整理なので見送る
