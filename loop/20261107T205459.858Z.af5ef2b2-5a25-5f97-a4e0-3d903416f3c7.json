@@ -1,0 +1,10 @@
+{
+  "loop": "af5ef2b2-5a25-5f97-a4e0-3d903416f3c7",
+  "cardId": "status-active-only",
+  "action": "implement",
+  "step": "review",
+  "agent": "board-reviewer",
+  "startedAt": "2026-11-07T20:54:59.858Z",
+  "finishedAt": null,
+  "result": null
+}
