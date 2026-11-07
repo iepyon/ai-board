@@ -30,7 +30,7 @@ import {
   type BoardCardReview,
 } from '../../models/board-card.js';
 import type { PlanDoc } from '../../models/plan-state.js';
-import type { MrState } from '../../models/mr-state.js';
+import { isForgeUnset, type MrState } from '../../models/mr-state.js';
 import type { GetBoardError } from '../../errors/board-errors.js';
 
 // ============================================================
@@ -76,12 +76,15 @@ export function createGetBoardQuery(
 
     const forge = mrProvider.connection();
     const mrKnown = forge.status === 'connected' && mrProvider.synced();
+    const forgeUnset = isForgeUnset(forge);
+    const generatedAt = new Date().toISOString();
     const stepsByCard = groupByCard(loopSteps);
 
     const boardCards: BoardCard[] = cards.map((card) => {
       const plan = planState.get(card.id) ?? null;
       const mr = mrProvider.get(card.id);
       const mrFailure = mrProvider.failure(card.id);
+      const unsetPr = forgeUnset ? unsetPrOf(card.mr, generatedAt) : null;
 
       const resolution = resolveStage(card, plan, mr);
       const floorStage = resolveFloorStage(card, plan, mr);
@@ -92,8 +95,13 @@ export function createGetBoardQuery(
         card,
         entries,
         resolution,
-        // PR の状態を引けないカードは列が控えに依るので、どの列へも動かさせない（`ai-board decide` が従う）
-        { floorStage, droppableStages: mrFailure === null ? droppableStages(floorStage) : [] },
+        // PR の状態を引けないカードは列が控えに依るので、どの列へも動かさせない（`ai-board decide` が従う）。
+        // 未設定のボードで PR 番号を持つカードも同じ
+        {
+          floorStage,
+          droppableStages:
+            mrFailure === null && unsetPr === null ? droppableStages(floorStage) : [],
+        },
         latestReview(entries, resolution.stage),
         toBoardCardPlan(plan),
         toBoardCardMr(mr),
@@ -103,6 +111,7 @@ export function createGetBoardQuery(
           mr,
           mrKnown,
           mrFailure,
+          unsetPr,
         }),
         splitAiPhases(
           resolveTimeline({
@@ -125,9 +134,20 @@ export function createGetBoardQuery(
       forge,
       ideaDivider,
       loop: toBoardLoop(loopSteps),
-      generatedAt: new Date().toISOString(),
+      generatedAt,
     });
   };
+}
+
+/**
+ * 未設定のボードで PR 番号を持つカードの、その番号と止まりの起点。番号が無ければ null。
+ * PR の状態を引けないカードと同じに止める（`resolveHold`）
+ */
+function unsetPrOf(
+  mr: number | null,
+  since: string
+): { readonly iid: number; readonly since: string } | null {
+  return mr === null ? null : { iid: mr, since };
 }
 
 /** 記録をカードごとに分ける。並び（開始の時刻の順）は保つ */

@@ -3,7 +3,7 @@ import type { Card } from '../../../cards/models/card.js';
 import type { CardRepository } from '../../../cards/repositories/card.repository.js';
 import type { IdeaDividerRepository } from '../../../cards/repositories/idea-divider.repository.js';
 import { err } from '../../../shared/result.js';
-import type { CardId } from '../../../shared/schemas/common.js';
+import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
 import type { BranchPlanRepository } from '../../repositories/branch-plan.repository.js';
 import type { PlanRepository } from '../../repositories/plan.repository.js';
 import type { MrStateProvider } from '../../services/mr-state-provider.js';
@@ -116,6 +116,19 @@ describe('GetStatusQuery', () => {
     const result = await createGetStatusQuery(boardQuery([implementing(null)], unset))(NOW);
 
     expect(result.ok && result.value.next).toMatchObject({ cardId: 'impl', action: 'implement' });
+  });
+
+  it('GitHub が未設定なら、PR 番号を持つカードを飛ばして次のカードを選ぶ', async () => {
+    const withPr: Card = {
+      ...implementing(null),
+      id: 'with-pr' as CardId,
+      mr: 7 as MergeRequestIid,
+    };
+    const result = await createGetStatusQuery(boardQuery([withPr, implementing(null)], unset))(NOW);
+    if (!result.ok) throw new Error('ボードを読めない');
+
+    expect(result.value.next?.cardId).toBe('impl');
+    expect(result.value.waiting.map((card) => card.id)).toEqual(['with-pr']);
   });
 
   it('github: があって使えなければ、次の一手を出さない', async () => {

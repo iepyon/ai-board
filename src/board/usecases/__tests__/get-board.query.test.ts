@@ -6,7 +6,12 @@ import type { CardId } from '../../../shared/schemas/common.js';
 import type { LoopStep } from '../../../shared/loop-step.js';
 import type { LoopHistoryRepository } from '../../repositories/loop-history.repository.js';
 import type { PlanRepository } from '../../repositories/plan.repository.js';
-import { disabledMrStateProvider } from '../../services/mr-state-provider.js';
+import {
+  disabledMrStateProvider,
+  unavailableMrStateProvider,
+  type MrStateProvider,
+} from '../../services/mr-state-provider.js';
+import type { MergeRequestIid } from '../../../shared/schemas/common.js';
 import { createGetBoardQuery } from '../queries/get-board.query.js';
 
 function card(id: string, overrides: Partial<Card> = {}): Card {
@@ -41,7 +46,11 @@ function step(overrides: Partial<LoopStep> = {}): LoopStep {
   };
 }
 
-function query(cards: readonly Card[], steps: readonly LoopStep[]) {
+function query(
+  cards: readonly Card[],
+  steps: readonly LoopStep[],
+  provider: MrStateProvider = disabledMrStateProvider
+) {
   const cardRepository: Pick<CardRepository, 'findAll'> = {
     findAll: () => Promise.resolve([...cards]),
   };
@@ -57,7 +66,7 @@ function query(cards: readonly Card[], steps: readonly LoopStep[]) {
     cardRepository as CardRepository,
     ideaDividerRepository as IdeaDividerRepository,
     planRepository,
-    disabledMrStateProvider,
+    provider,
     loopHistoryRepository
   );
 }
@@ -106,5 +115,33 @@ describe('GetBoardQuery のループの記録', () => {
     );
     const result = await q();
     expect(!result.ok && result.error).toEqual({ type: 'BoardUnreadable', reason: '壊れた' });
+  });
+});
+
+describe('GetBoardQuery の GitHub が未設定のボード', () => {
+  // どちらも計画提案中（着手済みで、まだ提出していない）。止まらなければ アイデア / 計画提案中 へ動かせる
+  const withPr = card('with-pr', { mr: 7 as MergeRequestIid });
+  const withoutPr = card('without-pr', { branch: 'without-pr' });
+
+  it('PR 番号を持つカードだけを止まりにし、どの列へも動かさせない', async () => {
+    const result = await query([withPr, withoutPr], [])();
+    if (!result.ok) throw new Error('ボードを読めない');
+    const [held, free] = result.value.cards;
+
+    expect(held?.hold).toEqual({
+      kind: 'forge',
+      reason: expect.stringContaining('PR #7 を持つが、GitHub が未設定') as string,
+      since: result.value.generatedAt,
+    });
+    expect(held?.droppableStages).toEqual([]);
+    expect(free?.hold).toBeNull();
+    expect(free?.droppableStages).toEqual(['idea', 'planning']);
+  });
+
+  it('github: があって使えないボードでは、PR 番号を持つカードを未設定の止まりにしない', async () => {
+    const result = await query([withPr], [], unavailableMrStateProvider('github', 'gh が無い'))();
+    if (!result.ok) throw new Error('ボードを読めない');
+
+    expect(result.value.cards[0]?.hold).toBeNull();
   });
 });

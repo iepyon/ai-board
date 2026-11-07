@@ -190,9 +190,9 @@
 
 ### 2. 未設定のボードで PR 番号を持つカードを止める
 
-- [ ] `src/board/services/next-action.ts` に `HoldInput.unsetPr` と `HOLD_REASONS.forgeUnset` を足し、`resolveHold` で `forge` の止まりを返す。docstring に足す
-- [ ] `src/board/usecases/queries/get-board.query.ts` で、未設定のボードの `mr` を持つカードに `unsetPr` を渡し、`droppableStages` を空にする
-- [ ] テスト: `resolveHold`（`unsetPr` で止まる、アイデア / マージ済み / 中止では止まらない）、`get-board.query`（未設定で `mr` を持つカードだけ止まり、`droppableStages` が空）、`get-status.query`（止まったカードを飛ばして次のカードを選ぶ）、`decide-cli`（止まったカードの着手を戻すと承認を拒む）
+- [x] `src/board/services/next-action.ts` に `HoldInput.unsetPr` と `HOLD_REASONS.forgeUnset` を足し、`resolveHold` で `forge` の止まりを返す。docstring に足す
+- [x] `src/board/usecases/queries/get-board.query.ts` で、未設定のボードの `mr` を持つカードに `unsetPr` を渡し、`droppableStages` を空にする
+- [x] テスト: `resolveHold`（`unsetPr` で止まる、アイデア / マージ済み / 中止では止まらない）、`get-board.query`（未設定で `mr` を持つカードだけ止まり、`droppableStages` が空）、`get-status.query`（止まったカードを飛ばして次のカードを選ぶ）、`decide-cli`（止まったカードの着手を戻すと承認を拒む）
 
 ### 3. ドキュメントと手順書
 
