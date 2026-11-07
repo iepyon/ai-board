@@ -3,8 +3,10 @@
 ## 人に判断してほしいこと
 
 - **手順書の版を上げるか。** 未設定のボードで、ループの計画の手が push と Draft の PR を飛ばし、`rules.md` のワークツリーへの入り方も変わる。`.claude/HARNESS_VERSIONS.md` に v7 を足す。既定: 上げる
+  - → 回答（2026-11-07、plan 承認）: 手順書の版は v7 に上げる
 - **未設定のボードで、ワークツリーへの入り方（`rules.md`）も直すか。** 今の `plan` の手は `git fetch origin` して `origin/main` からブランチを切り、`revise-plan` は `git pull --ff-only` する。GitHub に届かない研修ではここで止まる。
   既定: 直す。未設定のボードでは fetch / pull をせず、手元の `main` から切る（`### Non-Goals`・`### 仮定`）
+  - → 回答（2026-11-07、plan 承認）: 未設定のボードでは fetch / pull も飛ばすよう rules.md を直す
 - **ブランチの計画を読むのは未設定のボードだけにするか。** 既定: する（`### 退けた代案`）
   - → 回答（2026-11-07、チャット）: 未設定のときだけ
 - **ループの計画の手（`plan.md`）をこのカードで直すか。** 既定: 直す。未設定のボードでは push と Draft の PR を飛ばし、コミット → `card branch` → `card submit` だけにする
@@ -165,11 +167,11 @@
 
 ### 1. ブランチの計画を読み、ボードに重ねる
 
-- [ ] `src/board/repositories/branch-plan.repository.ts` に `findActive` を足す（`plans/<id>.md` だけ、`countTasks`、コミットの時刻）
-- [ ] `src/board/services/branch-plan-target.ts` に `needsBranchPlan` を置く
-- [ ] `src/board/usecases/queries/get-board.query.ts` で、`needsBranchPlan` が真のカードのブランチの計画を読み、メインの計画が無いところに重ねる
-- [ ] `src/board/composition.ts` の `createBoardDependencies` / `assembleBoard` で `branchPlanRepository` を渡す
-- [ ] テスト: `findActive`（一時の git リポジトリで、active を読む・archive を読まない・不正なブランチ名で null）、`needsBranchPlan`（各条件）、`get-board.query`（未設定なら計画レビュー、接続済みなら読まない、メインの計画を優先）、`decide-cli`（未設定のボードでブランチの計画のカードを承認できる）
+- [x] `src/board/repositories/branch-plan.repository.ts` に `findActive` を足す（`plans/<id>.md` だけ、`countTasks`、コミットの時刻）
+- [x] `src/board/services/branch-plan-target.ts` に `needsBranchPlan` を置く
+- [x] `src/board/usecases/queries/get-board.query.ts` で、`needsBranchPlan` が真のカードのブランチの計画を読み、メインの計画が無いところに重ねる
+- [x] `src/board/composition.ts` の `createBoardDependencies` / `assembleBoard` で `branchPlanRepository` を渡す
+- [x] テスト: `findActive`（一時の git リポジトリで、active を読む・archive を読まない・不正なブランチ名で null）、`needsBranchPlan`（各条件）、`get-board.query`（未設定なら計画レビュー、接続済みなら読まない、メインの計画を優先）、`decide-cli`（未設定のボードでブランチの計画のカードを承認できる）
 
 ### 2. ループの手順書とドキュメント
 

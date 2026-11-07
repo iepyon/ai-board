@@ -2,17 +2,19 @@ import type { CliRunner } from '../../infrastructure/cli-runner.js';
 import { isErr } from '../../shared/result.js';
 import type { CardId } from '../../shared/schemas/common.js';
 import type { ImplStepPlan } from '../services/impl-step.js';
+import type { PlanDoc } from '../models/plan-state.js';
+import { countTasks } from './plan.repository.js';
 
 // ============================================================
 // カードのブランチの計画の読み取り（git show）
 // ============================================================
 
 /**
- * カードのブランチにコミットされた計画を読む。`status` の CLI が、`next` に選ばれた
- * `implement` の 1 枚の段（`next.step`）を決めるためだけに使う。
+ * カードのブランチにコミットされた計画を読む。
  *
- * ステージの導出（`stage-resolver.ts`）には使わない。列はこれまでどおり
- * メインのチェックアウトの計画ファイルと PR から導く。
+ * - `find`: `status` の CLI が、`next` に選ばれた `implement` の 1 枚の段（`next.step`）を決める
+ * - `findActive`: GitHub が未設定のボードで、メインのチェックアウトに無い計画を補い、計画レビューの列を立てる
+ *   （`needsBranchPlan` が選んだカードだけ。`archive/` は読まない）
  *
  * 読めない（ブランチが無い、`git` が失敗した、計画が無い）ときは例外を投げず null を返す。
  * 段が読めなくても、次の一手そのものは読めているので `status` は失敗させない。
@@ -21,6 +23,12 @@ import type { ImplStepPlan } from '../services/impl-step.js';
 export interface BranchPlanRepository {
   /** `branch` の計画を、`plans/` → `plans/archive/` の順に読む。どちらも無ければ null */
   find(cardId: CardId, branch: string): Promise<ImplStepPlan | null>;
+  /**
+   * `branch` の `plans/<id>.md` を、メインの計画と同じ形（`PlanDoc`）で読む。無ければ null。
+   * `archive/` は読まない。読むと、締めで archive して Ready にした PR中 のカードがマージ前にマージ済みに見えるため。
+   * `updatedAt` は、その計画ファイルを最後に変えたコミットの時刻
+   */
+  findActive(cardId: CardId, branch: string): Promise<PlanDoc | null>;
 }
 
 const PLANS_DIR = '.ai-board/plans';
@@ -62,6 +70,27 @@ export class GitBranchPlanRepository implements BranchPlanRepository {
     if (archived !== null) return { location: 'archived' };
 
     return null;
+  }
+
+  async findActive(cardId: CardId, branch: string): Promise<PlanDoc | null> {
+    if (!(await this.isValidBranchName(branch))) return null;
+
+    const ref = await this.resolveRef(branch);
+    if (ref === null) return null;
+
+    const file = `${PLANS_DIR}/${cardId}.md`;
+    const text = await this.git(['show', '--no-textconv', `${ref}:${file}`]);
+    if (text === null) return null;
+
+    const committedAt = (await this.git(['log', '-1', '--format=%cI', ref, '--', file]))?.trim();
+    if (committedAt === undefined || committedAt === '') return null;
+
+    return {
+      cardId,
+      tasks: countTasks(text),
+      archived: false,
+      updatedAt: new Date(committedAt).toISOString(),
+    };
   }
 
   /**

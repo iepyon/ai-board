@@ -74,6 +74,7 @@ function planReader(plan: ImplStepPlan | null): BranchPlanRepository & {
       calls.push([cardId, branch]);
       return Promise.resolve(plan);
     },
+    findActive: () => Promise.resolve(null),
   };
 }
 

@@ -29,8 +29,11 @@ import {
   type BoardCardPlan,
   type BoardCardReview,
 } from '../../models/board-card.js';
-import type { PlanDoc } from '../../models/plan-state.js';
-import { isForgeUnset, type MrState } from '../../models/mr-state.js';
+import type { PlanDoc, PlanState } from '../../models/plan-state.js';
+import type { Card } from '../../../cards/models/card.js';
+import type { BranchPlanRepository } from '../../repositories/branch-plan.repository.js';
+import { needsBranchPlan } from '../../services/branch-plan-target.js';
+import { isForgeUnset, type ForgeConnection, type MrState } from '../../models/mr-state.js';
 import type { GetBoardError } from '../../errors/board-errors.js';
 
 // ============================================================
@@ -44,6 +47,7 @@ export type GetBoardQuery = () => Promise<Result<Board, GetBoardError>>;
  *
  * ステージ導出そのものは `resolveStage`（純関数）に委譲し、
  * ここは I/O と組み立てだけを担当する。
+ * `branchPlanRepository` を渡すと、GitHub が未設定のボードで、メインに計画の無いカードのブランチの計画を補う（`needsBranchPlan`）。
  * ループの 1 手の記録は、ループの様子（`Board.loop`）・カードの手の一覧・区間の小区間にだけ使い、
  * ステージの導出と止まりには渡さない。
  */
@@ -52,7 +56,8 @@ export function createGetBoardQuery(
   ideaDividerRepository: IdeaDividerRepository,
   planRepository: PlanRepository,
   mrProvider: MrStateProvider,
-  loopHistoryRepository: LoopHistoryRepository
+  loopHistoryRepository: LoopHistoryRepository,
+  branchPlanRepository?: BranchPlanRepository
 ): GetBoardQuery {
   return async () => {
     let cards;
@@ -75,6 +80,9 @@ export function createGetBoardQuery(
     }
 
     const forge = mrProvider.connection();
+    if (branchPlanRepository !== undefined) {
+      planState = await withBranchPlans(planState, cards, forge, branchPlanRepository);
+    }
     const mrKnown = forge.status === 'connected' && mrProvider.synced();
     const forgeUnset = isForgeUnset(forge);
     const generatedAt = new Date().toISOString();
@@ -134,6 +142,31 @@ export function createGetBoardQuery(
       generatedAt,
     });
   };
+}
+
+/**
+ * GitHub が未設定のボードで、メインのチェックアウトに無い計画を、カードのブランチの `plans/<id>.md` で補う。
+ * 読むのは `needsBranchPlan` が選んだカードだけで、まとめて読む。読めなければ補わない
+ */
+async function withBranchPlans(
+  planState: PlanState,
+  cards: readonly Card[],
+  forge: ForgeConnection,
+  reader: BranchPlanRepository
+): Promise<PlanState> {
+  const targets = cards.filter((card) =>
+    needsBranchPlan({ forge, card, plan: planState.get(card.id) ?? null })
+  );
+  if (targets.length === 0) return planState;
+
+  const found = await Promise.all(
+    targets.map((card) => (card.branch === null ? null : reader.findActive(card.id, card.branch)))
+  );
+  const merged = new Map(planState);
+  for (const doc of found) {
+    if (doc !== null) merged.set(doc.cardId, doc);
+  }
+  return merged;
 }
 
 /**

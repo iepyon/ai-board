@@ -9,6 +9,7 @@ import { isErr } from '../../../shared/result.js';
 import type { CardId } from '../../../shared/schemas/common.js';
 import { createBoardDependencies } from '../../composition.js';
 import type { MrStateProvider } from '../../services/mr-state-provider.js';
+import type { BranchPlanRepository } from '../../repositories/branch-plan.repository.js';
 import type { ForgeCardFailure, ForgeConnection } from '../../models/mr-state.js';
 import type { CommitMessage, DataOperation } from '../../../infrastructure/data-store.js';
 import { runDecideCli } from '../decide-cli.js';
@@ -123,14 +124,17 @@ function stubStore(
 async function run(
   argv: readonly string[],
   provider = stubProvider(),
-  store = stubStore()
+  store = stubStore(),
+  branchPlans?: BranchPlanRepository
 ): Promise<number> {
   const cards = createFileCardDependencies(dataDir);
   const board = createBoardDependencies(
     path.join(root, '.ai-board', 'plans'),
     cards.cardRepository,
     cards.ideaDividerRepository,
-    provider
+    provider,
+    undefined,
+    branchPlans
   );
   const decide = createDecideCommands({ loadBoard: board.getBoardQuery, store, cards });
 
@@ -386,6 +390,24 @@ describe('ai-board decide', () => {
     expect(await run(['unstart', 'c'], unset)).toBe(1);
     expect(stderr).toContain('PR #8 を持つが、GitHub が未設定');
     expect((await readCard('c')).startedAt).not.toBeNull();
+  });
+
+  it('GitHub が未設定なら、ブランチにしか計画の無い提出済みのカードを承認できる', async () => {
+    await writeCard('r', `${STARTED}branch: r\n`, review('提出'));
+    const unset = stubProvider({ status: 'disabled', kind: null, reason: null });
+    const branchPlans: BranchPlanRepository = {
+      find: () => Promise.resolve(null),
+      findActive: (cardId) =>
+        Promise.resolve({
+          cardId,
+          tasks: { completed: 0, total: 1 },
+          archived: false,
+          updatedAt: '2026-11-03T00:00:00.000Z',
+        }),
+    };
+
+    expect(await run(['approve', 'r'], unset, stubStore(), branchPlans)).toBe(0);
+    expect(stdout).toContain('r: plan 承認 を書きました（計画レビュー → 実装中）');
   });
 
   describe('飛ばす宣言', () => {

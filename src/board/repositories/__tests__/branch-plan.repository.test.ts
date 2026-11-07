@@ -1,4 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { promises as fs } from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { createCliRunner } from '../../../infrastructure/cli-runner.js';
 import type { CliError, CliRunner } from '../../../infrastructure/cli-runner.js';
 import { err, ok, type Result } from '../../../shared/result.js';
 import { createCardId } from '../../../shared/schemas/common.js';
@@ -193,5 +198,69 @@ describe('GitBranchPlanRepository', () => {
 
     expect(plan).toBeNull();
     expect(calls).toHaveLength(1);
+  });
+});
+
+// ============================================================
+// GitBranchPlanRepository.findActive（一時の git リポジトリで）
+// ============================================================
+
+describe('GitBranchPlanRepository.findActive', () => {
+  let repo: string;
+  const git = (...args: string[]): string =>
+    execFileSync('git', ['-C', repo, ...args], { encoding: 'utf-8' });
+
+  async function commitFile(file: string, text: string, message: string): Promise<void> {
+    await fs.mkdir(path.dirname(path.join(repo, file)), { recursive: true });
+    await fs.writeFile(path.join(repo, file), text, 'utf-8');
+    git('add', file);
+    git('commit', '-q', '-m', message);
+  }
+
+  beforeAll(async () => {
+    repo = await fs.mkdtemp(path.join(os.tmpdir(), 'branch-plan-'));
+    git('init', '-q', '-b', 'main');
+    git('config', 'user.email', 'test@example.com');
+    git('config', 'user.name', 'test');
+    await commitFile('README.md', '# repo\n', 'init');
+
+    git('switch', '-q', '-c', 'active-card');
+    await commitFile(
+      '.ai-board/plans/active-card.md',
+      '# 計画\n\n- [x] 1\n- [ ] 2\n',
+      '計画を立てる'
+    );
+
+    git('switch', '-q', 'main');
+    git('switch', '-q', '-c', 'archived-card');
+    await commitFile('.ai-board/plans/archive/archived-card.md', '# 計画\n', 'archive');
+    git('switch', '-q', 'main');
+  });
+
+  afterAll(async () => {
+    await fs.rm(repo, { recursive: true, force: true });
+  });
+
+  const reader = () => new GitBranchPlanRepository(createCliRunner(), repo);
+
+  it('ブランチの plans/<id>.md を、タスクの数とコミットの時刻を付けて返す', async () => {
+    const doc = await reader().findActive(createCardId('active-card'), 'active-card');
+    const committedAt = git('log', '-1', '--format=%cI', 'active-card').trim();
+
+    expect(doc).toEqual({
+      cardId: 'active-card',
+      tasks: { completed: 1, total: 2 },
+      archived: false,
+      updatedAt: new Date(committedAt).toISOString(),
+    });
+  });
+
+  it('ブランチの archive/ にしか計画が無ければ null（マージ済みに見せない）', async () => {
+    expect(await reader().findActive(createCardId('archived-card'), 'archived-card')).toBeNull();
+  });
+
+  it('ブランチが無い・名前が不正なら null', async () => {
+    expect(await reader().findActive(createCardId('active-card'), 'missing')).toBeNull();
+    expect(await reader().findActive(createCardId('active-card'), '-x')).toBeNull();
   });
 });
