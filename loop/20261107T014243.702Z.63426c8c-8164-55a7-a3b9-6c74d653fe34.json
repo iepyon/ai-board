@@ -1,0 +1,13 @@
+{
+  "loop": "63426c8c-8164-55a7-a3b9-6c74d653fe34",
+  "cardId": "branch-plan-review",
+  "action": "plan",
+  "step": null,
+  "agent": null,
+  "harness": "v6",
+  "startedAt": "2026-11-07T01:42:43.702Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
