@@ -250,11 +250,10 @@ fork と clone、`ai-board init` は GitHub に届くうちに済ませておく
 - 捨てる: `git -C .ai-board/data reset --hard origin/ai-board/data`
 - 手元モードで続ける: `data-mode.yaml` に `mode: local` を書き戻す
 
-### 始め方と board.db からの切り替え
+### 始め方
 
 新しいリポジトリでは、`.ai-board/config.yaml` を用意してから、メインのチェックアウトで `node dist/cli.js init` を走らせる。
 空のデータ用ブランチを作って push し、`config.yaml` をその根へ写す。ほかの clone では最初に CLI を動かしたときにワークツリーが作られる。
-`.ai-board/board.db`（SQLite）しか持たない手元は、main のコミット `d2380ce` の `ai-board migrate` で移行してから今の版に戻す。
 
 ## GitHub との接続
 

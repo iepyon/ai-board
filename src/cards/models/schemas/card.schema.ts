@@ -57,5 +57,3 @@ export const CardFrontmatterSchema = z.object({
   /** 並び順。無ければ created から補う */
   rank: nullableField(z.number().finite()).default(null),
 });
-
-export type CardFrontmatter = z.infer<typeof CardFrontmatterSchema>;

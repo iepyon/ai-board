@@ -1,11 +1,6 @@
 import { ok, type Result } from '../../../shared/result.js';
 import { createCardId } from '../../../shared/schemas/common.js';
-import {
-  decisionsFor,
-  groupBySection,
-  ideaRows,
-  isStale,
-} from '../../../shared/dashboard-sections.js';
+import { decisionsFor, groupBySection, ideaRows, isStale } from '../../../shared/board-sections.js';
 import { isCardRunning, type BoardLoop } from '../../../shared/loop-activity.js';
 import type { Board } from '../../models/board-card.js';
 import { forgeTrusted } from '../../models/mr-state.js';

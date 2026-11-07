@@ -3,8 +3,7 @@ import type { Stage } from './schemas/common.js';
 /**
  * その列が人の判断を待っているゲート。待ちの列でなければ undefined。
  *
- * 値は `ReviewGate`（`src/cards/models/review.ts`）と同じ。`src/shared/` はコンテキストの型を引かない
- * （画面を外す前に画面からも読んでいた名残で、置き場所は変えていない）ので、リテラルで書く。
+ * 値は `ReviewGate`（`src/cards/models/review.ts`）と同じ。`src/shared/` はコンテキストの型を引かないので、リテラルで書く。
  * ボードの `latestReview` がどのゲートのエントリを選ぶかに使う。
  */
 export const GATE_OF_STAGE: Partial<Record<Stage, 'plan'>> = {

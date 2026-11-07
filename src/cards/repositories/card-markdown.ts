@@ -32,7 +32,7 @@ export function parseCard(filePath: string, raw: string): Card | null {
     return null;
   }
 
-  const data = dropGitLabMr(parsed.data as Record<string, unknown>);
+  const data = parsed.data as Record<string, unknown>;
   const candidate = {
     ...data,
     id: data['id'] ?? fileId,
@@ -74,15 +74,6 @@ export function parseCard(filePath: string, raw: string): Card | null {
 /** 本文の前後の改行を落とす。これで読み書きを往復しても本文が育たない */
 export function normalizeBody(content: string): string {
   return content.replace(/^\n+/, '').replace(/\n+$/, '');
-}
-
-/**
- * GitLab 連携を廃止する前のカードは `forge: gitlab` と MR 番号を持っている。
- * その番号を GitHub の PR 番号として引かないよう、番号を捨てて branch から解決し直させる。
- * `forge` の無いカードの番号は捨てない（`card show` の出力を取り込み直したときに番号を失う）。
- */
-function dropGitLabMr(data: Record<string, unknown>): Record<string, unknown> {
-  return data['forge'] === 'gitlab' ? { ...data, mr: null } : data;
 }
 
 /** Card を Markdown 文字列に戻す。frontmatter のキー順は安定させる */

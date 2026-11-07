@@ -3,7 +3,7 @@ import type { GateState, ReviewEntry, ReviewGate } from '../../cards/models/revi
 import { latestGateEntry } from '../../cards/services/review-log.js';
 import type { ImplStep } from './impl-step.js';
 import type { ForgeCardFailure } from '../models/mr-state.js';
-import type { CardHoldKind } from '../../shared/dashboard-sections.js';
+import type { CardHoldKind } from '../../shared/board-sections.js';
 
 // ============================================================
 // 次の一手 — ループが 1 周で進めるものを決める純関数
@@ -24,7 +24,7 @@ import type { CardHoldKind } from '../../shared/dashboard-sections.js';
  *                 直すものが無い理由を 1 件返信する。どちらでも人の番（判断待ち）に戻る
  *
  * タスクを倒す / AI レビューを手の種類にしないのは、段が `implement` の中の区切りだからである。
- * 手の種類に足すと、`review-log.ts` / `card-cli.ts` / `dashboard-sections.ts` にまで種類が広がる。
+ * 手の種類に足すと、`review-log.ts` / `card-cli.ts` / `board-sections.ts` にまで種類が広がる。
  * 段を読むには計画を読む必要があり、その理由と読む場所は `judgeImpling` を参照。
  *
  * かつては動作確認の差し戻しを直す `revise-impl` と、動作確認の後に Ready にする `ready` があったが、

@@ -70,7 +70,7 @@ push が拒否されたら取り直したボードで検査からやり直す。
 
 ## 区画と出せる判断
 
-区画への振り分け・並び・出せる判断は `src/shared/dashboard-sections.ts` の純関数で、ステージの導出とは別物。
+区画への振り分け・並び・出せる判断は `src/shared/board-sections.ts` の純関数で、ステージの導出とは別物。
 
 - `sectionOf` / `groupBySection`: 区画は inbox（判断待ち）/ work（AI 作業中）/ idea / merged / aborted。`hold` のあるカードは inbox で、待ち始めは `hold.since`。
   PR中 でも `mrState.awaitingFix` なら work の先頭（`isAwaitingPrFix`）

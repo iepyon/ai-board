@@ -161,21 +161,11 @@ describe('serializeCard', () => {
     expect(restored).toEqual(card);
   });
 
-  it('GitLab の MR 番号は番号ごと捨てる', () => {
+  it('PR 番号を読む', () => {
     const raw =
-      '---\nid: refresh-token\ntitle: T\ncreated: 2026-09-01T00:00:00.000Z\nbranch: feat/x\nmr: 42\nforge: gitlab\n---\n';
+      '---\nid: refresh-token\ntitle: T\ncreated: 2026-09-01T00:00:00.000Z\nbranch: feat/x\nmr: 42\n---\n';
 
-    const card = parseCard('/tmp/refresh-token.md', raw);
-
-    expect(card).toMatchObject({ branch: 'feat/x', mr: null });
-  });
-
-  it('GitHub の番号と取得先の記録が無い番号は残す', () => {
-    const head =
-      '---\nid: refresh-token\ntitle: T\ncreated: 2026-09-01T00:00:00.000Z\nbranch: feat/x\n';
-
-    expect(parseCard('/tmp/refresh-token.md', `${head}mr: 42\n---\n`)?.mr).toBe(42);
-    expect(parseCard('/tmp/refresh-token.md', `${head}mr: 42\nforge: github\n---\n`)?.mr).toBe(42);
+    expect(parseCard('/tmp/refresh-token.md', raw)?.mr).toBe(42);
   });
 
   it('null のフィールドを保ったまま書き出せる', () => {

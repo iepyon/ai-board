@@ -14,10 +14,10 @@ import { DIVIDER_ID } from './card-reorder.js';
  * - `merged`  マージ済み
  * - `aborted` 中止。どのステージにあってもここへ寄せる（終端であり、判断も作業も待っていない）
  */
-export type DashboardSection = 'inbox' | 'work' | 'idea' | 'merged' | 'aborted';
+export type BoardSection = 'inbox' | 'work' | 'idea' | 'merged' | 'aborted';
 
-/** 中止でないカードがステージから入る区画。件数帯のマスから飛ぶ先にも使う */
-export const SECTION_OF_STAGE: Record<Stage, Exclude<DashboardSection, 'aborted'>> = {
+/** 中止でないカードがステージから入る区画 */
+export const SECTION_OF_STAGE: Record<Stage, Exclude<BoardSection, 'aborted'>> = {
   idea: 'idea',
   planning: 'work',
   'plan-review': 'inbox',
@@ -50,7 +50,7 @@ export interface SectionCard {
   } | null;
   /**
    * AI の列にいるが人の判断を待っているときの止まり（`resolveHold`）。
-   * `src/shared/` はコンテキストの型を import しない（画面を外す前に画面からも読んでいた名残）ので、形だけを書く
+   * `src/shared/` はコンテキストの型を import しないので、形だけを書く
    */
   /** 止まり。`kind` が `forge`（PR の状態を引けない）なら出せる判断は無い */
   readonly hold: {
@@ -60,7 +60,7 @@ export interface SectionCard {
   } | null;
 }
 
-export type Sections<T> = Record<DashboardSection, T[]>;
+export type Sections<T> = Record<BoardSection, T[]>;
 
 /**
  * カードを区画へ振り分ける。
@@ -93,7 +93,7 @@ export function groupBySection<T extends SectionCard>(cards: readonly T[]): Sect
  * PR中 のカードは人の列だが、人の指摘に AI が応える番なら AI が進めている区画に出す。
  * 件数帯の飛び先（`SECTION_OF_STAGE`）はステージだけで決め、PR中 のマスは判断待ちへ飛ぶ。
  */
-function sectionOf(card: SectionCard): DashboardSection {
+function sectionOf(card: SectionCard): BoardSection {
   if (card.aborted) return 'aborted';
   if (card.hold !== null) return 'inbox';
   if (isAwaitingPrFix(card)) return 'work';

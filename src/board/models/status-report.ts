@@ -1,4 +1,4 @@
-import type { Decision } from '../../shared/dashboard-sections.js';
+import type { Decision } from '../../shared/board-sections.js';
 import type { Stage } from '../../shared/schemas/common.js';
 import type { BoardLoop } from '../../shared/loop-activity.js';
 import type { NextAction } from '../services/next-action.js';

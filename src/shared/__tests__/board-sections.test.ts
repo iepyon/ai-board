@@ -10,7 +10,7 @@ import {
   waitingSince,
   type DecisionCard,
   type SectionCard,
-} from '../dashboard-sections.js';
+} from '../board-sections.js';
 
 function makeCard(overrides: Partial<SectionCard> & Pick<SectionCard, 'id'>): SectionCard {
   return {

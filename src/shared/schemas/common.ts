@@ -52,10 +52,6 @@ export function createCardId(raw: string): CardId {
   return CardIdSchema.parse(raw) as CardId;
 }
 
-export function createMergeRequestIid(raw: number): MergeRequestIid {
-  return z.number().int().positive().parse(raw) as MergeRequestIid;
-}
-
 /**
  * 任意の文字列（日本語を含むタイトル等）から kebab-case の slug を作る。
  * 英数字が 1 文字も残らない場合は呼び出し側でフォールバックする必要があるため

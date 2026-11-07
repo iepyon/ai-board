@@ -112,7 +112,7 @@ ai-board status [--json [--only <項目,...>]]           # ステージ・判断
 ## テスト
 
 - **`src/**/__tests__/**/*.test.ts` に置く。** この glob 外は vitest が黙って無視する。
-- CLI は `run*Cli` に依存と入出力を渡してテストする（`src/board/cli/__tests__/` など）。区画や判断のロジックは `src/shared/dashboard-sections.ts` などの純関数に切り出してテストする。
+- CLI は `run*Cli` に依存と入出力を渡してテストする（`src/board/cli/__tests__/` など）。区画や判断のロジックは `src/shared/board-sections.ts` などの純関数に切り出してテストする。
 
 ## コミット
 

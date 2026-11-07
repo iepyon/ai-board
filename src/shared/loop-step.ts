@@ -114,8 +114,3 @@ export function isLoopImplStep(value: string): value is LoopImplStep {
 export function isLoopFinishResult(value: string): value is LoopFinishResult {
   return (LOOP_FINISH_RESULTS as readonly string[]).includes(value);
 }
-
-/** 終わっていない記録か */
-export function isRunning(step: LoopStep): boolean {
-  return step.result === null;
-}

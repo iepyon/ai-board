@@ -5,7 +5,7 @@ import type {
   UpdateCardError,
 } from '../../cards/errors/card-errors.js';
 import type { CardId, Stage } from '../../shared/schemas/common.js';
-import type { Decision } from '../../shared/dashboard-sections.js';
+import type { Decision } from '../../shared/board-sections.js';
 import type { BoardCard } from '../models/board-card.js';
 import type { ForgeConnection } from '../models/mr-state.js';
 
