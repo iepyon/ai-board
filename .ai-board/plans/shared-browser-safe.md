@@ -185,3 +185,16 @@
 - [x] `.claude/skills/board-loop/fix-pr.md` の `src/shared/pr-feedback.ts` を直す
 - [x] `docs/adr/0017-remove-web-and-server.md` の `src/shared/board-sections.ts` の場所を直す
 - [x] `adr` のスキルで `docs/adr/0018-shared-browser-safe.md` を書き、`docs/adr/README.md` の一覧に足す
+
+## AI レビュー
+
+- [ ] `src/board/services/decision-options.ts:28` の `DecisionCard.gates.plan` が、`cards/models/review.ts:52` の `GateState` を `'none' | 'submitted' | 'held' | 'approved' | 'rejected'` と書き写したまま残っている。この PR の目的（Why の「書き写しを import に置き換える」、ADR 0018 の結果「書き写しが消えた」）と食い違い、`GateState` に値を足すと黙ってずれる。`import type { GateState } from '../../cards/models/review.js'` で引き、`readonly plan: GateState` にする（`next-action.ts` の `NextActionCard` と同じ形）。振る舞いは変わらないので、品質ゲートが通ることを確かめる
+
+### 見送った指摘
+
+- `src/board/services/next-action.ts:47` で、`CardHoldKind` の docstring が `CardHold` の docstring（「AI の列…にいるが、人の判断を待っているカードの止まり」）と `export interface CardHold` の間に入り、2 つの JSDoc が `CardHoldKind` の上に重なって `CardHold` に docstring が付いていない。振る舞いに関わらない docstring の位置なので見送る（直すなら `CardHoldKind` の docstring と型を `CardHold` の docstring の上へ移す）
+- `src/board/models/loop-step.ts:16` の `LOOP_CURRENT_ACTIONS` / `LOOP_IMPL_STEPS` は、board へ移ったので `NextActionKind` / `ImplStep` から導けば `LOOP_VOCABULARY_IN_SYNC` の検査が要らなくなる。計画の Decisions が `LOOP_VOCABULARY_IN_SYNC` を残すと決めており、この PR の目的の外の整理なので見送る
+
+### 人に判断してほしいこと
+
+- `eslint.config.js:31-41` の `src/shared/` の決まりは、計画の Decisions に挙げたとおり接頭辞の無い Node の組み込みを `fs` / `path` / `os` / `child_process` / `url` / `crypto` だけ拒む。`/code-review` が捨てるファイルで試したところ、`util` / `events` などの接頭辞の無い組み込み、`src/cli-main.ts` など `src/` 直下の Node のモジュール（`../cli-main.js`）、`process` / `Buffer` などのグローバルは lint を通った。ADR 0018 の「Node の API を import できなくする」より決まりが狭い。`node:module` の `builtinModules` で全部を拒む・`src/shared/` から `../` の import を `./schemas/**` 以外すべて拒む・`no-restricted-globals` を足す、のどこまで広げるか（計画のままにして ADR の書き方を狭めるか）は人が決める
