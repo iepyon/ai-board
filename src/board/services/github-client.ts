@@ -1,14 +1,14 @@
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import type { MergeRequestIid } from '../../shared/schemas/common.js';
+import type { PullRequestNumber } from '../../shared/schemas/common.js';
 import type { ForgeConfig } from '../../shared/config.js';
-import type { ForgeKind, MrLifecycleState, MrSnapshot, MrState } from '../models/mr-state.js';
+import type { ForgeKind, PrLifecycleState, PrSnapshot, PrState } from '../models/pr-state.js';
 import {
   asArray,
   ForgeRequestError,
   latestOf,
-  toMergeRequestIid,
+  toPullRequestNumber,
   type ForgeClient,
 } from './forge-client.js';
 import {
@@ -97,7 +97,7 @@ export class GhForgeClient implements ForgeClient {
    * リポジトリを REST で 1 回引けるかで確かめる。
    *
    * `gh auth status` は使わない。クラウドのセッションでは「GH_TOKEN が無効」と失敗するが、
-   * 同じ認証で `gh api` は動く。ポーリングで使うのも `gh api` なので、同じ経路で確かめる。
+   * 同じ認証で `gh api` は動く。PR を引くのも `gh api` なので、同じ経路で確かめる。
    */
   async checkAuth(): Promise<string | null> {
     const result = await this.runner.run(GH, ['api', this.base]);
@@ -109,12 +109,12 @@ export class GhForgeClient implements ForgeClient {
    * PR 本体を 1 回引き、指紋が `previous` と同じなら `previous` をそのまま返す。
    *
    * コメント・コミット・イベントの問い合わせは PR 1 枚につき 4 回以上かかる。
-   * 変化の無い PR でこれを毎回繰り返すと、ポーリングのたびに PR の枚数の 4 倍以上を使い、GitHub の上限（5,000 回/時）に近づく。
+   * 変化の無い PR でこれを毎回繰り返すと、問い合わせのたびに PR の枚数の 4 倍以上を使い、GitHub の上限（5,000 回/時）に近づく。
    */
   async fetchByIid(
-    iid: MergeRequestIid,
-    previous: MrSnapshot | null = null
-  ): Promise<MrSnapshot | null> {
+    iid: PullRequestNumber,
+    previous: PrSnapshot | null = null
+  ): Promise<PrSnapshot | null> {
     const pr = await this.get<RawPullRequest>(`pulls/${iid}`);
     if (pr === null) return null;
 
@@ -126,7 +126,7 @@ export class GhForgeClient implements ForgeClient {
     return this.enrich(pr, fingerprint);
   }
 
-  async fetchByBranch(branch: string): Promise<MrSnapshot | null> {
+  async fetchByBranch(branch: string): Promise<PrSnapshot | null> {
     // head の owner: 接頭辞を落とすと、他リポジトリの同名ブランチを拾う
     const head = encodeURIComponent(`${this.config.owner}:${branch}`);
     const query = `head=${head}&state=all&sort=updated&direction=desc&per_page=1`;
@@ -151,7 +151,7 @@ export class GhForgeClient implements ForgeClient {
    * 順序ではなく全ページを読んで最大値を取る（`latestOf` が最大値を選ぶので
    * 並び順は問わない）。件数も同じ理由で全ページを数えないと頭打ちになる。
    */
-  private async enrich(pr: RawPullRequest, fingerprint: string): Promise<MrSnapshot> {
+  private async enrich(pr: RawPullRequest, fingerprint: string): Promise<PrSnapshot> {
     const state = toLifecycleState(pr.state, pr.merged_at);
     const draft = pr.draft === true;
 
@@ -169,7 +169,7 @@ export class GhForgeClient implements ForgeClient {
 
     const mr = {
       forge: this.kind,
-      iid: toMergeRequestIid(pr.number),
+      iid: toPullRequestNumber(pr.number),
       state,
       draft,
       sourceBranch: pr.head.ref,
@@ -213,7 +213,7 @@ export class GhForgeClient implements ForgeClient {
 
 /**
  * 問い合わせの結果を値へ開く。404 は「存在しない」として null、それ以外の失敗は `ForgeRequestError` にして投げる。
- * ポーラーはこの例外の `scope` で、接続をまるごと止めるか、そのカードだけを止めるかを決める
+ * `PrFetcher` はこの例外の `scope` で、接続をまるごと止めるか、そのカードだけを止めるかを決める
  */
 function unwrapRequest<T>(endpoint: string, result: Result<T, CliError>): T | null {
   if (isErr(result)) {
@@ -229,7 +229,7 @@ function unwrapRequest<T>(endpoint: string, result: Result<T, CliError>): T | nu
  * マージ済みの PR も closed なので、`merged_at` が入っているかで区別する。
  * ここを取り違えるとマージ済みのカードが `merged` へ進まない。
  */
-export function toLifecycleState(raw: string, mergedAt: string | null): MrLifecycleState {
+export function toLifecycleState(raw: string, mergedAt: string | null): PrLifecycleState {
   if (raw === 'open') return 'opened';
 
   return mergedAt === null ? 'closed' : 'merged';
@@ -240,7 +240,7 @@ export function toLifecycleState(raw: string, mergedAt: string | null): MrLifecy
  *
  * 新しいコメントは件数を、push は `head.sha` を、Draft の出し入れは `draft` を変える。
  * `updated_at` は、件数が変わらないまま消して書き直したコメントや、
- * ポーリングの間に Draft へ戻して Ready に戻したといった取りこぼしを拾うために足している。
+ * 前に引いてから今までの間に Draft へ戻して Ready に戻したといった取りこぼしを拾うために足している。
  * 余計に変わっても引き直しが 1 回増えるだけで、正しさは崩れない。
  *
  * 一覧（`pulls?head=`）の応答には件数が無いので、ブランチから解決した直後の指紋は
@@ -311,10 +311,10 @@ function endsWithFooter(body: string): boolean {
  */
 function draftTransitionsOf(
   events: readonly RawIssueEvent[],
-  state: MrLifecycleState,
+  state: PrLifecycleState,
   draft: boolean,
   createdAt: string | null
-): Pick<MrState, 'readyAt' | 'convertedToDraftAt'> {
+): Pick<PrState, 'readyAt' | 'convertedToDraftAt'> {
   const latestEvent = (name: string): string | null =>
     latestOf(events.filter((event) => event.event === name).map((event) => event.created_at));
 
@@ -349,7 +349,7 @@ export interface PullRequestChecks {
 export interface PullRequestView {
   readonly number: number;
   readonly title: string;
-  readonly state: MrLifecycleState;
+  readonly state: PrLifecycleState;
   readonly draft: boolean;
   readonly head: string;
   readonly base: string;
@@ -459,7 +459,7 @@ export class GhPullRequestClient {
     return ok({ number: created.value.number, url: created.value.html_url });
   }
 
-  async view(iid: MergeRequestIid): Promise<Result<PullRequestView, CliError>> {
+  async view(iid: PullRequestNumber): Promise<Result<PullRequestView, CliError>> {
     const pr = await this.getJson<RawPullRequestDetail>(`${this.base}/pulls/${iid}`);
     if (isErr(pr)) return pr;
 
@@ -481,7 +481,7 @@ export class GhPullRequestClient {
    * PR 全体への返信（issue comment）とコード行への指摘（review comment）を、時刻の順に並べて返す。
    * どちらの一覧も既定は 1 ページ目だけなので、全ページを読む。
    */
-  async comments(iid: MergeRequestIid): Promise<Result<PullRequestComment[], CliError>> {
+  async comments(iid: PullRequestNumber): Promise<Result<PullRequestComment[], CliError>> {
     const [issueComments, reviewComments] = await Promise.all([
       this.getAllJson<RawCommentDetail>(`${this.base}/issues/${iid}/comments`),
       this.getAllJson<RawCommentDetail>(`${this.base}/pulls/${iid}/comments`),
@@ -494,14 +494,14 @@ export class GhPullRequestClient {
   }
 
   /** PR の本文を差し替え、PR の URL を返す */
-  async editBody(iid: MergeRequestIid, body: string): Promise<Result<string, CliError>> {
+  async editBody(iid: PullRequestNumber, body: string): Promise<Result<string, CliError>> {
     const edited = await this.send<RawCreated>('PATCH', `${this.base}/pulls/${iid}`, { body });
 
     return isErr(edited) ? edited : ok(edited.value.html_url);
   }
 
   /** PR にコメントを書き、コメントの URL を返す */
-  async comment(iid: MergeRequestIid, body: string): Promise<Result<string, CliError>> {
+  async comment(iid: PullRequestNumber, body: string): Promise<Result<string, CliError>> {
     const created = await this.send<RawCreated>('POST', `${this.base}/issues/${iid}/comments`, {
       body,
     });
@@ -519,7 +519,7 @@ export class GhPullRequestClient {
    * `--jq` で 1 件 1 行にして繋ぐ（ページを跨いでも 1 本の JSON にならないため）。
    */
   async checks(
-    iid: MergeRequestIid,
+    iid: PullRequestNumber,
     sha: string | null = null
   ): Promise<Result<PullRequestChecks, CliError>> {
     const pr = await this.getJson<RawPullRequestDetail>(`${this.base}/pulls/${iid}`);
@@ -556,7 +556,7 @@ export class GhPullRequestClient {
   }
 
   /** PR の差分を unified diff の文字列で返す */
-  async diff(iid: MergeRequestIid): Promise<Result<string, CliError>> {
+  async diff(iid: PullRequestNumber): Promise<Result<string, CliError>> {
     return this.runner.run(GH, ['api', '-H', DIFF_ACCEPT, `${this.base}/pulls/${iid}`]);
   }
 
@@ -566,7 +566,7 @@ export class GhPullRequestClient {
    * 手元では `gh pr ready` が通り、クラウドでは GraphQL が 403 で `ccr/` の経路が通る見込みである。
    * どちらも失敗したら、両方の理由を返す。
    */
-  async ready(iid: MergeRequestIid): Promise<Result<ReadyRoute, ReadyFailure>> {
+  async ready(iid: PullRequestNumber): Promise<Result<ReadyRoute, ReadyFailure>> {
     const repo = `${this.config.owner}/${this.config.repo}`;
     const viaGh = await this.runner.run(GH, ['pr', 'ready', String(iid), '--repo', repo]);
     if (!isErr(viaGh)) return ok('gh');

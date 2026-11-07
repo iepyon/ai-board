@@ -105,7 +105,7 @@ ai-board status [--json [--only <項目,...>]]           # ステージ・判断
 - **エラーは discriminated union**（`{ type: 'CardNotFound', id }`）。CLI が `switch` で人に読める 1 行へ変換するので、
   エラー種を増やしたら変換も網羅する。
 - **依存はコンテキストごとの `composition.ts` で組む。** usecase やリポジトリの中で `new` しない。
-- **ID は Branded Type**（`CardId` / `MergeRequestIid`）。`createCardId` などのファクトリを通す。
+- **ID は Branded Type**（`CardId` / `PullRequestNumber`）。`createCardId` などのファクトリを通す。
 - 入力検証は Zod（`models/schemas/`）。部分更新では `undefined`（変更しない）と `null`（値を消す）を区別する。
 - 相対 import は `.js` 拡張子付き。パスエイリアスは使わない。
 

@@ -95,7 +95,7 @@ async function runInit(argv: readonly string[]): Promise<number> {
  * `status` サブコマンド。ボードを組み立て、ステージを導出する。
  *
  * カードは頭で 1 回データ用ブランチを取り直してから読む。
- * PR の状態はポーリングせず、`refresh()` を 1 回だけ待ってから読む。
+ * PR の状態は`refresh()` を 1 回だけ待ってから読む。
  * `branch` から解決した PR 番号の書き戻しも、ここで起きる（`board/composition.ts` の `assembleBoard`）。
  */
 async function runStatus(argv: readonly string[]): Promise<number> {
@@ -203,7 +203,7 @@ async function runDistCheck(argv: readonly string[]): Promise<number> {
   );
 }
 
-/** `ai-board pr` の `gh` の上限。差分やコメントの全ページは、ポーリングの既定（10 秒）では足りないことがある */
+/** `ai-board pr` の `gh` の上限。差分やコメントの全ページは、既定の上限（10 秒）では足りないことがある */
 const PR_TIMEOUT_MS = 60_000;
 
 /**

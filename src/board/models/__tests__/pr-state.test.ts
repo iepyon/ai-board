@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { forgeTrusted, isForgeUnset, type ForgeConnection } from '../mr-state.js';
+import { forgeTrusted, isForgeUnset, type ForgeConnection } from '../pr-state.js';
 
 const UNSET: ForgeConnection = { status: 'disabled', kind: null, reason: null };
 const UNAVAILABLE: ForgeConnection = { status: 'disabled', kind: 'github', reason: 'gh が無い' };

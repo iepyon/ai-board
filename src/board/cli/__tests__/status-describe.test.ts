@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ForgeConnection } from '../../models/mr-state.js';
+import type { ForgeConnection } from '../../models/pr-state.js';
 import type { NextAction } from '../../services/next-action.js';
 import { describeForge, describeNext } from '../status-describe.js';
 

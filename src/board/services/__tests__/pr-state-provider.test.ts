@@ -1,16 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import type { MergeRequestIid } from '../../../shared/schemas/common.js';
-import type { MrSnapshot, MrState } from '../../models/mr-state.js';
-import { matchMergedSnapshots, unavailableMrStateProvider } from '../mr-state-provider.js';
+import type { PullRequestNumber } from '../../../shared/schemas/common.js';
+import type { PrSnapshot, PrState } from '../../models/pr-state.js';
+import { matchMergedSnapshots, unavailablePrStateProvider } from '../pr-state-provider.js';
 
 // ============================================================
 // GitHub に届かないときの供給元と、マージ済みの控えの照らし合わせ
 // ============================================================
 
-function mergedPr(iid: number): MrState {
+function mergedPr(iid: number): PrState {
   return {
     forge: 'github',
-    iid: iid as MergeRequestIid,
+    iid: iid as PullRequestNumber,
     state: 'merged',
     draft: false,
     sourceBranch: 'done',
@@ -26,13 +26,13 @@ function mergedPr(iid: number): MrState {
   };
 }
 
-function snapshot(iid: number): MrSnapshot {
+function snapshot(iid: number): PrSnapshot {
   return { mr: mergedPr(iid), fingerprint: `[${iid}]` };
 }
 
-describe('unavailableMrStateProvider', () => {
+describe('unavailablePrStateProvider', () => {
   it('渡したマージ済みの PR の状態だけを返し、接続は使えないまま・引き終えていないまま', () => {
-    const provider = unavailableMrStateProvider(
+    const provider = unavailablePrStateProvider(
       'github',
       'gh が無い',
       new Map([['done', mergedPr(7)]])
@@ -50,7 +50,7 @@ describe('unavailableMrStateProvider', () => {
   });
 
   it('控えを渡さなければ、すべて null', () => {
-    expect(unavailableMrStateProvider('github', 'gh が無い').get('done')).toBeNull();
+    expect(unavailablePrStateProvider('github', 'gh が無い').get('done')).toBeNull();
   });
 });
 

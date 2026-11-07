@@ -2,7 +2,7 @@ import { ok, err, type Result } from '../../../shared/result.js';
 import type { CardRepository } from '../../../cards/repositories/card.repository.js';
 import type { IdeaDividerRepository } from '../../../cards/repositories/idea-divider.repository.js';
 import type { PlanRepository } from '../../repositories/plan.repository.js';
-import type { MrStateProvider } from '../../services/mr-state-provider.js';
+import type { PrStateProvider } from '../../services/pr-state-provider.js';
 import {
   droppableStages,
   hasFixAfterReview,
@@ -23,7 +23,7 @@ import {
   toBoardCardReview,
   type Board,
   type BoardCard,
-  type BoardCardMr,
+  type BoardCardPr,
   type BoardCardPlan,
   type BoardCardReview,
 } from '../../models/board-card.js';
@@ -34,7 +34,7 @@ import {
   type BranchPlanRepository,
 } from '../../repositories/branch-plan.repository.js';
 import { branchCloseTarget, branchPlanTarget } from '../../services/branch-plan-target.js';
-import { isForgeUnset, type MrState } from '../../models/mr-state.js';
+import { isForgeUnset, type PrState } from '../../models/pr-state.js';
 import type { GetBoardError } from '../../errors/board-errors.js';
 
 // ============================================================
@@ -57,7 +57,7 @@ export function createGetBoardQuery(
   cardRepository: CardRepository,
   ideaDividerRepository: IdeaDividerRepository,
   planRepository: PlanRepository,
-  mrProvider: MrStateProvider,
+  mrProvider: PrStateProvider,
   loopHistoryRepository: LoopHistoryRepository,
   branchPlanRepository: BranchPlanRepository = emptyBranchPlanRepository
 ): GetBoardQuery {
@@ -112,7 +112,7 @@ export function createGetBoardQuery(
         { floorStage, droppableStages: prUntrusted ? [] : droppableStages(floorStage) },
         latestReview(entries, resolution.stage),
         toBoardCardPlan(plan),
-        toBoardCardMr(mr),
+        toBoardCardPr(mr),
         resolveHold({
           ...resolution,
           entries,
@@ -210,7 +210,7 @@ function latestReview(entries: readonly ReviewEntry[], stage: Stage): BoardCardR
   return toBoardCardReview(entry);
 }
 
-function toBoardCardMr(mr: MrState | null): BoardCardMr | null {
+function toBoardCardPr(mr: PrState | null): BoardCardPr | null {
   if (mr === null) return null;
 
   return {

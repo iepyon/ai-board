@@ -10,7 +10,7 @@ export type Brand<T, B extends string> = T & { readonly __brand: B };
 export type CardId = Brand<string, 'CardId'>;
 
 /** GitHub の PR number */
-export type MergeRequestIid = Brand<number, 'MergeRequestIid'>;
+export type PullRequestNumber = Brand<number, 'PullRequestNumber'>;
 
 // ============================================================
 // ステージ

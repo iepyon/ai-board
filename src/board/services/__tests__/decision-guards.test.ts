@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { CardId } from '../../../shared/schemas/common.js';
 import { DIVIDER_ID } from '../../../shared/card-reorder.js';
 import type { Board, BoardCard } from '../../models/board-card.js';
-import type { ForgeConnection } from '../../models/mr-state.js';
+import type { ForgeConnection } from '../../models/pr-state.js';
 import {
   guardMove,
   guardMoveDivider,

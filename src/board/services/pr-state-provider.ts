@@ -2,9 +2,9 @@ import type {
   ForgeCardFailure,
   ForgeConnection,
   ForgeKind,
-  MrSnapshot,
-  MrState,
-} from '../models/mr-state.js';
+  PrSnapshot,
+  PrState,
+} from '../models/pr-state.js';
 
 // ============================================================
 // PR の状態の供給元
@@ -12,11 +12,11 @@ import type {
 
 /**
  * ボード描画時にネットワーク I/O をしないための抽象。
- * 実体はバックグラウンドポーラーが持つキャッシュ。
+ * 実体は `PrFetcher` が持つキャッシュ。
  */
-export interface MrStateProvider {
+export interface PrStateProvider {
   /** カード ID に対応する PR の状態をキャッシュから返す */
-  get(cardId: string): MrState | null;
+  get(cardId: string): PrState | null;
   connection(): ForgeConnection;
   /**
    * PR の状態を 1 度でも引き終えたか。引き終える前は、PR が無いのか、まだ引いていないのかが分からない。
@@ -31,7 +31,7 @@ export interface MrStateProvider {
 }
 
 /** 取得先が未設定のときの実装。ボードはカードと計画ファイルだけで動く */
-export const disabledMrStateProvider: MrStateProvider = {
+export const disabledPrStateProvider: PrStateProvider = {
   get: () => null,
   connection: () => ({ status: 'disabled', kind: null, reason: null }),
   synced: () => false,
@@ -45,11 +45,11 @@ export const disabledMrStateProvider: MrStateProvider = {
  * `merged` に渡したマージ済みの PR の状態だけを `get` で返す（手元の控え。二度と変わらないので古さを気にしない）。
  * 接続は `disabled` のまま、`synced` も偽のままにするので、次の一手・判断の検査・「PR が見えない」止まりは今までどおり止まる
  */
-export function unavailableMrStateProvider(
+export function unavailablePrStateProvider(
   kind: ForgeKind,
   reason: string,
-  merged: ReadonlyMap<string, MrState> = new Map()
-): MrStateProvider {
+  merged: ReadonlyMap<string, PrState> = new Map()
+): PrStateProvider {
   return {
     get: (cardId) => merged.get(cardId) ?? null,
     connection: () => ({ status: 'disabled', kind, reason }),
@@ -63,11 +63,11 @@ export function unavailableMrStateProvider(
  *
  * カードの番号が控えの番号と違えば（ブランチを付け替えて番号が外れた・変わった）、控えは古い。
  * マージされずに閉じた PR は reopen されうるので、決まったとはみなさない。
- * ポーラーはこれが真なら引き直さず、届かないときの供給元はこれが真の控えだけを出す
+ * `PrFetcher` はこれが真なら引き直さず、届かないときの供給元はこれが真の控えだけを出す
  */
 export function isSettled(
   card: { readonly mr: number | null },
-  snapshot: MrSnapshot | null
+  snapshot: PrSnapshot | null
 ): boolean {
   return snapshot !== null && snapshot.mr.state === 'merged' && card.mr === snapshot.mr.iid;
 }
@@ -75,9 +75,9 @@ export function isSettled(
 /** 決まった控え（`isSettled`）だけを、カード ID ごとの PR の状態にする。届かないときの供給元に渡す */
 export function matchMergedSnapshots(
   cards: readonly { readonly id: string; readonly mr: number | null }[],
-  snapshots: ReadonlyMap<string, MrSnapshot>
-): Map<string, MrState> {
-  const matched = new Map<string, MrState>();
+  snapshots: ReadonlyMap<string, PrSnapshot>
+): Map<string, PrState> {
+  const matched = new Map<string, PrState>();
   for (const card of cards) {
     const snapshot = snapshots.get(card.id) ?? null;
     if (snapshot !== null && isSettled(card, snapshot)) matched.set(card.id, snapshot.mr);

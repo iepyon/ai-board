@@ -7,7 +7,7 @@ import type { CardHold } from '../services/next-action.js';
 import type { LoopStep } from '../../shared/loop-step.js';
 import type { BoardLoop } from '../../shared/loop-activity.js';
 import type { TaskProgress } from './plan-state.js';
-import type { ForgeConnection, ForgeKind, MrLifecycleState } from './mr-state.js';
+import type { ForgeConnection, ForgeKind, PrLifecycleState } from './pr-state.js';
 
 // ============================================================
 // ボードに表示するカード（3 ソースを束ねた読み取りモデル）
@@ -21,10 +21,10 @@ export interface BoardCardPlan {
   readonly updatedAt: string;
 }
 
-export interface BoardCardMr {
+export interface BoardCardPr {
   readonly forge: ForgeKind;
   readonly iid: number;
-  readonly state: MrLifecycleState;
+  readonly state: PrLifecycleState;
   /** Draft か。計画の PR として人に読ませている段階 */
   readonly draft: boolean;
   readonly title: string;
@@ -95,7 +95,7 @@ export interface BoardCard {
   /** 計画ファイルがまだ無ければ null */
   readonly plan: BoardCardPlan | null;
   /** PR が未紐付け、または GitHub 未接続なら null */
-  readonly mrState: BoardCardMr | null;
+  readonly mrState: BoardCardPr | null;
   /**
    * AI の列にいるが人の判断を待っているときの止まり（`resolveHold`）。止まっていなければ null。
    * ステージとは別の軸で、どこにも保存しない。ループはこのカードを選ばない
@@ -137,7 +137,7 @@ export function toBoardCard(
   },
   latestReview: BoardCardReview | null,
   plan: BoardCardPlan | null,
-  mrState: BoardCardMr | null,
+  mrState: BoardCardPr | null,
   hold: CardHold | null,
   loopSteps: readonly LoopStep[]
 ): BoardCard {

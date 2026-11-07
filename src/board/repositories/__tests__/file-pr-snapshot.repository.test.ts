@@ -10,13 +10,13 @@ import {
   type DataStore,
 } from '../../../infrastructure/data-store.js';
 import {
-  FileMrSnapshotRepository,
-  parseMrSnapshot,
-  MR_SNAPSHOT_CACHE_FILE,
+  FilePrSnapshotRepository,
+  parsePrSnapshot,
+  PR_SNAPSHOT_CACHE_FILE,
   SNAPSHOTS_DIR,
-} from '../file-mr-snapshot.repository.js';
-import type { MrSnapshot } from '../../models/mr-state.js';
-import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
+} from '../file-pr-snapshot.repository.js';
+import type { PrSnapshot } from '../../models/pr-state.js';
+import type { CardId, PullRequestNumber } from '../../../shared/schemas/common.js';
 
 // ============================================================
 // 一時ディレクトリの bare リポジトリを origin にして、本物の git で確かめる
@@ -54,7 +54,7 @@ function originFiles(): string[] {
 }
 
 function cacheFile(store: DataStore): string {
-  return path.join(path.dirname(store.dataDir), MR_SNAPSHOT_CACHE_FILE);
+  return path.join(path.dirname(store.dataDir), PR_SNAPSHOT_CACHE_FILE);
 }
 
 function write(file: string, content: string): void {
@@ -64,12 +64,12 @@ function write(file: string, content: string): void {
 
 const id = 'refresh-token' as CardId;
 
-function makeSnapshot(overrides: Partial<MrSnapshot['mr']> = {}): MrSnapshot {
+function makeSnapshot(overrides: Partial<PrSnapshot['mr']> = {}): PrSnapshot {
   return {
     fingerprint: '[1,"open"]',
     mr: {
       forge: 'github',
-      iid: 42 as MergeRequestIid,
+      iid: 42 as PullRequestNumber,
       state: 'opened',
       draft: true,
       sourceBranch: 'refresh-token',
@@ -87,7 +87,7 @@ function makeSnapshot(overrides: Partial<MrSnapshot['mr']> = {}): MrSnapshot {
   };
 }
 
-function merged(overrides: Partial<MrSnapshot['mr']> = {}): MrSnapshot {
+function merged(overrides: Partial<PrSnapshot['mr']> = {}): PrSnapshot {
   return {
     ...makeSnapshot({
       state: 'merged',
@@ -131,10 +131,10 @@ afterEach(() => {
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
-describe('FileMrSnapshotRepository の開いている PR の控え', () => {
+describe('FilePrSnapshotRepository の開いている PR の控え', () => {
   it('使い捨ての JSON に書き、データ用ブランチにはコミットしない', async () => {
     const store = cloneData('a');
-    const repository = new FileMrSnapshotRepository(store);
+    const repository = new FilePrSnapshotRepository(store);
 
     await repository.save(id, makeSnapshot());
 
@@ -144,7 +144,7 @@ describe('FileMrSnapshotRepository の開いている PR の控え', () => {
   });
 
   it('書き直すと上書きする', async () => {
-    const repository = new FileMrSnapshotRepository(cloneData('a'));
+    const repository = new FilePrSnapshotRepository(cloneData('a'));
 
     await repository.save(id, makeSnapshot());
     await repository.save(id, { ...makeSnapshot({ draft: false }), fingerprint: 'next' });
@@ -159,7 +159,7 @@ describe('FileMrSnapshotRepository の開いている PR の控え', () => {
     // 開いている PR の控えは指紋が変わるたびに書かれる。そのたびに fetch と push を走らせない
     const store = cloneData('a');
     const transact = vi.spyOn(store, 'transact');
-    const repository = new FileMrSnapshotRepository(store);
+    const repository = new FilePrSnapshotRepository(store);
 
     await repository.save(id, makeSnapshot());
     await repository.delete(id);
@@ -169,14 +169,14 @@ describe('FileMrSnapshotRepository の開いている PR の控え', () => {
   });
 
   it('ほかの clone の使い捨ての控えは見えない', async () => {
-    await new FileMrSnapshotRepository(cloneData('a')).save(id, makeSnapshot());
+    await new FilePrSnapshotRepository(cloneData('a')).save(id, makeSnapshot());
 
-    expect((await new FileMrSnapshotRepository(cloneData('b')).findAll()).size).toBe(0);
+    expect((await new FilePrSnapshotRepository(cloneData('b')).findAll()).size).toBe(0);
   });
 
   it('置き場所を差し替えられる', async () => {
     const file = path.join(tmp, 'elsewhere', 'snapshots.json');
-    const repository = new FileMrSnapshotRepository(cloneData('a'), { cacheFile: file });
+    const repository = new FilePrSnapshotRepository(cloneData('a'), { cacheFile: file });
 
     await repository.save(id, makeSnapshot());
 
@@ -184,10 +184,10 @@ describe('FileMrSnapshotRepository の開いている PR の控え', () => {
   });
 });
 
-describe('FileMrSnapshotRepository のマージ済みの PR の控え', () => {
+describe('FilePrSnapshotRepository のマージ済みの PR の控え', () => {
   it('データ用ブランチの snapshots/<id>.json にコミットして push し、使い捨ての控えからは外す', async () => {
     const store = cloneData('a');
-    const repository = new FileMrSnapshotRepository(store);
+    const repository = new FilePrSnapshotRepository(store);
 
     await repository.save(id, makeSnapshot());
     await repository.save(id, merged());
@@ -202,21 +202,21 @@ describe('FileMrSnapshotRepository のマージ済みの PR の控え', () => {
   });
 
   it('ほかの clone からも読める', async () => {
-    await new FileMrSnapshotRepository(cloneData('a')).save(id, merged());
+    await new FilePrSnapshotRepository(cloneData('a')).save(id, merged());
 
     // 新しい clone は控えを持たずに始まる（クラウドのセッション）
-    expect(await new FileMrSnapshotRepository(cloneData('b')).findAll()).toEqual(
+    expect(await new FilePrSnapshotRepository(cloneData('b')).findAll()).toEqual(
       new Map([[id, merged()]])
     );
   });
 
   it('findMerged はデータ用ブランチのマージ済みだけを読み、使い捨ての控えは読まない', async () => {
     const store = cloneData('a');
-    const repository = new FileMrSnapshotRepository(store);
+    const repository = new FilePrSnapshotRepository(store);
     const open = 'open-card' as CardId;
 
     await repository.save(id, merged());
-    await repository.save(open, makeSnapshot({ iid: 43 as MergeRequestIid }));
+    await repository.save(open, makeSnapshot({ iid: 43 as PullRequestNumber }));
 
     expect(await repository.findMerged()).toEqual(new Map([[id, merged()]]));
     expect((await repository.findAll()).has(open)).toBe(true);
@@ -226,11 +226,11 @@ describe('FileMrSnapshotRepository のマージ済みの PR の控え', () => {
     const a = cloneData('a');
     const b = cloneData('b');
 
-    await new FileMrSnapshotRepository(a).save(id, merged());
+    await new FilePrSnapshotRepository(a).save(id, merged());
     // 項目の順が違っても、同じ中身なら同じファイルになる
     const reordered = merged();
-    await new FileMrSnapshotRepository(b).save(id, {
-      mr: Object.fromEntries(Object.entries(reordered.mr).reverse()) as MrSnapshot['mr'],
+    await new FilePrSnapshotRepository(b).save(id, {
+      mr: Object.fromEntries(Object.entries(reordered.mr).reverse()) as PrSnapshot['mr'],
       fingerprint: reordered.fingerprint,
     });
 
@@ -241,9 +241,9 @@ describe('FileMrSnapshotRepository のマージ済みの PR の控え', () => {
   });
 
   it('番号を付け替えて開いている PR を書くと、前のマージ済みの控えを消す', async () => {
-    const repository = new FileMrSnapshotRepository(cloneData('a'));
+    const repository = new FilePrSnapshotRepository(cloneData('a'));
 
-    await repository.save(id, merged({ iid: 41 as MergeRequestIid }));
+    await repository.save(id, merged({ iid: 41 as PullRequestNumber }));
     await repository.save(id, makeSnapshot());
 
     expect(await repository.findAll()).toEqual(new Map([[id, makeSnapshot()]]));
@@ -252,7 +252,7 @@ describe('FileMrSnapshotRepository のマージ済みの PR の控え', () => {
   });
 
   it('消すとデータ用ブランチからも消す', async () => {
-    const repository = new FileMrSnapshotRepository(cloneData('a'));
+    const repository = new FilePrSnapshotRepository(cloneData('a'));
 
     await repository.save(id, merged());
     await repository.delete(id);
@@ -262,10 +262,10 @@ describe('FileMrSnapshotRepository のマージ済みの PR の控え', () => {
   });
 
   it('データ用ブランチに書けなくても例外を投げず、警告して使い捨ての控えにも残さない', async () => {
-    // 投げるとポーラーの接続が error になり、ループが止まる。書けなかった控えは次のプロセスが引き直す
+    // 投げると `PrFetcher` の接続が error になり、ループが止まる。書けなかった控えは次のプロセスが引き直す
     const store = cloneData('a');
     git(store.dataDir, 'remote', 'set-url', 'origin', path.join(tmp, 'missing.git'));
-    const repository = new FileMrSnapshotRepository(store);
+    const repository = new FilePrSnapshotRepository(store);
 
     await repository.save(id, makeSnapshot());
     await expect(repository.save(id, merged())).resolves.toBeUndefined();
@@ -279,7 +279,7 @@ describe('FileMrSnapshotRepository のマージ済みの PR の控え', () => {
   });
 });
 
-describe('FileMrSnapshotRepository の読めない控え', () => {
+describe('FilePrSnapshotRepository の読めない控え', () => {
   it('形の合わない控えと、ID として不正な名前は黙って外す', async () => {
     const store = cloneData('a');
     const snapshots = path.join(store.dataDir, SNAPSHOTS_DIR);
@@ -296,7 +296,7 @@ describe('FileMrSnapshotRepository の読めない控え', () => {
       })
     );
 
-    const found = await new FileMrSnapshotRepository(store).findAll();
+    const found = await new FilePrSnapshotRepository(store).findAll();
 
     expect([...found.keys()].sort()).toEqual(['merged-one', id]);
   });
@@ -310,13 +310,13 @@ describe('FileMrSnapshotRepository の読めない控え', () => {
       JSON.stringify({ fingerprint: '[1,"closed"]', mr: old })
     );
 
-    expect((await new FileMrSnapshotRepository(store).findAll()).size).toBe(0);
+    expect((await new FilePrSnapshotRepository(store).findAll()).size).toBe(0);
   });
 
   it('壊れた使い捨ての控えは空とみなし、書き直せる', async () => {
     const store = cloneData('a');
     write(cacheFile(store), '{');
-    const repository = new FileMrSnapshotRepository(store);
+    const repository = new FilePrSnapshotRepository(store);
 
     expect((await repository.findAll()).size).toBe(0);
 
@@ -326,11 +326,11 @@ describe('FileMrSnapshotRepository の読めない控え', () => {
   });
 });
 
-describe('parseMrSnapshot', () => {
+describe('parsePrSnapshot', () => {
   it('latestAiNoteAt を持たない古い控えは null で読む', () => {
     const { latestAiNoteAt: _dropped, ...old } = makeSnapshot().mr;
 
-    const parsed = parseMrSnapshot({ fingerprint: '[1,"open"]', mr: old });
+    const parsed = parsePrSnapshot({ fingerprint: '[1,"open"]', mr: old });
 
     expect(parsed?.mr.latestAiNoteAt).toBeNull();
     expect(parsed?.mr.noteCount).toBe(3);

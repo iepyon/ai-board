@@ -2,7 +2,7 @@ import { readDataMode, type BoardPaths } from '../shared/config.js';
 import type { CliRunner } from '../infrastructure/cli-runner.js';
 import { err, isErr, ok } from '../shared/result.js';
 import { createDataStore, type DataStore } from '../infrastructure/data-store.js';
-import type { MrNumberWriter } from '../infrastructure/forge-poller.js';
+import type { PrNumberWriter } from '../infrastructure/pr-fetcher.js';
 import type { CardRepository } from './repositories/card.repository.js';
 import type { IdeaDividerRepository } from './repositories/idea-divider.repository.js';
 import { CardWriteRefusedError, FileCardRepository } from './repositories/file-card.repository.js';
@@ -103,20 +103,20 @@ export function createCardCliParts(store: DataStore): CardCliParts {
 }
 
 /**
- * ポーラーが PR 番号を書き戻すとき、書き込みの 1 操作（`DataStore.transact`）の中で書く。
+ * `PrFetcher` が PR 番号を書き戻すとき、書き込みの 1 操作（`DataStore.transact`）の中で書く。
  *
  * データのワークツリーのファイルを書くだけでは、コミットも push もされず、次の取り直しで捨てられる。
  * 取り直した最新のカードを読み直し、番号が違うときだけ番号を書く（人がその間に書いた判断などを消さない）。
  * コミットには ID だけを入れ、ブランチ名は入れない。
  *
  * 書けなくても（オフライン、push の拒否、ロックの待ち切れ、リポジトリの拒否）、警告するだけで例外を投げない。
- * 投げるとポーラーの接続の状態が error になり、ループが止まる。番号は次の問い合わせで解決し直される。
+ * 投げると `PrFetcher` の接続の状態が error になり、ループが止まる。番号は次の問い合わせで解決し直される。
  * `transact` の中から呼ばないこと（同じプロセスの中で 1 列に並ぶので、自分を待って止まる）。
  */
-export function createTransactionalMrWriter(
+export function createTransactionalPrWriter(
   store: Pick<DataStore, 'transact'>,
   warn: (message: string) => void = (message) => console.warn(message)
-): MrNumberWriter {
+): PrNumberWriter {
   return async (cardId, iid) => {
     const result = await store.transact<void, CardWriteRefusedError['reason']>(
       `data: ${cardId} の mr を書き戻す`,

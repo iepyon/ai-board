@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 import matter from 'gray-matter';
-import type { CardId, MergeRequestIid } from '../../shared/schemas/common.js';
+import type { CardId, PullRequestNumber } from '../../shared/schemas/common.js';
 import { CardFrontmatterSchema } from '../models/schemas/card.schema.js';
 import type { Card } from '../models/card.js';
 
@@ -65,7 +65,7 @@ export function parseCard(filePath: string, raw: string): Card | null {
     startedAt: frontmatter.startedAt,
     skipGates: frontmatter.skipGates,
     branch: frontmatter.branch,
-    mr: frontmatter.mr as MergeRequestIid | null,
+    mr: frontmatter.mr as PullRequestNumber | null,
     rank: frontmatter.rank,
     body: normalizeBody(parsed.content),
   };

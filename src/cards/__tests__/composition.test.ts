@@ -6,17 +6,17 @@ import * as path from 'node:path';
 import { err, ok } from '../../shared/result.js';
 import { createCliRunner } from '../../infrastructure/cli-runner.js';
 import { createDataStore, DATA_BRANCH, type DataStore } from '../../infrastructure/data-store.js';
-import { ForgePoller } from '../../infrastructure/forge-poller.js';
+import { PrFetcher } from '../../infrastructure/pr-fetcher.js';
 import type { ForgeClient } from '../../board/services/forge-client.js';
-import type { MrSnapshot, MrState } from '../../board/models/mr-state.js';
-import type { MrSnapshotRepository } from '../../board/repositories/mr-snapshot.repository.js';
-import type { CardId, MergeRequestIid } from '../../shared/schemas/common.js';
+import type { PrSnapshot, PrState } from '../../board/models/pr-state.js';
+import type { PrSnapshotRepository } from '../../board/repositories/pr-snapshot.repository.js';
+import type { CardId, PullRequestNumber } from '../../shared/schemas/common.js';
 import type { Card } from '../models/card.js';
 import { FileCardRepository } from '../repositories/file-card.repository.js';
-import { createTransactionalMrWriter } from '../composition.js';
+import { createTransactionalPrWriter } from '../composition.js';
 
 // ============================================================
-// ポーラーの PR 番号の書き戻しを、書き込みの 1 操作に通す
+// `PrFetcher` の PR 番号の書き戻しを、書き込みの 1 操作に通す
 // ============================================================
 
 const CARD_ID = 'refresh-token' as CardId;
@@ -38,10 +38,10 @@ function makeCard(overrides: Partial<Card> = {}): Card {
   };
 }
 
-function makeMr(): MrState {
+function makePr(): PrState {
   return {
     forge: 'github',
-    iid: 42 as MergeRequestIid,
+    iid: 42 as PullRequestNumber,
     state: 'opened',
     draft: true,
     sourceBranch: BRANCH,
@@ -57,16 +57,16 @@ function makeMr(): MrState {
   };
 }
 
-class InMemoryMrSnapshotRepository implements MrSnapshotRepository {
-  readonly rows = new Map<CardId, MrSnapshot>();
+class InMemoryPrSnapshotRepository implements PrSnapshotRepository {
+  readonly rows = new Map<CardId, PrSnapshot>();
 
-  async findAll(): Promise<Map<CardId, MrSnapshot>> {
+  async findAll(): Promise<Map<CardId, PrSnapshot>> {
     return new Map(this.rows);
   }
-  async findMerged(): Promise<Map<CardId, MrSnapshot>> {
+  async findMerged(): Promise<Map<CardId, PrSnapshot>> {
     return new Map([...this.rows].filter(([, snapshot]) => snapshot.mr.state === 'merged'));
   }
-  async save(cardId: CardId, snapshot: MrSnapshot): Promise<void> {
+  async save(cardId: CardId, snapshot: PrSnapshot): Promise<void> {
     this.rows.set(cardId, snapshot);
   }
   async delete(cardId: CardId): Promise<void> {
@@ -78,17 +78,17 @@ class InMemoryMrSnapshotRepository implements MrSnapshotRepository {
 function branchClient(beforeResolve: () => Promise<void> = async () => undefined): ForgeClient {
   return {
     kind: 'github',
-    fetchByIid: vi.fn(async () => ({ mr: makeMr(), fingerprint: 'f' })),
+    fetchByIid: vi.fn(async () => ({ mr: makePr(), fingerprint: 'f' })),
     fetchByBranch: vi.fn(async () => {
       await beforeResolve();
-      return { mr: makeMr(), fingerprint: 'f' };
+      return { mr: makePr(), fingerprint: 'f' };
     }),
     checkAuth: vi.fn(async () => null),
   };
 }
 
 // 本物の git を何度も走らせるので、既定の 5 秒では遅い CI で足りないことがある
-describe('createTransactionalMrWriter', { timeout: 30_000 }, () => {
+describe('createTransactionalPrWriter', { timeout: 30_000 }, () => {
   let tmp: string;
   let origin: string;
 
@@ -147,24 +147,24 @@ describe('createTransactionalMrWriter', { timeout: 30_000 }, () => {
   it('ブランチから解決した PR 番号を、コミットして origin へ push する', async () => {
     const store = cloneStore('a');
     const cards = new FileCardRepository(store.dataDir);
-    const poller = new ForgePoller(cards, branchClient(), new InMemoryMrSnapshotRepository(), {
-      writeMr: createTransactionalMrWriter(store),
+    const fetcher = new PrFetcher(cards, branchClient(), new InMemoryPrSnapshotRepository(), {
+      writePr: createTransactionalPrWriter(store),
     });
 
-    await poller.refresh();
+    await fetcher.refresh();
 
     expect(originLog()[0]).toBe(WRITE_BACK_MESSAGE);
     expect((await readFromOrigin('b'))?.mr).toBe(42);
-    expect(poller.connection()).toEqual({ status: 'connected', kind: 'github' });
+    expect(fetcher.connection()).toEqual({ status: 'connected', kind: 'github' });
   });
 
   it('番号が既に入っていれば、コミットしない', async () => {
     const store = cloneStore('a');
-    const writeMr = createTransactionalMrWriter(store);
+    const writePr = createTransactionalPrWriter(store);
 
-    await writeMr(CARD_ID, 42 as MergeRequestIid);
+    await writePr(CARD_ID, 42 as PullRequestNumber);
     const before = originLog();
-    await writeMr(CARD_ID, 42 as MergeRequestIid);
+    await writePr(CARD_ID, 42 as PullRequestNumber);
 
     expect(originLog()).toEqual(before);
   });
@@ -184,11 +184,11 @@ describe('createTransactionalMrWriter', { timeout: 30_000 }, () => {
       expect(written.ok).toBe(true);
     });
 
-    await new ForgePoller(
+    await new PrFetcher(
       new FileCardRepository(store.dataDir),
       client,
-      new InMemoryMrSnapshotRepository(),
-      { writeMr: createTransactionalMrWriter(store) }
+      new InMemoryPrSnapshotRepository(),
+      { writePr: createTransactionalPrWriter(store) }
     ).refresh();
 
     const card = await readFromOrigin('b');
@@ -196,24 +196,24 @@ describe('createTransactionalMrWriter', { timeout: 30_000 }, () => {
     expect(card?.body).toContain('書き直した');
   });
 
-  it('書き込みに失敗しても例外を投げず、警告してポーラーの接続を保つ', async () => {
+  it('書き込みに失敗しても例外を投げず、警告して `PrFetcher` の接続を保つ', async () => {
     const store = cloneStore('a');
     const warn = vi.fn();
     const failing: Pick<DataStore, 'transact'> = {
       transact: async () =>
         err({ type: 'DataStorePushFailed', attempts: 4, message: 'rejected' } as const),
     };
-    const poller = new ForgePoller(
+    const fetcher = new PrFetcher(
       new FileCardRepository(store.dataDir),
       branchClient(),
-      new InMemoryMrSnapshotRepository(),
-      { writeMr: createTransactionalMrWriter(failing, warn) }
+      new InMemoryPrSnapshotRepository(),
+      { writePr: createTransactionalPrWriter(failing, warn) }
     );
 
-    await poller.refresh();
+    await fetcher.refresh();
 
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('DataStorePushFailed'));
-    expect(poller.connection()).toEqual({ status: 'connected', kind: 'github' });
-    expect(poller.get(CARD_ID)?.iid).toBe(42);
+    expect(fetcher.connection()).toEqual({ status: 'connected', kind: 'github' });
+    expect(fetcher.get(CARD_ID)?.iid).toBe(42);
   });
 });

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { SNAPSHOTS_DIR } from '../board/repositories/file-mr-snapshot.repository.js';
+import { SNAPSHOTS_DIR } from '../board/repositories/file-pr-snapshot.repository.js';
 import { LOOP_DIR } from '../board/repositories/loop-history.repository.js';
 import {
   CARDS_DIR,

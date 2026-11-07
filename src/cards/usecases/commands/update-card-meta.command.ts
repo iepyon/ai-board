@@ -1,5 +1,5 @@
 import { ok, err, type Result } from '../../../shared/result.js';
-import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
+import type { CardId, PullRequestNumber } from '../../../shared/schemas/common.js';
 import type { ReviewGate } from '../../models/review.js';
 import type { Card } from '../../models/card.js';
 import type { CardRepository } from '../../repositories/card.repository.js';
@@ -45,7 +45,7 @@ export function createUpdateCardMetaCommand(cardRepository: CardRepository): Upd
       startedAt: pick(patch.startedAt, existing.startedAt),
       skipGates: patch.skipGates ?? existing.skipGates,
       branch: pick(patch.branch, existing.branch),
-      mr: pick(patch.mr, existing.mr) as MergeRequestIid | null,
+      mr: pick(patch.mr, existing.mr) as PullRequestNumber | null,
     };
 
     const saved = await cardRepository.save(updated);

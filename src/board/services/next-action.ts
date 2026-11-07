@@ -2,7 +2,7 @@ import type { Stage } from '../../shared/schemas/common.js';
 import type { GateState, ReviewEntry, ReviewGate } from '../../cards/models/review.js';
 import { latestGateEntry } from '../../cards/services/review-log.js';
 import type { ImplStep } from './impl-step.js';
-import type { ForgeCardFailure } from '../models/mr-state.js';
+import type { ForgeCardFailure } from '../models/pr-state.js';
 import type { CardHoldKind } from '../../shared/board-sections.js';
 
 // ============================================================
@@ -86,7 +86,7 @@ export interface HoldInput {
    */
   readonly mrKnown: boolean;
   /**
-   * そのカードの PR を直近の取得で引けなかったか（`MrStateProvider.failure`）。引けていれば null。
+   * そのカードの PR を直近の取得で引けなかったか（`PrStateProvider.failure`）。引けていれば null。
    * 引けなかったカードの `mr` は前に引けた控えで、古いことがある
    */
   readonly mrFailure: ForgeCardFailure | null;

@@ -35,13 +35,13 @@ GitHub が未設定のボードでは、Draft の PR の代わりにカードの
 未設定のボードでは、締めが済んだか（ブランチに `plans/<id>.md` が無く `plans/archive/<id>.md` がある）だけを `GitBranchPlanRepository.findClosed` で読み、マージ待ちの止まりにだけ使う。
 読むのは `branchCloseTarget` が選んだカード（着手済み・`branch` あり・メインに計画なし・plan が `approved`）だけ。人がメインのチェックアウトで `git merge --no-ff <branch>` すれば、メインに archive が入って規則 1 でマージ済みになる。
 `draft` だけでは「まだ Ready にしていない」と「人が Draft に戻した」を見分けられないので、
-最後の `convert_to_draft` の時刻を `MrState.convertedToDraftAt` に持つ。
+最後の `convert_to_draft` の時刻を `PrState.convertedToDraftAt` に持つ。
 
 止まりは `src/board/services/next-action.ts` の `resolveHold` が導き、`BoardCard.hold`（`{ kind, reason, since }` か `null`）に載る。
 `kind` は人の判断で解く `decision` と、PR の状態を引けない `forge` の 2 つ。`reason` の文は `HOLD_REASONS`。
 未設定のボードのブランチのマージ待ち（`branchClosed`）は `decision` で、出せる判断は Draft に戻された止まりと同じ 計画から立て直させる / 中止。
 
-- `forge`: そのカードの PR だけを直近の取得で引けなかった（`MrStateProvider.failure`）。アイデア / マージ済み / 中止を除いて立ち、ほかより先に見る。
+- `forge`: そのカードの PR だけを直近の取得で引けなかった（`PrStateProvider.failure`）。アイデア / マージ済み / 中止を除いて立ち、ほかより先に見る。
   前に引けた控えは古いことがあるので、`decisionsFor` と `droppableStages` を空にし、`ai-board decide` も判断と着手を拒む
 - 実装中で、人の最新の判断より後に `convertedToDraftAt` がある（見ないと締めの段が Ready にし直してしまう）
 - 計画提案中で、plan の最新が 保留
@@ -82,7 +82,7 @@ push が拒否されたら取り直したボードで検査からやり直す。
 
 ## `ai-board status` と次の一手
 
-ボードは `src/board/composition.ts` の `assembleBoard`（`createMrStateSource` → `getBoardQuery`）が組み、`status` と `decide` が共有する。
+ボードは `src/board/composition.ts` の `assembleBoard`（`createPrStateSource` → `getBoardQuery`）が組み、`status` と `decide` が共有する。
 PR の状態は `refresh()` を 1 回待って引き、`branch` から解決した PR 番号の書き戻しもここで起きる。
 見せる形は `src/board/usecases/queries/get-status.query.ts` が組み、`status-cli.ts` は引数と整形だけを持つ。
 
@@ -137,7 +137,7 @@ rebase しないのは、離れた行の編集を git が黙って混ぜ、検�
 `config.yaml` に `github:` が無ければ（未設定。`isForgeUnset`）PR中 / マージ済み の列が空になるだけでボードは動き、人の判断と次の一手も接続済みと同じに通す（`forgeTrusted`）。
 未設定のボードで PR 番号を持つカード（途中で `github:` を外した）は、そのカードだけを止まり（`forge`、`unsetPr`）にする。
 `github:` があって使えない・エラーのときは、判断と着手を拒み `next` を出さない（列を取り違えるため）。
-使えない（`checkAuth` が失敗した）あいだも、データ用ブランチのマージ済みの控えのうち、カードの `mr` と番号が合うものだけは PR の状態として出す（`matchMergedSnapshots`、`unavailableMrStateProvider`）。
+使えない（`checkAuth` が失敗した）あいだも、データ用ブランチのマージ済みの控えのうち、カードの `mr` と番号が合うものだけは PR の状態として出す（`matchMergedSnapshots`、`unavailablePrStateProvider`）。
 マージ済みは二度と変わらないので古さを気にしない。マージ前の控え（`cache/`）は古いことがあるので使わず、`synced` も偽のままにする。
 
 - 引けるかは CLI を動かすたびに `gh api repos/<owner>/<repo>` を 1 回引いて確かめる（`ForgeClient.checkAuth`）。クラウドでは `gh auth status` が失敗するので使わない
@@ -148,19 +148,19 @@ rebase しないのは、離れた行の編集を git が黙って混ぜ、検�
 - コメントは issue comment と review comment を `--paginate` で全ページ引いて合算する。`user.type === 'Bot'` は外す
 - 最新コミットは `head.sha`。`issues/{n}/events` から最後の `ready_for_review`（無く Ready なら作成時刻）を `readyAt`、
   最後の `convert_to_draft`（今 open かつ Draft のときだけ）を `convertedToDraftAt` にする（`draftTransitionsOf`）
-- PR 一覧は引かず、カードごとに `mr`、無ければ `branch` から解決して番号を書き戻す（`ForgePoller.fetchFor`、`createTransactionalMrWriter`）
+- PR 一覧は引かず、カードごとに `mr`、無ければ `branch` から解決して番号を書き戻す（`PrFetcher.fetchFor`、`createTransactionalPrWriter`）
 
 **PR の指摘に AI が応える番。** AI も人のアカウントで書くので、本文の最後の行が Claude Code のフッター（`CLAUDE_CODE_FOOTER`）であるコメントを AI のもの（`isAiComment`）とする。
 引用の中のフッターで人の指摘を見落とさないよう、含むだけでは読まない。`ai-board pr comment` はフッターを足す（`withClaudeCodeFooter`）。
 `src/shared/pr-feedback.ts` の `awaitsPrFix` は、Ready で開いた PR で人の最新のコメントが最新コミットと AI の最新のコメントより後のときに真で、
-`BoardCardMr.awaitingFix` に載る。読むのは区画と次の一手（`fix-pr`）だけで、ステージは変えない。
+`BoardCardPr.awaitingFix` に載る。読むのは区画と次の一手（`fix-pr`）だけで、ステージは変えない。
 
-**控え。** PR 1 枚で 4 回以上引くので、結果を控えて問い合わせを省く（`src/board/repositories/file-mr-snapshot.repository.ts`）。
+**控え。** PR 1 枚で 4 回以上引くので、結果を控えて問い合わせを省く（`src/board/repositories/file-pr-snapshot.repository.ts`）。
 
 - マージ済みの PR は二度と引かず（`isSettled`）、データ用ブランチの `snapshots/<id>.json` に `transact` で書く
 - それ以外は `pulls/{n}` の指紋（`fingerprintOf`）が前回と同じなら詳細を引かない。控えは `<dataDir の親>/cache/mr-snapshots.json`
-- GitHub に届かないときは、マージ済みの控え（`findMerged`）だけを読み、書かない（ポーラーを作らない）
-- 控えは導出の入力ではないので、書けなくても警告だけ。`MrState` に項目を足すと古い控えは検証で外れ、`enrich` を変えたら `FINGERPRINT_VERSION` を上げる
+- GitHub に届かないときは、マージ済みの控え（`findMerged`）だけを読み、書かない（`PrFetcher` を作らない）
+- 控えは導出の入力ではないので、書けなくても警告だけ。`PrState` に項目を足すと古い控えは検証で外れ、`enrich` を変えたら `FINGERPRINT_VERSION` を上げる
 
 ### `ai-board pr checks`
 

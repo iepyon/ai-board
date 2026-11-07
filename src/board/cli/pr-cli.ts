@@ -1,14 +1,14 @@
 import { promises as fs } from 'node:fs';
 import type { CardCliIo } from '../../cards/cli/card-cli.js';
 import type { ForgeConfig } from '../../shared/config.js';
-import type { MergeRequestIid } from '../../shared/schemas/common.js';
+import type { PullRequestNumber } from '../../shared/schemas/common.js';
 import { isErr } from '../../shared/result.js';
 import {
   describeCliError,
   type CliError,
   type CliRunner,
 } from '../../infrastructure/cli-runner.js';
-import { toMergeRequestIid } from '../services/forge-client.js';
+import { toPullRequestNumber } from '../services/forge-client.js';
 import {
   GhPullRequestClient,
   type PullRequestChecks,
@@ -16,7 +16,7 @@ import {
   type PullRequestView,
   withClaudeCodeFooter,
 } from '../services/github-client.js';
-import type { MrLifecycleState } from '../models/mr-state.js';
+import type { PrLifecycleState } from '../models/pr-state.js';
 import type { CheckRow, ChecksSummary, ChecksVerdict } from '../services/pr-checks.js';
 
 // ============================================================
@@ -465,7 +465,7 @@ function parseChecksOptions(
 }
 
 function reportChecks(
-  iid: MergeRequestIid,
+  iid: PullRequestNumber,
   summary: ChecksSummary,
   json: boolean,
   timedOut: boolean,
@@ -506,7 +506,7 @@ function reportChecks(
 // ============================================================
 
 /** 位置引数の PR 番号を 1 つだけ取り出す。正の整数でなければ null */
-function requireIid(args: ParsedArgs, io: PrCliIo): MergeRequestIid | null {
+function requireIid(args: ParsedArgs, io: PrCliIo): PullRequestNumber | null {
   const [raw, ...extra] = args.positionals;
 
   if (raw === undefined) {
@@ -522,7 +522,7 @@ function requireIid(args: ParsedArgs, io: PrCliIo): MergeRequestIid | null {
     return null;
   }
 
-  return toMergeRequestIid(Number(raw));
+  return toPullRequestNumber(Number(raw));
 }
 
 function requireValue(args: ParsedArgs, flag: string, io: PrCliIo): string | null {
@@ -566,7 +566,7 @@ export function describePrError(error: CliError): string {
     : message;
 }
 
-const STATE_LABELS: Readonly<Record<MrLifecycleState, string>> = {
+const STATE_LABELS: Readonly<Record<PrLifecycleState, string>> = {
   opened: '開いている',
   merged: 'マージ済み',
   closed: '閉じている',

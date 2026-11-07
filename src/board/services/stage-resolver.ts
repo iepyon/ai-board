@@ -3,7 +3,7 @@ import type { Card } from '../../cards/models/card.js';
 import type { GateState, ReviewGate } from '../../cards/models/review.js';
 import { gateStates, isAborted, parseReviewLog } from '../../cards/services/review-log.js';
 import type { PlanDoc } from '../models/plan-state.js';
-import type { MrState } from '../models/mr-state.js';
+import type { PrState } from '../models/pr-state.js';
 
 // ============================================================
 // ステージ導出 — このプロジェクトの核
@@ -56,7 +56,7 @@ export interface StageResolution {
 export function resolveStage(
   card: Card,
   plan: PlanDoc | null,
-  mr: MrState | null
+  mr: PrState | null
 ): StageResolution {
   const facts = toFacts(card, plan, mr);
   const { stage, reason } = deriveStage(facts);
@@ -71,7 +71,7 @@ export function resolveStage(
  * 導出ルールを二重に持たないよう、`startedAt` を落としたカードで
  * 同じ `deriveStage` を呼ぶ。
  */
-export function resolveFloorStage(card: Card, plan: PlanDoc | null, mr: MrState | null): Stage {
+export function resolveFloorStage(card: Card, plan: PlanDoc | null, mr: PrState | null): Stage {
   return deriveStage(toFacts({ ...card, startedAt: null }, plan, mr)).stage;
 }
 
@@ -94,12 +94,12 @@ interface Derivation {
 interface Facts {
   readonly card: Card;
   readonly plan: PlanDoc | null;
-  readonly mr: MrState | null;
+  readonly mr: PrState | null;
   readonly gates: Readonly<Record<ReviewGate, GateState>>;
   readonly aborted: boolean;
 }
 
-function toFacts(card: Card, plan: PlanDoc | null, mr: MrState | null): Facts {
+function toFacts(card: Card, plan: PlanDoc | null, mr: PrState | null): Facts {
   const entries = parseReviewLog(card.body);
 
   return {
@@ -204,7 +204,7 @@ export function planReviewable(gate: GateState): boolean {
  *
  * かつては `ai-pr-fixed` 列を立てていたが、いまは `pr` 列内のバッジに使う。
  */
-export function hasFixAfterReview(mr: MrState): boolean {
+export function hasFixAfterReview(mr: PrState): boolean {
   if (mr.latestNoteAt === null || mr.latestCommitAt === null) {
     return false;
   }

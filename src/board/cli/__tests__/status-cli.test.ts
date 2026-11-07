@@ -8,9 +8,9 @@ import { REVIEW_HEADING, parseReviewLog } from '../../../cards/services/review-l
 import { isErr } from '../../../shared/result.js';
 import { createBoardDependencies, createLoopHistoryRepository } from '../../composition.js';
 import { writeLoopFinish, writeLoopStart } from '../../repositories/loop-history.repository.js';
-import type { MrStateProvider } from '../../services/mr-state-provider.js';
-import type { ForgeConnection, MrState } from '../../models/mr-state.js';
-import type { MergeRequestIid } from '../../../shared/schemas/common.js';
+import type { PrStateProvider } from '../../services/pr-state-provider.js';
+import type { ForgeConnection, PrState } from '../../models/pr-state.js';
+import type { PullRequestNumber } from '../../../shared/schemas/common.js';
 import { HOLD_REASONS } from '../../services/next-action.js';
 import {
   emptyBranchPlanRepository,
@@ -83,7 +83,7 @@ function review(kind: string): string {
 
 function stubProvider(
   connection: ForgeConnection = { status: 'connected', kind: 'github' }
-): MrStateProvider {
+): PrStateProvider {
   return {
     get: () => null,
     connection: () => connection,
@@ -121,7 +121,7 @@ async function run(
   );
 }
 
-async function runJson(provider?: MrStateProvider): Promise<StatusReport> {
+async function runJson(provider?: PrStateProvider): Promise<StatusReport> {
   expect(await run(['--json'], provider)).toBe(0);
   return JSON.parse(stdout) as StatusReport;
 }
@@ -161,9 +161,9 @@ describe('ai-board status --json', () => {
       review('承認')
     );
 
-    const pr = (iid: number, latestNoteAt: string | null): MrState => ({
+    const pr = (iid: number, latestNoteAt: string | null): PrState => ({
       forge: 'github',
-      iid: iid as MergeRequestIid,
+      iid: iid as PullRequestNumber,
       state: 'opened',
       draft: false,
       sourceBranch: `branch-${iid}`,
@@ -177,11 +177,11 @@ describe('ai-board status --json', () => {
       readyAt: '2026-10-21T00:00:00.000Z',
       convertedToDraftAt: null,
     });
-    const states: Record<string, MrState> = {
+    const states: Record<string, PrState> = {
       fixing: pr(12, '2026-10-22T00:00:00.000Z'),
       'waiting-pr': pr(13, null),
     };
-    const provider: MrStateProvider = {
+    const provider: PrStateProvider = {
       get: (cardId) => states[cardId] ?? null,
       connection: () => ({ status: 'connected', kind: 'github' }),
       synced: () => true,
@@ -322,7 +322,7 @@ describe('ai-board status --json', () => {
   it('1 枚の PR だけを引けないときは、そのカードを判断待ちに出し、出せる判断を出さずに後ろのカードを選ぶ', async () => {
     await writeCard('failing', "startedAt: '2026-10-20T00:00:00.000Z'\nrank: 1\nbranch: failing\n");
     await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\nrank: 2\n");
-    const provider: MrStateProvider = {
+    const provider: PrStateProvider = {
       get: () => null,
       connection: () => ({ status: 'connected', kind: 'github' }),
       synced: () => true,

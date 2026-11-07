@@ -202,7 +202,7 @@ function holdInput(
   };
 }
 
-const draftMr = (convertedToDraftAt: string | null): HoldInput['mr'] => ({
+const draftPr = (convertedToDraftAt: string | null): HoldInput['mr'] => ({
   iid: 38,
   convertedToDraftAt,
 });
@@ -261,7 +261,7 @@ describe('resolveHold', () => {
     it('ほかの止まりより先に見る', () => {
       const hold = resolveHold(
         holdInput('impling', approvedPlan, {
-          mr: draftMr('2026-10-20T01:00:00Z'),
+          mr: draftPr('2026-10-20T01:00:00Z'),
           mrFailure: failure,
         })
       );
@@ -335,7 +335,7 @@ describe('resolveHold', () => {
   });
 
   it('中止のカードと AI の列でないカードは止まりにしない', () => {
-    const mr = draftMr('2026-10-20T01:00:00Z');
+    const mr = draftPr('2026-10-20T01:00:00Z');
 
     expect(resolveHold(holdInput('impling', approvedPlan, { aborted: true, mr }))).toBeNull();
     expect(resolveHold(holdInput('pr', approvedPlan, { mr }))).toBeNull();
@@ -344,7 +344,7 @@ describe('resolveHold', () => {
   it('計画の承認の後に PR が Draft に戻されたら、implement を選ばずに止まる', () => {
     // Ready にした PR を人が Draft に戻すと 実装中 に落ちる。止めないと archive 済みの段が Ready に戻してしまう
     const convertedAt = '2026-10-20T01:00:00Z';
-    const input = holdInput('impling', approvedPlan, { mr: draftMr(convertedAt) });
+    const input = holdInput('impling', approvedPlan, { mr: draftPr(convertedAt) });
     const hold = resolveHold(input);
 
     expect(hold).toEqual({
@@ -360,7 +360,7 @@ describe('resolveHold', () => {
 
   it('Draft に戻された時刻が最新のエントリより古ければ止まらない', () => {
     const hold = resolveHold(
-      holdInput('impling', approvedPlan, { mr: draftMr('2026-10-20T00:00:30Z') })
+      holdInput('impling', approvedPlan, { mr: draftPr('2026-10-20T00:00:30Z') })
     );
 
     expect(hold).toBeNull();
@@ -369,7 +369,7 @@ describe('resolveHold', () => {
   it('plan を飛ばす宣言のカードは、plan 提出 より後に Draft に戻されたら止まる', () => {
     const submitted = [entry(0, 'plan', '提出')];
     const hold = resolveHold(
-      holdInput('impling', submitted, { skipGates: ['plan'], mr: draftMr('2026-10-20T01:00:00Z') })
+      holdInput('impling', submitted, { skipGates: ['plan'], mr: draftPr('2026-10-20T01:00:00Z') })
     );
 
     expect(hold?.reason).toBe(HOLD_REASONS.draftReverted(38));
@@ -377,7 +377,7 @@ describe('resolveHold', () => {
       resolveHold(
         holdInput('impling', submitted, {
           skipGates: ['plan'],
-          mr: draftMr('2026-10-19T23:00:00Z'),
+          mr: draftPr('2026-10-19T23:00:00Z'),
         })
       )
     ).toBeNull();
@@ -413,7 +413,7 @@ describe('resolveHold', () => {
   });
 
   it('Draft に戻されたことが無い PR では止まらない', () => {
-    expect(resolveHold(holdInput('impling', approvedPlan, { mr: draftMr(null) }))).toBeNull();
+    expect(resolveHold(holdInput('impling', approvedPlan, { mr: draftPr(null) }))).toBeNull();
   });
 });
 

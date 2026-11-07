@@ -2,7 +2,7 @@
 // PR の指摘に AI が応える番 — ボードの導出が使う純関数
 // ============================================================
 
-/** 判定に要る PR の状態だけ。`MrState` が満たす */
+/** 判定に要る PR の状態だけ。`PrState` が満たす */
 export interface PrFeedbackInput {
   readonly state: 'opened' | 'closed' | 'locked' | 'merged';
   readonly draft: boolean;

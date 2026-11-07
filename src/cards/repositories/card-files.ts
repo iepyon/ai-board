@@ -3,7 +3,7 @@ import matter from 'gray-matter';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { z } from 'zod';
 import { ok, err, type Result } from '../../shared/result.js';
-import { CardIdSchema, type CardId, type MergeRequestIid } from '../../shared/schemas/common.js';
+import { CardIdSchema, type CardId, type PullRequestNumber } from '../../shared/schemas/common.js';
 import { CardFrontmatterSchema } from '../models/schemas/card.schema.js';
 import type { Card } from '../models/card.js';
 import {
@@ -32,7 +32,7 @@ import {
  * order.yaml                              rank とアイデアの区切り線
  * cards/<id>/card.md                      frontmatter（id, title, created, skipGates, branch, mr）と本文
  * cards/<id>/log/<時刻>.<gate>.<種別>.md   判断 1 件。中身は理由の本文
- * snapshots/<id>.json                    マージ済みの PR の控え（file-mr-snapshot.repository.ts）
+ * snapshots/<id>.json                    マージ済みの PR の控え（file-pr-snapshot.repository.ts）
  * loop/<時刻>.<ループの識別子>.json        ループの 1 手の記録（loop-history.repository.ts）
  * ```
  *
@@ -427,7 +427,7 @@ function parseCardFile(id: string, raw: string): ParsedCardFile | null {
       created: frontmatter.created,
       skipGates: frontmatter.skipGates,
       branch: frontmatter.branch,
-      mr: frontmatter.mr as MergeRequestIid | null,
+      mr: frontmatter.mr as PullRequestNumber | null,
     },
     body: stripReviewSection(parsed.content),
   };

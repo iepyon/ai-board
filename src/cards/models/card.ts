@@ -1,4 +1,4 @@
-import type { CardId, MergeRequestIid } from '../../shared/schemas/common.js';
+import type { CardId, PullRequestNumber } from '../../shared/schemas/common.js';
 import type { ReviewGate } from './review.js';
 
 // ============================================================
@@ -30,7 +30,7 @@ export interface Card {
   /** 人が事前に「見ない」と宣言したゲート。AI はここで止まらない */
   readonly skipGates: readonly ReviewGate[];
   readonly branch: string | null;
-  readonly mr: MergeRequestIid | null;
+  readonly mr: PullRequestNumber | null;
   /**
    * 並び順。小さいほど上に並ぶ。null なら `created` のエポックミリ秒とみなす
    * （`services/card-order.ts`）。優先度は人の判断であり、エージェントは書かない。

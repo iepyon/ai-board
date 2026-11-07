@@ -8,7 +8,7 @@ import { err, isErr } from '../../../shared/result.js';
 import type { CardId } from '../../../shared/schemas/common.js';
 import type { CommitMessage, DataOperation } from '../../../infrastructure/data-store.js';
 import { createBoardDependencies } from '../../composition.js';
-import type { MrStateProvider } from '../../services/mr-state-provider.js';
+import type { PrStateProvider } from '../../services/pr-state-provider.js';
 import type { GetBoardQuery } from '../queries/get-board.query.js';
 import { createDecideCommands, type DecideDependencies } from '../commands/decide.command.js';
 
@@ -42,7 +42,7 @@ async function writeIdea(id: string): Promise<void> {
   }
 }
 
-const connected: MrStateProvider = {
+const connected: PrStateProvider = {
   get: () => null,
   connection: () => ({ status: 'connected', kind: 'github' }),
   synced: () => true,

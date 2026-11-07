@@ -1,15 +1,15 @@
 import type { CardRepository } from '../cards/repositories/card.repository.js';
-import { createFileCardDependencies, createTransactionalMrWriter } from '../cards/composition.js';
+import { createFileCardDependencies, createTransactionalPrWriter } from '../cards/composition.js';
 import type { IdeaDividerRepository } from '../cards/repositories/idea-divider.repository.js';
 import { loadConfig, type ForgeConfig } from '../shared/config.js';
 import type { CliRunner } from '../infrastructure/cli-runner.js';
-import { ForgePoller, type ForgePollerOptions } from '../infrastructure/forge-poller.js';
+import { PrFetcher, type PrFetcherOptions } from '../infrastructure/pr-fetcher.js';
 import type { ForgeClient } from './services/forge-client.js';
 import { GhForgeClient } from './services/github-client.js';
 import { FsPlanRepository, type PlanRepository } from './repositories/plan.repository.js';
-import type { MrSnapshotRepository } from './repositories/mr-snapshot.repository.js';
-import type { MrState } from './models/mr-state.js';
-import { FileMrSnapshotRepository } from './repositories/file-mr-snapshot.repository.js';
+import type { PrSnapshotRepository } from './repositories/pr-snapshot.repository.js';
+import type { PrState } from './models/pr-state.js';
+import { FilePrSnapshotRepository } from './repositories/file-pr-snapshot.repository.js';
 import {
   emptyBranchPlanRepository,
   GitBranchPlanRepository,
@@ -17,11 +17,11 @@ import {
 } from './repositories/branch-plan.repository.js';
 import type { DataStore } from '../infrastructure/data-store.js';
 import {
-  disabledMrStateProvider,
+  disabledPrStateProvider,
   matchMergedSnapshots,
-  unavailableMrStateProvider,
-  type MrStateProvider,
-} from './services/mr-state-provider.js';
+  unavailablePrStateProvider,
+  type PrStateProvider,
+} from './services/pr-state-provider.js';
 import { createGetBoardQuery, type GetBoardQuery } from './usecases/queries/get-board.query.js';
 import { createGetStatusQuery, type GetStatusQuery } from './usecases/queries/get-status.query.js';
 import { createDecideCommands, type DecideCommands } from './usecases/commands/decide.command.js';
@@ -48,7 +48,7 @@ export function createBoardDependencies(
   plansDir: string,
   cardRepository: CardRepository,
   ideaDividerRepository: IdeaDividerRepository,
-  mrProvider: MrStateProvider = disabledMrStateProvider,
+  mrProvider: PrStateProvider = disabledPrStateProvider,
   loopHistoryRepository: LoopHistoryRepository = emptyLoopHistoryRepository,
   branchPlanRepository: BranchPlanRepository = emptyBranchPlanRepository
 ): BoardDependencies {
@@ -76,15 +76,15 @@ export function createForgeClient(forge: ForgeConfig, runner: CliRunner): ForgeC
   return new GhForgeClient(forge, runner);
 }
 
-export interface MrStateSource {
-  readonly provider: MrStateProvider;
+export interface PrStateSource {
+  readonly provider: PrStateProvider;
   /** 問い合わせられるときだけ作る。CLI は 1 回の実行で `refresh()` を 1 回だけ呼ぶ */
-  readonly poller: ForgePoller | null;
+  readonly fetcher: PrFetcher | null;
 }
 
 /** マージ済みの控えはデータ用ブランチに、それ以外は `<dataDir の親>/cache/` に置く */
-export function createFileMrSnapshotRepository(store: DataStore): MrSnapshotRepository {
-  return new FileMrSnapshotRepository(store);
+export function createFilePrSnapshotRepository(store: DataStore): PrSnapshotRepository {
+  return new FilePrSnapshotRepository(store);
 }
 
 /**
@@ -107,15 +107,15 @@ export function createBranchPlanRepository(
  * 届かない（CLI が無い・未ログイン・ネットワークが無い）ときは、データ用ブランチのマージ済みの控えのうち、
  * カードの PR 番号と合うものだけを供給元に渡す。マージ前の控え（`cache/`）は古いことがあるので使わない。
  */
-export async function createMrStateSource(
+export async function createPrStateSource(
   forge: ForgeConfig | null,
   cardRepository: CardRepository,
-  snapshotRepository: MrSnapshotRepository,
+  snapshotRepository: PrSnapshotRepository,
   runner: CliRunner,
-  options: ForgePollerOptions = {}
-): Promise<MrStateSource> {
+  options: PrFetcherOptions = {}
+): Promise<PrStateSource> {
   if (forge === null) {
-    return { provider: disabledMrStateProvider, poller: null };
+    return { provider: disabledPrStateProvider, fetcher: null };
   }
 
   const client = createForgeClient(forge, runner);
@@ -123,11 +123,11 @@ export async function createMrStateSource(
 
   if (unavailable !== null) {
     const merged = await readMergedSnapshots(cardRepository, snapshotRepository);
-    return { provider: unavailableMrStateProvider(forge.kind, unavailable, merged), poller: null };
+    return { provider: unavailablePrStateProvider(forge.kind, unavailable, merged), fetcher: null };
   }
 
-  const poller = new ForgePoller(cardRepository, client, snapshotRepository, options);
-  return { provider: poller, poller };
+  const fetcher = new PrFetcher(cardRepository, client, snapshotRepository, options);
+  return { provider: fetcher, fetcher };
 }
 
 /**
@@ -136,8 +136,8 @@ export async function createMrStateSource(
  */
 async function readMergedSnapshots(
   cardRepository: CardRepository,
-  snapshotRepository: MrSnapshotRepository
-): Promise<Map<string, MrState>> {
+  snapshotRepository: PrSnapshotRepository
+): Promise<Map<string, PrState>> {
   try {
     const [cards, snapshots] = await Promise.all([
       cardRepository.findAll(),
@@ -166,7 +166,7 @@ export interface AssembledBoard {
 /**
  * `status` と `decide` が使うボードの組み立て。データ用ブランチは呼び出し側が取り直しておく。
  *
- * PR の状態はポーリングせず、`refresh()` を 1 回だけ待ってから読む。
+ * PR の状態は`refresh()` を 1 回だけ待ってから読む。
  * `branch` から解決した PR 番号の書き戻しも、この `refresh()` の中で起きる。
  */
 export async function assembleBoard(
@@ -176,15 +176,15 @@ export async function assembleBoard(
 ): Promise<AssembledBoard> {
   const config = loadConfig(root);
   const cards = createFileCardDependencies(store.dataDir);
-  const { provider, poller } = await createMrStateSource(
+  const { provider, fetcher } = await createPrStateSource(
     config.forge,
     cards.cardRepository,
-    createFileMrSnapshotRepository(store),
+    createFilePrSnapshotRepository(store),
     runner,
     // ブランチから解決した PR 番号は、コミットして push する。ファイルに書くだけでは次の取り直しで捨てられる
-    { writeMr: createTransactionalMrWriter(store) }
+    { writePr: createTransactionalPrWriter(store) }
   );
-  await poller?.refresh();
+  await fetcher?.refresh();
 
   const branchPlans = createBranchPlanRepository(runner, config.paths.root);
   const board = createBoardDependencies(

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { parseCard, serializeCard } from '../card-markdown.js';
 import type { Card } from '../../models/card.js';
-import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
+import type { CardId, PullRequestNumber } from '../../../shared/schemas/common.js';
 
 beforeEach(() => {
   // 壊れたファイルの警告でテスト出力を汚さない
@@ -151,7 +151,7 @@ describe('serializeCard', () => {
       startedAt: '2026-09-04T10:12:00.000Z',
       skipGates: ['plan'],
       branch: 'feat/refresh-token',
-      mr: 42 as MergeRequestIid,
+      mr: 42 as PullRequestNumber,
       rank: 1500.5,
       body: '## アイデア\n本文',
     });
