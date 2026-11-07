@@ -1,0 +1,251 @@
+<title>ai-board ボード</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* レイアウト: 上に状態の帯、下に「判断待ち・AI 作業中」と「アイデア」の 2 列（狭い画面では 1 列） */
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --fg: #1d2330;
+    --muted: #5d6677;
+    --line: #dde1e8;
+    --accent: #2f5bd3;
+    --wait: #b4570f;
+    --wait-bg: #fdf1e6;
+    --work: #1f7a52;
+    --work-bg: #e7f5ee;
+    --font-body: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+    --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12151b;
+      --panel: #1b2029;
+      --fg: #e6e9ef;
+      --muted: #9aa3b4;
+      --line: #2c3340;
+      --accent: #8fb0ff;
+      --wait: #f0a35e;
+      --wait-bg: #33261a;
+      --work: #6fd3a3;
+      --work-bg: #17302a;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12151b;
+    --panel: #1b2029;
+    --fg: #e6e9ef;
+    --muted: #9aa3b4;
+    --line: #2c3340;
+    --accent: #8fb0ff;
+    --wait: #f0a35e;
+    --wait-bg: #33261a;
+    --work: #6fd3a3;
+    --work-bg: #17302a;
+    color-scheme: dark;
+  }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+    line-height: 1.55;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 20px 32px;
+  }
+  .board { max-width: 1100px; margin: 0 auto; display: grid; gap: 20px; }
+  h1 { font-size: 1.15rem; margin: 0; text-wrap: balance; }
+  h2 {
+    font-size: 0.8rem;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin: 0 0 8px;
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+  }
+  h2 .count { font-variant-numeric: tabular-nums; color: var(--fg); }
+  .status {
+    display: grid;
+    gap: 2px;
+    padding: 12px 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 0.9rem;
+  }
+  .status .generated { color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+  .columns { display: grid; gap: 20px; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+  @media (max-width: 760px) { .columns { grid-template-columns: minmax(0, 1fr); } }
+  .stack { display: grid; gap: 20px; min-width: 0; }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+  .card .title { font-weight: 600; overflow-wrap: anywhere; }
+  .card .meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 0.8rem; color: var(--muted); }
+  .card .reason { font-size: 0.85rem; color: var(--muted); overflow-wrap: anywhere; }
+  .id { font-family: var(--font-mono); font-size: 0.78rem; overflow-wrap: anywhere; }
+  .chip { border-radius: 999px; padding: 1px 8px; font-size: 0.75rem; border: 1px solid var(--line); color: var(--fg); }
+  .chip.wait { background: var(--wait-bg); color: var(--wait); border-color: transparent; }
+  .chip.work { background: var(--work-bg); color: var(--work); border-color: transparent; }
+  .decisions { display: flex; flex-wrap: wrap; gap: 6px; font-size: 0.8rem; }
+  a { color: var(--accent); }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .empty { color: var(--muted); font-size: 0.85rem; margin: 0; }
+  ol.ideas { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; counter-reset: idea; }
+  ol.ideas li.idea {
+    counter-increment: idea;
+    display: grid;
+    grid-template-columns: 2.2em minmax(0, 1fr);
+    gap: 4px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  ol.ideas li.idea::before { content: counter(idea); color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; padding-right: 6px; }
+  ol.ideas .later { color: var(--muted); }
+  ol.ideas li.divider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    padding: 6px 0;
+  }
+  ol.ideas li.divider::before, ol.ideas li.divider::after { content: ""; flex: 1; border-top: 1px dashed var(--muted); }
+  .note { color: var(--muted); font-size: 0.8rem; margin: 0; }
+</style>
+
+<main class="board" id="board">
+  <h1>ai-board ボード</h1>
+  <p class="empty" id="no-data">ボードのデータがありません。</p>
+</main>
+
+<script>
+  const BOARD = /*__BOARD__*/null;
+
+  (function render() {
+    const root = document.getElementById('board');
+    if (BOARD === null || typeof BOARD !== 'object') return;
+    document.getElementById('no-data').remove();
+
+    function el(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined && text !== null) node.textContent = String(text);
+      return node;
+    }
+
+    function formatTime(iso) {
+      const date = new Date(iso);
+      return Number.isNaN(date.getTime()) ? String(iso) : date.toLocaleString('ja-JP');
+    }
+
+    // 上の帯: 人向けの status と同じ 3 行と、作った時刻
+    const status = el('section', 'status');
+    status.setAttribute('aria-label', 'ボードの状態');
+    status.append(
+      el('div', null, BOARD.header.forge),
+      el('div', null, BOARD.header.loop),
+      el('div', null, BOARD.header.next),
+      el('div', 'generated', '作った時刻: ' + formatTime(BOARD.generatedAt) + '（頼み直すと新しくなります）')
+    );
+
+    function cardItem(card, chips) {
+      const item = el('li', 'card');
+      item.append(el('div', 'title', card.title));
+      const meta = el('div', 'meta');
+      meta.append(el('span', 'id', card.id), el('span', 'chip', card.stageLabel));
+      for (const chip of chips) meta.append(chip);
+      if (card.prUrl) {
+        const link = el('a', null, 'PR を開く');
+        link.href = card.prUrl;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        meta.append(link);
+      }
+      item.append(meta);
+      if (card.reason) item.append(el('div', 'reason', card.reason));
+      return item;
+    }
+
+    function section(title, cards, emptyText, build) {
+      const box = el('section');
+      const heading = el('h2', null, title);
+      heading.append(el('span', 'count', cards.length));
+      box.append(heading);
+      if (cards.length === 0) {
+        box.append(el('p', 'empty', emptyText));
+        return box;
+      }
+      const list = el('ul');
+      for (const card of cards) list.append(build(card));
+      box.append(list);
+      return box;
+    }
+
+    const waiting = section('判断待ち', BOARD.waiting, '人の判断を待っているカードはありません。', (card) => {
+      const chips = card.running ? [el('span', 'chip work', 'ループが触っている')] : [];
+      const item = cardItem(card, chips);
+      if (card.decisions.length > 0) {
+        const decisions = el('div', 'decisions');
+        decisions.append(el('span', null, '出せる判断:'));
+        for (const label of card.decisions) decisions.append(el('span', 'chip wait', label));
+        item.append(decisions);
+      }
+      return item;
+    });
+
+    const working = section('AI 作業中', BOARD.working, 'AI が進めているカードはありません。', (card) => {
+      const chips = [];
+      if (card.running) chips.push(el('span', 'chip work', 'ループが触っている'));
+      if (card.stale) chips.push(el('span', 'chip wait', 'しばらく動きなし'));
+      return cardItem(card, chips);
+    });
+
+    // アイデア: 並び順のまま。区切り線より上が「次にやる」、下が「あとで考える」
+    const ideaRows = BOARD.ideas;
+    const ideaCount = ideaRows.filter((row) => !row.divider).length;
+    const ideas = el('section');
+    const ideaHeading = el('h2', null, 'アイデア');
+    ideaHeading.append(el('span', 'count', ideaCount));
+    ideas.append(ideaHeading);
+    if (ideaCount === 0) {
+      ideas.append(el('p', 'empty', 'アイデアはありません。'));
+    } else {
+      const list = el('ol', 'ideas');
+      let afterDivider = false;
+      for (const row of ideaRows) {
+        if (row.divider) {
+          list.append(el('li', 'divider', 'ここから下はあとで考える'));
+          afterDivider = true;
+          continue;
+        }
+        const item = el('li', 'idea' + (afterDivider ? ' later' : ''));
+        const body = el('div');
+        body.append(el('div', null, row.title), el('div', 'id', row.id));
+        item.append(body);
+        list.append(item);
+      }
+      ideas.append(list);
+    }
+
+    const left = el('div', 'stack');
+    left.append(waiting, working);
+    const columns = el('div', 'columns');
+    columns.append(left, ideas);
+
+    root.append(
+      status,
+      columns,
+      el('p', 'note', '判断はこのページからは書けません。チャットで頼んでください（例: 「<カード> の計画を承認して」）。')
+    );
+  })();
+</script>
