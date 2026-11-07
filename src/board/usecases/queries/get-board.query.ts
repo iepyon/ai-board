@@ -29,7 +29,13 @@ import {
   type BoardCardPlan,
   type BoardCardReview,
 } from '../../models/board-card.js';
-import type { PlanDoc } from '../../models/plan-state.js';
+import type { PlanDoc, PlanState } from '../../models/plan-state.js';
+import type { Card } from '../../../cards/models/card.js';
+import {
+  emptyBranchPlanRepository,
+  type BranchPlanRepository,
+} from '../../repositories/branch-plan.repository.js';
+import { branchPlanTarget } from '../../services/branch-plan-target.js';
 import { isForgeUnset, type MrState } from '../../models/mr-state.js';
 import type { GetBoardError } from '../../errors/board-errors.js';
 
@@ -44,6 +50,7 @@ export type GetBoardQuery = () => Promise<Result<Board, GetBoardError>>;
  *
  * ステージ導出そのものは `resolveStage`（純関数）に委譲し、
  * ここは I/O と組み立てだけを担当する。
+ * GitHub が未設定のボードでは、メインに計画の無いカードのブランチの計画を `branchPlanRepository` で補う（`branchPlanTarget`）。
  * ループの 1 手の記録は、ループの様子（`Board.loop`）・カードの手の一覧・区間の小区間にだけ使い、
  * ステージの導出と止まりには渡さない。
  */
@@ -52,7 +59,8 @@ export function createGetBoardQuery(
   ideaDividerRepository: IdeaDividerRepository,
   planRepository: PlanRepository,
   mrProvider: MrStateProvider,
-  loopHistoryRepository: LoopHistoryRepository
+  loopHistoryRepository: LoopHistoryRepository,
+  branchPlanRepository: BranchPlanRepository = emptyBranchPlanRepository
 ): GetBoardQuery {
   return async () => {
     let cards;
@@ -75,8 +83,9 @@ export function createGetBoardQuery(
     }
 
     const forge = mrProvider.connection();
-    const mrKnown = forge.status === 'connected' && mrProvider.synced();
     const forgeUnset = isForgeUnset(forge);
+    if (forgeUnset) planState = await withBranchPlans(planState, cards, branchPlanRepository);
+    const mrKnown = forge.status === 'connected' && mrProvider.synced();
     const generatedAt = new Date().toISOString();
     const stepsByCard = groupByCard(loopSteps);
 
@@ -134,6 +143,25 @@ export function createGetBoardQuery(
       generatedAt,
     });
   };
+}
+
+/** メインのチェックアウトに無い計画を、`branchPlanTarget` が選んだカードのブランチの計画でまとめて補う。読めなければ補わない */
+async function withBranchPlans(
+  planState: PlanState,
+  cards: readonly Card[],
+  reader: BranchPlanRepository
+): Promise<PlanState> {
+  const found = await Promise.all(
+    cards.map((card) => {
+      const branch = branchPlanTarget(card, planState.get(card.id) ?? null);
+      return branch === null ? null : reader.findActive(card.id, branch);
+    })
+  );
+  const merged = new Map(planState);
+  for (const doc of found) {
+    if (doc !== null) merged.set(doc.cardId, doc);
+  }
+  return merged;
 }
 
 /**

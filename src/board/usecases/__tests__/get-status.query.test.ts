@@ -4,7 +4,10 @@ import type { CardRepository } from '../../../cards/repositories/card.repository
 import type { IdeaDividerRepository } from '../../../cards/repositories/idea-divider.repository.js';
 import { err } from '../../../shared/result.js';
 import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
-import type { BranchPlanRepository } from '../../repositories/branch-plan.repository.js';
+import {
+  emptyBranchPlanRepository,
+  type BranchPlanRepository,
+} from '../../repositories/branch-plan.repository.js';
 import type { PlanRepository } from '../../repositories/plan.repository.js';
 import {
   disabledMrStateProvider,
@@ -69,6 +72,7 @@ function planReader(plan: ImplStepPlan | null): BranchPlanRepository & {
 } {
   const calls: Array<[string, string]> = [];
   return {
+    ...emptyBranchPlanRepository,
     calls,
     find: (cardId, branch) => {
       calls.push([cardId, branch]);

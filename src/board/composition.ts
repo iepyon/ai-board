@@ -10,6 +10,7 @@ import { FsPlanRepository, type PlanRepository } from './repositories/plan.repos
 import type { MrSnapshotRepository } from './repositories/mr-snapshot.repository.js';
 import { FileMrSnapshotRepository } from './repositories/file-mr-snapshot.repository.js';
 import {
+  emptyBranchPlanRepository,
   GitBranchPlanRepository,
   type BranchPlanRepository,
 } from './repositories/branch-plan.repository.js';
@@ -46,7 +47,8 @@ export function createBoardDependencies(
   cardRepository: CardRepository,
   ideaDividerRepository: IdeaDividerRepository,
   mrProvider: MrStateProvider = disabledMrStateProvider,
-  loopHistoryRepository: LoopHistoryRepository = emptyLoopHistoryRepository
+  loopHistoryRepository: LoopHistoryRepository = emptyLoopHistoryRepository,
+  branchPlanRepository: BranchPlanRepository = emptyBranchPlanRepository
 ): BoardDependencies {
   const planRepository = new FsPlanRepository(plansDir);
 
@@ -57,7 +59,8 @@ export function createBoardDependencies(
       ideaDividerRepository,
       planRepository,
       mrProvider,
-      loopHistoryRepository
+      loopHistoryRepository,
+      branchPlanRepository
     ),
   };
 }
@@ -82,7 +85,10 @@ export function createFileMrSnapshotRepository(store: DataStore): MrSnapshotRepo
   return new FileMrSnapshotRepository(store);
 }
 
-/** カードのブランチの計画を `git -C <repoRoot> show` で読む。`ai-board status` の `next.step` だけに使う */
+/**
+ * カードのブランチの計画を `git -C <repoRoot> show` で読む。`ai-board status` の `next.step` と、
+ * GitHub が未設定のボードで計画レビューの列を立てるのに使う
+ */
 export function createBranchPlanRepository(
   runner: CliRunner,
   repoRoot: string
@@ -152,19 +158,18 @@ export async function assembleBoard(
   );
   await poller?.refresh();
 
+  const branchPlans = createBranchPlanRepository(runner, config.paths.root);
   const board = createBoardDependencies(
     config.paths.plansDir,
     cards.cardRepository,
     cards.ideaDividerRepository,
     provider,
-    createLoopHistoryRepository(store.dataDir)
+    createLoopHistoryRepository(store.dataDir),
+    branchPlans
   );
 
   return {
-    getStatusQuery: createGetStatusQuery(
-      board.getBoardQuery,
-      createBranchPlanRepository(runner, config.paths.root)
-    ),
+    getStatusQuery: createGetStatusQuery(board.getBoardQuery, branchPlans),
     decide: createDecideCommands({ loadBoard: board.getBoardQuery, store, cards }),
   };
 }

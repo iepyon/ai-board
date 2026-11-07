@@ -2,17 +2,19 @@ import type { CliRunner } from '../../infrastructure/cli-runner.js';
 import { isErr } from '../../shared/result.js';
 import type { CardId } from '../../shared/schemas/common.js';
 import type { ImplStepPlan } from '../services/impl-step.js';
+import type { PlanDoc } from '../models/plan-state.js';
+import { countTasks } from './plan.repository.js';
 
 // ============================================================
 // カードのブランチの計画の読み取り（git show）
 // ============================================================
 
 /**
- * カードのブランチにコミットされた計画を読む。`status` の CLI が、`next` に選ばれた
- * `implement` の 1 枚の段（`next.step`）を決めるためだけに使う。
+ * カードのブランチにコミットされた計画を読む。
  *
- * ステージの導出（`stage-resolver.ts`）には使わない。列はこれまでどおり
- * メインのチェックアウトの計画ファイルと PR から導く。
+ * - `find`: `status` の CLI が、`next` に選ばれた `implement` の 1 枚の段（`next.step`）を決める
+ * - `findActive`: GitHub が未設定のボードで、メインのチェックアウトに無い計画を補い、計画レビューの列を立てる
+ *   （`needsBranchPlan` が選んだカードだけ。`archive/` は読まない）
  *
  * 読めない（ブランチが無い、`git` が失敗した、計画が無い）ときは例外を投げず null を返す。
  * 段が読めなくても、次の一手そのものは読めているので `status` は失敗させない。
@@ -21,10 +23,26 @@ import type { ImplStepPlan } from '../services/impl-step.js';
 export interface BranchPlanRepository {
   /** `branch` の計画を、`plans/` → `plans/archive/` の順に読む。どちらも無ければ null */
   find(cardId: CardId, branch: string): Promise<ImplStepPlan | null>;
+  /**
+   * `branch` の `plans/<id>.md` を、メインの計画と同じ形（`PlanDoc`）で読む。無ければ null。
+   * `archive/` は読まない。読むと、締めで archive して Ready にした PR中 のカードがマージ前にマージ済みに見えるため。
+   * `updatedAt` は、その計画ファイルを最後に変えたコミットの時刻
+   */
+  findActive(cardId: CardId, branch: string): Promise<PlanDoc | null>;
 }
 
 const PLANS_DIR = '.ai-board/plans';
 const ARCHIVE_DIR = `${PLANS_DIR}/archive`;
+
+function activePath(cardId: CardId): string {
+  return `${PLANS_DIR}/${cardId}.md`;
+}
+
+/** 何も読まない読み手。ブランチの計画を読まない組み立て（テストなど）の既定 */
+export const emptyBranchPlanRepository: BranchPlanRepository = {
+  find: () => Promise.resolve(null),
+  findActive: () => Promise.resolve(null),
+};
 
 /**
  * `git -C <repoRoot>` で読む。引数は配列で渡し、shell を通さない（`cli-runner.ts`）。
@@ -46,22 +64,45 @@ export class GitBranchPlanRepository implements BranchPlanRepository {
   ) {}
 
   async find(cardId: CardId, branch: string): Promise<ImplStepPlan | null> {
-    if (!(await this.isValidBranchName(branch))) return null;
-
-    const ref = await this.resolveRef(branch);
+    const ref = await this.ref(branch);
     if (ref === null) return null;
 
-    const active = await this.git(['show', '--no-textconv', `${ref}:${PLANS_DIR}/${cardId}.md`]);
+    const active = await this.show(ref, activePath(cardId));
     if (active !== null) return { location: 'active', text: active };
 
-    const archived = await this.git([
-      'show',
-      '--no-textconv',
-      `${ref}:${ARCHIVE_DIR}/${cardId}.md`,
-    ]);
+    const archived = await this.show(ref, `${ARCHIVE_DIR}/${cardId}.md`);
     if (archived !== null) return { location: 'archived' };
 
     return null;
+  }
+
+  async findActive(cardId: CardId, branch: string): Promise<PlanDoc | null> {
+    const ref = await this.ref(branch);
+    if (ref === null) return null;
+
+    const file = activePath(cardId);
+    const [text, log] = await Promise.all([
+      this.show(ref, file),
+      this.git(['log', '-1', '--format=%cI', ref, '--', file]),
+    ]);
+    const committedAt = log?.trim();
+    if (text === null || !committedAt) return null;
+
+    return {
+      cardId,
+      tasks: countTasks(text),
+      archived: false,
+      updatedAt: new Date(committedAt).toISOString(),
+    };
+  }
+
+  /** 検査を通ったブランチの完全な参照（`refs/heads/…` か `refs/remotes/origin/…`）。通らない・無ければ null */
+  private async ref(branch: string): Promise<string | null> {
+    return (await this.isValidBranchName(branch)) ? this.resolveRef(branch) : null;
+  }
+
+  private show(ref: string, file: string): Promise<string | null> {
+    return this.git(['show', '--no-textconv', `${ref}:${file}`]);
   }
 
   /**

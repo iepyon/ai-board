@@ -12,7 +12,10 @@ import type { MrStateProvider } from '../../services/mr-state-provider.js';
 import type { ForgeConnection, MrState } from '../../models/mr-state.js';
 import type { MergeRequestIid } from '../../../shared/schemas/common.js';
 import { HOLD_REASONS } from '../../services/next-action.js';
-import type { BranchPlanRepository } from '../../repositories/branch-plan.repository.js';
+import {
+  emptyBranchPlanRepository,
+  type BranchPlanRepository,
+} from '../../repositories/branch-plan.repository.js';
 import type { ImplStepPlan } from '../../services/impl-step.js';
 import { parseStatusArgs, pickFields, runStatusCli } from '../status-cli.js';
 import type { StatusReport } from '../../models/status-report.js';
@@ -505,6 +508,7 @@ function stubPlanReader(plan: ImplStepPlan | null): BranchPlanRepository & {
 } {
   const calls: Array<[string, string]> = [];
   return {
+    ...emptyBranchPlanRepository,
     calls,
     find: (cardId, branch) => {
       calls.push([cardId, branch]);
