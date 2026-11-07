@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { ForgeConnection } from '../../models/mr-state.js';
 import type { NextAction } from '../../services/next-action.js';
-import { describeNext } from '../status-describe.js';
+import { describeForge, describeNext } from '../status-describe.js';
 
 const CONNECTED: ForgeConnection = { status: 'connected', kind: 'github' };
+const UNSET: ForgeConnection = { status: 'disabled', kind: null, reason: null };
+const UNAVAILABLE: ForgeConnection = { status: 'disabled', kind: 'github', reason: 'gh が無い' };
 
 function next(overrides: Partial<NextAction>): NextAction {
   return {
@@ -40,10 +42,22 @@ describe('describeNext', () => {
     );
   });
 
-  it('次の一手が無ければ、GitHub につながっているかで理由を分ける', () => {
+  it('次の一手が無ければ、GitHub が接続済みか未設定かで理由を分ける', () => {
     expect(describeNext(null, CONNECTED)).toBe('なし（AI が進められるカードはありません）');
-    expect(describeNext(null, { status: 'disabled', kind: null, reason: null })).toBe(
+    expect(describeNext(null, UNSET)).toBe('なし（AI が進められるカードはありません）');
+    expect(describeNext(null, UNAVAILABLE)).toBe(
       'なし（GitHub に接続できないため、ループは止まります）'
     );
+    expect(describeNext(null, { status: 'error', kind: 'github', message: '失敗' })).toBe(
+      'なし（GitHub に接続できないため、ループは止まります）'
+    );
+  });
+});
+
+describe('describeForge', () => {
+  it('未設定は github: が無いことで見分け、使えないときは理由を出す', () => {
+    expect(describeForge(CONNECTED)).toBe('接続済み');
+    expect(describeForge(UNSET)).toBe('未設定');
+    expect(describeForge(UNAVAILABLE)).toBe('使えません（gh が無い）');
   });
 });

@@ -45,6 +45,10 @@ function card(id: string, overrides: Partial<BoardCard> = {}): BoardCard {
 
 const CONNECTED: ForgeConnection = { status: 'connected', kind: 'github' };
 const DISCONNECTED: ForgeConnection = { status: 'error', kind: 'github', message: 'gh が失敗した' };
+/** `github:` が無い（未設定） */
+const UNSET: ForgeConnection = { status: 'disabled', kind: null, reason: null };
+/** `github:` はあるが、gh が無い・未ログイン・届かない */
+const UNAVAILABLE: ForgeConnection = { status: 'disabled', kind: 'github', reason: 'gh が無い' };
 
 function board(cards: readonly BoardCard[], forge: ForgeConnection = CONNECTED): Board {
   return {
@@ -86,6 +90,29 @@ describe('guardReview', () => {
     expect(result).toEqual({
       ok: false,
       error: { type: 'ForgeUnavailable', action: 'review', forge: DISCONNECTED },
+    });
+  });
+
+  it('GitHub が未設定なら、接続済みと同じに通す', () => {
+    const result = guardReview(board([REVIEWING], UNSET), {
+      id: id('r'),
+      kind: '承認',
+      reason: '',
+    });
+
+    expect(result).toEqual({ ok: true, value: { card: REVIEWING, gate: 'plan' } });
+  });
+
+  it('github: があって使えなければ ForgeUnavailable で拒む', () => {
+    const result = guardReview(board([REVIEWING], UNAVAILABLE), {
+      id: id('r'),
+      kind: '承認',
+      reason: '',
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: { type: 'ForgeUnavailable', action: 'review', forge: UNAVAILABLE },
     });
   });
 
@@ -136,6 +163,29 @@ describe('guardStartedAt', () => {
     expect(result).toEqual({
       ok: false,
       error: { type: 'ForgeUnavailable', action: 'startedAt', forge: DISCONNECTED },
+    });
+  });
+
+  it('GitHub が未設定なら、接続済みと同じに通す', () => {
+    const result = guardStartedAt(board([idea], UNSET), {
+      id: id('i'),
+      from: 'idea',
+      to: 'planning',
+    });
+
+    expect(result).toEqual({ ok: true, value: idea });
+  });
+
+  it('github: があって使えなければ ForgeUnavailable で拒む', () => {
+    const result = guardStartedAt(board([idea], UNAVAILABLE), {
+      id: id('i'),
+      from: 'idea',
+      to: 'planning',
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: { type: 'ForgeUnavailable', action: 'startedAt', forge: UNAVAILABLE },
     });
   });
 

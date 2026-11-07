@@ -90,6 +90,11 @@ export interface HoldInput {
    * 引けなかったカードの `mr` は前に引けた控えで、古いことがある
    */
   readonly mrFailure: ForgeCardFailure | null;
+  /**
+   * GitHub が未設定（`isForgeUnset`）のボードで、カードが PR 番号（`mr`）を持つときの、その番号と止まりの起点。それ以外は null。
+   * 途中で `github:` を外したボードでは PR の状態が引けず、計画レビュー / PR中 のカードが手前の列に落ちて見えるため
+   */
+  readonly unsetPr: { readonly iid: number; readonly since: string } | null;
 }
 
 /** 止まりの理由。人が何をすればよいかを書く */
@@ -99,6 +104,8 @@ export const HOLD_REASONS = {
   planLost: '計画を提出済みだが、計画ファイルも Draft の PR も見えない',
   forgeFailed: (message: string): string =>
     `PR の状態を引けない（${message}）。時間を置いても続くなら、GitHub で PR を確かめてください`,
+  forgeUnset: (iid: number): string =>
+    `PR #${iid} を持つが、GitHub が未設定なので PR の状態を引けない。config.yaml に github: を戻すか、中止してください`,
   draftReverted: (iid: number): string =>
     `判断の後に PR #${iid} が Draft に戻された。GitHub で Ready に戻すか、ai-board decide で差し戻して計画から立て直させるか中止してください`,
 } as const;
@@ -144,19 +151,16 @@ export function pickNextAction(cards: readonly NextActionCard[]): NextAction | n
  * - **PR の状態を引けない**（アイデア / マージ済み 以外）: そのカードの PR だけを直近の取得で引けなかった（`mrFailure`）。
  *   ほかの止まりより先に見る。前に引けた控えは古いことがあり、人の指摘や Draft への戻しを見落として進めかねないため。
  *   次の取得で引ければひとりでに外れる
+ * - **GitHub が未設定で PR 番号を持つ**（アイデア / マージ済み 以外）: 途中で `github:` を外したボードで、PR を持つカード（`unsetPr`）。
+ *   PR の状態が引けず列を信じられないので、PR の状態を引けないときと同じ `forge` の止まりにする。`github:` を戻せば外れる
  *
  * 人が差し戻し・承認・中止を書けば、そのエントリが最新になって止まりは外れる。
  */
 export function resolveHold(card: HoldInput): CardHold | null {
   if (card.aborted) return null;
 
-  if (card.mrFailure !== null && card.stage !== 'idea' && card.stage !== 'merged') {
-    return {
-      kind: 'forge',
-      reason: HOLD_REASONS.forgeFailed(card.mrFailure.message),
-      since: card.mrFailure.since,
-    };
-  }
+  const forge = forgeHold(card);
+  if (forge !== null && card.stage !== 'idea' && card.stage !== 'merged') return forge;
 
   switch (card.stage) {
     case 'impling':
@@ -169,6 +173,19 @@ export function resolveHold(card: HoldInput): CardHold | null {
     default:
       return null;
   }
+}
+
+/** PR の状態を信じられないカードの止まり（`forge`）。引けなかった（`mrFailure`）か、未設定のボードで PR 番号を持つ（`unsetPr`）か */
+function forgeHold(card: HoldInput): CardHold | null {
+  if (card.mrFailure !== null) {
+    const { message, since } = card.mrFailure;
+    return { kind: 'forge', reason: HOLD_REASONS.forgeFailed(message), since };
+  }
+  if (card.unsetPr !== null) {
+    const { iid, since } = card.unsetPr;
+    return { kind: 'forge', reason: HOLD_REASONS.forgeUnset(iid), since };
+  }
+  return null;
 }
 
 /**

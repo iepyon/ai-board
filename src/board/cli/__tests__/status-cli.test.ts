@@ -461,7 +461,7 @@ describe('ai-board status --json', () => {
     expect(report.next).toBeNull();
   });
 
-  it('問い合わせが失敗したときも、github: が無いときも次の一手を出さない', async () => {
+  it('問い合わせが失敗したときは次の一手を出さず、github: が無い（未設定）ときは出す', async () => {
     await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\n");
 
     const failed = await runJson(
@@ -473,7 +473,7 @@ describe('ai-board status --json', () => {
     const unconfigured = await runJson(
       stubProvider({ status: 'disabled', kind: null, reason: null })
     );
-    expect(unconfigured.next).toBeNull();
+    expect(unconfigured.next).toMatchObject({ cardId: 'started', action: 'plan' });
   });
 
   it('AI 作業中には、提出済みで成果物の見えないカードを含めない', async () => {
@@ -665,10 +665,18 @@ describe('ai-board status', () => {
   });
 
   it('GitHub につながっていなければ、ループが止まることを出す', async () => {
+    const unavailable = stubProvider({ status: 'disabled', kind: 'github', reason: 'gh が無い' });
+    expect(await run([], unavailable)).toBe(0);
+
+    expect(stdout).toContain('GitHub: 使えません（gh が無い）');
+    expect(stdout).toContain('次の一手: なし（GitHub に接続できないため、ループは止まります）');
+  });
+
+  it('GitHub が未設定なら、ループが止まるとは出さない', async () => {
     expect(await run([], stubProvider({ status: 'disabled', kind: null, reason: null }))).toBe(0);
 
     expect(stdout).toContain('GitHub: 未設定');
-    expect(stdout).toContain('次の一手: なし（GitHub に接続できないため、ループは止まります）');
+    expect(stdout).toContain('次の一手: なし（AI が進められるカードはありません）');
   });
 });
 

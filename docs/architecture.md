@@ -82,7 +82,7 @@ PR の状態は `refresh()` を 1 回待って引き、`branch` から解決し�
 
 - 人向けの形は「GitHub:」「ループ:」の行・判断待ち・AI 作業中・次の一手だけを出す（`status-describe.ts`）。`--json` は `next` / `waiting` / `working` / `cards` / `ideas` / `forge` / `loop` / `generatedAt`
 - `--only <項目,...>`（`pickFields`）は `<key>` か `<key>.<field>`（最上位の配列の各要素から 1 項目）で絞る。入れ子は 1 段まで。誤りは GitHub に問い合わせる前に失敗する
-- 次の一手は `src/board/services/next-action.ts` の `pickNextAction`。GitHub に接続できない（`forge.status` が `connected` でない）と `next` は `null`
+- 次の一手は `src/board/services/next-action.ts` の `pickNextAction`。GitHub が接続済みか未設定（`forgeTrusted`）でないと `next` は `null`。未設定のボードで PR 番号を持つカードは止まりになり選ばれない
 - `implement` のときだけ、query が選んだ 1 枚のブランチの計画を読んで `next.step` を埋める（`pickNextAction` 自体は `step: null` を返す純関数）。
   `git show <ref>:.ai-board/plans/<id>.md`、無ければ `plans/archive/<id>.md` を読む。`<ref>` はローカルの `refs/heads/<branch>`、無ければ `refs/remotes/origin/<branch>`。
   `git check-ref-format --branch` を通らない名前では `git` を呼ばず、`git fetch` もしない。読めなければ `step` は `null`（人向けは `段=不明`）
@@ -128,7 +128,9 @@ rebase しないのは、離れた行の編集を git が黙って混ぜ、検�
 
 ## GitHub の PR の取得
 
-`config.yaml` に `github:` が無ければ PR中 / マージ済み の列が空になるだけでボードは動く。
+`config.yaml` に `github:` が無ければ（未設定。`isForgeUnset`）PR中 / マージ済み の列が空になるだけでボードは動き、人の判断と次の一手も接続済みと同じに通す（`forgeTrusted`）。
+未設定のボードで PR 番号を持つカード（途中で `github:` を外した）は、そのカードだけを止まり（`forge`、`unsetPr`）にする。
+`github:` があって使えない・エラーのときは、判断と着手を拒み `next` を出さない（列を取り違えるため）。
 
 - 引けるかは CLI を動かすたびに `gh api repos/<owner>/<repo>` を 1 回引いて確かめる（`ForgeClient.checkAuth`）。クラウドでは `gh auth status` が失敗するので使わない
 - 失敗は `failureScope` で分ける。`global`（`gh` が無い・ステータスが取れない・401 / 403 / 429・5xx）は接続をまるごと `error` に、

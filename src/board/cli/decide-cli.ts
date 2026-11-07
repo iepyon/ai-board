@@ -316,8 +316,9 @@ function startedAtLabel(from: Stage): string {
 /**
  * 判断を書けない理由の 1 行。
  *
- * GitHub に繋がらないときは、PR の状態が引けないと計画レビューのカードが手前の列に落ちて見え、
+ * GitHub に繋がらない（設定があって使えない・エラー）ときは、PR の状態が引けないと計画レビューのカードが手前の列に落ちて見え、
  * 出せる判断や戻せる列を取り違えるので拒む（`status` が `next` を `null` にするのと同じ理由）。
+ * 未設定のボードは拒まない（`forgeTrusted`）。
  */
 function describeRefusal(refusal: DecideRefusal): string {
   switch (refusal.type) {

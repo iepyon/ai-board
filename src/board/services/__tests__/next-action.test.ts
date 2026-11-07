@@ -196,6 +196,7 @@ function holdInput(
     mr: null,
     mrKnown: true,
     mrFailure: null,
+    unsetPr: null,
     ...rest,
   };
 }
@@ -277,6 +278,43 @@ describe('resolveHold', () => {
 
     it('止まったカードは選ばず、後ろのカードへ進む', () => {
       const hold = resolveHold(holdInput('impling', approvedPlan, { mrFailure: failure }));
+
+      expect(
+        pickNextAction([
+          makeCard({ id: 'a', stage: 'impling', hold }),
+          makeCard({ id: 'b', stage: 'planning' }),
+        ])?.cardId
+      ).toBe('b');
+    });
+  });
+
+  describe('GitHub が未設定のボードで PR 番号を持つカード', () => {
+    const unsetPr = { iid: 7, since: '2026-11-07T00:00:00.000Z' };
+
+    it.each(['planning', 'plan-review', 'impling', 'pr'] as const)(
+      '%s のカードは、PR の状態を引けない止まりになる',
+      (stage) => {
+        const hold = resolveHold(holdInput(stage, approvedPlan, { unsetPr }));
+
+        expect(hold).toEqual({
+          kind: 'forge',
+          reason: HOLD_REASONS.forgeUnset(7),
+          since: unsetPr.since,
+        });
+        expect(hold?.reason).toContain('PR #7 を持つが、GitHub が未設定');
+      }
+    );
+
+    it('中止・アイデア・マージ済みのカードは止まりにしない', () => {
+      expect(
+        resolveHold(holdInput('impling', approvedPlan, { aborted: true, unsetPr }))
+      ).toBeNull();
+      expect(resolveHold(holdInput('idea', [], { unsetPr }))).toBeNull();
+      expect(resolveHold(holdInput('merged', approvedPlan, { unsetPr }))).toBeNull();
+    });
+
+    it('止まったカードは選ばず、後ろのカードへ進む', () => {
+      const hold = resolveHold(holdInput('impling', approvedPlan, { unsetPr }));
 
       expect(
         pickNextAction([

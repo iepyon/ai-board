@@ -3,10 +3,14 @@ import type { Card } from '../../../cards/models/card.js';
 import type { CardRepository } from '../../../cards/repositories/card.repository.js';
 import type { IdeaDividerRepository } from '../../../cards/repositories/idea-divider.repository.js';
 import { err } from '../../../shared/result.js';
-import type { CardId } from '../../../shared/schemas/common.js';
+import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
 import type { BranchPlanRepository } from '../../repositories/branch-plan.repository.js';
 import type { PlanRepository } from '../../repositories/plan.repository.js';
-import type { MrStateProvider } from '../../services/mr-state-provider.js';
+import {
+  disabledMrStateProvider,
+  unavailableMrStateProvider,
+  type MrStateProvider,
+} from '../../services/mr-state-provider.js';
 import type { ImplStepPlan } from '../../services/impl-step.js';
 import { createGetBoardQuery, type GetBoardQuery } from '../queries/get-board.query.js';
 import { createGetStatusQuery } from '../queries/get-status.query.js';
@@ -35,7 +39,13 @@ const connected: MrStateProvider = {
   failure: () => null,
 };
 
-function boardQuery(cards: readonly Card[]): GetBoardQuery {
+/** `github:` が無い（未設定） */
+const unset = disabledMrStateProvider;
+
+/** `github:` はあるが、gh が無い・未ログイン・届かない */
+const unavailable = unavailableMrStateProvider('github', 'gh が無い');
+
+function boardQuery(cards: readonly Card[], provider: MrStateProvider = connected): GetBoardQuery {
   const cardRepository: Pick<CardRepository, 'findAll'> = {
     findAll: () => Promise.resolve([...cards]),
   };
@@ -48,7 +58,7 @@ function boardQuery(cards: readonly Card[]): GetBoardQuery {
     cardRepository as CardRepository,
     ideaDividerRepository as IdeaDividerRepository,
     planRepository,
-    connected,
+    provider,
     { findAll: () => Promise.resolve([]) }
   );
 }
@@ -96,6 +106,31 @@ describe('GetStatusQuery', () => {
     if (!result.ok) throw new Error('ボードを読めない');
     expect(result.value.next).toMatchObject({ action: 'implement', step: null });
     expect(reader.calls).toEqual([]);
+  });
+
+  it('GitHub が未設定なら、接続済みと同じに次の一手を出す', async () => {
+    const result = await createGetStatusQuery(boardQuery([implementing(null)], unset))(NOW);
+
+    expect(result.ok && result.value.next).toMatchObject({ cardId: 'impl', action: 'implement' });
+  });
+
+  it('GitHub が未設定なら、PR 番号を持つカードを飛ばして次のカードを選ぶ', async () => {
+    const withPr: Card = {
+      ...implementing(null),
+      id: 'with-pr' as CardId,
+      mr: 7 as MergeRequestIid,
+    };
+    const result = await createGetStatusQuery(boardQuery([withPr, implementing(null)], unset))(NOW);
+    if (!result.ok) throw new Error('ボードを読めない');
+
+    expect(result.value.next?.cardId).toBe('impl');
+    expect(result.value.waiting.map((card) => card.id)).toEqual(['with-pr']);
+  });
+
+  it('github: があって使えなければ、次の一手を出さない', async () => {
+    const result = await createGetStatusQuery(boardQuery([implementing(null)], unavailable))(NOW);
+
+    expect(result.ok && result.value.next).toBeNull();
   });
 
   it('ボードを読めなければ、そのエラーをそのまま返す', async () => {

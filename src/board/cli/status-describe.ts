@@ -1,4 +1,4 @@
-import type { ForgeConnection } from '../models/mr-state.js';
+import { forgeTrusted, isForgeUnset, type ForgeConnection } from '../models/mr-state.js';
 import type { NextAction } from '../services/next-action.js';
 import { summarizeLoop, type BoardLoop } from '../../shared/loop-activity.js';
 import { STREAK_THRESHOLD, stuckStreak, type StreakStep } from '../../shared/loop-streak.js';
@@ -8,7 +8,7 @@ import { STREAK_THRESHOLD, stuckStreak, type StreakStep } from '../../shared/loo
 // ============================================================
 
 /**
- * 次の一手の 1 行。無ければ、GitHub につながっているかで理由を分ける。
+ * 次の一手の 1 行。無ければ、GitHub が接続済みか未設定（`forgeTrusted`）かで理由を分ける。
  *
  * `implement` の手では段（`next.step`）を `段=task` のように添える。
  * 段を読めなかった（`step` が null）ときは `段=不明` とし、ループが `implement.md` で計画を読み直して段を確かめることが分かるようにする
@@ -16,7 +16,7 @@ import { STREAK_THRESHOLD, stuckStreak, type StreakStep } from '../../shared/loo
 export function describeNext(next: NextAction | null, forge: ForgeConnection): string {
   if (next !== null) return `${next.action} ${next.cardId}${describeStep(next)}（${next.reason}）`;
 
-  return forge.status === 'connected'
+  return forgeTrusted(forge)
     ? 'なし（AI が進められるカードはありません）'
     : 'なし（GitHub に接続できないため、ループは止まります）';
 }
@@ -33,7 +33,7 @@ export function describeForge(forge: ForgeConnection): string {
     case 'error':
       return `エラー（${forge.message}）`;
     case 'disabled':
-      return forge.reason === null ? '未設定' : `使えません（${forge.reason}）`;
+      return isForgeUnset(forge) ? '未設定' : `使えません（${forge.reason ?? '理由不明'}）`;
   }
 }
 
