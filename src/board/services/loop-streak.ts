@@ -1,4 +1,4 @@
-import type { LoopStep } from './loop-step.js';
+import type { LoopStep } from '../models/loop-step.js';
 
 // ============================================================
 // 止まり続けている回数 — 同じ手で進めなかった記録の連続

@@ -1,12 +1,12 @@
-import type { Stage } from './schemas/common.js';
+import type { Stage } from '../../shared/schemas/common.js';
+import type { ReviewGate } from '../../cards/models/review.js';
 
 /**
  * その列が人の判断を待っているゲート。待ちの列でなければ undefined。
  *
- * 値は `ReviewGate`（`src/cards/models/review.ts`）と同じ。`src/shared/` はコンテキストの型を引かないので、リテラルで書く。
  * ボードの `latestReview` がどのゲートのエントリを選ぶかに使う。
  */
-export const GATE_OF_STAGE: Partial<Record<Stage, 'plan'>> = {
+export const GATE_OF_STAGE: Partial<Record<Stage, ReviewGate>> = {
   'plan-review': 'plan',
 };
 
@@ -16,7 +16,11 @@ export const GATE_OF_STAGE: Partial<Record<Stage, 'plan'>> = {
  * 宣言を書くのは人だけ（`ai-board decide skip`）。AI の CLI（`ai-board card`）に入口は無い。
  * 既に入っているものを入れても、無いものを外しても値は変わらない。
  */
-export function withSkipGate(skipGates: readonly 'plan'[], gate: 'plan', skip: boolean): 'plan'[] {
+export function withSkipGate(
+  skipGates: readonly ReviewGate[],
+  gate: ReviewGate,
+  skip: boolean
+): ReviewGate[] {
   const others = skipGates.filter((each) => each !== gate);
 
   return skip ? [...others, gate] : others;

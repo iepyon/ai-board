@@ -6,7 +6,7 @@ import {
   toLifecycleState,
   withClaudeCodeFooter,
 } from '../github-client.js';
-import type { ForgeConfig } from '../../../shared/config.js';
+import type { ForgeConfig } from '../../../infrastructure/config.js';
 import type { PullRequestNumber } from '../../../shared/schemas/common.js';
 import type { CliRunner } from '../../../infrastructure/cli-runner.js';
 import { ok, err } from '../../../shared/result.js';

@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { CONFIG_FILE, loadConfig, resolvePaths } from './shared/config.js';
+import { CONFIG_FILE, loadConfig, resolvePaths } from './infrastructure/config.js';
 import { createCliRunner } from './infrastructure/cli-runner.js';
 import {
   createBoardDataStore,

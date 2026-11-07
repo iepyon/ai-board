@@ -1,4 +1,4 @@
-import { dataModePath } from '../../shared/config.js';
+import { dataModePath } from '../../infrastructure/config.js';
 import type { DataStoreError } from '../../infrastructure/data-store.js';
 
 // ============================================================

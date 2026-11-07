@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { CONFIG_FILE } from '../../shared/config.js';
+import { CONFIG_FILE } from '../../infrastructure/config.js';
 import { isErr } from '../../shared/result.js';
 import {
   createDataBranch,

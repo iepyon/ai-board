@@ -1,4 +1,4 @@
-import { readDataMode, type BoardPaths } from '../shared/config.js';
+import { readDataMode, type BoardPaths } from '../infrastructure/config.js';
 import type { CliRunner } from '../infrastructure/cli-runner.js';
 import { err, isErr, ok } from '../shared/result.js';
 import { createDataStore, type DataStore } from '../infrastructure/data-store.js';

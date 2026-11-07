@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import type { CliRunner } from '../../infrastructure/cli-runner.js';
 import { createFileCardDependencies } from '../../cards/composition.js';
 import { ok, err } from '../../shared/result.js';
-import type { ForgeConfig } from '../../shared/config.js';
+import type { ForgeConfig } from '../../infrastructure/config.js';
 import { PrFetcher } from '../../infrastructure/pr-fetcher.js';
 import { createPrStateSource } from '../composition.js';
 import type { PrSnapshotRepository } from '../repositories/pr-snapshot.repository.js';

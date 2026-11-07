@@ -1,7 +1,7 @@
 import { forgeTrusted, isForgeUnset, type ForgeConnection } from '../models/pr-state.js';
 import type { NextAction } from '../services/next-action.js';
-import { summarizeLoop, type BoardLoop } from '../../shared/loop-activity.js';
-import { STREAK_THRESHOLD, stuckStreak, type StreakStep } from '../../shared/loop-streak.js';
+import { summarizeLoop, type BoardLoop } from '../services/loop-activity.js';
+import { STREAK_THRESHOLD, stuckStreak, type StreakStep } from '../services/loop-streak.js';
 
 // ============================================================
 // ai-board status の文言 — 人向けの数行と HTML の両方で使う

@@ -10,7 +10,7 @@ import {
   parseDataVersion,
   type DataVersionError,
 } from '../cards/repositories/card-files.js';
-import { CONFIG_FILE, type DataMode } from '../shared/config.js';
+import { CONFIG_FILE, type DataMode } from './config.js';
 import { err, isErr, ok, type Result } from '../shared/result.js';
 import { describeCliError, type CliError, type CliRunner } from './cli-runner.js';
 import { DATA_MIGRATION_MESSAGE, migrateData } from './data-migration.js';
