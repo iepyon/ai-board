@@ -4,7 +4,7 @@ title: AIエージェントは、src/shared をブラウザでも動く値と型
 created: '2026-11-07T13:23:04.411Z'
 skipGates: []
 branch: ccr-928118c1-4dfsdf
-pr: null
+pr: 101
 ---
 
 ## アイデア
