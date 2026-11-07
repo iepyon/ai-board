@@ -190,3 +190,15 @@
 - [x] `.claude/skills/board-loop/rules.md` の「GitHub が未設定のボード」と `SKILL.md` の止まる条件・止まりの一覧を直す
 - [x] `docs/adr/0004-plans-in-draft-pr.md` を書き直し（`adr` のスキル）、`docs/specs/board-hold/spec.md`・`docs/architecture.md`・`README.md` を直す
 - [x] `.claude/HARNESS_VERSIONS.md` に v8 を足す（人の判断で上げないなら、このタスクを外す）
+
+## AI レビュー
+
+- [ ] `.claude/skills/board-loop/plan.md:114-120`（`revise-plan` で前の実装がある計画を直す手順）は、archive から戻した計画から `## AI レビュー` 節だけを消し、未設定のボードの締めの段が計画の末尾に足す `## 動作確認の結果`・`## 判断してほしいこと`・`## 見送った AI レビューの指摘` を残す。マージ待ちの止まりから `decide reject` で立て直すと、作り直す前の動作確認の結果が計画に残ったまま再提出され、次の締めの段で同じ見出しが二重になる。archive から戻した計画にこの 3 つの節があれば `## AI レビュー` 節と同じく節ごと消す手順を足し、114 行の「`implement` の締めの段で Ready にした後に人が Draft に戻した」に、未設定のボードで締めの後に人が差し戻した場合も含める
+
+### 見送った指摘
+
+- `src/board/services/next-action.ts:220` の `mergeWaited` は、`draftReverted` と違って archive のコミットの時刻を最新のゲートのエントリと比べない。差し戻しの後は `revise-plan` が計画を archive から戻すので `findClosed` が null になり、比べなくても止まりは外れる。戻さないまま承認される経路が手順に無いので見送る
+- `src/board/usecases/queries/get-board.query.ts:88` で `closedBranches` と `withBranchPlans` を順に await している。互いに依存しないので `Promise.all` でまとめられるが、未設定のボードの数枚のカードの git の待ち時間だけで、振る舞いは変わらないので見送る
+- `src/board/repositories/branch-plan.repository.ts:117-130` の `findClosed` は、`find` と同じ「active が無く archive がある」の判定を持ち、存在を見るだけのために計画の中身を `git show` で読み、active があっても `git log` を走らせる。重複と小さな効率の整理で振る舞いは変わらないので見送る
+- `src/board/services/branch-plan-target.ts:34` の `branchCloseTarget` は、`branchPlanTarget` の前半（着手・`branch`・中止・`gateStates`）と同じ判定を繰り返す。振る舞いを変えない重複の除去なので見送る
+- `.claude/agents/board-reviewer.md:60` などで、未設定のボードの差分とマージの先を手元の `main` に決め打ちしている。既定のブランチが `main` でないリポジトリでは合わないが、未設定のボードはカードのブランチを手元の `main` から切る今の決まり（`rules.md`）と計画の仮定「差分は手元の `main` と比べる」に沿っているので見送る
