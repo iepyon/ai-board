@@ -4,7 +4,7 @@ title: ユーザは、カードが判断待ちに入ったら、スマホへの�
 created: '2026-11-06T08:53:06.207Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

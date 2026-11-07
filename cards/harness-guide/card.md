@@ -4,7 +4,7 @@ title: ユーザは、ハーネスのどの部品が HIL・文脈の切り分け
 created: '2026-10-31T06:52:01.173Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

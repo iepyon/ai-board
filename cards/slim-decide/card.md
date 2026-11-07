@@ -4,7 +4,7 @@ title: ユーザは、board-decide の手順書を判断の決まりだけに絞
 created: '2026-11-03T14:25:25.428Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

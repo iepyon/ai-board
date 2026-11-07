@@ -4,7 +4,7 @@ title: AIエージェントは、テスト用の値が本体の型とずれた�
 created: '2026-10-23T06:19:17.968Z'
 skipGates: []
 branch: typecheck-tests
-mr: 84
+pr: 84
 ---
 
 ## アイデア

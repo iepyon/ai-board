@@ -5,7 +5,7 @@ created: '2026-10-31T06:52:00.276Z'
 skipGates:
   - verify
 branch: windows-shell
-mr: 67
+pr: 67
 ---
 
 ## アイデア

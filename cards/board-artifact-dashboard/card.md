@@ -5,7 +5,7 @@ created: '2026-11-01T09:46:10.627Z'
 skipGates:
   - plan
 branch: board-artifact-dashboard
-mr: 71
+pr: 71
 ---
 
 ## アイデア

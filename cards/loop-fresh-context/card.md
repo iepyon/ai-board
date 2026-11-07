@@ -4,7 +4,7 @@ title: AIエージェントは、ループの 1 手ごとに前の作業の文�
 created: '2026-10-23T08:50:50.125Z'
 skipGates: []
 branch: loop-fresh-context
-mr: 35
+pr: 35
 ---
 
 ## アイデア

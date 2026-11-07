@@ -4,7 +4,7 @@ title: ユーザは、AI ループが今どのカードを触っているかと�
 created: '2026-10-23T04:57:00.848Z'
 skipGates: []
 branch: loop-activity
-mr: 65
+pr: 65
 ---
 
 ## アイデア

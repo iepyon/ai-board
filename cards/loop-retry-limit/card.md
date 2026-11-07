@@ -4,7 +4,7 @@ title: ユーザは、AI の手が同じところで止まり続けたら、上�
 created: '2026-11-03T11:59:55.349Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

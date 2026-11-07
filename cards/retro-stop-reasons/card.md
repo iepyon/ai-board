@@ -4,7 +4,7 @@ title: ユーザは、差し戻しとループの止まりの理由をまとめ�
 created: '2026-11-06T08:49:54.267Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

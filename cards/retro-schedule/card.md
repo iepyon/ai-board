@@ -4,7 +4,7 @@ title: ユーザは、頼み忘れても、振り返りと差し戻しのまと�
 created: '2026-11-06T08:53:16.271Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

@@ -4,7 +4,7 @@ title: ユーザは、最初の 1 周を回す準備が整っているかを、1
 created: '2026-10-31T06:52:00.749Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

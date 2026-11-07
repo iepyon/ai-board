@@ -4,7 +4,7 @@ title: ユーザは、AI が理由の文字列に紛れ込ませた見出しで�
 created: '2026-10-30T05:09:22.169Z'
 skipGates: []
 branch: review-reason-escape
-mr: 61
+pr: 61
 ---
 
 ## アイデア

@@ -4,7 +4,7 @@ title: ユーザは、AI レビューの段でも /code-review の観点で差�
 created: '2026-11-01T11:14:43.080Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

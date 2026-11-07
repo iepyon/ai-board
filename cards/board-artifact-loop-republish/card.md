@@ -4,7 +4,7 @@ title: ユーザは、ボードの Artifact を頼み直さなくても、ルー
 created: '2026-11-06T08:53:01.075Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

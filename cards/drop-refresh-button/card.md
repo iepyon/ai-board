@@ -4,7 +4,7 @@ title: ユーザは、ダッシュボードの更新ボタンをやめ、更新�
 created: '2026-11-06T11:11:11.615Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

@@ -4,7 +4,7 @@ title: ユーザは、振り返りの数字を頼むたびにぶれない形で�
 created: '2026-11-06T08:49:59.328Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

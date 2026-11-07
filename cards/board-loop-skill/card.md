@@ -4,7 +4,7 @@ title: AIエージェントはボードを読んで、優先順に 1 つずつ�
 created: '2026-10-23T04:57:00.615Z'
 skipGates: []
 branch: board-loop-skill
-mr: 28
+pr: 28
 ---
 
 ## アイデア

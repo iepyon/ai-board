@@ -4,7 +4,7 @@ title: ユーザは、カードが各工程で人を待った時間と AI が使
 created: '2026-10-31T06:51:59.603Z'
 skipGates: []
 branch: stage-timeline
-mr: 44
+pr: 44
 ---
 
 ## アイデア

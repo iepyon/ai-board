@@ -4,7 +4,7 @@ title: AIエージェントは、サブエージェントから別のサブエ�
 created: '2026-11-01T08:34:38.787Z'
 skipGates: []
 branch: loop-flat-subagents
-mr: 56
+pr: 56
 ---
 
 ## アイデア

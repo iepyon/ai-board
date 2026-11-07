@@ -4,7 +4,7 @@ title: ユーザは、要らなくなったアイデアのカードを、中止�
 created: '2026-11-05T10:56:28.677Z'
 skipGates: []
 branch: idea-abort
-mr: 85
+pr: 85
 ---
 
 ## アイデア

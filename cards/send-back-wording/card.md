@@ -4,7 +4,7 @@ title: ユーザは、計画を返す判断を「否決」ではなく「差し�
 created: '2026-11-06T05:58:20.087Z'
 skipGates: []
 branch: send-back-wording
-mr: 91
+pr: 91
 ---
 
 ## アイデア

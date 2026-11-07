@@ -4,7 +4,7 @@ title: ユーザは board-loop が計画の Draft PR を出して止まること
 created: '2026-10-23T05:49:05.376Z'
 skipGates: []
 branch: loop-dummy
-mr: 29
+pr: 29
 ---
 
 ## アイデア

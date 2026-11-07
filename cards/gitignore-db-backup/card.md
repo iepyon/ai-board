@@ -4,7 +4,7 @@ title: ユーザは board.db のバックアップを、git の未追跡ファ�
 created: '2026-10-23T05:54:56.143Z'
 skipGates: []
 branch: gitignore-db-backup
-mr: 30
+pr: 30
 ---
 
 ## アイデア

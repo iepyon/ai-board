@@ -4,7 +4,7 @@ title: ユーザは、ループのサブエージェントが人の判断を書�
 created: '2026-11-03T14:00:10.454Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

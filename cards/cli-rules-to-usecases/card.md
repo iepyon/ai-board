@@ -4,7 +4,7 @@ title: AIエージェントは、ボードの拒否のルールを CLI の外の
 created: '2026-11-06T02:35:47.202Z'
 skipGates: []
 branch: cli-rules-to-usecases
-mr: 88
+pr: 88
 ---
 
 ## 背景

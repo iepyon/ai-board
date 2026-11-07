@@ -4,7 +4,7 @@ title: AIエージェントは、board-worker の手順書の機械的な確か�
 created: '2026-11-03T14:25:22.410Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

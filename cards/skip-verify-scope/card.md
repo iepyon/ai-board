@@ -4,7 +4,7 @@ title: ユーザは「動作確認を飛ばす」のチェックボックスを�
 created: '2026-10-30T03:19:06.455Z'
 skipGates: []
 branch: skip-verify-scope
-mr: 57
+pr: 57
 ---
 
 ## アイデア

@@ -4,7 +4,7 @@ title: AIエージェントは、判断を本文の文字列で往復させず�
 created: '2026-11-01T21:35:41.787Z'
 skipGates: []
 branch: review-append-port
-mr: 62
+pr: 62
 ---
 
 ## アイデア

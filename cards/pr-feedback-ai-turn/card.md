@@ -4,7 +4,7 @@ title: ユーザは PR の指摘に AI が応える番になったカードを�
 created: '2026-10-23T04:52:01.188Z'
 skipGates: []
 branch: pr-feedback-ai-turn
-mr: 79
+pr: 79
 ---
 
 ## アイデア

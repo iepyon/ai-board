@@ -4,7 +4,7 @@ title: ユーザは、1 枚の PR が GitHub から引けないだけで、ボ�
 created: '2026-11-03T02:32:40.777Z'
 skipGates: []
 branch: forge-card-error
-mr: 83
+pr: 83
 ---
 
 ## アイデア

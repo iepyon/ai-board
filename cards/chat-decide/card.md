@@ -4,7 +4,7 @@ title: ユーザは、計画の承認などの判断を、画面を開かずに�
 created: '2026-10-31T05:46:52.845Z'
 skipGates: []
 branch: chat-decide
-mr: 42
+pr: 42
 ---
 
 ## アイデア

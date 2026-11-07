@@ -4,7 +4,7 @@ title: ユーザは、手順書の版ごとの止まりの率と時間を並べ�
 created: '2026-11-06T08:50:04.279Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

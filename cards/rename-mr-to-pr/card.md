@@ -4,7 +4,7 @@ title: 'ユーザは、GitHub の PR を MR !n ではなく PR #n として読�
 created: '2026-10-23T06:19:18.423Z'
 skipGates: []
 branch: rename-mr-to-pr
-mr: 32
+pr: 32
 ---
 
 ## アイデア

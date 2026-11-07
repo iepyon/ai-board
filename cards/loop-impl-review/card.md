@@ -4,7 +4,7 @@ title: AIエージェントは、実装中のタスクを一気に倒し切り�
 created: '2026-10-29T23:47:08.540Z'
 skipGates: []
 branch: loop-impl-review
-mr: 39
+pr: 39
 ---
 
 ## アイデア

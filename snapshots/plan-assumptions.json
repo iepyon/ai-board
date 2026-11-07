@@ -1,8 +1,8 @@
 {
   "fingerprint": "[2,\"closed\",\"2026-11-05T00:43:25Z\",false,\"8c09b586ab7745c0f83bbafa4dec178e8624e2c1\",0,0,\"2026-11-05T00:43:30Z\"]",
-  "mr": {
+  "pr": {
     "forge": "github",
-    "iid": 80,
+    "number": 80,
     "state": "merged",
     "draft": false,
     "sourceBranch": "plan-assumptions",

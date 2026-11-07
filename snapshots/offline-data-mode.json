@@ -1,8 +1,8 @@
 {
   "fingerprint": "[3,\"closed\",\"2026-11-06T20:57:37Z\",false,\"b3c6ddc848d16d191c0a9d6544904bb3f9596d34\",0,4,\"2026-11-06T20:57:38Z\"]",
-  "mr": {
+  "pr": {
     "forge": "github",
-    "iid": 95,
+    "number": 95,
     "state": "merged",
     "draft": false,
     "sourceBranch": "claude/idea-confirmation-7sfhok",

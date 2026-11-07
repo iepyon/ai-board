@@ -4,7 +4,7 @@ title: ユーザは、画面が変わる PR で、AI が撮った変更後の画
 created: '2026-11-04T04:09:13.520Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

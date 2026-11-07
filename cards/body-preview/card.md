@@ -4,7 +4,7 @@ title: ユーザはカードの本文を、Markdown の記号ではなく整形�
 created: '2026-10-23T07:15:32.356Z'
 skipGates: []
 branch: body-preview
-mr: 33
+pr: 33
 ---
 
 ## アイデア

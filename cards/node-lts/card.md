@@ -5,7 +5,7 @@ created: '2026-10-31T06:52:00.070Z'
 skipGates:
   - plan
 branch: node-lts
-mr: 55
+pr: 55
 ---
 
 ## アイデア

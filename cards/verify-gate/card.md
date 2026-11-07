@@ -4,7 +4,7 @@ title: ユーザは PR を見る前に、AI の実装を実際に動かして確
 created: '2026-10-29T22:48:13.625Z'
 skipGates: []
 branch: verify-gate
-mr: 37
+pr: 37
 ---
 
 ## アイデア

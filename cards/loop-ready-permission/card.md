@@ -4,7 +4,7 @@ title: ユーザは、auto モードのループが手順書どおりの commit�
 created: '2026-11-03T12:50:14.209Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

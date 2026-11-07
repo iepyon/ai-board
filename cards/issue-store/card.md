@@ -4,7 +4,7 @@ title: ユーザは、Mac を閉じたままでも、スマホの Claude Code �
 created: '2026-10-29T23:18:00.764Z'
 skipGates: []
 branch: issue-store
-mr: 54
+pr: 54
 ---
 
 ## アイデア

@@ -4,7 +4,7 @@ title: ユーザは、アイデアの一覧・AI 作業中・判断待ちを、A
 created: '2026-11-06T08:43:09.496Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

@@ -4,7 +4,7 @@ title: ユーザは、GitHub に届かなくても、AI が計画を提出した
 created: '2026-11-06T09:36:57.022Z'
 skipGates: []
 branch: ccr-bb1fbf36-7v5cd6
-mr: 97
+pr: 97
 ---
 
 ## アイデア

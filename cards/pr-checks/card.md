@@ -4,7 +4,7 @@ title: ユーザは PR の CI が通っているかを、PR を開く前にボ�
 created: '2026-10-23T04:52:47.933Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

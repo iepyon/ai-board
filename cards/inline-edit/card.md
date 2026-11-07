@@ -4,7 +4,7 @@ title: ユーザはカードの本文を、整形された見た目に近いま�
 created: '2026-10-23T08:04:52.125Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

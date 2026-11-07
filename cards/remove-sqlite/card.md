@@ -6,7 +6,7 @@ skipGates:
   - plan
   - verify
 branch: remove-sqlite
-mr: 72
+pr: 72
 ---
 
 ## アイデア

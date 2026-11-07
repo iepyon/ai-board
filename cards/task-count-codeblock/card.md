@@ -4,7 +4,7 @@ title: ユーザは、計画にチェックボックスの例を書いても、�
 created: '2026-10-30T06:47:49.653Z'
 skipGates: []
 branch: task-count-codeblock
-mr: 59
+pr: 59
 ---
 
 ## アイデア

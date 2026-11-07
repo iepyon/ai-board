@@ -4,7 +4,7 @@ title: ユーザは、ループのサブエージェントを計画・実装・�
 created: '2026-11-02T10:07:00.753Z'
 skipGates: []
 branch: loop-three-roles
-mr: 64
+pr: 64
 ---
 
 ## アイデア

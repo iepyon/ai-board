@@ -4,7 +4,7 @@ title: ユーザは、計画を UI のモックや図解の付いた読みやす
 created: '2026-10-30T03:59:17.637Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

@@ -1,8 +1,8 @@
 {
   "fingerprint": "[2,\"closed\",\"2026-10-23T06:08:34Z\",false,\"1ea3e67ad7d2e9494104c19d5c975cdebc90c39a\",0,0,\"2026-10-23T06:08:39Z\"]",
-  "mr": {
+  "pr": {
     "forge": "github",
-    "iid": 30,
+    "number": 30,
     "state": "merged",
     "draft": false,
     "sourceBranch": "gitignore-db-backup",

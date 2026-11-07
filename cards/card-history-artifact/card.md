@@ -4,7 +4,7 @@ title: ユーザは、1 枚のカードがなぜ長くかかったかを、経�
 created: '2026-11-06T08:53:11.326Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

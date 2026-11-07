@@ -4,7 +4,7 @@ title: ユーザは、着手の前に AI から 1 問ずつ問い詰められて
 created: '2026-11-03T01:53:35.568Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

@@ -4,7 +4,7 @@ title: ユーザはカードの詳細を広い幅で開き、本文を最初に�
 created: '2026-10-23T08:06:10.022Z'
 skipGates: []
 branch: detail-layout
-mr: 34
+pr: 34
 ---
 
 ## アイデア

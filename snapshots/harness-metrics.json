@@ -1,8 +1,8 @@
 {
   "fingerprint": "[2,\"closed\",\"2026-11-05T03:48:18Z\",false,\"908044866b16229c88153cde59148181a9ee91a7\",0,0,\"2026-11-05T03:48:18Z\"]",
-  "mr": {
+  "pr": {
     "forge": "github",
-    "iid": 82,
+    "number": 82,
     "state": "merged",
     "draft": false,
     "sourceBranch": "harness-metrics",

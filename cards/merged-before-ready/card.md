@@ -4,7 +4,7 @@ title: ユーザはループより先に PR をマージしても、残ったタ
 created: '2026-10-23T06:15:47.227Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

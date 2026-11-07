@@ -4,7 +4,7 @@ title: ユーザは計画を書かせたうえで計画レビューを飛ばし�
 created: '2026-10-31T09:05:47.460Z'
 skipGates: []
 branch: skip-plan-needs-start
-mr: 49
+pr: 49
 ---
 
 ## アイデア

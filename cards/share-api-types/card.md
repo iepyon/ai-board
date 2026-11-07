@@ -4,7 +4,7 @@ title: AIエージェントは、API の応答に項目を足したとき、画�
 created: '2026-10-23T06:19:18.191Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

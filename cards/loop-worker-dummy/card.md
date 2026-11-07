@@ -4,7 +4,7 @@ title: ユーザは、board-loop の監視役が作業者に 1 手を渡して�
 created: '2026-10-29T22:38:42.334Z'
 skipGates: []
 branch: loop-worker-dummy
-mr: 36
+pr: 36
 ---
 
 ## アイデア

@@ -1,8 +1,8 @@
 {
   "fingerprint": "[2,\"closed\",\"2026-11-03T11:13:26Z\",false,\"8d287bb09d66bb341dc1be714e8c3e9eb4ea8dc0\",1,0,\"2026-11-03T11:13:32Z\"]",
-  "mr": {
+  "pr": {
     "forge": "github",
-    "iid": 72,
+    "number": 72,
     "state": "merged",
     "draft": false,
     "sourceBranch": "remove-sqlite",

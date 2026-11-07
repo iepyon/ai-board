@@ -4,7 +4,7 @@ title: ユーザは、承認などの判断を書いたあと、頼み直さな�
 created: '2026-11-03T02:15:11.087Z'
 skipGates: []
 branch: loop-resume-after-decide
-mr: 69
+pr: 69
 ---
 
 ## アイデア

@@ -5,7 +5,7 @@ created: '2026-11-03T11:40:25.100Z'
 skipGates:
   - plan
 branch: decide-guard
-mr: 73
+pr: 73
 ---
 
 ## アイデア

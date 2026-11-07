@@ -4,7 +4,7 @@ title: ユーザはブラウザでボードを開いたままでも、ai-board �
 created: '2026-10-23T05:53:26.040Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

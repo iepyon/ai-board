@@ -4,7 +4,7 @@ title: ユーザは、計画で AI が決めた仮定と人に判断してほし
 created: '2026-11-03T11:40:27.835Z'
 skipGates: []
 branch: plan-assumptions
-mr: 80
+pr: 80
 ---
 
 ## アイデア

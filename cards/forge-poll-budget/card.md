@@ -4,7 +4,7 @@ title: ユーザは、ボードとループを回し続けても GitHub API の�
 created: '2026-10-30T07:06:57.078Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

@@ -4,7 +4,7 @@ title: ユーザはマージされずに閉じた PR のカードを、AI に進
 created: '2026-10-23T04:52:00.951Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

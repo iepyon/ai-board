@@ -4,7 +4,7 @@ title: ユーザは、動作確認の列を無くし、PR で証拠を見て動�
 created: '2026-11-03T14:35:05.182Z'
 skipGates: []
 branch: merge-verify-into-pr
-mr: 76
+pr: 76
 ---
 
 ## アイデア

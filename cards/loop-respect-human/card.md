@@ -4,7 +4,7 @@ title: ユーザは、自分が止めたり Draft に戻したりしたカード
 created: '2026-10-30T03:19:06.209Z'
 skipGates: []
 branch: loop-respect-human
-mr: 38
+pr: 38
 ---
 
 ## アイデア

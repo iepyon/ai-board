@@ -4,7 +4,7 @@ title: ユーザは、GitHub を設定していない研修のボードでも、
 created: '2026-11-06T12:35:43.307Z'
 skipGates: []
 branch: ccr-bb1fbf36-7v5cd6
-mr: 96
+pr: 96
 ---
 
 ## アイデア

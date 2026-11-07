@@ -4,7 +4,7 @@ title: ユーザは、ai-board pr checks の --sha に短いハッシュを渡�
 created: '2026-11-06T04:21:16.114Z'
 skipGates: []
 branch: pr-checks-short-sha
-mr: 89
+pr: 89
 ---
 
 ## 背景

@@ -4,7 +4,7 @@ title: ユーザは、AI レビューが自分の設計とテストの実行を�
 created: '2026-11-03T11:40:30.117Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

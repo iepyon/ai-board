@@ -4,7 +4,7 @@ title: ユーザは、「ボードを見せて」のページでも、画面と�
 created: '2026-11-03T02:18:08.173Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

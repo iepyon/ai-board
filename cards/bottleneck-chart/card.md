@@ -4,7 +4,7 @@ title: ユーザは、どの工程で時間がかかっているかをグラフ�
 created: '2026-10-31T06:51:59.837Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

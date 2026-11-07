@@ -4,7 +4,7 @@ title: ユーザは、期間を指定して、工程ごとの時間とボトル�
 created: '2026-11-06T08:49:49.033Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア

@@ -4,7 +4,7 @@ title: ユーザは、ループを本筋のセッション 1 つで回し、AI �
 created: '2026-11-03T14:29:51.952Z'
 skipGates: []
 branch: loop-single-session
-mr: 75
+pr: 75
 ---
 
 ## アイデア

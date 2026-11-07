@@ -4,7 +4,7 @@ title: ユーザは自分にアサインされた Issue を、手元のボード
 created: '2026-10-23T04:53:50.517Z'
 skipGates: []
 branch: null
-mr: null
+pr: null
 ---
 
 ## アイデア
