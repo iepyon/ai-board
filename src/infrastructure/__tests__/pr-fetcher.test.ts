@@ -444,7 +444,12 @@ describe('PrFetcher の問い合わせの省略', () => {
     const aborted = () =>
       makeCard({
         pr: 42 as PullRequestNumber,
-        body: '## レビュー\n\n### 2026-11-05T00:00:00.000Z plan 中止\n',
+        body: appendReviewEntry('', {
+          at: '2026-11-05T00:00:00.000Z',
+          gate: 'plan',
+          kind: '中止',
+          reason: '',
+        }),
       });
 
     it('控えがあれば、閉じた PR も 2 回目から問い合わせず、控えを返す', async () => {

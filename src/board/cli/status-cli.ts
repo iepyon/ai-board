@@ -184,7 +184,7 @@ export async function runStatusCli(
     io.stderr(`ボードを読めませんでした: ${result.error.reason}\n`);
     return 1;
   }
-  const report = args.active === true ? onlyActiveCards(result.value) : result.value;
+  const report = args.active ? onlyActiveCards(result.value) : result.value;
 
   io.stdout(
     args.only === undefined
@@ -198,7 +198,7 @@ export async function runStatusCli(
  * `cards` を生きているカード（`isActiveCard`）だけに絞る。ほかの項目は変えない
  * （`waiting` / `working` / `ideas` は今も生きているカードだけを持つ）
  */
-export function onlyActiveCards(report: StatusReport): StatusReport {
+function onlyActiveCards(report: StatusReport): StatusReport {
   return { ...report, cards: report.cards.filter(isActiveCard) };
 }
 

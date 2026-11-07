@@ -164,7 +164,7 @@ rebase しないのは、離れた行の編集を git が黙って混ぜ、検�
 **控え。** PR 1 枚で 4 回以上引くので、結果を控えて問い合わせを省く（`src/board/repositories/file-pr-snapshot.repository.ts`）。
 
 - マージ済みの PR は二度と引かず（`isSettled`）、データ用ブランチの `snapshots/<id>.json` に `transact` で書く
-- 中止のカードの PR も、控えがあれば引き直さない（`isFrozen`）。中止のカードは区画が 中止 に固定され、PR が変わっても何にも効かないため。問い合わせの対象には残すので控えは消えない。控えが無ければ一度引く
+- 中止のカードの PR も、控えがあれば引き直さない（`canReuseSnapshot`）。中止のカードは区画が 中止 に固定され、PR が変わっても何にも効かないため。問い合わせの対象には残すので控えは消えない。控えが無ければ一度引く
 - それ以外は `pulls/{n}` の指紋（`fingerprintOf`）が前回と同じなら詳細を引かない。控えは `<dataDir の親>/cache/pr-snapshots.json`
 - GitHub に届かないときは、マージ済みの控え（`findMerged`）だけを読み、書かない（`PrFetcher` を作らない）
 - 控えは導出の入力ではないので、書けなくても警告だけ。`PrState` に項目を足すと古い控えは検証で外れ、`enrich` を変えたら `FINGERPRINT_VERSION` を上げる

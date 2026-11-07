@@ -728,15 +728,6 @@ describe('ai-board status --json --active', () => {
     expect(report['cards']).toEqual(expect.arrayContaining([{ id: 'idea' }, { id: 'started' }]));
     expect(report['cards']).toHaveLength(2);
   });
-
-  it.each([
-    ['--json が無い', ['--active']],
-    ['2 回目の --active', ['--json', '--active', '--active']],
-  ])('%s は使い方を出して 1 で終わる', async (_name, argv) => {
-    expect(await run(argv)).toBe(1);
-    expect(stderr).toContain('使い方: ai-board status');
-    expect(stdout).toBe('');
-  });
 });
 
 describe('pickFields', () => {
@@ -806,5 +797,6 @@ describe('parseStatusArgs', () => {
       active: true,
     });
     expect(parseStatusArgs(['--active'])).toBe('invalid');
+    expect(parseStatusArgs(['--json', '--active', '--active'])).toBe('invalid');
   });
 });

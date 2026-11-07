@@ -59,36 +59,41 @@ export function unavailablePrStateProvider(
   };
 }
 
+/** 控えが今もそのカードの PR のものか。番号が違えば（ブランチを付け替えて番号が外れた・変わった）控えは古い */
+function belongsToCard(card: { readonly pr: number | null }, snapshot: PrSnapshot | null): boolean {
+  return snapshot !== null && card.pr === snapshot.pr.number;
+}
+
 /**
  * 控えがもう変わらず、今もそのカードの PR のものか。マージ済みの PR は二度と変わらない。
  *
- * カードの番号が控えの番号と違えば（ブランチを付け替えて番号が外れた・変わった）、控えは古い。
  * マージされずに閉じた PR は reopen されうるので、決まったとはみなさない。
- * `PrFetcher` はこれが真なら引き直さず、届かないときの供給元はこれが真の控えだけを出す
+ * 届かないときの供給元はこれが真の控えだけを出す（`matchMergedSnapshots`）
  */
 export function isSettled(
   card: { readonly pr: number | null },
   snapshot: PrSnapshot | null
 ): boolean {
-  return snapshot !== null && snapshot.pr.state === 'merged' && card.pr === snapshot.pr.number;
+  return belongsToCard(card, snapshot) && snapshot?.pr.state === 'merged';
 }
 
 /**
- * 中止のカードで、控えが今もそのカードの PR のものか。
+ * `PrFetcher` が PR を引き直さず、控えをそのまま使ってよいか。次のどちらか。
  *
- * 中止のカードは、どのステージでも区画が 中止 に固定され（`board-sections.ts` の `sectionOf`）、
- * 判断も作業も待っていないので、PR を引き直しても何にも効かない。
- * 中止かは本文の `## レビュー` だけで決まり、GitHub を引かずに分かる。
- * `PrFetcher` はこれが真なら引き直さず、控えをそのまま使う（控えは消さない）。
- * 控えが無ければ偽で、今どおり一度引いて控えに残す。
- * 中止の後に人が別の判断を書いて最新が 中止 でなくなれば偽に戻り、今どおり引き直す
+ * - 控えが決まっている（`isSettled`。マージ済み）
+ * - 中止のカードで、控えが今もそのカードの PR のもの。中止のカードは、どのステージでも区画が 中止 に固定され
+ *   （`board-sections.ts` の `sectionOf`）、PR を引き直しても何にも効かない。中止かは本文の `## レビュー` だけで分かる。
+ *   最新が 中止 でなくなれば偽に戻り、今どおり引き直す
+ *
+ * 控えが無ければ偽で、今どおり一度引いて控えに残す
  */
-export function isFrozen(
+export function canReuseSnapshot(
   card: { readonly pr: number | null; readonly body: string },
   snapshot: PrSnapshot | null
 ): boolean {
   return (
-    snapshot !== null && card.pr === snapshot.pr.number && isAborted(parseReviewLog(card.body))
+    isSettled(card, snapshot) ||
+    (belongsToCard(card, snapshot) && isAborted(parseReviewLog(card.body)))
   );
 }
 
