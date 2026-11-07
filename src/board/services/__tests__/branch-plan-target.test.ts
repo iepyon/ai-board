@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { Card } from '../../../cards/models/card.js';
 import type { CardId } from '../../../shared/schemas/common.js';
 import type { PlanDoc } from '../../models/plan-state.js';
-import { branchPlanTarget } from '../branch-plan-target.js';
+import { branchCloseTarget, branchPlanTarget } from '../branch-plan-target.js';
 
 function card(overrides: Partial<Card> = {}): Card {
   return {
@@ -51,6 +51,38 @@ describe('branchPlanTarget', () => {
       log('提出', '差し戻し', '保留'),
     ]) {
       expect(branchPlanTarget(card({ body }), null)).toBeNull();
+    }
+  });
+});
+
+describe('branchCloseTarget', () => {
+  it('着手済み・ブランチあり・メインに計画なし・承認済みなら、読むブランチを返す', () => {
+    expect(branchCloseTarget(card({ body: log('提出', '承認') }), null)).toBe('feat/a');
+  });
+
+  it('plan を飛ばす宣言で提出が承認と読まれるカードも読む', () => {
+    expect(branchCloseTarget(card({ skipGates: ['plan'], body: log('提出') }), null)).toBe(
+      'feat/a'
+    );
+  });
+
+  it('メインに計画がある（archive を含む）・未着手・ブランチなし・中止なら読まない', () => {
+    const approved = log('提出', '承認');
+    expect(branchCloseTarget(card({ body: approved }), mainPlan)).toBeNull();
+    expect(branchCloseTarget(card({ body: approved }), { ...mainPlan, archived: true })).toBeNull();
+    expect(branchCloseTarget(card({ body: approved, startedAt: null }), null)).toBeNull();
+    expect(branchCloseTarget(card({ body: approved, branch: null }), null)).toBeNull();
+    expect(branchCloseTarget(card({ body: log('提出', '承認', '中止') }), null)).toBeNull();
+  });
+
+  it('承認されていないカードは読まない（実装中の列に当たらない）', () => {
+    for (const body of [
+      '',
+      log('提出'),
+      log('提出', '差し戻し'),
+      log('提出', '差し戻し', '保留'),
+    ]) {
+      expect(branchCloseTarget(card({ body }), null)).toBeNull();
     }
   });
 });

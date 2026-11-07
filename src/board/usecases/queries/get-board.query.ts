@@ -35,7 +35,7 @@ import {
   emptyBranchPlanRepository,
   type BranchPlanRepository,
 } from '../../repositories/branch-plan.repository.js';
-import { branchPlanTarget } from '../../services/branch-plan-target.js';
+import { branchCloseTarget, branchPlanTarget } from '../../services/branch-plan-target.js';
 import { isForgeUnset, type MrState } from '../../models/mr-state.js';
 import type { GetBoardError } from '../../errors/board-errors.js';
 
@@ -51,6 +51,7 @@ export type GetBoardQuery = () => Promise<Result<Board, GetBoardError>>;
  * ステージ導出そのものは `resolveStage`（純関数）に委譲し、
  * ここは I/O と組み立てだけを担当する。
  * GitHub が未設定のボードでは、メインに計画の無いカードのブランチの計画を `branchPlanRepository` で補う（`branchPlanTarget`）。
+ * 同じく、実装中のカードの締めが済んだか（ブランチで計画が archive 済みか）を読み、マージ待ちの止まりにだけ使う（`branchCloseTarget`）。
  * ループの 1 手の記録は、ループの様子（`Board.loop`）・カードの手の一覧・区間の小区間にだけ使い、
  * ステージの導出と止まりには渡さない。
  */
@@ -84,6 +85,10 @@ export function createGetBoardQuery(
 
     const forge = mrProvider.connection();
     const forgeUnset = isForgeUnset(forge);
+    const closedByCard = forgeUnset
+      ? await closedBranches(planState, cards, branchPlanRepository)
+      : new Map<string, BranchClosedHold>();
+    const closedOf = (cardId: string): BranchClosedHold | null => closedByCard.get(cardId) ?? null;
     if (forgeUnset) planState = await withBranchPlans(planState, cards, branchPlanRepository);
     const mrKnown = forge.status === 'connected' && mrProvider.synced();
     const generatedAt = new Date().toISOString();
@@ -118,6 +123,7 @@ export function createGetBoardQuery(
           mrKnown,
           mrFailure,
           unsetPr,
+          branchClosed: closedOf(card.id),
         }),
         splitAiPhases(
           resolveTimeline({
@@ -162,6 +168,28 @@ async function withBranchPlans(
     if (doc !== null) merged.set(doc.cardId, doc);
   }
   return merged;
+}
+
+type BranchClosedHold = NonNullable<HoldInput['branchClosed']>;
+
+/**
+ * `branchCloseTarget` が選んだカードについて、締めが済んだ（ブランチで計画が archive 済み）ものを、カード ID ごとにまとめて読む。
+ * メインの計画だけで選ぶので、ブランチの計画で補う前の `planState` を渡す
+ */
+async function closedBranches(
+  planState: PlanState,
+  cards: readonly Card[],
+  reader: BranchPlanRepository
+): Promise<Map<string, BranchClosedHold>> {
+  const found = await Promise.all(
+    cards.map(async (card): Promise<[string, BranchClosedHold] | null> => {
+      const branch = branchCloseTarget(card, planState.get(card.id) ?? null);
+      if (branch === null) return null;
+      const closed = await reader.findClosed(card.id, branch);
+      return closed === null ? null : [card.id, { branch, since: closed.archivedAt }];
+    })
+  );
+  return new Map(found.filter((entry) => entry !== null));
 }
 
 /**

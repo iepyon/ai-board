@@ -214,3 +214,70 @@ describe('GetBoardQuery のブランチの計画', () => {
     expect(branchPlans.calls).toEqual([]);
   });
 });
+
+describe('GetBoardQuery のブランチのマージ待ち', () => {
+  const approved = card('closed', {
+    branch: 'closed',
+    body: '## レビュー\n\n### 2026-11-03T00:00:00.000Z plan 提出\n\n理由\n\n### 2026-11-03T01:00:00.000Z plan 承認\n\n',
+  });
+  const archivedAt = '2026-11-04T00:00:00.000Z';
+
+  function reader(): BranchPlanRepository & { readonly calls: string[] } {
+    const calls: string[] = [];
+    return {
+      ...emptyBranchPlanRepository,
+      calls,
+      findClosed: (cardId) => {
+        calls.push(cardId);
+        return Promise.resolve(cardId === 'closed' ? { archivedAt } : null);
+      },
+    };
+  }
+
+  it('未設定のボードでは、締めが済んだ実装中のカードをマージ待ちの止まりにする', async () => {
+    const branchPlans = reader();
+    const result = await query([approved], [], disabledMrStateProvider, branchPlans)();
+    if (!result.ok) throw new Error('ボードを読めない');
+
+    const closed = result.value.cards[0];
+    expect(closed?.stage).toBe('impling');
+    expect(closed?.hold).toEqual({
+      kind: 'decision',
+      reason: expect.stringContaining('git merge --no-ff closed') as string,
+      since: archivedAt,
+    });
+    expect(branchPlans.calls).toEqual(['closed']);
+  });
+
+  it('github: があるボードではブランチの archive を読まない', async () => {
+    const branchPlans = reader();
+    const unavailable = unavailableMrStateProvider('github', 'gh が無い');
+    const result = await query([approved], [], unavailable, branchPlans)();
+    if (!result.ok) throw new Error('ボードを読めない');
+
+    expect(result.value.cards[0]?.hold).toBeNull();
+    expect(branchPlans.calls).toEqual([]);
+  });
+
+  it('メインに計画（archive）があれば、ブランチを読まずにマージ済みにする', async () => {
+    const branchPlans = reader();
+    const merged: PlanDoc = {
+      cardId: createCardId('closed'),
+      tasks: { completed: 1, total: 1 },
+      archived: true,
+      updatedAt: archivedAt,
+    };
+    const result = await query(
+      [approved],
+      [],
+      disabledMrStateProvider,
+      branchPlans,
+      new Map([[merged.cardId, merged]])
+    )();
+    if (!result.ok) throw new Error('ボードを読めない');
+
+    expect(result.value.cards[0]?.stage).toBe('merged');
+    expect(result.value.cards[0]?.hold).toBeNull();
+    expect(branchPlans.calls).toEqual([]);
+  });
+});

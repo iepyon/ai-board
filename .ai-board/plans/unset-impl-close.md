@@ -3,9 +3,12 @@
 ## 人に判断してほしいこと
 
 - **手順書の版を上げるか。** 未設定のボードで、実装の手が push と締めの `ai-board pr` を飛ばし、`board-reviewer` が PR の代わりにブランチの差分を読むようになる。`.claude/HARNESS_VERSIONS.md` に v8 を足す。既定: 上げる
+  - → 回答（2026-11-07、plan 承認）: 理由なしで承認（既定のまま進む）
 - **`board-reviewer`（AI レビューの段）もこのカードで直すか。** 今の `board-reviewer` は、カードの `mr` が null なら止まり、PR の差分を読み、push する。直さないと、未設定のボードはタスクを倒した後のレビューの段で止まり、締めの段に届かない。
   既定: 直す。未設定のボードでは `mr` が null でも止まらず、手元の `main` とカードのブランチの差分（`git diff main...<branch>`）を読み、コミットだけして push しない（`### 仮定`）
+  - → 回答（2026-11-07、plan 承認）: 理由なしで承認（既定のまま進む）
 - **未設定のボードでマージ済みのカードの時刻（区間の時間）を出すか。** PR が無いので、Ready / マージの時刻が無く、ボードの区間（timeline）の締めとマージの点が出ない。既定: このカードでは出さない（`### Non-Goals`）
+  - → 回答（2026-11-07、plan 承認）: 理由なしで承認（既定のまま進む）
 
 ## 提案
 
@@ -174,11 +177,11 @@
 
 ### 1. 締めを終えたカードをマージ待ちの止まりにする
 
-- [ ] `src/board/repositories/branch-plan.repository.ts` に `findClosed` を足す（active が無く archive がある、archive のコミットの時刻）
-- [ ] `src/board/services/branch-plan-target.ts` に `branchCloseTarget` を置く
-- [ ] `src/board/services/next-action.ts` の `HoldInput` に `branchClosed` を、`HOLD_REASONS` に `branchMerge` を足し、`resolveHold` の `impling` でマージ待ちの止まりを返す
-- [ ] `src/board/usecases/queries/get-board.query.ts` で、未設定のボードのとき `branchCloseTarget` が選んだカードの `findClosed` を読み、`resolveHold` に渡す
-- [ ] テスト: `findClosed`（一時の git リポジトリで、archive だけなら時刻・active があれば null・不正なブランチ名で null）、`branchCloseTarget`（各条件）、`resolveHold`（マージ待ち、Draft に戻されたほうが先、中止なら null）、`get-board.query`（未設定ならマージ待ち、接続済みなら読まない、メインに計画があれば読まない）、`decide-cli`（マージ待ちのカードを差し戻せる、承認は拒む）
+- [x] `src/board/repositories/branch-plan.repository.ts` に `findClosed` を足す（active が無く archive がある、archive のコミットの時刻）
+- [x] `src/board/services/branch-plan-target.ts` に `branchCloseTarget` を置く
+- [x] `src/board/services/next-action.ts` の `HoldInput` に `branchClosed` を、`HOLD_REASONS` に `branchMerge` を足し、`resolveHold` の `impling` でマージ待ちの止まりを返す
+- [x] `src/board/usecases/queries/get-board.query.ts` で、未設定のボードのとき `branchCloseTarget` が選んだカードの `findClosed` を読み、`resolveHold` に渡す
+- [x] テスト: `findClosed`（一時の git リポジトリで、archive だけなら時刻・active があれば null・不正なブランチ名で null）、`branchCloseTarget`（各条件）、`resolveHold`（マージ待ち、Draft に戻されたほうが先、中止なら null）、`get-board.query`（未設定ならマージ待ち、接続済みなら読まない、メインに計画があれば読まない）、`decide-cli`（マージ待ちのカードを差し戻せる、承認は拒む）
 
 ### 2. ループの手順書とドキュメント
 

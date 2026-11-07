@@ -22,3 +22,20 @@ export function branchPlanTarget(card: Card, plan: PlanDoc | null): string | nul
 
   return planReviewable(gateStates(entries, card.skipGates).plan) ? card.branch : null;
 }
+
+/**
+ * GitHub が未設定のボードで、締めが済んだか（ブランチで計画が archive 済みか。`findClosed`）を読むなら、そのブランチ名。読まないなら null。
+ *
+ * 読むのは実装中の列に効くカード（plan ゲートが `approved`）だけにし、git を走らせる回数を抑える。
+ * 中止していない・着手済み・`branch` がある・メインのチェックアウトに計画（`plan`。archive を含む）が無いカード。
+ * メインに archive があれば、人がもうマージしている（ステージの規則 1 でマージ済み）。
+ * GitHub が未設定かは呼び出し側が見る。
+ */
+export function branchCloseTarget(card: Card, plan: PlanDoc | null): string | null {
+  if (plan !== null || card.startedAt === null || card.branch === null) return null;
+
+  const entries = parseReviewLog(card.body);
+  if (isAborted(entries)) return null;
+
+  return gateStates(entries, card.skipGates).plan === 'approved' ? card.branch : null;
+}

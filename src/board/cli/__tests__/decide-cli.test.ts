@@ -413,6 +413,23 @@ describe('ai-board decide', () => {
     expect(stdout).toContain('r: plan 承認 を書きました（計画レビュー → 実装中）');
   });
 
+  it('GitHub が未設定なら、締めが済んでマージを待つカードを差し戻せ、承認は拒む', async () => {
+    await writeCard('m', `${STARTED}branch: m\n`, review('承認'));
+    const unset = stubProvider({ status: 'disabled', kind: null, reason: null });
+    const branchPlans: BranchPlanRepository = {
+      ...emptyBranchPlanRepository,
+      findClosed: () => Promise.resolve({ archivedAt: '2026-11-04T00:00:00.000Z' }),
+    };
+
+    expect(await run(['approve', 'm'], unset, stubStore(), branchPlans)).toBe(1);
+    expect(parseReviewLog((await readCard('m')).body)).toHaveLength(1);
+
+    expect(
+      await run(['reject', 'm', '--reason', '立て直す'], unset, stubStore(), branchPlans)
+    ).toBe(0);
+    expect(stdout).toContain('m: plan 差し戻し を書きました（実装中 → 計画提案中）');
+  });
+
   describe('飛ばす宣言', () => {
     it('plan を入れて外せる', async () => {
       await writeCard('a', IDEA('2026-11-01T00:00:00.000Z'));

@@ -197,6 +197,7 @@ function holdInput(
     mrKnown: true,
     mrFailure: null,
     unsetPr: null,
+    branchClosed: null,
     ...rest,
   };
 }
@@ -413,5 +414,48 @@ describe('resolveHold', () => {
 
   it('Draft に戻されたことが無い PR では止まらない', () => {
     expect(resolveHold(holdInput('impling', approvedPlan, { mr: draftMr(null) }))).toBeNull();
+  });
+});
+
+describe('resolveHold — GitHub が未設定のボードのマージ待ち', () => {
+  const approvedPlan = [entry(0, 'plan', '提出'), entry(1, 'plan', '承認')];
+  const archivedAt = '2026-10-20T02:00:00.000Z';
+  const branchClosed = { branch: 'feat/a', since: archivedAt };
+
+  it('締めが済んだ（ブランチで計画が archive 済み）実装中のカードは、マージを待って止まり、選ばれない', () => {
+    const input = holdInput('impling', approvedPlan, { branchClosed });
+    const hold = resolveHold(input);
+
+    expect(hold).toEqual({
+      kind: 'decision',
+      reason: HOLD_REASONS.branchMerge('feat/a'),
+      since: archivedAt,
+    });
+    expect(hold?.reason).toContain('git merge --no-ff feat/a');
+    expect(
+      pickNextAction([makeCard({ id: 'a', stage: 'impling', gates: input.gates, hold })])
+    ).toBeNull();
+  });
+
+  it('締めが済んでいなければ止まらない', () => {
+    expect(resolveHold(holdInput('impling', approvedPlan))).toBeNull();
+  });
+
+  it('Draft に戻された止まりを先に見る', () => {
+    const hold = resolveHold(
+      holdInput('impling', approvedPlan, {
+        branchClosed,
+        mr: { iid: 38, convertedToDraftAt: '2026-10-20T01:00:00Z' },
+      })
+    );
+
+    expect(hold?.reason).toBe(HOLD_REASONS.draftReverted(38));
+  });
+
+  it('中止のカードと実装中でないカードは止まりにしない', () => {
+    expect(
+      resolveHold(holdInput('impling', approvedPlan, { aborted: true, branchClosed }))
+    ).toBeNull();
+    expect(resolveHold(holdInput('merged', approvedPlan, { branchClosed }))).toBeNull();
   });
 });
