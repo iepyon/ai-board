@@ -38,9 +38,10 @@ PR は `node "$MAIN/dist/cli.js" pr ... --root "$MAIN"` で読み書きする（
   git -C "$MAIN" fetch origin
   git -C "$MAIN" worktree add -b <id> "$MAIN/.claude/worktrees/<id>" origin/main
   ```
-  同じ名前のブランチが既にローカルかリモートにあれば、作らずに止まって報告する
+  同じ名前のブランチが既にローカルかリモートにあれば、作らずに止まって報告する。
+  GitHub が未設定のボードでは `fetch` をせず、手元の `main` から切る（`git -C "$MAIN" worktree add -b <id> "$MAIN/.claude/worktrees/<id>" main`）
 - **それ以外:** `branch` のワークツリーを使う（`git worktree list` で探し、無ければ `git worktree add "$MAIN/.claude/worktrees/<id>" <branch>`）。
-  `branch` が null なら止まって報告する。入ったら `git pull --ff-only`
+  `branch` が null なら止まって報告する。入ったら `git pull --ff-only`（GitHub が未設定のボードではしない）
 - `node_modules` が無ければ `npm ci`
 - ワークツリーに未コミットの変更が残っていたら、前の手が途中で止まっている。手を付けずに止まって報告する
 
@@ -52,6 +53,13 @@ Bash の作業ディレクトリは、呼び出しをまたいで保たれると
 
 push は、各手順書で「push」とだけ書いたところも、`git -C "$WT" push origin <branch>`（初回は `git push -u origin <branch>`）の明示の形で行う。
 `git push` だけの形は、上流が `origin/main` のままだと `main` へ向かいうるので使わない。
+
+### GitHub が未設定のボード
+
+`ai-board status --json --only forge` の `forge` が `{"status":"disabled","kind":null,…}`（人向けの出力では「GitHub: 未設定」）のボードは、`config.yaml` に `github:` が無い。研修のように GitHub に届かない環境で使う。
+このボードでは `git fetch` / `git pull` / `git push` と `ai-board pr` を使わず、カードのブランチは手元にだけ置く。
+ボードは Draft の PR の代わりに、カードのブランチの `plans/<id>.md` を読んで計画レビューを立てる（`archive/` は読まない）。
+`forge` の `kind` が `github` の「使えません」のボードは未設定ではない（`status` は `next` を出さず、ループは止まる）。
 
 ## タスクの数え方と `## AI レビュー` 節
 

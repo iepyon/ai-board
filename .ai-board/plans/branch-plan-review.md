@@ -175,7 +175,7 @@
 
 ### 2. ループの手順書とドキュメント
 
-- [ ] `.claude/skills/board-loop/plan.md` の 4 と `revise-plan` を、未設定のボードでは push と Draft の PR を飛ばす形に直す
-- [ ] `.claude/skills/board-loop/rules.md` の「ワークツリーに入る」と push の決まりを、未設定のボードでは fetch / pull / push をしない形に直し、`SKILL.md` の表と止まる条件に添える
-- [ ] `docs/adr/0004-plans-in-draft-pr.md` を書き直し（`adr` のスキル）、`docs/specs/board-stages/spec.md`・`docs/architecture.md`・`README.md` を直す
-- [ ] `.claude/HARNESS_VERSIONS.md` に v7 を足す（人の判断で上げないなら、このタスクを外す）
+- [x] `.claude/skills/board-loop/plan.md` の 4 と `revise-plan` を、未設定のボードでは push と Draft の PR を飛ばす形に直す
+- [x] `.claude/skills/board-loop/rules.md` の「ワークツリーに入る」と push の決まりを、未設定のボードでは fetch / pull / push をしない形に直し、`SKILL.md` の表と止まる条件に添える
+- [x] `docs/adr/0004-plans-in-draft-pr.md` を書き直し（`adr` のスキル）、`docs/specs/board-stages/spec.md`・`docs/architecture.md`・`README.md` を直す
+- [x] `.claude/HARNESS_VERSIONS.md` に v7 を足す（人の判断で上げないなら、このタスクを外す）

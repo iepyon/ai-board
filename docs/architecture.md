@@ -29,6 +29,9 @@ src/
 ## Draft の PR と止まり
 
 Draft の PR は計画レビューの列を立てるが、その規則は plan が未承認のときだけ当たるので、実装中の Draft の PR は巻き戻らない。
+GitHub が未設定のボードでは、Draft の PR の代わりにカードのブランチの `plans/<id>.md` を読む（`GitBranchPlanRepository.findActive`）。
+読むのは `needsBranchPlan`（`src/board/services/branch-plan-target.ts`）が選んだカード（着手済み・`branch` あり・メインに計画なし・plan が none / submitted）だけで、`get-board.query.ts` がメインの計画の無いところに重ねる。
+ブランチの `archive/` は読まない。読むと、締めで archive して Ready にした PR中 のカードがマージ前にマージ済み（規則 1）に見える。
 `draft` だけでは「まだ Ready にしていない」と「人が Draft に戻した」を見分けられないので、
 最後の `convert_to_draft` の時刻を `MrState.convertedToDraftAt` に持つ。
 

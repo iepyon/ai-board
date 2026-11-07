@@ -176,6 +176,7 @@ ai-board decide move-divider --after <ref> --before <ref>   # 区切り線を動
 
 チェックボックスはタスクの進み（`plan.tasks`）になるが、**ステージは立てない。** コードブロックの中のチェックボックスは数えない。
 **計画ファイルが存在するだけで計画レビューの列が立つ**（人待ちを取りこぼさないための保険）。
+`config.yaml` に `github:` が無い（未設定）ボードでは、Draft の PR の代わりにカードのブランチの計画を読んで計画レビューを立てる。ループの計画の手は push と PR を飛ばすので、人は `git show <branch>:.ai-board/plans/<id>.md` で計画を読む。
 締めの段の AI は `## 動作確認の手順` をもとに動かし、「確かめたこと / コマンド / 結果」の表を PR の本文に書く。
 `ai-board pr checks <n> --wait` で CI を確かめ（赤なら 2 回まで直す）、同じ PR の中で計画を `plans/archive/` へ移して Ready にする。マージで archive も main に入る。
 
@@ -199,7 +200,7 @@ ai-board decide move-divider --after <ref> --before <ref>   # 区切り線を動
 | 読めなかった                           | `null`      | ワークツリーで計画を読んで判断する。レビューの段なら止まる                    |
 
 - 実装を書いたセッションが自分の差分を審査しないよう、AI レビューだけを別の文脈に切り分ける（[ADR 0011](docs/adr/0011-loop-single-session.md)）
-- 止まっているカード・計画レビューのカードには触らない。GitHub に接続できないときは何もせずに止まる
+- 止まっているカード・計画レビューのカードには触らない。GitHub に接続できないときは何もせずに止まる（`github:` が無い未設定のボードは止まらず、push と PR を飛ばして計画レビューまで進む）
 - 手を終えたら同じ手番で次の手へ進み、`止まった`・失敗・`next` が null で終える。同じ手で止まり続けるカードには `止まった ×N` の印が付く
 - 1 手ごとに `ai-board loop start` / `finish` でデータ用ブランチの `loop/` に記録を残す（時間・トークン・手順書の版）。記録は表示にだけ使う（[ADR 0014](docs/adr/0014-loop-step-record.md)）
 
