@@ -1,0 +1,19 @@
+{
+  "fingerprint": "[3,\"closed\",\"2026-11-07T21:15:25Z\",false,\"133aa4b65459820644fc0bbeb56c53c9cd176e43\",0,0,\"2026-11-07T21:15:26Z\"]",
+  "pr": {
+    "forge": "github",
+    "number": 102,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "ccr-01d0954b-chx3cl",
+    "title": "中止のカードの PR を引き直さず、status --json から終わったカードを外せるようにする",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/102",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestAiNoteAt": null,
+    "latestCommitAt": "2026-11-07T21:10:02Z",
+    "mergedAt": "2026-11-07T21:15:25Z",
+    "readyAt": "2026-11-07T21:01:09Z",
+    "convertedToDraftAt": null
+  }
+}
