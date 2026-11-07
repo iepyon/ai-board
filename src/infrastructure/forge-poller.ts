@@ -2,7 +2,7 @@ import type { CardRepository } from '../cards/repositories/card.repository.js';
 import type { Card } from '../cards/models/card.js';
 import type { CardId } from '../shared/schemas/common.js';
 import { ForgeRequestError, type ForgeClient } from '../board/services/forge-client.js';
-import type { MrStateProvider } from '../board/services/mr-state-provider.js';
+import { isSettled, type MrStateProvider } from '../board/services/mr-state-provider.js';
 import type { MrSnapshotRepository } from '../board/repositories/mr-snapshot.repository.js';
 import type {
   ForgeCardFailure,
@@ -257,16 +257,6 @@ function describeTarget(card: Card): string {
 function describeError(error: unknown): string {
   if (error instanceof ForgeRequestError) return `（${error.endpoint}）${error.failure}`;
   return `に失敗した（${error instanceof Error ? error.message : String(error)}）`;
-}
-
-/**
- * もう引き直さなくてよいか。マージ済みの PR は二度と変わらない。
- *
- * カードの番号が控えの番号と違えば（ブランチを付け替えて番号が外れた・変わった）引き直す。
- * マージされずに閉じた PR は reopen されうるので、引き続き引く。
- */
-function isSettled(card: Card, previous: MrSnapshot | null): boolean {
-  return previous !== null && previous.mr.state === 'merged' && card.mr === previous.mr.iid;
 }
 
 /** 変化検出用の比較。ステージ判定・止まりの判定・区間の導出に効くフィールドだけを見る */

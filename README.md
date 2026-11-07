@@ -264,7 +264,7 @@ cp .ai-board/config.example.yaml .ai-board/config.yaml   # github: { repository:
 
 設定はデータ用ブランチの根の `config.yaml`、無ければ `.ai-board/config.yaml` から読む。
 アクセストークンは受け取らず、問い合わせは `gh api` で行う（認証は `gh auth login` に委ねる）。
-使えないときは連携が無効になり、理由が `status` の「GitHub:」の行に出る。問い合わせるのは `branch` か `mr` のあるカードだけ。
+使えないときは連携が無効になり、理由が `status` の「GitHub:」の行に出る。使えないあいだも、マージ済みの PR はデータ用ブランチの手元の控えで出る（リンクと Ready・マージの時刻、区間の時間）。マージ前の PR は出さず、次の一手と判断も止まる。問い合わせるのは `branch` か `mr` のあるカードだけ。
 
 ## 開発
 

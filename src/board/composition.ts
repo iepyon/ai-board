@@ -8,6 +8,7 @@ import type { ForgeClient } from './services/forge-client.js';
 import { GhForgeClient } from './services/github-client.js';
 import { FsPlanRepository, type PlanRepository } from './repositories/plan.repository.js';
 import type { MrSnapshotRepository } from './repositories/mr-snapshot.repository.js';
+import type { MrState } from './models/mr-state.js';
 import { FileMrSnapshotRepository } from './repositories/file-mr-snapshot.repository.js';
 import {
   emptyBranchPlanRepository,
@@ -17,6 +18,7 @@ import {
 import type { DataStore } from '../infrastructure/data-store.js';
 import {
   disabledMrStateProvider,
+  matchMergedSnapshots,
   unavailableMrStateProvider,
   type MrStateProvider,
 } from './services/mr-state-provider.js';
@@ -101,6 +103,9 @@ export function createBranchPlanRepository(
  *
  * CLI の有無とログイン状態はここで 1 度だけ確かめる。
  * 1 分ごとに確認するほど頻繁に変わるものではない。
+ *
+ * 届かない（CLI が無い・未ログイン・ネットワークが無い）ときは、データ用ブランチのマージ済みの控えのうち、
+ * カードの PR 番号と合うものだけを供給元に渡す。マージ前の控え（`cache/`）は古いことがあるので使わない。
  */
 export async function createMrStateSource(
   forge: ForgeConfig | null,
@@ -117,11 +122,34 @@ export async function createMrStateSource(
   const unavailable = await client.checkAuth();
 
   if (unavailable !== null) {
-    return { provider: unavailableMrStateProvider(forge.kind, unavailable), poller: null };
+    const merged = await readMergedSnapshots(cardRepository, snapshotRepository);
+    return { provider: unavailableMrStateProvider(forge.kind, unavailable, merged), poller: null };
   }
 
   const poller = new ForgePoller(cardRepository, client, snapshotRepository, options);
   return { provider: poller, poller };
+}
+
+/**
+ * 届かないときに出すマージ済みの PR の状態を読む。
+ * 読めなければ警告して空にする（すべての PR を null とした前の形に戻るだけで、ボードは落とさない）
+ */
+async function readMergedSnapshots(
+  cardRepository: CardRepository,
+  snapshotRepository: MrSnapshotRepository
+): Promise<Map<string, MrState>> {
+  try {
+    const [cards, snapshots] = await Promise.all([
+      cardRepository.findAll(),
+      snapshotRepository.findMerged(),
+    ]);
+    return matchMergedSnapshots(cards, snapshots);
+  } catch (error) {
+    console.warn(
+      `[ai-board] マージ済みの PR の控えを読めませんでした: ${error instanceof Error ? error.message : String(error)}`
+    );
+    return new Map();
+  }
 }
 
 /** `status` と `decide` が使う、組み立て済みのボード */

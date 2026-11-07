@@ -210,6 +210,18 @@ describe('FileMrSnapshotRepository のマージ済みの PR の控え', () => {
     );
   });
 
+  it('findMerged はデータ用ブランチのマージ済みだけを読み、使い捨ての控えは読まない', async () => {
+    const store = cloneData('a');
+    const repository = new FileMrSnapshotRepository(store);
+    const open = 'open-card' as CardId;
+
+    await repository.save(id, merged());
+    await repository.save(open, makeSnapshot({ iid: 43 as MergeRequestIid }));
+
+    expect(await repository.findMerged()).toEqual(new Map([[id, merged()]]));
+    expect((await repository.findAll()).has(open)).toBe(true);
+  });
+
   it('2 つの clone が同じ PR を書いても、コミットは 1 つ', async () => {
     const a = cloneData('a');
     const b = cloneData('b');

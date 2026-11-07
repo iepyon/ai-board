@@ -137,6 +137,8 @@ rebase しないのは、離れた行の編集を git が黙って混ぜ、検�
 `config.yaml` に `github:` が無ければ（未設定。`isForgeUnset`）PR中 / マージ済み の列が空になるだけでボードは動き、人の判断と次の一手も接続済みと同じに通す（`forgeTrusted`）。
 未設定のボードで PR 番号を持つカード（途中で `github:` を外した）は、そのカードだけを止まり（`forge`、`unsetPr`）にする。
 `github:` があって使えない・エラーのときは、判断と着手を拒み `next` を出さない（列を取り違えるため）。
+使えない（`checkAuth` が失敗した）あいだも、データ用ブランチのマージ済みの控えのうち、カードの `mr` と番号が合うものだけは PR の状態として出す（`matchMergedSnapshots`、`unavailableMrStateProvider`）。
+マージ済みは二度と変わらないので古さを気にしない。マージ前の控え（`cache/`）は古いことがあるので使わず、`synced` も偽のままにする。
 
 - 引けるかは CLI を動かすたびに `gh api repos/<owner>/<repo>` を 1 回引いて確かめる（`ForgeClient.checkAuth`）。クラウドでは `gh auth status` が失敗するので使わない
 - 失敗は `failureScope` で分ける。`global`（`gh` が無い・ステータスが取れない・401 / 403 / 429・5xx）は接続をまるごと `error` に、
@@ -157,6 +159,7 @@ rebase しないのは、離れた行の編集を git が黙って混ぜ、検�
 
 - マージ済みの PR は二度と引かず（`isSettled`）、データ用ブランチの `snapshots/<id>.json` に `transact` で書く
 - それ以外は `pulls/{n}` の指紋（`fingerprintOf`）が前回と同じなら詳細を引かない。控えは `<dataDir の親>/cache/mr-snapshots.json`
+- GitHub に届かないときは、マージ済みの控え（`findMerged`）だけを読み、書かない（ポーラーを作らない）
 - 控えは導出の入力ではないので、書けなくても警告だけ。`MrState` に項目を足すと古い控えは検証で外れ、`enrich` を変えたら `FINGERPRINT_VERSION` を上げる
 
 ### `ai-board pr checks`

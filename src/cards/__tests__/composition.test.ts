@@ -63,6 +63,9 @@ class InMemoryMrSnapshotRepository implements MrSnapshotRepository {
   async findAll(): Promise<Map<CardId, MrSnapshot>> {
     return new Map(this.rows);
   }
+  async findMerged(): Promise<Map<CardId, MrSnapshot>> {
+    return new Map([...this.rows].filter(([, snapshot]) => snapshot.mr.state === 'merged'));
+  }
   async save(cardId: CardId, snapshot: MrSnapshot): Promise<void> {
     this.rows.set(cardId, snapshot);
   }
