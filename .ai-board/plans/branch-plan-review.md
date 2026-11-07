@@ -182,6 +182,6 @@
 
 ## AI レビュー
 
-- [ ] `.claude/skills/board-loop/SKILL.md:77` の「未設定のボードでは計画の手が Draft の PR を出せず、push か `ai-board pr create` の失敗で `止まった` になる」が、この PR で計画の手が push と PR を飛ばすようになった後も残っており、今の振る舞いと食い違う。未設定のボードでは計画の手が push と PR を飛ばして提出まで進み、承認の後の実装の手は節ごとの push と締めの `ai-board pr` で止まる（`unset-impl-close`）、という今の形に書き直す
-- [ ] `.claude/skills/board-loop/SKILL.md:45` の止まりの項に「GitHub が未設定のボードでは、カードのブランチの計画も見る」と添えたが、`src/board/services/next-action.ts:170` は `mrKnown` が偽のとき `planLost` を立てないので、未設定のボードではこの止まりは立たない（計画の `### 仮定` の「提出済みなのに成果物が見えない止まり（`planLost`）は、未設定のボードでは今どおり立たない」とも食い違う）。ブランチに計画が無いまま提出したカードは止まりに出ず 計画提案中 に残る、と読めるように書き直す
-- [ ] `.claude/skills/board-loop/plan.md:92` の `revise-plan` の 1 は `ai-board pr view <mr> --comments` を読むが、未設定のボードではカードの `mr` が null で、`rules.md` の「GitHub が未設定のボード」も `ai-board pr` を使わないとしている。差し戻された計画を直す手が未設定のボードで PR を読みに行かないよう、「GitHub が未設定のボードでは PR が無いので読まない（差し戻しの理由だけを読む）」と添える
+- [x] `.claude/skills/board-loop/SKILL.md:77` の「未設定のボードでは計画の手が Draft の PR を出せず、push か `ai-board pr create` の失敗で `止まった` になる」が、この PR で計画の手が push と PR を飛ばすようになった後も残っており、今の振る舞いと食い違う。未設定のボードでは計画の手が push と PR を飛ばして提出まで進み、承認の後の実装の手は節ごとの push と締めの `ai-board pr` で止まる（`unset-impl-close`）、という今の形に書き直す
+- [x] `.claude/skills/board-loop/SKILL.md:45` の止まりの項に「GitHub が未設定のボードでは、カードのブランチの計画も見る」と添えたが、`src/board/services/next-action.ts:170` は `mrKnown` が偽のとき `planLost` を立てないので、未設定のボードではこの止まりは立たない（計画の `### 仮定` の「提出済みなのに成果物が見えない止まり（`planLost`）は、未設定のボードでは今どおり立たない」とも食い違う）。ブランチに計画が無いまま提出したカードは止まりに出ず 計画提案中 に残る、と読めるように書き直す
+- [x] `.claude/skills/board-loop/plan.md:92` の `revise-plan` の 1 は `ai-board pr view <mr> --comments` を読むが、未設定のボードではカードの `mr` が null で、`rules.md` の「GitHub が未設定のボード」も `ai-board pr` を使わないとしている。差し戻された計画を直す手が未設定のボードで PR を読みに行かないよう、「GitHub が未設定のボードでは PR が無いので読まない（差し戻しの理由だけを読む）」と添える

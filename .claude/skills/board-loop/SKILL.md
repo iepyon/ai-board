@@ -42,7 +42,7 @@ Ready にしたカードは PR中 の列に移り、人が PR をマージする
 
 - 差し戻された計画を直しきれずに 保留 を書いた（`ai-board card hold`。`## レビュー` に `plan 保留` が残る）
 - 人の判断の後に、人が PR を Draft に戻した（ループは Ready にし直さない）
-- 計画を提出したのに、計画ファイルも Draft の PR も見えない（GitHub が未設定のボードでは、カードのブランチの計画も見る）
+- 計画を提出したのに、計画ファイルも Draft の PR も見えない（GitHub が未設定のボードではこの止まりは立たない。ブランチに計画が無いまま提出したカードは止まりに出ず、計画提案中 に残る）
 - そのカードの PR の状態だけを GitHub から引けない（422 など。どの列でも立つ）。次の取得で引ければひとりでに外れる。
   `reason` にどのカードのどの PR が、どの HTTP のステータスで失敗したかが出るので、そのまま人に伝える
 
@@ -74,7 +74,8 @@ node "$MAIN/dist/cli.js" status --json --only next,waiting,forge,loop --root "$M
   `status` は `next` を `null` にする。PR の状態が引けないと、計画レビュー / PR中 のカードが手前の AI の列に落ちて見えるため。
   このときは `forge` の理由を人に知らせる。
   ただし `config.yaml` に `github:` が無い（未設定。`forge` が `disabled` で `kind` が null）ボードは PR を持たないので、`next` が出る。
-  未設定のボードでは計画の手が Draft の PR を出せず、push か `ai-board pr create` の失敗で `止まった` になる
+  未設定のボードでは、計画の手は push と Draft の PR を飛ばして提出まで進み、カードのブランチの計画で計画レビューに出る。
+  承認の後の実装の手は、節ごとの push と締めの `ai-board pr` で `止まった` になる（`unset-impl-close` で扱う）
 - **ほかのループが触っている。** `loop.running` に、このループと別のループ（`loop` がこのセッションの ID、`${CLAUDE_CODE_SESSION_ID:-local-$(hostname)}` でない）の、
   `next.cardId` への終わっていない記録がある。別のセッション（別の端末の間隔運転やルーティン）が同じカードを触っている見込みがあり、
   続けると同じワークツリーに 2 つが同時に書く。どのループの記録か（`loop` と `startedAt`）を伝えて終わる。
