@@ -203,4 +203,4 @@
 
 ## AI レビュー
 
-- [ ] `docs/architecture.md:85` の「次の一手は … `pickNextAction`。GitHub に接続できない（`forge.status` が `connected` でない）と `next` は `null`」が古い。この PR で `buildStatusReport`（`src/board/usecases/queries/get-status.query.ts`）は `forgeTrusted` で判定し、未設定（`kind` が null の `disabled`）なら `next` を出すようになった。「接続済みか未設定（`forgeTrusted`）でないと `next` は `null`。未設定のボードで PR 番号を持つカードは止まりになり選ばれない」の形に直す（同じファイルの「GitHub の PR の取得」の冒頭と揃える）
+- [x] `docs/architecture.md:85` の「次の一手は … `pickNextAction`。GitHub に接続できない（`forge.status` が `connected` でない）と `next` は `null`」が古い。この PR で `buildStatusReport`（`src/board/usecases/queries/get-status.query.ts`）は `forgeTrusted` で判定し、未設定（`kind` が null の `disabled`）なら `next` を出すようになった。「接続済みか未設定（`forgeTrusted`）でないと `next` は `null`。未設定のボードで PR 番号を持つカードは止まりになり選ばれない」の形に直す（同じファイルの「GitHub の PR の取得」の冒頭と揃える）
