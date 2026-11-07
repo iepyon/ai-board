@@ -55,6 +55,7 @@ ranks:
   server-shutdown-sse: -3875.244140625
   setup-doctor: -4751.953125
   share-api-types: -4000.48828125
+  shared-browser-safe: -8843.75
   skip-verify-scope: 23000
   slim-decide: -3750.122308731079
   slim-worker: -7765.625
