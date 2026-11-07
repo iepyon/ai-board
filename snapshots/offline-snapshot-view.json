@@ -1,0 +1,19 @@
+{
+  "fingerprint": "[3,\"closed\",\"2026-11-07T11:57:24Z\",false,\"9c2cebe1338a825dac6a65d15b67bb9c947003c1\",0,0,\"2026-11-07T11:57:25Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 99,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "ccr-bb1fbf36-7v5cd6",
+    "title": "GitHub に届かないときも、マージ済みの PR の控えでボードを描く",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/99",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestAiNoteAt": null,
+    "latestCommitAt": "2026-11-07T09:05:06Z",
+    "mergedAt": "2026-11-07T11:57:24Z",
+    "readyAt": "2026-11-07T08:51:40Z",
+    "convertedToDraftAt": null
+  }
+}
