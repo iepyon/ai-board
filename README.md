@@ -34,6 +34,7 @@ node dist/cli.js status --root /path/to/your-project   # .ai-board/ を持つプ
 `ai-board status` は人向けの数行を、`status --json [--active] [--only <項目,...>]` はループや手順書が読む JSON を出す。
 人向けの形は「GitHub:」「ループ:」の行・判断待ち・AI 作業中・次の一手を出し、JSON はそれに全カード（`cards`）とアイデアの表（`ideas`）を足す。
 `--active` を付けると、`cards` からマージ済みと中止のカードを外す。
+チャットで「ボードを見せて」と頼むと、`board-view` のスキルが判断待ち・AI 作業中・アイデアを 1 枚のページにして Artifact で公開する（中身は `status --json --active`。頼んだ時点の写し）。
 
 - **判断待ち（`waiting`）:** 計画レビュー / PR中 と、止まっているカード。待ち始めの古い順で、止まった理由と出せる判断（`decisions`）が付く
 - **AI 作業中（`working`）:** 計画提案中 / 実装中（止まっているものを除く）と、人の指摘に AI が応える番の PR中（先頭）。`rank` の順。

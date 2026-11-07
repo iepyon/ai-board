@@ -22,6 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 仕様: `docs/specs/*/spec.md`、PR レビューだけに効く指示: `REVIEW.md`
 - 設計判断の理由と捨てた代案: `docs/adr/`（ADR。不変条件を外したくなったら先に読む。書くときは `adr` のスキル）
 - ループの手順: `.claude/skills/board-loop/SKILL.md`（手ごとの手順は隣の `plan.md` / `implement.md` / `fix-pr.md`、共通の決まりは `rules.md`）、AI レビューのサブエージェント: `.claude/agents/board-reviewer.md`
+- ボードを 1 枚のページで見せる: `.claude/skills/board-view/SKILL.md`（ひな形 `template.html` に `render.mjs` で `status --json --active` を流し込む）
 
 ## 品質ゲート
 

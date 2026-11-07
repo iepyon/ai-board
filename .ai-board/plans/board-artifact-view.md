@@ -172,5 +172,5 @@ PR #102 で `status --json --active` が入り、終わったカードを外し�
 
 ### 3. ドキュメント
 
-- [ ] `docs/adr/0019-board-view-artifact.md` を書き、`docs/adr/README.md` の一覧に足し、ADR 0017 の結果に 0019 への 1 行を足す
-- [ ] `README.md` のボードの見方と、`CLAUDE.md` の読む場所に `board-view` のスキルを足す
+- [x] `docs/adr/0019-board-view-artifact.md` を書き、`docs/adr/README.md` の一覧に足し、ADR 0017 の結果に 0019 への 1 行を足す
+- [x] `README.md` のボードの見方と、`CLAUDE.md` の読む場所に `board-view` のスキルを足す
