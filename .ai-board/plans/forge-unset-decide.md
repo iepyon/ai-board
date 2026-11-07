@@ -196,7 +196,7 @@
 
 ### 3. ドキュメントと手順書
 
-- [ ] `docs/adr/0003-delegate-github-to-gh.md` と `docs/adr/0006-ai-review-entries-and-hold.md` を書き足す（`adr` のスキル）
-- [ ] `docs/specs/board-hold/spec.md` にシナリオを足し、`docs/architecture.md` と `README.md` を直す
-- [ ] `.claude/skills/board-loop/SKILL.md` と `.claude/skills/board-decide/SKILL.md` を直す
-- [ ] `.claude/HARNESS_VERSIONS.md` に v6 を足す（人の判断で上げないなら、このタスクを外す）
+- [x] `docs/adr/0003-delegate-github-to-gh.md` と `docs/adr/0006-ai-review-entries-and-hold.md` を書き足す（`adr` のスキル）
+- [x] `docs/specs/board-hold/spec.md` にシナリオを足し、`docs/architecture.md` と `README.md` を直す
+- [x] `.claude/skills/board-loop/SKILL.md` と `.claude/skills/board-decide/SKILL.md` を直す
+- [x] `.claude/HARNESS_VERSIONS.md` に v6 を足す（人の判断で上げないなら、このタスクを外す）

@@ -70,9 +70,11 @@ node "$MAIN/dist/cli.js" status --json --only next,waiting,forge,loop --root "$M
   `waiting` には 計画レビュー（計画を読む）・PR中（証拠を読み、動かし、差分を読む）のカードと、AI の列にいても止まっているカード（上の 3 つ）が入る。
   止まっているカードの `reason` には、人が何をすればよいか（計画を直させる / 計画から立て直させる / PR を Ready に戻す / 中止する など）が書かれている。
   どの判断を待っているかを、`reason` のとおりに書く。
-  `forge.status` が `connected` でないとき（`gh` の未ログイン、問い合わせの失敗、`config.yaml` に `github:` が無い）も、
+  `forge.status` が `connected` でないとき（`gh` の未ログイン、問い合わせの失敗）も、
   `status` は `next` を `null` にする。PR の状態が引けないと、計画レビュー / PR中 のカードが手前の AI の列に落ちて見えるため。
-  このときは `forge` の理由を人に知らせる
+  このときは `forge` の理由を人に知らせる。
+  ただし `config.yaml` に `github:` が無い（未設定。`forge` が `disabled` で `kind` が null）ボードは PR を持たないので、`next` が出る。
+  未設定のボードでは計画の手が Draft の PR を出せず、push か `ai-board pr create` の失敗で `止まった` になる
 - **ほかのループが触っている。** `loop.running` に、このループと別のループ（`loop` がこのセッションの ID、`${CLAUDE_CODE_SESSION_ID:-local-$(hostname)}` でない）の、
   `next.cardId` への終わっていない記録がある。別のセッション（別の端末の間隔運転やルーティン）が同じカードを触っている見込みがあり、
   続けると同じワークツリーに 2 つが同時に書く。どのループの記録か（`loop` と `startedAt`）を伝えて終わる。

@@ -1,7 +1,7 @@
 # 6. AI が書ける判断は 提出 / 再提出 / 保留 だけにし、止まりを導出してループに押し進めさせない
 
 - 状態: 採用
-- 日付: 2026-10-30（2026-11-03、2026-11-05 に改訂）
+- 日付: 2026-10-30（2026-11-03、2026-11-05、2026-11-07 に改訂）
 
 ## 背景
 
@@ -20,6 +20,7 @@
   動作確認の列を無くした後（[5](0005-verify-in-pr.md)）は、保留は plan だけに書け、実装中の止まりは Draft に戻された PR だけになった。
 - 1 枚の PR だけを GitHub から引けないときも、そのカードを止まりにする（`hold.kind` が `forge`。人の判断で解く止まりは `decision`）。
   接続はまるごと止めず、ほかのカードは進む。列は前に引けた控えで決め、出せる判断を返さない。次に引ければ外れる。
+  GitHub が未設定のボードで PR 番号を持つカードも、同じ `forge` の止まりにする（[3](0003-delegate-github-to-gh.md)）。
 
 ## 結果
 
@@ -35,4 +36,4 @@
 - **引けなかったカードは控えをそのまま使い、止まりにしない** — 控えが古いと、人の指摘や Draft への戻しを見落としたまま進める。
 - **全カードが失敗したときだけ接続をエラーにする** — カードが 1 枚のときに見分けられない。失敗の種類（HTTP のステータス）で見分ける。
 
-根拠: `.ai-board/plans/archive/loop-respect-human.md`、`.ai-board/plans/archive/forge-card-error.md`、`docs/specs/card-review-authority/spec.md`、`docs/specs/board-hold/spec.md`、`e3bb4be`、`e3dc5a7`
+根拠: `.ai-board/plans/archive/loop-respect-human.md`、`.ai-board/plans/archive/forge-card-error.md`、`.ai-board/plans/archive/forge-unset-decide.md`、`docs/specs/card-review-authority/spec.md`、`docs/specs/board-hold/spec.md`、`e3bb4be`、`e3dc5a7`

@@ -148,7 +148,7 @@ ai-board decide move <id> --after <ref> --before <ref>      # アイデアの並
 ai-board decide move-divider --after <ref> --before <ref>   # 区切り線を動かす
 ```
 
-書く前にボードを導出し、出せない判断は拒む。GitHub に繋がらないときは判断と着手を拒む（宣言と並べ替えは書く）。
+書く前にボードを導出し、出せない判断は拒む。GitHub に繋がらないときは判断と着手を拒む（宣言と並べ替えは書く）。`config.yaml` に `github:` が無い（未設定）ボードは PR が無いので拒まない（PR 番号の残ったカードだけは止まりになる）。
 誰が呼んでも書けるので、守りは「人がこの会話で頼んだときだけ使う」という手順書の決まりにある（[ADR 0007](docs/adr/0007-board-decide.md)）。
 書いた判断で AI の番ができたら、同じセッションで `board-loop` の 1 周が続く（[ADR 0013](docs/adr/0013-continue-loop-after-decide.md)）。
 

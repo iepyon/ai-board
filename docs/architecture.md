@@ -128,7 +128,9 @@ rebase しないのは、離れた行の編集を git が黙って混ぜ、検�
 
 ## GitHub の PR の取得
 
-`config.yaml` に `github:` が無ければ PR中 / マージ済み の列が空になるだけでボードは動く。
+`config.yaml` に `github:` が無ければ（未設定。`isForgeUnset`）PR中 / マージ済み の列が空になるだけでボードは動き、人の判断と次の一手も接続済みと同じに通す（`forgeTrusted`）。
+未設定のボードで PR 番号を持つカード（途中で `github:` を外した）は、そのカードだけを止まり（`forge`、`unsetPr`）にする。
+`github:` があって使えない・エラーのときは、判断と着手を拒み `next` を出さない（列を取り違えるため）。
 
 - 引けるかは CLI を動かすたびに `gh api repos/<owner>/<repo>` を 1 回引いて確かめる（`ForgeClient.checkAuth`）。クラウドでは `gh auth status` が失敗するので使わない
 - 失敗は `failureScope` で分ける。`global`（`gh` が無い・ステータスが取れない・401 / 403 / 429・5xx）は接続をまるごと `error` に、
