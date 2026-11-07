@@ -1,0 +1,13 @@
+{
+  "loop": "96a25f9e-6dd8-47c3-801d-f57c29300551",
+  "cardId": "offline-snapshot-view",
+  "action": "implement",
+  "step": "task",
+  "agent": null,
+  "harness": "v8",
+  "startedAt": "2026-11-07T08:40:12.171Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
