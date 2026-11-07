@@ -1,9 +1,9 @@
-import type { Decision } from '../../shared/dashboard-sections.js';
+import type { Decision } from '../../shared/board-sections.js';
 import type { Stage } from '../../shared/schemas/common.js';
 import type { BoardLoop } from '../../shared/loop-activity.js';
 import type { NextAction } from '../services/next-action.js';
 import type { BoardCard } from './board-card.js';
-import type { ForgeConnection } from './mr-state.js';
+import type { ForgeConnection } from './pr-state.js';
 
 // ============================================================
 // ボードの見せる形 — 判断待ち・作業中・アイデアの表・次の一手（`ai-board status` が出す）

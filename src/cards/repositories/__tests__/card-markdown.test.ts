@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { parseCard, serializeCard } from '../card-markdown.js';
 import type { Card } from '../../models/card.js';
-import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
+import type { CardId, PullRequestNumber } from '../../../shared/schemas/common.js';
 
 beforeEach(() => {
   // 壊れたファイルの警告でテスト出力を汚さない
@@ -20,7 +20,7 @@ function makeCard(overrides: Partial<Card> = {}): Card {
     startedAt: null,
     skipGates: [],
     branch: null,
-    mr: null,
+    pr: null,
     rank: null,
     body: '',
     ...overrides,
@@ -41,7 +41,7 @@ describe('parseCard', () => {
       'startedAt: 2026-09-05T00:00:00.000Z',
       'skipGates: [plan]',
       'change: refresh-token',
-      'mr: 42',
+      'pr: 42',
       '---',
       '',
       '## アイデア',
@@ -53,7 +53,7 @@ describe('parseCard', () => {
     expect(card).not.toBeNull();
     expect(card?.startedAt).toBe('2026-09-05T00:00:00.000Z');
     expect(card?.skipGates).toEqual(['plan']);
-    expect(card?.mr).toBe(42);
+    expect(card?.pr).toBe(42);
     expect(card?.body).toBe('## アイデア\n本文');
   });
 
@@ -151,7 +151,7 @@ describe('serializeCard', () => {
       startedAt: '2026-09-04T10:12:00.000Z',
       skipGates: ['plan'],
       branch: 'feat/refresh-token',
-      mr: 42 as MergeRequestIid,
+      pr: 42 as PullRequestNumber,
       rank: 1500.5,
       body: '## アイデア\n本文',
     });
@@ -161,27 +161,17 @@ describe('serializeCard', () => {
     expect(restored).toEqual(card);
   });
 
-  it('GitLab の MR 番号は番号ごと捨てる', () => {
+  it('PR 番号を読む', () => {
     const raw =
-      '---\nid: refresh-token\ntitle: T\ncreated: 2026-09-01T00:00:00.000Z\nbranch: feat/x\nmr: 42\nforge: gitlab\n---\n';
+      '---\nid: refresh-token\ntitle: T\ncreated: 2026-09-01T00:00:00.000Z\nbranch: feat/x\npr: 42\n---\n';
 
-    const card = parseCard('/tmp/refresh-token.md', raw);
-
-    expect(card).toMatchObject({ branch: 'feat/x', mr: null });
-  });
-
-  it('GitHub の番号と取得先の記録が無い番号は残す', () => {
-    const head =
-      '---\nid: refresh-token\ntitle: T\ncreated: 2026-09-01T00:00:00.000Z\nbranch: feat/x\n';
-
-    expect(parseCard('/tmp/refresh-token.md', `${head}mr: 42\n---\n`)?.mr).toBe(42);
-    expect(parseCard('/tmp/refresh-token.md', `${head}mr: 42\nforge: github\n---\n`)?.mr).toBe(42);
+    expect(parseCard('/tmp/refresh-token.md', raw)?.pr).toBe(42);
   });
 
   it('null のフィールドを保ったまま書き出せる', () => {
     const restored = parseCard('/tmp/refresh-token.md', serializeCard(makeCard()));
 
-    expect(restored?.mr).toBeNull();
+    expect(restored?.pr).toBeNull();
     expect(restored?.startedAt).toBeNull();
     expect(restored?.skipGates).toEqual([]);
   });

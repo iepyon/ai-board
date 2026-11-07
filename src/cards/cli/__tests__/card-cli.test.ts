@@ -92,7 +92,7 @@ beforeEach(() => {
   const seedDir = path.join(tmp, 'seed');
   sh(['clone', '--quiet', origin, seedDir]);
   git(seedDir, 'checkout', '--quiet', '--orphan', DATA_BRANCH);
-  fs.writeFileSync(path.join(seedDir, 'ai-board-data.yaml'), 'version: 1\n');
+  fs.writeFileSync(path.join(seedDir, 'ai-board-data.yaml'), 'version: 2\n');
   git(seedDir, 'add', '-A');
   git(seedDir, 'commit', '--quiet', '-m', 'data: 始める');
   git(seedDir, 'push', '--quiet', 'origin', `HEAD:refs/heads/${DATA_BRANCH}`);
@@ -663,19 +663,19 @@ describe('runCardCli とデータ用ブランチ', () => {
 
     // 新しい ai-board が、形の版を上げて push した
     const newer = cloneData(path.join(tmp, 'newer'));
-    fs.writeFileSync(path.join(newer, 'ai-board-data.yaml'), 'version: 2\n');
-    git(newer, 'commit', '--quiet', '-am', 'data: 形の版を 2 に上げる');
+    fs.writeFileSync(path.join(newer, 'ai-board-data.yaml'), 'version: 3\n');
+    git(newer, 'commit', '--quiet', '-am', 'data: 形の版を 3 に上げる');
     git(newer, 'push', '--quiet', 'origin', `HEAD:refs/heads/${DATA_BRANCH}`);
     const before = originLog();
 
     expect(await run(['list'])).toBe(1);
     expect(stdout).toBe('');
-    expect(stderr).toContain('形の版（2）');
+    expect(stderr).toContain('形の版（3）');
     expect(stderr).toContain('ai-board を新しくして');
 
     stderr = '';
     expect(await run(['submit', 'a'])).toBe(1);
-    expect(stderr).toContain('形の版（2）');
+    expect(stderr).toContain('形の版（3）');
     expect(originLog()).toEqual(before);
     expect(
       git(origin, 'ls-tree', '-r', '--name-only', DATA_BRANCH, 'cards/a/log/')

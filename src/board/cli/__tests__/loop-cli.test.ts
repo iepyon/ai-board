@@ -18,11 +18,6 @@ let dataDir: string;
 let stdout: string;
 let stderr: string;
 let now: Date;
-/** 今の手順書の版として返す値 */
-let harness: string | null;
-/** countTokens に渡された窓と、返す値 */
-let tokenCalls: { loop: string; from: string; to: string }[];
-let countedTokens: number | null;
 
 const runner = createCliRunner({ timeoutMs: 30_000 });
 
@@ -48,11 +43,6 @@ function deps(): LoopCliDependencies {
   return {
     store: createDataStore({ dataDir, runner, lockPollMs: 10 }),
     cardExists: (id) => Promise.resolve(id === 'card-a'),
-    harnessVersion: () => harness,
-    countTokens: (loop, from, to) => {
-      tokenCalls.push({ loop, from, to });
-      return countedTokens;
-    },
   };
 }
 
@@ -70,9 +60,6 @@ async function run(...argv: string[]): Promise<number> {
 
 beforeEach(() => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-board-loop-cli-'));
-  harness = null;
-  tokenCalls = [];
-  countedTokens = null;
 
   const globalConfig = path.join(tmp, 'gitconfig');
   fs.writeFileSync(globalConfig, '');
@@ -89,7 +76,7 @@ beforeEach(() => {
   const seed = path.join(tmp, 'seed');
   execFileSync('git', ['clone', '--quiet', origin, seed], { stdio: 'ignore' });
   git(seed, 'checkout', '--quiet', '--orphan', DATA_BRANCH);
-  fs.writeFileSync(path.join(seed, 'ai-board-data.yaml'), 'version: 1\n');
+  fs.writeFileSync(path.join(seed, 'ai-board-data.yaml'), 'version: 2\n');
   git(seed, 'add', '-A');
   git(seed, 'commit', '--quiet', '-m', 'data: 始める');
   git(seed, 'push', '--quiet', 'origin', `HEAD:refs/heads/${DATA_BRANCH}`);
@@ -122,19 +109,7 @@ const START = [
   'board-worker-card-a-1114',
 ];
 
-const FINISH = [
-  'finish',
-  '--loop',
-  'session-a',
-  '--card',
-  'card-a',
-  '--result',
-  'advanced',
-  '--tokens',
-  '81234',
-  '--duration-ms',
-  '95000',
-];
+const FINISH = ['finish', '--loop', 'session-a', '--card', 'card-a', '--result', 'advanced'];
 
 describe('start と finish', () => {
   it('開始と終了をそれぞれ 1 コミットにして push する。loop/ だけを書く', async () => {
@@ -158,12 +133,9 @@ describe('start と finish', () => {
         action: 'implement',
         step: 'task',
         agent: 'board-worker-card-a-1114',
-        harness: null,
         startedAt: '2026-11-02T11:14:06.000Z',
         finishedAt: '2026-11-02T11:15:41.000Z',
         result: 'advanced',
-        tokens: 81234,
-        durationMs: 95000,
       },
     ]);
     expect(stdout).toBe(
@@ -194,79 +166,6 @@ describe('start と finish', () => {
       expect(readLoopSteps(dataDir)).toEqual([]);
     }
   );
-
-  it('トークンと時間は省略できる。時間を省くと開始から終了までのミリ秒で埋まる', async () => {
-    await run(...START);
-    now = new Date('2026-11-02T11:14:09.500Z');
-    expect(
-      await run('finish', '--loop', 'session-a', '--card', 'card-a', '--result', 'unknown')
-    ).toBe(0);
-    expect(readLoopSteps(dataDir)[0]).toMatchObject({
-      result: 'unknown',
-      tokens: null,
-      durationMs: 3500,
-    });
-  });
-
-  it('start は今の手順書の版を記録に残す', async () => {
-    harness = 'v3';
-    await run(...START);
-    expect(readLoopSteps(dataDir)[0]).toMatchObject({ harness: 'v3' });
-  });
-
-  it('finish は --tokens が無ければ、そのループの開始から終了までのトークンを数えて埋める', async () => {
-    await run(...START);
-    countedTokens = 4200;
-    now = new Date('2026-11-02T11:14:09.500Z');
-    expect(
-      await run('finish', '--loop', 'session-a', '--card', 'card-a', '--result', 'advanced')
-    ).toBe(0);
-
-    const [step] = readLoopSteps(dataDir);
-    expect(step).toMatchObject({ tokens: 4200 });
-    expect(tokenCalls).toEqual([
-      { loop: 'session-a', from: step?.startedAt, to: '2026-11-02T11:14:09.500Z' },
-    ]);
-  });
-
-  it('finish は --tokens があればその値を使い、数えない', async () => {
-    await run(...START);
-    countedTokens = 4200;
-    expect(
-      await run(
-        'finish',
-        '--loop',
-        'session-a',
-        '--card',
-        'card-a',
-        '--result',
-        'advanced',
-        '--tokens',
-        '7'
-      )
-    ).toBe(0);
-    expect(readLoopSteps(dataDir)[0]).toMatchObject({ tokens: 7 });
-    expect(tokenCalls).toEqual([]);
-  });
-
-  it('--duration-ms を渡したときは、開始からの時間ではなくその値を使う', async () => {
-    await run(...START);
-    now = new Date('2026-11-02T11:14:09.500Z');
-    expect(
-      await run(
-        'finish',
-        '--loop',
-        'session-a',
-        '--card',
-        'card-a',
-        '--result',
-        'advanced',
-        '--duration-ms',
-        '1234'
-      )
-    ).toBe(0);
-    expect(readLoopSteps(dataDir)[0]).toMatchObject({ durationMs: 1234 });
-  });
 });
 
 describe('拒否（何も書かない）', () => {
@@ -305,7 +204,7 @@ describe('拒否（何も書かない）', () => {
     await expectRefused(['start', '--card', 'card-a', '--action', 'plan'], '--loop には');
   });
 
-  it('不正な結果・整数でないトークンと時間', async () => {
+  it('不正な結果・知らないオプション', async () => {
     await run(...START);
     await expectRefused(
       ['finish', '--loop', 'session-a', '--card', 'card-a', '--result', 'interrupted'],
@@ -321,23 +220,9 @@ describe('拒否（何も書かない）', () => {
         '--result',
         'advanced',
         '--tokens',
-        '1.5',
+        '1',
       ],
-      '--tokens には'
-    );
-    await expectRefused(
-      [
-        'finish',
-        '--loop',
-        'session-a',
-        '--card',
-        'card-a',
-        '--result',
-        'advanced',
-        '--duration-ms',
-        '-1',
-      ],
-      '--duration-ms には'
+      '不明なオプションです: --tokens'
     );
   });
 

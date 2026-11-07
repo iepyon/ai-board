@@ -1,5 +1,5 @@
-import type { MergeRequestIid } from '../../shared/schemas/common.js';
-import type { ForgeKind, MrSnapshot } from '../models/mr-state.js';
+import type { PullRequestNumber } from '../../shared/schemas/common.js';
+import type { ForgeKind, PrSnapshot } from '../models/pr-state.js';
 import { describeCliError, type CliError } from '../../infrastructure/cli-runner.js';
 
 // ============================================================
@@ -19,9 +19,12 @@ export interface ForgeClient {
    * 識別番号が既知のレビュー要求を取得する。
    * `previous` から変わっていなければ、詳細を引き直さずに `previous` を返す
    */
-  fetchByIid(iid: MergeRequestIid, previous?: MrSnapshot | null): Promise<MrSnapshot | null>;
+  fetchByNumber(
+    number: PullRequestNumber,
+    previous?: PrSnapshot | null
+  ): Promise<PrSnapshot | null>;
   /** source branch からレビュー要求を解決する。複数ある場合は最新の 1 件 */
-  fetchByBranch(branch: string): Promise<MrSnapshot | null>;
+  fetchByBranch(branch: string): Promise<PrSnapshot | null>;
   /** 取得先へ問い合わせられる状態かを確かめる。理由文を返す（null なら利用可能） */
   checkAuth(): Promise<string | null>;
 }
@@ -123,6 +126,6 @@ export function latestOf(timestamps: readonly string[]): string | null {
   return latest;
 }
 
-export function toMergeRequestIid(raw: number): MergeRequestIid {
-  return raw as MergeRequestIid;
+export function toPullRequestNumber(raw: number): PullRequestNumber {
+  return raw as PullRequestNumber;
 }

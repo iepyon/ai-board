@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 import matter from 'gray-matter';
-import type { CardId, MergeRequestIid } from '../../shared/schemas/common.js';
+import type { CardId, PullRequestNumber } from '../../shared/schemas/common.js';
 import { CardFrontmatterSchema } from '../models/schemas/card.schema.js';
 import type { Card } from '../models/card.js';
 
@@ -32,7 +32,7 @@ export function parseCard(filePath: string, raw: string): Card | null {
     return null;
   }
 
-  const data = dropGitLabMr(parsed.data as Record<string, unknown>);
+  const data = parsed.data as Record<string, unknown>;
   const candidate = {
     ...data,
     id: data['id'] ?? fileId,
@@ -65,7 +65,7 @@ export function parseCard(filePath: string, raw: string): Card | null {
     startedAt: frontmatter.startedAt,
     skipGates: frontmatter.skipGates,
     branch: frontmatter.branch,
-    mr: frontmatter.mr as MergeRequestIid | null,
+    pr: frontmatter.pr as PullRequestNumber | null,
     rank: frontmatter.rank,
     body: normalizeBody(parsed.content),
   };
@@ -74,15 +74,6 @@ export function parseCard(filePath: string, raw: string): Card | null {
 /** 本文の前後の改行を落とす。これで読み書きを往復しても本文が育たない */
 export function normalizeBody(content: string): string {
   return content.replace(/^\n+/, '').replace(/\n+$/, '');
-}
-
-/**
- * GitLab 連携を廃止する前のカードは `forge: gitlab` と MR 番号を持っている。
- * その番号を GitHub の PR 番号として引かないよう、番号を捨てて branch から解決し直させる。
- * `forge` の無いカードの番号は捨てない（`card show` の出力を取り込み直したときに番号を失う）。
- */
-function dropGitLabMr(data: Record<string, unknown>): Record<string, unknown> {
-  return data['forge'] === 'gitlab' ? { ...data, mr: null } : data;
 }
 
 /** Card を Markdown 文字列に戻す。frontmatter のキー順は安定させる */
@@ -94,7 +85,7 @@ export function serializeCard(card: Card): string {
     startedAt: card.startedAt,
     skipGates: card.skipGates,
     branch: card.branch,
-    mr: card.mr,
+    pr: card.pr,
     // 並べ替えたことの無いカードに null の行を足さない（保存し直しても差分を生まない）
     ...(card.rank === null ? {} : { rank: card.rank }),
   };

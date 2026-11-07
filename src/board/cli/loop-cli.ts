@@ -43,15 +43,12 @@ Commands:
                            1 手の開始を書く。同じループの終わっていない記録は「途切れた」で閉じる
                            （--action は ${LOOP_CURRENT_ACTIONS.join(' / ')}。
                            --step は ${LOOP_IMPL_STEPS.join(' / ')} で、implement のときだけ）
-  finish --loop <id> --card <cardId> --result <結果> [--tokens <n>] [--duration-ms <n>]
-                           そのループの終わっていない記録に、終了・結果・トークン・時間を埋める
-                           （--result は ${LOOP_FINISH_RESULTS.join(' / ')}。
-                           --duration-ms を省くと、開始から終了までの時間で埋める。
-                           --tokens を省くと、Claude Code の会話の記録から開始〜終了のトークンを数えて埋める）
+  finish --loop <id> --card <cardId> --result <結果>
+                           そのループの終わっていない記録に、終了と結果を埋める
+                           （--result は ${LOOP_FINISH_RESULTS.join(' / ')}）
 
 --loop はループの識別子（英数字と . _ -、64 文字まで）。本筋のセッションの ID を渡す
 --agent は手を進めたサブエージェントの名前。本筋のセッションが自分で進める手では渡さない
-start は --root の .claude/HARNESS_VERSIONS.md の先頭の版を、手順書の版として記録に残す
 `;
 
 export interface LoopCliIo {
@@ -65,10 +62,6 @@ export interface LoopCliDependencies {
   readonly store: Pick<DataStore, 'transact'>;
   /** その ID のカードがあるか。`transact` の中（取り直した後）で呼ぶ */
   readonly cardExists: (id: string) => Promise<boolean>;
-  /** 今の手順書の版（`.claude/HARNESS_VERSIONS.md`）。読めなければ null */
-  readonly harnessVersion: () => string | null;
-  /** ループ（セッション）の `from`〜`to` のトークン。数えられなければ null */
-  readonly countTokens: (loop: string, from: string, to: string) => number | null;
 }
 
 /** CLI の検査で書き込みを拒んだ */
@@ -76,7 +69,7 @@ type LoopCliError = LoopWriteError | { readonly type: 'CardNotFound'; readonly i
 
 const FLAGS: Readonly<Record<'start' | 'finish', readonly string[]>> = {
   start: ['--loop', '--card', '--action', '--step', '--agent'],
-  finish: ['--loop', '--card', '--result', '--tokens', '--duration-ms'],
+  finish: ['--loop', '--card', '--result'],
 };
 
 /** `ai-board loop <command>` を実行し、終了コードを返す */
@@ -128,7 +121,6 @@ async function runStart(
   }
 
   const startedAt = io.now().toISOString();
-  const harness = deps.harnessVersion();
   const result = await deps.store.transact<LoopStartOutcome, LoopCliError>(
     `loop: start ${common.cardId} ${action}`,
     async (dataDir) => {
@@ -141,7 +133,6 @@ async function runStart(
         action,
         step,
         agent,
-        harness,
         startedAt,
       });
     }
@@ -172,13 +163,7 @@ async function runFinish(
   }
   const loopResult: LoopFinishResult = resultFlag;
 
-  const tokens = parseCount(flags.get('--tokens'), '--tokens');
-  if (typeof tokens === 'string') return fail(io, tokens);
-  const durationMs = parseCount(flags.get('--duration-ms'), '--duration-ms');
-  if (typeof durationMs === 'string') return fail(io, durationMs);
-
   const finishedAt = io.now().toISOString();
-  let counted: { readonly value: number | null } | undefined;
   const result = await deps.store.transact<LoopStep, LoopCliError>(
     (step) => `loop: finish ${step.cardId} ${step.action}`,
     (dataDir) =>
@@ -187,11 +172,6 @@ async function runFinish(
           loop: common.loop,
           cardId: common.cardId,
           result: loopResult,
-          tokens,
-          // push が拒まれると op が呼び直される。会話の記録を読み直さないよう、最初に数えた値を使い回す
-          countTokens: (from, to) =>
-            (counted ??= { value: deps.countTokens(common.loop, from, to) }).value,
-          durationMs,
           finishedAt,
         })
       )
@@ -257,15 +237,6 @@ function parseStep(
     return { error: `--step には ${LOOP_IMPL_STEPS.join(' / ')} のどれかを指定してください` };
   }
   return { step: value };
-}
-
-/** 0 以上の整数。省略は null */
-function parseCount(value: string | undefined, option: string): number | null | string {
-  if (value === undefined) return null;
-  if (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value))) {
-    return `${option} には 0 以上の整数を指定してください`;
-  }
-  return Number(value);
 }
 
 // ============================================================

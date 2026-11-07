@@ -17,7 +17,7 @@ import { gateStates } from '../../../cards/services/review-log.js';
 function makeCard(
   overrides: Partial<NextActionCard> & Pick<NextActionCard, 'id' | 'stage'>
 ): NextActionCard {
-  return { aborted: false, gates: gate('none'), hold: null, mrState: null, ...overrides };
+  return { aborted: false, gates: gate('none'), hold: null, prState: null, ...overrides };
 }
 
 const HOLD = {
@@ -51,7 +51,7 @@ describe('pickNextAction', () => {
         id: 'pr',
         stage: 'pr',
         gates: gate('approved'),
-        mrState: { awaitingFix: true },
+        prState: { awaitingFix: true },
       }),
     ]);
 
@@ -65,8 +65,8 @@ describe('pickNextAction', () => {
 
   it('人の番の PR中 のカード（指摘が無い・応えた後）は選ばない', () => {
     const next = pickNextAction([
-      makeCard({ id: 'pr', stage: 'pr', gates: gate('approved'), mrState: { awaitingFix: false } }),
-      makeCard({ id: 'no-mr', stage: 'pr', gates: gate('approved') }),
+      makeCard({ id: 'pr', stage: 'pr', gates: gate('approved'), prState: { awaitingFix: false } }),
+      makeCard({ id: 'no-pr', stage: 'pr', gates: gate('approved') }),
     ]);
 
     expect(next).toBeNull();
@@ -79,7 +79,7 @@ describe('pickNextAction', () => {
         stage: 'pr',
         aborted: true,
         gates: gate('approved'),
-        mrState: { awaitingFix: true },
+        prState: { awaitingFix: true },
       }),
     ]);
 
@@ -193,17 +193,17 @@ function holdInput(
     aborted: false,
     gates: gateStates(entries, skipGates),
     entries,
-    mr: null,
-    mrKnown: true,
-    mrFailure: null,
+    pr: null,
+    prKnown: true,
+    prFailure: null,
     unsetPr: null,
     branchClosed: null,
     ...rest,
   };
 }
 
-const draftMr = (convertedToDraftAt: string | null): HoldInput['mr'] => ({
-  iid: 38,
+const draftPr = (convertedToDraftAt: string | null): HoldInput['pr'] => ({
+  number: 38,
   convertedToDraftAt,
 });
 
@@ -233,7 +233,7 @@ describe('resolveHold', () => {
   });
 
   it('PR の状態を引けていなければ、提出済みの計画提案中のカードを止まりにしない', () => {
-    const hold = resolveHold(holdInput('planning', [entry(0, 'plan', '提出')], { mrKnown: false }));
+    const hold = resolveHold(holdInput('planning', [entry(0, 'plan', '提出')], { prKnown: false }));
 
     expect(hold).toBeNull();
   });
@@ -247,7 +247,7 @@ describe('resolveHold', () => {
     it.each(['planning', 'plan-review', 'impling', 'pr'] as const)(
       '%s のカードは、失敗した時刻から PR の状態を引けない止まりになる',
       (stage) => {
-        const hold = resolveHold(holdInput(stage, approvedPlan, { mrFailure: failure }));
+        const hold = resolveHold(holdInput(stage, approvedPlan, { prFailure: failure }));
 
         expect(hold).toEqual({
           kind: 'forge',
@@ -261,8 +261,8 @@ describe('resolveHold', () => {
     it('ほかの止まりより先に見る', () => {
       const hold = resolveHold(
         holdInput('impling', approvedPlan, {
-          mr: draftMr('2026-10-20T01:00:00Z'),
-          mrFailure: failure,
+          pr: draftPr('2026-10-20T01:00:00Z'),
+          prFailure: failure,
         })
       );
 
@@ -271,14 +271,14 @@ describe('resolveHold', () => {
 
     it('中止・アイデア・マージ済みのカードは止まりにしない', () => {
       expect(
-        resolveHold(holdInput('impling', approvedPlan, { aborted: true, mrFailure: failure }))
+        resolveHold(holdInput('impling', approvedPlan, { aborted: true, prFailure: failure }))
       ).toBeNull();
-      expect(resolveHold(holdInput('idea', [], { mrFailure: failure }))).toBeNull();
-      expect(resolveHold(holdInput('merged', approvedPlan, { mrFailure: failure }))).toBeNull();
+      expect(resolveHold(holdInput('idea', [], { prFailure: failure }))).toBeNull();
+      expect(resolveHold(holdInput('merged', approvedPlan, { prFailure: failure }))).toBeNull();
     });
 
     it('止まったカードは選ばず、後ろのカードへ進む', () => {
-      const hold = resolveHold(holdInput('impling', approvedPlan, { mrFailure: failure }));
+      const hold = resolveHold(holdInput('impling', approvedPlan, { prFailure: failure }));
 
       expect(
         pickNextAction([
@@ -290,7 +290,7 @@ describe('resolveHold', () => {
   });
 
   describe('GitHub が未設定のボードで PR 番号を持つカード', () => {
-    const unsetPr = { iid: 7, since: '2026-11-07T00:00:00.000Z' };
+    const unsetPr = { number: 7, since: '2026-11-07T00:00:00.000Z' };
 
     it.each(['planning', 'plan-review', 'impling', 'pr'] as const)(
       '%s のカードは、PR の状態を引けない止まりになる',
@@ -335,16 +335,16 @@ describe('resolveHold', () => {
   });
 
   it('中止のカードと AI の列でないカードは止まりにしない', () => {
-    const mr = draftMr('2026-10-20T01:00:00Z');
+    const pr = draftPr('2026-10-20T01:00:00Z');
 
-    expect(resolveHold(holdInput('impling', approvedPlan, { aborted: true, mr }))).toBeNull();
-    expect(resolveHold(holdInput('pr', approvedPlan, { mr }))).toBeNull();
+    expect(resolveHold(holdInput('impling', approvedPlan, { aborted: true, pr }))).toBeNull();
+    expect(resolveHold(holdInput('pr', approvedPlan, { pr }))).toBeNull();
   });
 
   it('計画の承認の後に PR が Draft に戻されたら、implement を選ばずに止まる', () => {
     // Ready にした PR を人が Draft に戻すと 実装中 に落ちる。止めないと archive 済みの段が Ready に戻してしまう
     const convertedAt = '2026-10-20T01:00:00Z';
-    const input = holdInput('impling', approvedPlan, { mr: draftMr(convertedAt) });
+    const input = holdInput('impling', approvedPlan, { pr: draftPr(convertedAt) });
     const hold = resolveHold(input);
 
     expect(hold).toEqual({
@@ -360,7 +360,7 @@ describe('resolveHold', () => {
 
   it('Draft に戻された時刻が最新のエントリより古ければ止まらない', () => {
     const hold = resolveHold(
-      holdInput('impling', approvedPlan, { mr: draftMr('2026-10-20T00:00:30Z') })
+      holdInput('impling', approvedPlan, { pr: draftPr('2026-10-20T00:00:30Z') })
     );
 
     expect(hold).toBeNull();
@@ -369,7 +369,7 @@ describe('resolveHold', () => {
   it('plan を飛ばす宣言のカードは、plan 提出 より後に Draft に戻されたら止まる', () => {
     const submitted = [entry(0, 'plan', '提出')];
     const hold = resolveHold(
-      holdInput('impling', submitted, { skipGates: ['plan'], mr: draftMr('2026-10-20T01:00:00Z') })
+      holdInput('impling', submitted, { skipGates: ['plan'], pr: draftPr('2026-10-20T01:00:00Z') })
     );
 
     expect(hold?.reason).toBe(HOLD_REASONS.draftReverted(38));
@@ -377,7 +377,7 @@ describe('resolveHold', () => {
       resolveHold(
         holdInput('impling', submitted, {
           skipGates: ['plan'],
-          mr: draftMr('2026-10-19T23:00:00Z'),
+          pr: draftPr('2026-10-19T23:00:00Z'),
         })
       )
     ).toBeNull();
@@ -413,7 +413,7 @@ describe('resolveHold', () => {
   });
 
   it('Draft に戻されたことが無い PR では止まらない', () => {
-    expect(resolveHold(holdInput('impling', approvedPlan, { mr: draftMr(null) }))).toBeNull();
+    expect(resolveHold(holdInput('impling', approvedPlan, { pr: draftPr(null) }))).toBeNull();
   });
 });
 
@@ -445,7 +445,7 @@ describe('resolveHold — GitHub が未設定のボードのマージ待ち', ()
     const hold = resolveHold(
       holdInput('impling', approvedPlan, {
         branchClosed,
-        mr: { iid: 38, convertedToDraftAt: '2026-10-20T01:00:00Z' },
+        pr: { number: 38, convertedToDraftAt: '2026-10-20T01:00:00Z' },
       })
     );
 

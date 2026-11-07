@@ -17,14 +17,14 @@ GitHub API の上限対策（`forge-poll-budget`）でサーバのポーリン�
 - **`status --html` のダッシュボードも外す。** 集計・ログ・グラフ・更新ボタンのページと `board-dashboard` のスキルを消す。
 - ボードを見るのは `ai-board status`（人向けの数行と `--json`）で、人の判断は `ai-board decide`（チャットからは `board-decide`）で書く。
 - `ai-board`（引数なし）はサーバを起動せず、使い方を出して終わる。`status` の出力から起動中のサーバの URL（`server`）を消す。
-- 区画・出せる判断・並び順の純関数（`src/shared/dashboard-sections.ts` など）は、`status` と `decide` が使うので残す。
+- 区画・出せる判断・並び順の純関数（`src/shared/board-sections.ts` など）は、`status` と `decide` が使うので残す。
 
 ## 結果
 
 - 画面の型の写し、API とエラーのマッピング、SSE とファイル監視、ポーリングの間隔と控えの読み直しを考えずに済む。依存（express・chokidar・react・vite・supertest など）も外れた。
 - 常に開いておく画面が無くなり、判断待ちに気付くのは、ループが手の終わりにチャットで伝えるか、人が `status` を見たときになる。
 - ドラッグでの並べ替えと本文のその場の編集が無くなり、`ai-board decide move` / `ai-board card body` か、チャットで頼む形になる。
-- 工程ごとの滞在時間や手順書の版ごとの成績の集計は出なくなる。元になる区間と 1 手の記録（版・トークン・時間）は残り、`status --json` で読める。
+- 工程ごとの滞在時間や手順書の版ごとの成績の集計は出なくなる。読み手の無くなった区間の導出と 1 手の記録の版・トークン・時間も、後に外した（[14](0014-loop-step-record.md)）。
 - 画面を作り直すときは、どこから GitHub を引くか・認証を持たないので `127.0.0.1` にだけ bind することを、改めて決める。
 
 ## 退けた案

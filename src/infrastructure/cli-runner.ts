@@ -8,7 +8,7 @@ import { ok, err, type Result } from '../shared/result.js';
 
 const execFileAsync = promisify(execFile);
 
-/** 応答しない CLI がポーリングを止めないための上限 */
+/** 応答しない CLI がコマンドを止めないための上限 */
 export const DEFAULT_TIMEOUT_MS = 10_000;
 
 /** 想定外に大きな応答でメモリを食わないための上限 */

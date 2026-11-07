@@ -60,7 +60,7 @@ function card(id: string, overrides: Partial<Card> = {}): Card {
     startedAt: '2026-11-02T00:00:00.000Z',
     skipGates: ['plan'],
     branch: null,
-    mr: null,
+    pr: null,
     rank: null,
     body: '',
     ...overrides,

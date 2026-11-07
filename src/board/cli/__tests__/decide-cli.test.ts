@@ -8,12 +8,12 @@ import { REVIEW_HEADING, parseReviewLog } from '../../../cards/services/review-l
 import { isErr } from '../../../shared/result.js';
 import type { CardId } from '../../../shared/schemas/common.js';
 import { createBoardDependencies } from '../../composition.js';
-import type { MrStateProvider } from '../../services/mr-state-provider.js';
+import type { PrStateProvider } from '../../services/pr-state-provider.js';
 import {
   emptyBranchPlanRepository,
   type BranchPlanRepository,
 } from '../../repositories/branch-plan.repository.js';
-import type { ForgeCardFailure, ForgeConnection } from '../../models/mr-state.js';
+import type { ForgeCardFailure, ForgeConnection } from '../../models/pr-state.js';
 import type { CommitMessage, DataOperation } from '../../../infrastructure/data-store.js';
 import { runDecideCli } from '../decide-cli.js';
 import {
@@ -87,7 +87,7 @@ function review(kind: string): string {
 function stubProvider(
   connection: ForgeConnection = { status: 'connected', kind: 'github' },
   failures: Record<string, ForgeCardFailure> = {}
-): MrStateProvider {
+): PrStateProvider {
   return {
     get: () => null,
     connection: () => connection,
@@ -380,9 +380,9 @@ describe('ai-board decide', () => {
   });
 
   it('GitHub が未設定のボードで PR 番号を持つカードには、判断と着手を戻すを書かない', async () => {
-    await writeCard('r', `${STARTED}mr: 7\n`, review('提出'));
+    await writeCard('r', `${STARTED}pr: 7\n`, review('提出'));
     await writePlan('r');
-    await writeCard('c', `${STARTED}mr: 8\n`);
+    await writeCard('c', `${STARTED}pr: 8\n`);
     const unset = stubProvider({ status: 'disabled', kind: null, reason: null });
 
     expect(await run(['approve', 'r'], unset)).toBe(1);

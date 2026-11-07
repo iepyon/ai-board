@@ -6,12 +6,12 @@ import type { CliRunner } from '../../infrastructure/cli-runner.js';
 import { createFileCardDependencies } from '../../cards/composition.js';
 import { ok, err } from '../../shared/result.js';
 import type { ForgeConfig } from '../../shared/config.js';
-import { ForgePoller } from '../../infrastructure/forge-poller.js';
-import { createMrStateSource } from '../composition.js';
-import type { MrSnapshotRepository } from '../repositories/mr-snapshot.repository.js';
-import type { MrSnapshot } from '../models/mr-state.js';
+import { PrFetcher } from '../../infrastructure/pr-fetcher.js';
+import { createPrStateSource } from '../composition.js';
+import type { PrSnapshotRepository } from '../repositories/pr-snapshot.repository.js';
+import type { PrSnapshot } from '../models/pr-state.js';
 import type { Card } from '../../cards/models/card.js';
-import type { CardId, MergeRequestIid } from '../../shared/schemas/common.js';
+import type { CardId, PullRequestNumber } from '../../shared/schemas/common.js';
 
 // ============================================================
 // レビュー要求の状態の供給元
@@ -28,7 +28,7 @@ afterEach(() => {
 });
 
 /** 控えを持たないリポジトリ。ここでは供給元の組み立てだけを確かめる */
-const noSnapshots: MrSnapshotRepository = {
+const noSnapshots: PrSnapshotRepository = {
   findAll: () => Promise.resolve(new Map()),
   findMerged: () => Promise.resolve(new Map()),
   save: () => Promise.resolve(),
@@ -49,35 +49,35 @@ function authRunner(loggedIn: boolean): CliRunner {
   };
 }
 
-describe('createMrStateSource', () => {
+describe('createPrStateSource', () => {
   it('取得先が未設定なら、問い合わせずに disabled を返す', async () => {
     const { cardRepository } = createFileCardDependencies(dataDir);
-    const source = await createMrStateSource(null, cardRepository, noSnapshots, authRunner(true));
+    const source = await createPrStateSource(null, cardRepository, noSnapshots, authRunner(true));
 
-    expect(source.poller).toBeNull();
+    expect(source.fetcher).toBeNull();
     expect(source.provider.connection()).toEqual({ status: 'disabled', kind: null, reason: null });
   });
 
   it('gh が使えなければ、理由付きの disabled を返す', async () => {
     const { cardRepository } = createFileCardDependencies(dataDir);
-    const source = await createMrStateSource(forge, cardRepository, noSnapshots, authRunner(false));
+    const source = await createPrStateSource(forge, cardRepository, noSnapshots, authRunner(false));
 
-    expect(source.poller).toBeNull();
+    expect(source.fetcher).toBeNull();
     expect(source.provider.connection()).toMatchObject({ status: 'disabled', kind: 'github' });
     expect(source.provider.connection()).not.toMatchObject({ reason: null });
   });
 
-  it('gh が使えれば、ポーラーを供給元にする', async () => {
+  it('gh が使えれば、`PrFetcher` を供給元にする', async () => {
     const { cardRepository } = createFileCardDependencies(dataDir);
-    const source = await createMrStateSource(forge, cardRepository, noSnapshots, authRunner(true));
+    const source = await createPrStateSource(forge, cardRepository, noSnapshots, authRunner(true));
 
-    expect(source.poller).toBeInstanceOf(ForgePoller);
-    expect(source.provider).toBe(source.poller);
+    expect(source.fetcher).toBeInstanceOf(PrFetcher);
+    expect(source.provider).toBe(source.fetcher);
     expect(source.provider.connection()).toEqual({ status: 'connected', kind: 'github' });
   });
 
   describe('gh が使えないとき', () => {
-    function card(id: string, mr: number | null): Card {
+    function card(id: string, pr: number | null): Card {
       return {
         id: id as CardId,
         title: id,
@@ -85,23 +85,23 @@ describe('createMrStateSource', () => {
         startedAt: '2026-11-02T00:00:00.000Z',
         skipGates: [],
         branch: id,
-        mr: mr as MergeRequestIid | null,
+        pr: pr as PullRequestNumber | null,
         rank: null,
         body: '',
       };
     }
 
-    function merged(iid: number): MrSnapshot {
+    function merged(number: number): PrSnapshot {
       return {
-        fingerprint: `[${iid}]`,
-        mr: {
+        fingerprint: `[${number}]`,
+        pr: {
           forge: 'github',
-          iid: iid as MergeRequestIid,
+          number: number as PullRequestNumber,
           state: 'merged',
           draft: false,
           sourceBranch: 'x',
           title: 'x',
-          webUrl: `https://github.com/acme/board/pull/${iid}`,
+          webUrl: `https://github.com/acme/board/pull/${number}`,
           latestNoteAt: null,
           noteCount: 0,
           latestAiNoteAt: null,
@@ -114,7 +114,7 @@ describe('createMrStateSource', () => {
     }
 
     /** マージ済みの控えの読み方だけを差し替えたリポジトリ */
-    function snapshots(findMerged: MrSnapshotRepository['findMerged']): MrSnapshotRepository {
+    function snapshots(findMerged: PrSnapshotRepository['findMerged']): PrSnapshotRepository {
       return { ...noSnapshots, findMerged };
     }
 
@@ -131,16 +131,16 @@ describe('createMrStateSource', () => {
         )
       );
 
-      const source = await createMrStateSource(
+      const source = await createPrStateSource(
         forge,
         cardRepository,
         repository,
         authRunner(false)
       );
 
-      expect(source.poller).toBeNull();
+      expect(source.fetcher).toBeNull();
       expect(source.provider.connection()).toMatchObject({ status: 'disabled', kind: 'github' });
-      expect(source.provider.get('done')).toEqual(merged(7).mr);
+      expect(source.provider.get('done')).toEqual(merged(7).pr);
       expect(source.provider.get('renumbered')).toBeNull();
     });
 
@@ -150,7 +150,7 @@ describe('createMrStateSource', () => {
       await cardRepository.create(card('done', 7));
       const repository = snapshots(() => Promise.reject(new Error('壊れた')));
 
-      const source = await createMrStateSource(
+      const source = await createPrStateSource(
         forge,
         cardRepository,
         repository,

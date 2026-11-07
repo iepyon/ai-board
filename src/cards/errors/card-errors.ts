@@ -67,12 +67,10 @@ export type CardStoreError = DataStoreError;
 export type CardWriteFailure = CardWriteRefused | CardStoreError;
 
 export type CreateCardError = DuplicateCardId | InvalidCardId | CardWriteFailure;
-export type GetCardError = CardNotFound;
 export type UpdateCardError = CardNotFound | CardWriteFailure;
 export type UpdateCardBodyError = UpdateCardError | ReviewEntriesChanged;
 export type AppendReviewError = UpdateCardError;
 export type SubmitReviewError =
   CardNotFound | SubmitBeforeStart | SubmitGateClosed | CardWriteFailure;
 export type HoldReviewError = CardNotFound | HoldGateNotRejected | CardWriteFailure;
-export type ListCardsError = CardFileMalformed;
 export type MoveCardError = CardNotFound | StaleOrder | CardWriteFailure;

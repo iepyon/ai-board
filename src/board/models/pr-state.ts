@@ -1,18 +1,18 @@
-import type { MergeRequestIid } from '../../shared/schemas/common.js';
+import type { PullRequestNumber } from '../../shared/schemas/common.js';
 
 // ============================================================
 // レビュー要求（GitHub の PR）の状態
 // ============================================================
 
-export const MR_STATES = ['opened', 'closed', 'locked', 'merged'] as const;
+export const PR_STATES = ['opened', 'closed', 'locked', 'merged'] as const;
 
-export type MrLifecycleState = (typeof MR_STATES)[number];
+export type PrLifecycleState = (typeof PR_STATES)[number];
 
-export interface MrState {
+export interface PrState {
   /** どの取得先から引いた状態か */
   readonly forge: ForgeKind;
-  readonly iid: MergeRequestIid;
-  readonly state: MrLifecycleState;
+  readonly number: PullRequestNumber;
+  readonly state: PrLifecycleState;
   /**
    * Draft か。AI は計画をコミットした時点で Draft の PR を出し、
    * 人は計画をその PR で読む。Draft のあいだは PR中 の列を立てない
@@ -60,10 +60,10 @@ export interface MrState {
  * 引いた PR の状態と、それを引いたときの PR 本体の「指紋」。
  *
  * 指紋は PR 本体 1 回の問い合わせで分かる値（状態・Draft・head の sha・コメントの件数・更新時刻）を
- * つないだもの。次に引いたとき指紋が同じなら、コメントやコミットを引き直さずに `mr` を使い回す。
+ * つないだもの。次に引いたとき指紋が同じなら、コメントやコミットを引き直さずに `pr` を使い回す。
  */
-export interface MrSnapshot {
-  readonly mr: MrState;
+export interface PrSnapshot {
+  readonly pr: PrState;
   readonly fingerprint: string;
 }
 
@@ -100,7 +100,7 @@ export type ForgeConnection =
 /**
  * 取得先が未設定か（`config.yaml` に `github:` が無い）。
  *
- * `kind` が null の `disabled` は、設定が無いときにだけ作られる（`createMrStateSource`）。
+ * `kind` が null の `disabled` は、設定が無いときにだけ作られる（`createPrStateSource`）。
  * 設定があって CLI が無い・未ログイン・届かないときは `kind` が付くので、偽になる。
  * `reason` の文言には依らない。
  */

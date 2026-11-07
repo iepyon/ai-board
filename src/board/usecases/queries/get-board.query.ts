@@ -2,7 +2,7 @@ import { ok, err, type Result } from '../../../shared/result.js';
 import type { CardRepository } from '../../../cards/repositories/card.repository.js';
 import type { IdeaDividerRepository } from '../../../cards/repositories/idea-divider.repository.js';
 import type { PlanRepository } from '../../repositories/plan.repository.js';
-import type { MrStateProvider } from '../../services/mr-state-provider.js';
+import type { PrStateProvider } from '../../services/pr-state-provider.js';
 import {
   droppableStages,
   hasFixAfterReview,
@@ -11,8 +11,6 @@ import {
 } from '../../services/stage-resolver.js';
 import { latestGateEntry, parseReviewLog } from '../../../cards/services/review-log.js';
 import { resolveHold, type HoldInput } from '../../services/next-action.js';
-import { resolveTimeline } from '../../services/stage-timeline.js';
-import { splitAiPhases } from '../../services/timeline-phases.js';
 import type { LoopHistoryRepository } from '../../repositories/loop-history.repository.js';
 import type { LoopStep } from '../../../shared/loop-step.js';
 import { toBoardLoop } from '../../../shared/loop-activity.js';
@@ -25,7 +23,7 @@ import {
   toBoardCardReview,
   type Board,
   type BoardCard,
-  type BoardCardMr,
+  type BoardCardPr,
   type BoardCardPlan,
   type BoardCardReview,
 } from '../../models/board-card.js';
@@ -36,7 +34,7 @@ import {
   type BranchPlanRepository,
 } from '../../repositories/branch-plan.repository.js';
 import { branchCloseTarget, branchPlanTarget } from '../../services/branch-plan-target.js';
-import { isForgeUnset, type MrState } from '../../models/mr-state.js';
+import { isForgeUnset, type PrState } from '../../models/pr-state.js';
 import type { GetBoardError } from '../../errors/board-errors.js';
 
 // ============================================================
@@ -52,14 +50,14 @@ export type GetBoardQuery = () => Promise<Result<Board, GetBoardError>>;
  * ここは I/O と組み立てだけを担当する。
  * GitHub が未設定のボードでは、メインに計画の無いカードのブランチの計画を `branchPlanRepository` で補う（`branchPlanTarget`）。
  * 同じく、実装中のカードの締めが済んだか（ブランチで計画が archive 済みか）を読み、マージ待ちの止まりにだけ使う（`branchCloseTarget`）。
- * ループの 1 手の記録は、ループの様子（`Board.loop`）・カードの手の一覧・区間の小区間にだけ使い、
+ * ループの 1 手の記録は、ループの様子（`Board.loop`）とカードの手の一覧にだけ使い、
  * ステージの導出と止まりには渡さない。
  */
 export function createGetBoardQuery(
   cardRepository: CardRepository,
   ideaDividerRepository: IdeaDividerRepository,
   planRepository: PlanRepository,
-  mrProvider: MrStateProvider,
+  prProvider: PrStateProvider,
   loopHistoryRepository: LoopHistoryRepository,
   branchPlanRepository: BranchPlanRepository = emptyBranchPlanRepository
 ): GetBoardQuery {
@@ -83,29 +81,28 @@ export function createGetBoardQuery(
       });
     }
 
-    const forge = mrProvider.connection();
+    const forge = prProvider.connection();
     const forgeUnset = isForgeUnset(forge);
     const closedByCard = forgeUnset
       ? await closedBranches(planState, cards, branchPlanRepository)
       : new Map<string, BranchClosedHold>();
     const closedOf = (cardId: string): BranchClosedHold | null => closedByCard.get(cardId) ?? null;
     if (forgeUnset) planState = await withBranchPlans(planState, cards, branchPlanRepository);
-    const mrKnown = forge.status === 'connected' && mrProvider.synced();
+    const prKnown = forge.status === 'connected' && prProvider.synced();
     const generatedAt = new Date().toISOString();
     const stepsByCard = groupByCard(loopSteps);
 
     const boardCards: BoardCard[] = cards.map((card) => {
       const plan = planState.get(card.id) ?? null;
-      const mr = mrProvider.get(card.id);
-      const mrFailure = mrProvider.failure(card.id);
-      const unsetPr = forgeUnset ? unsetPrOf(card.mr, generatedAt) : null;
+      const pr = prProvider.get(card.id);
+      const prFailure = prProvider.failure(card.id);
+      const unsetPr = forgeUnset ? unsetPrOf(card.pr, generatedAt) : null;
       // PR の状態を信じられない（引けない・未設定で PR 番号を持つ）カード。止まりにし、どの列へも動かさせない
-      const prUntrusted = mrFailure !== null || unsetPr !== null;
+      const prUntrusted = prFailure !== null || unsetPr !== null;
 
-      const resolution = resolveStage(card, plan, mr);
-      const floorStage = resolveFloorStage(card, plan, mr);
+      const resolution = resolveStage(card, plan, pr);
+      const floorStage = resolveFloorStage(card, plan, pr);
       const entries = parseReviewLog(card.body);
-      const steps = stepsByCard.get(card.id) ?? [];
 
       return toBoardCard(
         card,
@@ -115,29 +112,17 @@ export function createGetBoardQuery(
         { floorStage, droppableStages: prUntrusted ? [] : droppableStages(floorStage) },
         latestReview(entries, resolution.stage),
         toBoardCardPlan(plan),
-        toBoardCardMr(mr),
+        toBoardCardPr(pr),
         resolveHold({
           ...resolution,
           entries,
-          mr,
-          mrKnown,
-          mrFailure,
+          pr,
+          prKnown,
+          prFailure,
           unsetPr,
           branchClosed: closedOf(card.id),
         }),
-        splitAiPhases(
-          resolveTimeline({
-            created: card.created,
-            startedAt: card.startedAt,
-            skipGates: card.skipGates,
-            entries,
-            readyAt: mr?.readyAt ?? null,
-            mergedAt: mr?.mergedAt ?? null,
-            convertedToDraftAt: mr?.convertedToDraftAt ?? null,
-          }),
-          steps
-        ),
-        steps
+        stepsByCard.get(card.id) ?? []
       );
     });
 
@@ -196,8 +181,8 @@ async function closedBranches(
  * 未設定のボードで PR 番号を持つカードの、その番号と止まりの起点。番号が無ければ null。
  * PR の状態を引けないカードと同じに止める（`resolveHold`）
  */
-function unsetPrOf(mr: number | null, since: string): HoldInput['unsetPr'] {
-  return mr === null ? null : { iid: mr, since };
+function unsetPrOf(pr: number | null, since: string): HoldInput['unsetPr'] {
+  return pr === null ? null : { number: pr, since };
 }
 
 /** 記録をカードごとに分ける。並び（開始の時刻の順）は保つ */
@@ -225,24 +210,24 @@ function latestReview(entries: readonly ReviewEntry[], stage: Stage): BoardCardR
   return toBoardCardReview(entry);
 }
 
-function toBoardCardMr(mr: MrState | null): BoardCardMr | null {
-  if (mr === null) return null;
+function toBoardCardPr(pr: PrState | null): BoardCardPr | null {
+  if (pr === null) return null;
 
   return {
-    forge: mr.forge,
-    iid: mr.iid,
-    state: mr.state,
-    draft: mr.draft,
-    title: mr.title,
-    webUrl: mr.webUrl,
-    noteCount: mr.noteCount,
-    latestNoteAt: mr.latestNoteAt,
-    latestAiNoteAt: mr.latestAiNoteAt,
-    latestCommitAt: mr.latestCommitAt,
-    resubmitted: hasFixAfterReview(mr),
-    awaitingFix: awaitsPrFix(mr),
-    mergedAt: mr.mergedAt,
-    readyAt: mr.readyAt,
-    convertedToDraftAt: mr.convertedToDraftAt,
+    forge: pr.forge,
+    number: pr.number,
+    state: pr.state,
+    draft: pr.draft,
+    title: pr.title,
+    webUrl: pr.webUrl,
+    noteCount: pr.noteCount,
+    latestNoteAt: pr.latestNoteAt,
+    latestAiNoteAt: pr.latestAiNoteAt,
+    latestCommitAt: pr.latestCommitAt,
+    resubmitted: hasFixAfterReview(pr),
+    awaitingFix: awaitsPrFix(pr),
+    mergedAt: pr.mergedAt,
+    readyAt: pr.readyAt,
+    convertedToDraftAt: pr.convertedToDraftAt,
   };
 }

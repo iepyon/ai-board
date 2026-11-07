@@ -3,19 +3,19 @@ import type { Card } from '../../../cards/models/card.js';
 import type { CardRepository } from '../../../cards/repositories/card.repository.js';
 import type { IdeaDividerRepository } from '../../../cards/repositories/idea-divider.repository.js';
 import { err } from '../../../shared/result.js';
-import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
+import type { CardId, PullRequestNumber } from '../../../shared/schemas/common.js';
 import {
   emptyBranchPlanRepository,
   type BranchPlanRepository,
 } from '../../repositories/branch-plan.repository.js';
 import type { PlanRepository } from '../../repositories/plan.repository.js';
 import {
-  disabledMrStateProvider,
-  unavailableMrStateProvider,
-  type MrStateProvider,
-} from '../../services/mr-state-provider.js';
+  disabledPrStateProvider,
+  unavailablePrStateProvider,
+  type PrStateProvider,
+} from '../../services/pr-state-provider.js';
 import type { ImplStepPlan } from '../../services/impl-step.js';
-import type { MrState } from '../../models/mr-state.js';
+import type { PrState } from '../../models/pr-state.js';
 import { createGetBoardQuery, type GetBoardQuery } from '../queries/get-board.query.js';
 import { createGetStatusQuery } from '../queries/get-status.query.js';
 
@@ -30,22 +30,22 @@ function implementing(branch: string | null): Card {
     startedAt: '2026-11-02T00:00:00.000Z',
     skipGates: [],
     branch,
-    mr: null,
+    pr: null,
     rank: null,
     body: '## レビュー\n\n### 2026-11-03T00:00:00.000Z plan 承認\n',
   };
 }
 
 /** マージ済みの PR の状態（控え） */
-function mergedPr(iid: number): MrState {
+function mergedPr(number: number): PrState {
   return {
     forge: 'github',
-    iid: iid as MergeRequestIid,
+    number: number as PullRequestNumber,
     state: 'merged',
     draft: false,
     sourceBranch: 'done',
     title: 'done',
-    webUrl: `https://github.com/acme/board/pull/${iid}`,
+    webUrl: `https://github.com/acme/board/pull/${number}`,
     latestNoteAt: null,
     noteCount: 0,
     latestAiNoteAt: null,
@@ -56,7 +56,7 @@ function mergedPr(iid: number): MrState {
   };
 }
 
-const connected: MrStateProvider = {
+const connected: PrStateProvider = {
   get: () => null,
   connection: () => ({ status: 'connected', kind: 'github' }),
   synced: () => true,
@@ -64,12 +64,12 @@ const connected: MrStateProvider = {
 };
 
 /** `github:` が無い（未設定） */
-const unset = disabledMrStateProvider;
+const unset = disabledPrStateProvider;
 
 /** `github:` はあるが、gh が無い・未ログイン・届かない */
-const unavailable = unavailableMrStateProvider('github', 'gh が無い');
+const unavailable = unavailablePrStateProvider('github', 'gh が無い');
 
-function boardQuery(cards: readonly Card[], provider: MrStateProvider = connected): GetBoardQuery {
+function boardQuery(cards: readonly Card[], provider: PrStateProvider = connected): GetBoardQuery {
   const cardRepository: Pick<CardRepository, 'findAll'> = {
     findAll: () => Promise.resolve([...cards]),
   };
@@ -143,7 +143,7 @@ describe('GetStatusQuery', () => {
     const withPr: Card = {
       ...implementing(null),
       id: 'with-pr' as CardId,
-      mr: 7 as MergeRequestIid,
+      pr: 7 as PullRequestNumber,
     };
     const result = await createGetStatusQuery(boardQuery([withPr, implementing(null)], unset))(NOW);
     if (!result.ok) throw new Error('ボードを読めない');
@@ -162,9 +162,9 @@ describe('GetStatusQuery', () => {
     const mergedCard: Card = {
       ...implementing('done'),
       id: 'done' as CardId,
-      mr: 7 as MergeRequestIid,
+      pr: 7 as PullRequestNumber,
     };
-    const provider = unavailableMrStateProvider(
+    const provider = unavailablePrStateProvider(
       'github',
       'gh が無い',
       new Map([['done', mergedPr(7)]])
@@ -177,8 +177,8 @@ describe('GetStatusQuery', () => {
     expect(result.value.next).toBeNull();
     const done = result.value.cards.find((card) => card.id === 'done');
     expect(done?.stage).toBe('merged');
-    expect(done?.mrState).toMatchObject({
-      iid: 7,
+    expect(done?.prState).toMatchObject({
+      number: 7,
       state: 'merged',
       mergedAt: '2026-11-04T00:00:00Z',
     });

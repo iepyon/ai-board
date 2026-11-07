@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { SNAPSHOTS_DIR } from '../board/repositories/file-mr-snapshot.repository.js';
+import { SNAPSHOTS_DIR } from '../board/repositories/file-pr-snapshot.repository.js';
 import { LOOP_DIR } from '../board/repositories/loop-history.repository.js';
 import {
   CARDS_DIR,
@@ -13,6 +13,7 @@ import {
 import { CONFIG_FILE, type DataMode } from '../shared/config.js';
 import { err, isErr, ok, type Result } from '../shared/result.js';
 import { describeCliError, type CliError, type CliRunner } from './cli-runner.js';
+import { DATA_MIGRATION_MESSAGE, migrateData } from './data-migration.js';
 
 // ============================================================
 // データ用ブランチ — カードの正本を置く git のワークツリーの読み書き
@@ -294,6 +295,13 @@ class GitDataStore implements DataStore {
     const base = await this.syncForWrite(attempt, rejected);
     if (isErr(base)) return done(base);
 
+    // 古い版から書き換えた分は、書き込みとは別のコミットにして一緒に push する
+    const migrated = await this.commit(DATA_MIGRATION_MESSAGE);
+    if (isErr(migrated)) {
+      await this.discardTo('HEAD');
+      return done(migrated);
+    }
+
     const written = await this.runOperation(op);
     if (isErr(written)) return done(written);
 
@@ -485,8 +493,9 @@ class GitDataStore implements DataStore {
   }
 
   /**
-   * `ai-board-data.yaml` の版が、この CLI が読み書きできる版かを確かめる。
+   * `ai-board-data.yaml` の版が、この CLI が読み書きできる版かを確かめる。古い版なら今の版へ書き換える（`migrateData`）。
    *
+   * 書き換えはワークツリーのファイルだけで、コミットは書き込みの `attempt` が `op` の前に作る。
    * ファイルが無ければ確かめない（`init` は必ず書くので、無いのは版を持たない試しのデータだけである）。
    */
   private checkVersion(outcome: RefreshOutcome): Result<RefreshOutcome, DataStoreError> {
@@ -494,7 +503,10 @@ class GitDataStore implements DataStore {
     if (raw === null) return ok(outcome);
 
     const version = parseDataVersion(raw);
-    return isErr(version) ? version : ok(outcome);
+    if (isErr(version)) return version;
+
+    migrateData(this.dataDir, version.value);
+    return ok(outcome);
   }
 
   /**

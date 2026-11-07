@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { Card } from '../../../cards/models/card.js';
 import type { CardRepository } from '../../../cards/repositories/card.repository.js';
 import type { IdeaDividerRepository } from '../../../cards/repositories/idea-divider.repository.js';
-import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
+import type { CardId, PullRequestNumber } from '../../../shared/schemas/common.js';
 import type { LoopStep } from '../../../shared/loop-step.js';
 import type { LoopHistoryRepository } from '../../repositories/loop-history.repository.js';
 import type { PlanRepository } from '../../repositories/plan.repository.js';
@@ -13,10 +13,10 @@ import {
 import type { PlanDoc, PlanState } from '../../models/plan-state.js';
 import { createCardId } from '../../../shared/schemas/common.js';
 import {
-  disabledMrStateProvider,
-  unavailableMrStateProvider,
-  type MrStateProvider,
-} from '../../services/mr-state-provider.js';
+  disabledPrStateProvider,
+  unavailablePrStateProvider,
+  type PrStateProvider,
+} from '../../services/pr-state-provider.js';
 import { createGetBoardQuery } from '../queries/get-board.query.js';
 
 function card(id: string, overrides: Partial<Card> = {}): Card {
@@ -27,7 +27,7 @@ function card(id: string, overrides: Partial<Card> = {}): Card {
     startedAt: '2026-11-02T00:00:00.000Z',
     skipGates: [],
     branch: null,
-    mr: null,
+    pr: null,
     rank: null,
     body: '',
     ...overrides,
@@ -41,12 +41,9 @@ function step(overrides: Partial<LoopStep> = {}): LoopStep {
     action: 'plan',
     step: null,
     agent: null,
-    harness: null,
     startedAt: '2026-11-02T01:00:00.000Z',
     finishedAt: '2026-11-02T02:00:00.000Z',
     result: 'stopped',
-    tokens: null,
-    durationMs: null,
     ...overrides,
   };
 }
@@ -54,7 +51,7 @@ function step(overrides: Partial<LoopStep> = {}): LoopStep {
 function query(
   cards: readonly Card[],
   steps: readonly LoopStep[],
-  provider: MrStateProvider = disabledMrStateProvider,
+  provider: PrStateProvider = disabledPrStateProvider,
   branchPlans?: BranchPlanRepository,
   mainPlans: PlanState = new Map()
 ) {
@@ -80,7 +77,7 @@ function query(
 }
 
 describe('GetBoardQuery のループの記録', () => {
-  it('カードごとに手の一覧を分け、ループの様子をまとめ、AI の区間を待ちと作業に分ける', async () => {
+  it('カードごとに手の一覧を分け、ループの様子をまとめる', async () => {
     const running = step({
       cardId: 'card-b',
       startedAt: '2026-11-02T03:00:00.000Z',
@@ -98,10 +95,6 @@ describe('GetBoardQuery のループの記録', () => {
     expect(a?.loopSteps).toEqual([step()]);
     expect(b?.loopSteps).toEqual([running]);
     expect(board.loop).toEqual({ running: [running], lastFinishedAt: '2026-11-02T02:00:00.000Z' });
-    expect(a?.timeline.map((segment) => segment.phases.map((p) => p.kind))).toEqual([
-      [],
-      ['wait', 'work', 'wait'],
-    ]);
   });
 
   it('記録はステージの導出に使わない', async () => {
@@ -118,7 +111,7 @@ describe('GetBoardQuery のループの記録', () => {
       { findAll: () => Promise.resolve([]) } as unknown as CardRepository,
       { get: () => Promise.resolve(null) } as unknown as IdeaDividerRepository,
       { load: () => Promise.resolve(new Map()) },
-      disabledMrStateProvider,
+      disabledPrStateProvider,
       { findAll: () => Promise.reject(new Error('壊れた')) }
     );
     const result = await q();
@@ -128,7 +121,7 @@ describe('GetBoardQuery のループの記録', () => {
 
 describe('GetBoardQuery の GitHub が未設定のボード', () => {
   // どちらも計画提案中（着手済みで、まだ提出していない）。止まらなければ アイデア / 計画提案中 へ動かせる
-  const withPr = card('with-pr', { mr: 7 as MergeRequestIid });
+  const withPr = card('with-pr', { pr: 7 as PullRequestNumber });
   const withoutPr = card('without-pr', { branch: 'without-pr' });
 
   it('PR 番号を持つカードだけを止まりにし、どの列へも動かさせない', async () => {
@@ -147,7 +140,7 @@ describe('GetBoardQuery の GitHub が未設定のボード', () => {
   });
 
   it('github: があって使えないボードでは、PR 番号を持つカードを未設定の止まりにしない', async () => {
-    const result = await query([withPr], [], unavailableMrStateProvider('github', 'gh が無い'))();
+    const result = await query([withPr], [], unavailablePrStateProvider('github', 'gh が無い'))();
     if (!result.ok) throw new Error('ボードを読めない');
 
     expect(result.value.cards[0]?.hold).toBeNull();
@@ -180,7 +173,7 @@ describe('GetBoardQuery のブランチの計画', () => {
 
   it('未設定のボードでは、ブランチの計画で計画レビューを立てる', async () => {
     const branchPlans = reader();
-    const result = await query([submitted], [], disabledMrStateProvider, branchPlans)();
+    const result = await query([submitted], [], disabledPrStateProvider, branchPlans)();
     if (!result.ok) throw new Error('ボードを読めない');
 
     expect(result.value.cards[0]?.stage).toBe('plan-review');
@@ -190,7 +183,7 @@ describe('GetBoardQuery のブランチの計画', () => {
 
   it('github: があるボードではブランチを読まない', async () => {
     const branchPlans = reader();
-    const unavailable = unavailableMrStateProvider('github', 'gh が無い');
+    const unavailable = unavailablePrStateProvider('github', 'gh が無い');
     const result = await query([submitted], [], unavailable, branchPlans)();
     if (!result.ok) throw new Error('ボードを読めない');
 
@@ -204,7 +197,7 @@ describe('GetBoardQuery のブランチの計画', () => {
     const result = await query(
       [submitted],
       [],
-      disabledMrStateProvider,
+      disabledPrStateProvider,
       branchPlans,
       new Map([[main.cardId, main]])
     )();
@@ -236,7 +229,7 @@ describe('GetBoardQuery のブランチのマージ待ち', () => {
 
   it('未設定のボードでは、締めが済んだ実装中のカードをマージ待ちの止まりにする', async () => {
     const branchPlans = reader();
-    const result = await query([approved], [], disabledMrStateProvider, branchPlans)();
+    const result = await query([approved], [], disabledPrStateProvider, branchPlans)();
     if (!result.ok) throw new Error('ボードを読めない');
 
     const closed = result.value.cards[0];
@@ -251,7 +244,7 @@ describe('GetBoardQuery のブランチのマージ待ち', () => {
 
   it('github: があるボードではブランチの archive を読まない', async () => {
     const branchPlans = reader();
-    const unavailable = unavailableMrStateProvider('github', 'gh が無い');
+    const unavailable = unavailablePrStateProvider('github', 'gh が無い');
     const result = await query([approved], [], unavailable, branchPlans)();
     if (!result.ok) throw new Error('ボードを読めない');
 
@@ -270,7 +263,7 @@ describe('GetBoardQuery のブランチのマージ待ち', () => {
     const result = await query(
       [approved],
       [],
-      disabledMrStateProvider,
+      disabledPrStateProvider,
       branchPlans,
       new Map([[merged.cardId, merged]])
     )();

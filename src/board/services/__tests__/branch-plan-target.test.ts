@@ -12,7 +12,7 @@ function card(overrides: Partial<Card> = {}): Card {
     startedAt: '2026-11-02T00:00:00.000Z',
     skipGates: [],
     branch: 'feat/a',
-    mr: null,
+    pr: null,
     rank: null,
     body: '',
     ...overrides,

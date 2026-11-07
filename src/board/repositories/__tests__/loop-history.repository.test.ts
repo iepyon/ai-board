@@ -36,7 +36,6 @@ const START: LoopStartInput = {
   action: 'implement',
   step: 'task',
   agent: 'board-worker-card-a-1114',
-  harness: null,
   startedAt: '2026-11-02T11:14:06.000Z',
 };
 
@@ -98,8 +97,6 @@ describe('中身', () => {
       ...START,
       finishedAt: '2026-11-02T11:31:40.000Z',
       result: 'advanced',
-      tokens: 412345,
-      durationMs: 1054000,
     };
     expect(parseLoopStep(JSON.parse(serializeLoopStep(step)))).toEqual(step);
   });
@@ -110,23 +107,8 @@ describe('中身', () => {
         ...START,
         finishedAt: '2026-11-02T11:31:40.000Z',
         result: null,
-        tokens: null,
-        durationMs: null,
       })
     ).toBeNull();
-  });
-
-  it('手順書の版の項目が無い記録（変更履歴より前）は、版なし（null）として読む', () => {
-    const { harness: _harness, ...old } = {
-      ...START,
-      finishedAt: null,
-      result: null,
-      tokens: null,
-      durationMs: null,
-    };
-    expect(parseLoopStep(old)?.harness).toBeNull();
-    expect(parseLoopStep({ ...old, harness: 'v2' })?.harness).toBe('v2');
-    expect(parseLoopStep({ ...old, harness: '' })).toBeNull();
   });
 
   it('廃止した手（revise-impl / ready）の過去の記録も読める', () => {
@@ -135,18 +117,31 @@ describe('中身', () => {
       step: null,
       finishedAt: null,
       result: null,
-      tokens: null,
-      durationMs: null,
     };
     expect(parseLoopStep({ ...base, action: 'revise-impl' })?.action).toBe('revise-impl');
     expect(parseLoopStep({ ...base, action: 'ready' })?.action).toBe('ready');
   });
 
-  it('規定外の手・不正な識別子・負のトークンは読まない', () => {
-    const base = { ...START, finishedAt: null, result: null, tokens: null, durationMs: null };
+  it('規定外の手・不正な識別子は読まない', () => {
+    const base = { ...START, finishedAt: null, result: null };
     expect(parseLoopStep({ ...base, action: 'foo' })).toBeNull();
     expect(parseLoopStep({ ...base, loop: '../x' })).toBeNull();
-    expect(parseLoopStep({ ...base, tokens: -1 })).toBeNull();
+  });
+
+  it('以前の記録に残る手順書の版・トークン・時間は捨てて読む', () => {
+    const old = {
+      ...START,
+      harness: 'v2',
+      finishedAt: '2026-11-02T11:31:40.000Z',
+      result: 'advanced',
+      tokens: 412345,
+      durationMs: 1054000,
+    };
+    expect(parseLoopStep(old)).toEqual({
+      ...START,
+      finishedAt: '2026-11-02T11:31:40.000Z',
+      result: 'advanced',
+    });
   });
 });
 
@@ -162,12 +157,9 @@ describe('writeLoopStart', () => {
       action: 'implement',
       step: 'task',
       agent: 'board-worker-card-a-1114',
-      harness: null,
       startedAt: '2026-11-02T11:14:06.000Z',
       finishedAt: null,
       result: null,
-      tokens: null,
-      durationMs: null,
     });
   });
 
@@ -226,8 +218,6 @@ describe('writeLoopFinish', () => {
     loop: 'session-a',
     cardId: 'card-a',
     result: 'advanced' as const,
-    tokens: 81234,
-    durationMs: 95000,
     finishedAt: '2026-11-02T11:31:40.000Z',
   };
 
@@ -235,76 +225,11 @@ describe('writeLoopFinish', () => {
     unwrap(writeLoopStart(dataDir, START));
     const finished = unwrap(writeLoopFinish(dataDir, FINISH));
 
-    expect(finished).toMatchObject({ result: 'advanced', tokens: 81234, durationMs: 95000 });
+    expect(finished).toMatchObject({ result: 'advanced' });
     expect(readFile('20261102T111406.000Z.session-a.json')).toMatchObject({
       finishedAt: '2026-11-02T11:31:40.000Z',
       result: 'advanced',
     });
-  });
-
-  it('時間が null なら、開始から終了までのミリ秒で埋める', () => {
-    unwrap(writeLoopStart(dataDir, START));
-    const finished = unwrap(
-      writeLoopFinish(dataDir, { ...FINISH, tokens: null, durationMs: null })
-    );
-
-    // 11:14:06 から 11:31:40 まで
-    expect(finished).toMatchObject({ tokens: null, durationMs: 1054000 });
-  });
-
-  it('トークンが null なら、開始から終了までの窓で countTokens に数えさせる', () => {
-    unwrap(writeLoopStart(dataDir, { ...START, harness: 'v1' }));
-    const windows: [string, string][] = [];
-    const finished = unwrap(
-      writeLoopFinish(dataDir, {
-        ...FINISH,
-        tokens: null,
-        countTokens: (from, to) => {
-          windows.push([from, to]);
-          return 500;
-        },
-      })
-    );
-
-    expect(finished).toMatchObject({ harness: 'v1', tokens: 500 });
-    expect(windows).toEqual([['2026-11-02T11:14:06.000Z', '2026-11-02T11:31:40.000Z']]);
-  });
-
-  it('トークンが渡されれば countTokens を呼ばない。数えられなければ null', () => {
-    unwrap(writeLoopStart(dataDir, START));
-    const finished = unwrap(
-      writeLoopFinish(dataDir, {
-        ...FINISH,
-        countTokens: () => {
-          throw new Error('呼ばれない');
-        },
-      })
-    );
-    expect(finished.tokens).toBe(81234);
-
-    unwrap(writeLoopStart(dataDir, { ...START, startedAt: '2026-11-02T12:00:00.000Z' }));
-    const counted = unwrap(
-      writeLoopFinish(dataDir, {
-        ...FINISH,
-        tokens: null,
-        finishedAt: '2026-11-02T12:01:00.000Z',
-        countTokens: () => null,
-      })
-    );
-    expect(counted.tokens).toBeNull();
-  });
-
-  it('終了が開始より前（時計の戻り）なら、時間は 0 にする', () => {
-    unwrap(writeLoopStart(dataDir, START));
-    const finished = unwrap(
-      writeLoopFinish(dataDir, {
-        ...FINISH,
-        durationMs: null,
-        finishedAt: '2026-11-02T11:14:00.000Z',
-      })
-    );
-
-    expect(finished.durationMs).toBe(0);
   });
 
   it('終わった記録は書き換えない。2 度目の終了は終わっていない記録が無いので拒む', () => {
@@ -360,8 +285,6 @@ describe('読み出し', () => {
         loop: 'a',
         finishedAt: null,
         result: null,
-        tokens: null,
-        durationMs: null,
       })
     );
     // ファイル名の識別子と中身の識別子が食い違う
@@ -372,8 +295,6 @@ describe('読み出し', () => {
         loop: 'a',
         finishedAt: null,
         result: null,
-        tokens: null,
-        durationMs: null,
       })
     );
 
@@ -421,7 +342,7 @@ describe('古い CLI の書き込み', () => {
 
   it('loop を除いた add・clean・reset の後も、追跡済みの loop/ のファイルは消えない', () => {
     git(dataDir, 'init', '--quiet', '--initial-branch', 'ai-board/data');
-    fs.writeFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'version: 1\n');
+    fs.writeFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'version: 2\n');
     unwrap(writeLoopStart(dataDir, START));
     git(dataDir, 'add', '-A');
     git(dataDir, 'commit', '--quiet', '-m', 'loop: start card-a implement');

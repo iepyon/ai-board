@@ -10,7 +10,7 @@ export type Brand<T, B extends string> = T & { readonly __brand: B };
 export type CardId = Brand<string, 'CardId'>;
 
 /** GitHub の PR number */
-export type MergeRequestIid = Brand<number, 'MergeRequestIid'>;
+export type PullRequestNumber = Brand<number, 'PullRequestNumber'>;
 
 // ============================================================
 // ステージ
@@ -50,10 +50,6 @@ export const CardIdSchema = z
 
 export function createCardId(raw: string): CardId {
   return CardIdSchema.parse(raw) as CardId;
-}
-
-export function createMergeRequestIid(raw: number): MergeRequestIid {
-  return z.number().int().positive().parse(raw) as MergeRequestIid;
 }
 
 /**

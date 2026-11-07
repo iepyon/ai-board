@@ -1,4 +1,4 @@
-import { forgeTrusted, isForgeUnset, type ForgeConnection } from '../models/mr-state.js';
+import { forgeTrusted, isForgeUnset, type ForgeConnection } from '../models/pr-state.js';
 import type { NextAction } from '../services/next-action.js';
 import { summarizeLoop, type BoardLoop } from '../../shared/loop-activity.js';
 import { STREAK_THRESHOLD, stuckStreak, type StreakStep } from '../../shared/loop-streak.js';

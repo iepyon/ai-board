@@ -22,7 +22,7 @@ import {
   type StoredCard,
 } from '../card-files.js';
 import type { Card } from '../../models/card.js';
-import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
+import type { CardId, PullRequestNumber } from '../../../shared/schemas/common.js';
 import { appendReviewEntry, gateState, parseReviewLog } from '../../services/review-log.js';
 import type { ReviewEntry } from '../../models/review.js';
 
@@ -47,7 +47,7 @@ function makeCard(overrides: Partial<Card> = {}): Card {
     startedAt: null,
     skipGates: [],
     branch: null,
-    mr: null,
+    pr: null,
     rank: null,
     body: '## アイデア\n\nトークンを更新する。',
     ...overrides,
@@ -370,7 +370,7 @@ describe('planCardWrite', () => {
     const card = makeCard({
       skipGates: ['plan'],
       branch: 'refresh-token',
-      mr: 42 as MergeRequestIid,
+      pr: 42 as PullRequestNumber,
       rank: 1500,
     });
 

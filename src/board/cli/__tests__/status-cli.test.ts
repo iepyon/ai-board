@@ -8,9 +8,9 @@ import { REVIEW_HEADING, parseReviewLog } from '../../../cards/services/review-l
 import { isErr } from '../../../shared/result.js';
 import { createBoardDependencies, createLoopHistoryRepository } from '../../composition.js';
 import { writeLoopFinish, writeLoopStart } from '../../repositories/loop-history.repository.js';
-import type { MrStateProvider } from '../../services/mr-state-provider.js';
-import type { ForgeConnection, MrState } from '../../models/mr-state.js';
-import type { MergeRequestIid } from '../../../shared/schemas/common.js';
+import type { PrStateProvider } from '../../services/pr-state-provider.js';
+import type { ForgeConnection, PrState } from '../../models/pr-state.js';
+import type { PullRequestNumber } from '../../../shared/schemas/common.js';
 import { HOLD_REASONS } from '../../services/next-action.js';
 import {
   emptyBranchPlanRepository,
@@ -83,7 +83,7 @@ function review(kind: string): string {
 
 function stubProvider(
   connection: ForgeConnection = { status: 'connected', kind: 'github' }
-): MrStateProvider {
+): PrStateProvider {
   return {
     get: () => null,
     connection: () => connection,
@@ -121,7 +121,7 @@ async function run(
   );
 }
 
-async function runJson(provider?: MrStateProvider): Promise<StatusReport> {
+async function runJson(provider?: PrStateProvider): Promise<StatusReport> {
   expect(await run(['--json'], provider)).toBe(0);
   return JSON.parse(stdout) as StatusReport;
 }
@@ -154,21 +154,21 @@ describe('ai-board status --json', () => {
 
   it('PR中 で人の指摘に AI が応える番のカードは、next の fix-pr になり、waiting でなく working の先頭に出る', async () => {
     await writeCard('impling', "startedAt: '2026-10-21T00:00:00.000Z'\n", review('承認'));
-    await writeCard('fixing', "startedAt: '2026-10-19T00:00:00.000Z'\nmr: 12\n", review('承認'));
+    await writeCard('fixing', "startedAt: '2026-10-19T00:00:00.000Z'\npr: 12\n", review('承認'));
     await writeCard(
       'waiting-pr',
-      "startedAt: '2026-10-19T00:00:00.000Z'\nmr: 13\n",
+      "startedAt: '2026-10-19T00:00:00.000Z'\npr: 13\n",
       review('承認')
     );
 
-    const pr = (iid: number, latestNoteAt: string | null): MrState => ({
+    const pr = (number: number, latestNoteAt: string | null): PrState => ({
       forge: 'github',
-      iid: iid as MergeRequestIid,
+      number: number as PullRequestNumber,
       state: 'opened',
       draft: false,
-      sourceBranch: `branch-${iid}`,
-      title: `PR ${iid}`,
-      webUrl: `https://github.com/acme/board/pull/${iid}`,
+      sourceBranch: `branch-${number}`,
+      title: `PR ${number}`,
+      webUrl: `https://github.com/acme/board/pull/${number}`,
       latestNoteAt,
       noteCount: latestNoteAt === null ? 0 : 1,
       latestAiNoteAt: null,
@@ -177,11 +177,11 @@ describe('ai-board status --json', () => {
       readyAt: '2026-10-21T00:00:00.000Z',
       convertedToDraftAt: null,
     });
-    const states: Record<string, MrState> = {
+    const states: Record<string, PrState> = {
       fixing: pr(12, '2026-10-22T00:00:00.000Z'),
       'waiting-pr': pr(13, null),
     };
-    const provider: MrStateProvider = {
+    const provider: PrStateProvider = {
       get: (cardId) => states[cardId] ?? null,
       connection: () => ({ status: 'connected', kind: 'github' }),
       synced: () => true,
@@ -212,42 +212,7 @@ describe('ai-board status --json', () => {
     expect(report.cards[0]).not.toHaveProperty('body');
   });
 
-  it('カードごとに区間の並び（timeline）を出す', async () => {
-    await writeCard(
-      'reviewing',
-      "created: '2026-10-19T00:00:00.000Z'\nstartedAt: '2026-10-19T12:00:00.000Z'\n",
-      review('提出')
-    );
-    await writePlan('reviewing', '# 計画\n\n- [ ] 1');
-
-    const report = await runJson();
-
-    expect(report.cards[0]?.timeline).toEqual([
-      {
-        kind: 'idea',
-        owner: 'human',
-        start: '2026-10-19T00:00:00.000Z',
-        end: '2026-10-19T12:00:00.000Z',
-        phases: [],
-      },
-      {
-        kind: 'planning',
-        owner: 'ai',
-        start: '2026-10-19T12:00:00.000Z',
-        end: '2026-10-20T00:00:00.000Z',
-        phases: [],
-      },
-      {
-        kind: 'plan-review',
-        owner: 'human',
-        start: '2026-10-20T00:00:00.000Z',
-        end: null,
-        phases: [],
-      },
-    ]);
-  });
-
-  it('ループの 1 手の記録を、ループの様子・カードの手の一覧・AI の区間の待ちと作業に載せる', async () => {
+  it('ループの 1 手の記録を、ループの様子とカードの手の一覧に載せる', async () => {
     await writeCard(
       'reviewing',
       "created: '2026-10-19T00:00:00.000Z'\nstartedAt: '2026-10-19T12:00:00.000Z'\n",
@@ -261,15 +226,12 @@ describe('ai-board status --json', () => {
       action: 'plan',
       step: null,
       agent: 'board-planner',
-      harness: null,
       startedAt: '2026-10-19T18:00:00.000Z',
     });
     writeLoopFinish(dataDir, {
       loop: 'session-a',
       cardId: 'reviewing',
       result: 'advanced',
-      tokens: 100,
-      durationMs: 3_600_000,
       finishedAt: '2026-10-19T19:00:00.000Z',
     });
     writeLoopStart(dataDir, {
@@ -278,7 +240,6 @@ describe('ai-board status --json', () => {
       action: 'plan',
       step: null,
       agent: null,
-      harness: null,
       startedAt: '2026-10-22T23:30:00.000Z',
     });
 
@@ -288,11 +249,6 @@ describe('ai-board status --json', () => {
     expect(report.loop.running.map((step) => step.cardId)).toEqual(['started']);
     expect(report.loop.lastFinishedAt).toBe('2026-10-19T19:00:00.000Z');
     expect(reviewing?.loopSteps.map((step) => step.result)).toEqual(['advanced']);
-    expect(reviewing?.timeline[1]?.phases).toEqual([
-      { kind: 'wait', start: '2026-10-19T12:00:00.000Z', end: '2026-10-19T18:00:00.000Z' },
-      { kind: 'work', start: '2026-10-19T18:00:00.000Z', end: '2026-10-19T19:00:00.000Z' },
-      { kind: 'wait', start: '2026-10-19T19:00:00.000Z', end: '2026-10-20T00:00:00.000Z' },
-    ]);
     expect(report.working.find((card) => card.id === 'started')?.running).toBe(true);
     expect(report.waiting.find((card) => card.id === 'reviewing')?.running).toBe(false);
   });
@@ -366,7 +322,7 @@ describe('ai-board status --json', () => {
   it('1 枚の PR だけを引けないときは、そのカードを判断待ちに出し、出せる判断を出さずに後ろのカードを選ぶ', async () => {
     await writeCard('failing', "startedAt: '2026-10-20T00:00:00.000Z'\nrank: 1\nbranch: failing\n");
     await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\nrank: 2\n");
-    const provider: MrStateProvider = {
+    const provider: PrStateProvider = {
       get: () => null,
       connection: () => ({ status: 'connected', kind: 'github' }),
       synced: () => true,
@@ -614,7 +570,6 @@ describe('ai-board status', () => {
       action: 'implement',
       step: 'task',
       agent: null,
-      harness: null,
       startedAt: '2026-10-22T23:48:00.000Z',
     });
 
@@ -633,15 +588,12 @@ describe('ai-board status', () => {
         action: 'implement',
         step: null,
         agent: null,
-        harness: 'v1',
         startedAt,
       });
       writeLoopFinish(dataDir, {
         loop: 'session-a',
         cardId: 'impl',
         result: 'stopped',
-        tokens: null,
-        durationMs: null,
         finishedAt: startedAt.replace(':00:00', ':30:00'),
       });
     }
@@ -733,7 +685,7 @@ describe('ai-board status --json --only', () => {
   it.each([
     ['無い最上位の項目', ['--json', '--only', 'nosuch']],
     ['配列でない項目への .', ['--json', '--only', 'next.cardId']],
-    ['2 段以上の .', ['--json', '--only', 'cards.mrState.webUrl']],
+    ['2 段以上の .', ['--json', '--only', 'cards.prState.webUrl']],
     ['空の項目', ['--json', '--only', 'cards.']],
     ['値が無い', ['--json', '--only']],
     ['形の指定が無い', ['--only', 'next']],

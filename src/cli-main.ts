@@ -16,8 +16,6 @@ import { parseStatusArgs, runStatusCli, STATUS_USAGE } from './board/cli/status-
 import { isPrCommand, runPrCli } from './board/cli/pr-cli.js';
 import { runLoopCli } from './board/cli/loop-cli.js';
 import { DECIDE_USAGE, isDecideCommand, runDecideCli } from './board/cli/decide-cli.js';
-import { readHarnessVersion } from './infrastructure/harness-version.js';
-import { readSessionTokens } from './infrastructure/session-usage.js';
 import { readMtimeMs, runDistCheckCli } from './infrastructure/dist-check-cli.js';
 import { err, isErr, ok, type Result } from './shared/result.js';
 import { CardIdSchema, type CardId } from './shared/schemas/common.js';
@@ -97,7 +95,7 @@ async function runInit(argv: readonly string[]): Promise<number> {
  * `status` サブコマンド。ボードを組み立て、ステージを導出する。
  *
  * カードは頭で 1 回データ用ブランチを取り直してから読む。
- * PR の状態はポーリングせず、`refresh()` を 1 回だけ待ってから読む。
+ * PR の状態は`refresh()` を 1 回だけ待ってから読む。
  * `branch` から解決した PR 番号の書き戻しも、ここで起きる（`board/composition.ts` の `assembleBoard`）。
  */
 async function runStatus(argv: readonly string[]): Promise<number> {
@@ -185,8 +183,6 @@ async function runLoop(argv: readonly string[]): Promise<number> {
         const parsed = CardIdSchema.safeParse(id);
         return parsed.success && (await cardRepository.findById(parsed.data as CardId)) !== null;
       },
-      harnessVersion: () => readHarnessVersion(root),
-      countTokens: readSessionTokens,
     },
     createProcessIo()
   );
@@ -207,7 +203,7 @@ async function runDistCheck(argv: readonly string[]): Promise<number> {
   );
 }
 
-/** `ai-board pr` の `gh` の上限。差分やコメントの全ページは、ポーリングの既定（10 秒）では足りないことがある */
+/** `ai-board pr` の `gh` の上限。差分やコメントの全ページは、既定の上限（10 秒）では足りないことがある */
 const PR_TIMEOUT_MS = 60_000;
 
 /**

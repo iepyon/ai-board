@@ -79,7 +79,7 @@ function addCard(id: string, day: number, rank: number | null = null): void {
     startedAt: null,
     skipGates: [],
     branch: null,
-    mr: null,
+    pr: null,
     rank,
     body: '',
   });

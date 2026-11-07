@@ -124,7 +124,7 @@ created: 2026-09-01T09:00:00.000Z
 startedAt: '2026-09-01T10:00:00.000Z' # 人が着手を指示した時刻
 skipGates: [] # 人が事前に見ないと宣言したゲート（plan）
 branch: feat/refresh-token
-mr: 42 # GitHub の PR 番号（branch から解決して書き戻す）
+pr: 42 # GitHub の PR 番号（branch から解決して書き戻す）
 rank: 1500 # 並び順。小さいほど上。並べ替えたときだけ書かれる
 ---
 
@@ -212,7 +212,7 @@ git merge --no-ff <branch>                           # マージする
 - 実装を書いたセッションが自分の差分を審査しないよう、AI レビューだけを別の文脈に切り分ける（[ADR 0011](docs/adr/0011-loop-single-session.md)）
 - 止まっているカード・計画レビューのカードには触らない。GitHub に接続できないときは何もせずに止まる（`github:` が無い未設定のボードは止まらず、push と PR を飛ばし、締めの後のマージ待ちまで進む）
 - 手を終えたら同じ手番で次の手へ進み、`止まった`・失敗・`next` が null で終える。同じ手で止まり続けるカードには `止まった ×N` の印が付く
-- 1 手ごとに `ai-board loop start` / `finish` でデータ用ブランチの `loop/` に記録を残す（時間・トークン・手順書の版）。記録は表示にだけ使う（[ADR 0014](docs/adr/0014-loop-step-record.md)）
+- 1 手ごとに `ai-board loop start` / `finish` でデータ用ブランチの `loop/` に記録を残す。記録は表示にだけ使う（[ADR 0014](docs/adr/0014-loop-step-record.md)）
 
 ### ループの許可ルール
 
@@ -250,11 +250,10 @@ fork と clone、`ai-board init` は GitHub に届くうちに済ませておく
 - 捨てる: `git -C .ai-board/data reset --hard origin/ai-board/data`
 - 手元モードで続ける: `data-mode.yaml` に `mode: local` を書き戻す
 
-### 始め方と board.db からの切り替え
+### 始め方
 
 新しいリポジトリでは、`.ai-board/config.yaml` を用意してから、メインのチェックアウトで `node dist/cli.js init` を走らせる。
 空のデータ用ブランチを作って push し、`config.yaml` をその根へ写す。ほかの clone では最初に CLI を動かしたときにワークツリーが作られる。
-`.ai-board/board.db`（SQLite）しか持たない手元は、main のコミット `d2380ce` の `ai-board migrate` で移行してから今の版に戻す。
 
 ## GitHub との接続
 
@@ -264,7 +263,7 @@ cp .ai-board/config.example.yaml .ai-board/config.yaml   # github: { repository:
 
 設定はデータ用ブランチの根の `config.yaml`、無ければ `.ai-board/config.yaml` から読む。
 アクセストークンは受け取らず、問い合わせは `gh api` で行う（認証は `gh auth login` に委ねる）。
-使えないときは連携が無効になり、理由が `status` の「GitHub:」の行に出る。使えないあいだも、マージ済みの PR はデータ用ブランチの手元の控えで出る（リンクと Ready・マージの時刻、区間の時間）。マージ前の PR は出さず、次の一手と判断も止まる。問い合わせるのは `branch` か `mr` のあるカードだけ。
+使えないときは連携が無効になり、理由が `status` の「GitHub:」の行に出る。使えないあいだも、マージ済みの PR はデータ用ブランチの手元の控えで出る（リンクと Ready・マージの時刻、区間の時間）。マージ前の PR は出さず、次の一手と判断も止まる。問い合わせるのは `branch` か `pr` のあるカードだけ。
 
 ## 開発
 

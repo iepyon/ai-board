@@ -1,21 +1,21 @@
 import { describe, it, expect } from 'vitest';
-import type { MergeRequestIid } from '../../../shared/schemas/common.js';
-import type { MrSnapshot, MrState } from '../../models/mr-state.js';
-import { matchMergedSnapshots, unavailableMrStateProvider } from '../mr-state-provider.js';
+import type { PullRequestNumber } from '../../../shared/schemas/common.js';
+import type { PrSnapshot, PrState } from '../../models/pr-state.js';
+import { matchMergedSnapshots, unavailablePrStateProvider } from '../pr-state-provider.js';
 
 // ============================================================
 // GitHub に届かないときの供給元と、マージ済みの控えの照らし合わせ
 // ============================================================
 
-function mergedPr(iid: number): MrState {
+function mergedPr(number: number): PrState {
   return {
     forge: 'github',
-    iid: iid as MergeRequestIid,
+    number: number as PullRequestNumber,
     state: 'merged',
     draft: false,
     sourceBranch: 'done',
     title: 'done',
-    webUrl: `https://github.com/acme/board/pull/${iid}`,
+    webUrl: `https://github.com/acme/board/pull/${number}`,
     latestNoteAt: null,
     noteCount: 0,
     latestAiNoteAt: null,
@@ -26,13 +26,13 @@ function mergedPr(iid: number): MrState {
   };
 }
 
-function snapshot(iid: number): MrSnapshot {
-  return { mr: mergedPr(iid), fingerprint: `[${iid}]` };
+function snapshot(number: number): PrSnapshot {
+  return { pr: mergedPr(number), fingerprint: `[${number}]` };
 }
 
-describe('unavailableMrStateProvider', () => {
+describe('unavailablePrStateProvider', () => {
   it('渡したマージ済みの PR の状態だけを返し、接続は使えないまま・引き終えていないまま', () => {
-    const provider = unavailableMrStateProvider(
+    const provider = unavailablePrStateProvider(
       'github',
       'gh が無い',
       new Map([['done', mergedPr(7)]])
@@ -50,7 +50,7 @@ describe('unavailableMrStateProvider', () => {
   });
 
   it('控えを渡さなければ、すべて null', () => {
-    expect(unavailableMrStateProvider('github', 'gh が無い').get('done')).toBeNull();
+    expect(unavailablePrStateProvider('github', 'gh が無い').get('done')).toBeNull();
   });
 });
 
@@ -58,14 +58,14 @@ describe('matchMergedSnapshots', () => {
   it('カードの PR 番号と合う控えだけを採る', () => {
     const matched = matchMergedSnapshots(
       [
-        { id: 'same', mr: 7 },
-        { id: 'renumbered', mr: 9 },
-        { id: 'no-mr', mr: null },
+        { id: 'same', pr: 7 },
+        { id: 'renumbered', pr: 9 },
+        { id: 'no-pr', pr: null },
       ],
       new Map([
         ['same', snapshot(7)],
         ['renumbered', snapshot(8)],
-        ['no-mr', snapshot(10)],
+        ['no-pr', snapshot(10)],
         ['gone', snapshot(11)],
       ])
     );

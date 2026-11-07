@@ -4,11 +4,10 @@ import type { GateState, ReviewEntry, ReviewGate, ReviewKind } from '../../cards
 import { stripReviewSection } from '../../cards/services/review-log.js';
 import type { StageResolution } from '../services/stage-resolver.js';
 import type { CardHold } from '../services/next-action.js';
-import type { PhasedTimelineSegment } from '../../shared/timeline.js';
 import type { LoopStep } from '../../shared/loop-step.js';
 import type { BoardLoop } from '../../shared/loop-activity.js';
 import type { TaskProgress } from './plan-state.js';
-import type { ForgeConnection, ForgeKind, MrLifecycleState } from './mr-state.js';
+import type { ForgeConnection, ForgeKind, PrLifecycleState } from './pr-state.js';
 
 // ============================================================
 // ボードに表示するカード（3 ソースを束ねた読み取りモデル）
@@ -22,10 +21,10 @@ export interface BoardCardPlan {
   readonly updatedAt: string;
 }
 
-export interface BoardCardMr {
+export interface BoardCardPr {
   readonly forge: ForgeKind;
-  readonly iid: number;
-  readonly state: MrLifecycleState;
+  readonly number: number;
+  readonly state: PrLifecycleState;
   /** Draft か。計画の PR として人に読ませている段階 */
   readonly draft: boolean;
   readonly title: string;
@@ -83,7 +82,7 @@ export interface BoardCard {
   readonly startedAt: string | null;
   readonly skipGates: readonly ReviewGate[];
   readonly branch: string | null;
-  readonly mr: number | null;
+  readonly pr: number | null;
   /** 並び順。`cards` はこの実効値の順に並んで届く */
   readonly rank: number | null;
   /** `## レビュー` の節を除いた本文。判断は `reviews` で別に返す */
@@ -96,18 +95,12 @@ export interface BoardCard {
   /** 計画ファイルがまだ無ければ null */
   readonly plan: BoardCardPlan | null;
   /** PR が未紐付け、または GitHub 未接続なら null */
-  readonly mrState: BoardCardMr | null;
+  readonly prState: BoardCardPr | null;
   /**
    * AI の列にいるが人の判断を待っているときの止まり（`resolveHold`）。止まっていなければ null。
    * ステージとは別の軸で、どこにも保存しない。ループはこのカードを選ばない
    */
   readonly hold: CardHold | null;
-  /**
-   * カードが各工程にいた区間の並び（`resolveTimeline`）。時刻の順で、今いる区間は `end: null`。
-   * ステージと同じく痕跡から毎回導出し、どこにも保存しない。
-   * AI の区間には、ループの 1 手の記録から分けた「待ち」と「作業」の小区間（`splitAiPhases`）が付く
-   */
-  readonly timeline: readonly PhasedTimelineSegment[];
   /**
    * このカードに渡されたループの手（1 手の記録）。開始の時刻の順。
    * ステージの導出にも次の一手にも使わない
@@ -144,9 +137,8 @@ export function toBoardCard(
   },
   latestReview: BoardCardReview | null,
   plan: BoardCardPlan | null,
-  mrState: BoardCardMr | null,
+  prState: BoardCardPr | null,
   hold: CardHold | null,
-  timeline: readonly PhasedTimelineSegment[],
   loopSteps: readonly LoopStep[]
 ): BoardCard {
   return {
@@ -163,14 +155,13 @@ export function toBoardCard(
     startedAt: card.startedAt,
     skipGates: card.skipGates,
     branch: card.branch,
-    mr: card.mr,
+    pr: card.pr,
     rank: card.rank,
     body: stripReviewSection(card.body),
     reviews: entries.map(toBoardCardReview),
     plan,
-    mrState,
+    prState,
     hold,
-    timeline,
     loopSteps,
   };
 }
