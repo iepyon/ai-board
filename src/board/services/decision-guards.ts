@@ -55,7 +55,7 @@ export function guardReview(
  * `to` へ入れられる（`droppableStages`）カードだけを通す。
  *
  * 列と入れられる列は PR の状態に依る（Draft の PR だけが計画の成果物のときなど）ので、
- * GitHub が接続済みか未設定（`forgeTrusted`）でなければ拒む。未設定のボードには PR が無い。
+ * GitHub が接続済みか未設定（`forgeTrusted`）でなければ拒む。
  */
 export function guardStartedAt(
   board: Board,

@@ -159,21 +159,8 @@ export function pickNextAction(cards: readonly NextActionCard[]): NextAction | n
 export function resolveHold(card: HoldInput): CardHold | null {
   if (card.aborted) return null;
 
-  if (card.mrFailure !== null && card.stage !== 'idea' && card.stage !== 'merged') {
-    return {
-      kind: 'forge',
-      reason: HOLD_REASONS.forgeFailed(card.mrFailure.message),
-      since: card.mrFailure.since,
-    };
-  }
-
-  if (card.unsetPr !== null && card.stage !== 'idea' && card.stage !== 'merged') {
-    return {
-      kind: 'forge',
-      reason: HOLD_REASONS.forgeUnset(card.unsetPr.iid),
-      since: card.unsetPr.since,
-    };
-  }
+  const forge = forgeHold(card);
+  if (forge !== null && card.stage !== 'idea' && card.stage !== 'merged') return forge;
 
   switch (card.stage) {
     case 'impling':
@@ -186,6 +173,19 @@ export function resolveHold(card: HoldInput): CardHold | null {
     default:
       return null;
   }
+}
+
+/** PR の状態を信じられないカードの止まり（`forge`）。引けなかった（`mrFailure`）か、未設定のボードで PR 番号を持つ（`unsetPr`）か */
+function forgeHold(card: HoldInput): CardHold | null {
+  if (card.mrFailure !== null) {
+    const { message, since } = card.mrFailure;
+    return { kind: 'forge', reason: HOLD_REASONS.forgeFailed(message), since };
+  }
+  if (card.unsetPr !== null) {
+    const { iid, since } = card.unsetPr;
+    return { kind: 'forge', reason: HOLD_REASONS.forgeUnset(iid), since };
+  }
+  return null;
 }
 
 /**

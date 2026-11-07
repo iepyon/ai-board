@@ -1,4 +1,4 @@
-import { forgeTrusted, type ForgeConnection } from '../models/mr-state.js';
+import { forgeTrusted, isForgeUnset, type ForgeConnection } from '../models/mr-state.js';
 import type { NextAction } from '../services/next-action.js';
 import { summarizeLoop, type BoardLoop } from '../../shared/loop-activity.js';
 import { STREAK_THRESHOLD, stuckStreak, type StreakStep } from '../../shared/loop-streak.js';
@@ -33,7 +33,7 @@ export function describeForge(forge: ForgeConnection): string {
     case 'error':
       return `エラー（${forge.message}）`;
     case 'disabled':
-      return forge.reason === null ? '未設定' : `使えません（${forge.reason}）`;
+      return isForgeUnset(forge) ? '未設定' : `使えません（${forge.reason ?? '理由不明'}）`;
   }
 }
 

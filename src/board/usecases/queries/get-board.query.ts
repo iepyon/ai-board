@@ -10,7 +10,7 @@ import {
   resolveStage,
 } from '../../services/stage-resolver.js';
 import { latestGateEntry, parseReviewLog } from '../../../cards/services/review-log.js';
-import { resolveHold } from '../../services/next-action.js';
+import { resolveHold, type HoldInput } from '../../services/next-action.js';
 import { resolveTimeline } from '../../services/stage-timeline.js';
 import { splitAiPhases } from '../../services/timeline-phases.js';
 import type { LoopHistoryRepository } from '../../repositories/loop-history.repository.js';
@@ -85,6 +85,8 @@ export function createGetBoardQuery(
       const mr = mrProvider.get(card.id);
       const mrFailure = mrProvider.failure(card.id);
       const unsetPr = forgeUnset ? unsetPrOf(card.mr, generatedAt) : null;
+      // PR の状態を信じられない（引けない・未設定で PR 番号を持つ）カード。止まりにし、どの列へも動かさせない
+      const prUntrusted = mrFailure !== null || unsetPr !== null;
 
       const resolution = resolveStage(card, plan, mr);
       const floorStage = resolveFloorStage(card, plan, mr);
@@ -95,13 +97,8 @@ export function createGetBoardQuery(
         card,
         entries,
         resolution,
-        // PR の状態を引けないカードは列が控えに依るので、どの列へも動かさせない（`ai-board decide` が従う）。
-        // 未設定のボードで PR 番号を持つカードも同じ
-        {
-          floorStage,
-          droppableStages:
-            mrFailure === null && unsetPr === null ? droppableStages(floorStage) : [],
-        },
+        // 列が控えに依るか分からないので、どの列へも動かさせない（`ai-board decide` が従う）
+        { floorStage, droppableStages: prUntrusted ? [] : droppableStages(floorStage) },
         latestReview(entries, resolution.stage),
         toBoardCardPlan(plan),
         toBoardCardMr(mr),
@@ -143,10 +140,7 @@ export function createGetBoardQuery(
  * 未設定のボードで PR 番号を持つカードの、その番号と止まりの起点。番号が無ければ null。
  * PR の状態を引けないカードと同じに止める（`resolveHold`）
  */
-function unsetPrOf(
-  mr: number | null,
-  since: string
-): { readonly iid: number; readonly since: string } | null {
+function unsetPrOf(mr: number | null, since: string): HoldInput['unsetPr'] {
   return mr === null ? null : { iid: mr, since };
 }
 

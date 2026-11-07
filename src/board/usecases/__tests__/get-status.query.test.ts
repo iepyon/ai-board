@@ -6,7 +6,11 @@ import { err } from '../../../shared/result.js';
 import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
 import type { BranchPlanRepository } from '../../repositories/branch-plan.repository.js';
 import type { PlanRepository } from '../../repositories/plan.repository.js';
-import type { MrStateProvider } from '../../services/mr-state-provider.js';
+import {
+  disabledMrStateProvider,
+  unavailableMrStateProvider,
+  type MrStateProvider,
+} from '../../services/mr-state-provider.js';
 import type { ImplStepPlan } from '../../services/impl-step.js';
 import { createGetBoardQuery, type GetBoardQuery } from '../queries/get-board.query.js';
 import { createGetStatusQuery } from '../queries/get-status.query.js';
@@ -35,19 +39,11 @@ const connected: MrStateProvider = {
   failure: () => null,
 };
 
-/** `github:` が無い（未設定）。`disabledMrStateProvider` と同じ形 */
-const unset: MrStateProvider = {
-  get: () => null,
-  connection: () => ({ status: 'disabled', kind: null, reason: null }),
-  synced: () => false,
-  failure: () => null,
-};
+/** `github:` が無い（未設定） */
+const unset = disabledMrStateProvider;
 
 /** `github:` はあるが、gh が無い・未ログイン・届かない */
-const unavailable: MrStateProvider = {
-  ...unset,
-  connection: () => ({ status: 'disabled', kind: 'github', reason: 'gh が無い' }),
-};
+const unavailable = unavailableMrStateProvider('github', 'gh が無い');
 
 function boardQuery(cards: readonly Card[], provider: MrStateProvider = connected): GetBoardQuery {
   const cardRepository: Pick<CardRepository, 'findAll'> = {

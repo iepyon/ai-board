@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { Card } from '../../../cards/models/card.js';
 import type { CardRepository } from '../../../cards/repositories/card.repository.js';
 import type { IdeaDividerRepository } from '../../../cards/repositories/idea-divider.repository.js';
-import type { CardId } from '../../../shared/schemas/common.js';
+import type { CardId, MergeRequestIid } from '../../../shared/schemas/common.js';
 import type { LoopStep } from '../../../shared/loop-step.js';
 import type { LoopHistoryRepository } from '../../repositories/loop-history.repository.js';
 import type { PlanRepository } from '../../repositories/plan.repository.js';
@@ -11,7 +11,6 @@ import {
   unavailableMrStateProvider,
   type MrStateProvider,
 } from '../../services/mr-state-provider.js';
-import type { MergeRequestIid } from '../../../shared/schemas/common.js';
 import { createGetBoardQuery } from '../queries/get-board.query.js';
 
 function card(id: string, overrides: Partial<Card> = {}): Card {

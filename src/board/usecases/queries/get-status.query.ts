@@ -46,8 +46,7 @@ export function createGetStatusQuery(
  *
  * GitHub が接続済みか未設定（`forgeTrusted`）でなければ次の一手を出さない。PR の状態が引けないと、
  * 計画レビュー / PR中 のカードが手前の AI の列に落ちて見え、人を待つカードを進めてしまうため。
- * `github:` の無い（未設定の）ボードには PR が無いので、落ちて見えるカードが無く、次の一手を出す
- * （途中で設定を外して PR 番号が残ったカードは止まりになり、選ばれない）。
+ * 未設定のボードを通す理由は `forgeTrusted` にある。
  */
 function buildStatusReport(board: Board, now: Date): StatusReport {
   const cards = board.cards.map(({ body: _body, ...rest }) => rest);
