@@ -1,0 +1,19 @@
+{
+  "fingerprint": "[3,\"closed\",\"2026-11-07T19:37:57Z\",false,\"d20157017b8cfbcb543883c02749bfc77f2f26ab\",0,0,\"2026-11-07T19:37:57Z\"]",
+  "pr": {
+    "forge": "github",
+    "number": 101,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "ccr-928118c1-4dfsdf",
+    "title": "src/shared をブラウザでも動く値と型だけに絞る",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/101",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestAiNoteAt": null,
+    "latestCommitAt": "2026-11-07T14:13:48Z",
+    "mergedAt": "2026-11-07T19:37:57Z",
+    "readyAt": "2026-11-07T14:13:51Z",
+    "convertedToDraftAt": null
+  }
+}
