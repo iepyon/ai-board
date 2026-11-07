@@ -1,7 +1,7 @@
 # 4. 計画は `.ai-board/plans/<id>.md` に置き、Draft の PR で読む
 
 - 状態: 採用
-- 日付: 2026-09-27（2026-11-05、2026-11-07 に改訂）
+- 日付: 2026-09-27（2026-11-05、2026-11-07 に改訂。2026-11-07 に未設定のボードの締めを足す）
 
 ## 背景
 
@@ -16,17 +16,20 @@ OpenSpec の内部の定数にも追従する義務があった。
 - **計画と実装を同じ 1 本の PR に載せ、人は計画を Draft の PR で読む。** 承認 / 差し戻しは `ai-board decide`（チャットからは `board-decide`）で書く。
 - **Draft の PR も計画の成果物として計画レビューを立てる。** PR中 は「opened かつ Draft でない」で立つ。ボードは計画の本文を持たず、PR の番号とリンクだけを出す。
 - **GitHub が未設定（`github:` が無い）のボードでは、Draft の PR の代わりにカードのブランチの `plans/<id>.md` を読んで計画レビューを立てる。** ブランチの `archive/` は読まない（締めで archive して Ready にした PR中 のカードが、マージ前にマージ済みに見えるため）。ループの計画の手は push と PR を飛ばす。
+- **未設定のボードの締めは、ブランチで計画を archive し、PR の本文の代わりに計画の末尾に証拠を書く。** ブランチの archive は「ブランチのマージ待ち」の止まりにだけ使い、ステージの導出には読まない。人がメインのチェックアウトで `git merge --no-ff <branch>` すると、archive がメインに入ってマージ済みになる。AI はマージしない。
 
 ## 結果
 
 - sync の巻き戻しと外部の定数への追従が構造ごと消えた。
 - 計画ファイルだけの PR を先に main へ入れる手順が要らなくなり、1 本の PR が計画レビューから PR中 まで同じ番号で続く。
 - 未設定のボードでは、人は計画をブランチ（`git show <branch>:.ai-board/plans/<id>.md`）で読む。`status` と `decide` は対象のカードの数だけ git を走らせる。
+- 未設定のボードには PR中 の列も CI も無い。人の確かめは、マージ待ちの止まりで計画の末尾の証拠とブランチの差分を読むことになる。締めの後に直しを返す口は無く、`decide reject` か人が自分で直す。
 - ステージの入力に PR の `draft` が加わった。「まだ Ready にしていない」と「人が Draft に戻した」は `draft` だけでは見分けられず、後で止まりとして扱った（[6](0006-ai-review-entries-and-hold.md)）。
 
 ## 退けた案
 
 - **計画の本文をボードの詳細パネルで読ませる（`a85b887`）** — ボードを動かすチェックアウトから計画が見えない。
 - **接続済みのボードでもブランチの計画を読む** — Draft の PR を出す前のコミットの時点で計画レビューが立ち、`status` のたびに git を走らせる。
+- **ブランチの archive を導出に読み、未設定のボードに「マージ待ち」の列を立てる** — 導出の核を変える。規則 1 に渡すとマージ前にマージ済みに見える。止まりなら保存も新しい列も要らない。
 
-根拠: PR #5・#24、`.ai-board/plans/archive/branch-plan-review.md`、`99cc28a`、`a3a7e42`、`src/board/services/stage-resolver.ts` の docstring
+根拠: PR #5・#24、`.ai-board/plans/archive/branch-plan-review.md`、`.ai-board/plans/archive/unset-impl-close.md`、`99cc28a`、`a3a7e42`、`src/board/services/stage-resolver.ts` の docstring

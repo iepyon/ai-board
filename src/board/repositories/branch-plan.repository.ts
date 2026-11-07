@@ -14,7 +14,9 @@ import { countTasks } from './plan.repository.js';
  *
  * - `find`: `status` の CLI が、`next` に選ばれた `implement` の 1 枚の段（`next.step`）を決める
  * - `findActive`: GitHub が未設定のボードで、メインのチェックアウトに無い計画を補い、計画レビューの列を立てる
- *   （`needsBranchPlan` が選んだカードだけ。`archive/` は読まない）
+ *   （`branchPlanTarget` が選んだカードだけ。`archive/` は読まない）
+ * - `findClosed`: GitHub が未設定のボードで、実装中のカードの締めが済んだ（ブランチで計画が archive 済み）かを読み、
+ *   マージ待ちの止まりを立てる（`branchCloseTarget` が選んだカードだけ。ステージの導出には渡さない）
  *
  * 読めない（ブランチが無い、`git` が失敗した、計画が無い）ときは例外を投げず null を返す。
  * 段が読めなくても、次の一手そのものは読めているので `status` は失敗させない。
@@ -29,6 +31,17 @@ export interface BranchPlanRepository {
    * `updatedAt` は、その計画ファイルを最後に変えたコミットの時刻
    */
   findActive(cardId: CardId, branch: string): Promise<PlanDoc | null>;
+  /**
+   * `branch` に `plans/<id>.md` が無く `plans/archive/<id>.md` があるとき（締めの段が計画を archive した）、
+   * archive のファイルを最後に変えたコミットの時刻を返す。それ以外は null。
+   * 止まりの判定にだけ使い、ステージの導出には渡さない（渡すとマージ前にマージ済みに見える）
+   */
+  findClosed(cardId: CardId, branch: string): Promise<BranchClosed | null>;
+}
+
+/** カードのブランチで締めが済んだこと。`archivedAt` は計画を archive したコミットの時刻 */
+export interface BranchClosed {
+  readonly archivedAt: string;
 }
 
 const PLANS_DIR = '.ai-board/plans';
@@ -38,10 +51,15 @@ function activePath(cardId: CardId): string {
   return `${PLANS_DIR}/${cardId}.md`;
 }
 
+function archivePath(cardId: CardId): string {
+  return `${ARCHIVE_DIR}/${cardId}.md`;
+}
+
 /** 何も読まない読み手。ブランチの計画を読まない組み立て（テストなど）の既定 */
 export const emptyBranchPlanRepository: BranchPlanRepository = {
   find: () => Promise.resolve(null),
   findActive: () => Promise.resolve(null),
+  findClosed: () => Promise.resolve(null),
 };
 
 /**
@@ -70,7 +88,7 @@ export class GitBranchPlanRepository implements BranchPlanRepository {
     const active = await this.show(ref, activePath(cardId));
     if (active !== null) return { location: 'active', text: active };
 
-    const archived = await this.show(ref, `${ARCHIVE_DIR}/${cardId}.md`);
+    const archived = await this.show(ref, archivePath(cardId));
     if (archived !== null) return { location: 'archived' };
 
     return null;
@@ -94,6 +112,22 @@ export class GitBranchPlanRepository implements BranchPlanRepository {
       archived: false,
       updatedAt: new Date(committedAt).toISOString(),
     };
+  }
+
+  async findClosed(cardId: CardId, branch: string): Promise<BranchClosed | null> {
+    const ref = await this.ref(branch);
+    if (ref === null) return null;
+
+    const file = archivePath(cardId);
+    const [active, archived, log] = await Promise.all([
+      this.show(ref, activePath(cardId)),
+      this.show(ref, file),
+      this.git(['log', '-1', '--format=%cI', ref, '--', file]),
+    ]);
+    const committedAt = log?.trim();
+    if (active !== null || archived === null || !committedAt) return null;
+
+    return { archivedAt: new Date(committedAt).toISOString() };
   }
 
   /** 検査を通ったブランチの完全な参照（`refs/heads/…` か `refs/remotes/origin/…`）。通らない・無ければ null */

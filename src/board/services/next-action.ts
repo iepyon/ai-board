@@ -95,6 +95,12 @@ export interface HoldInput {
    * 途中で `github:` を外したボードでは PR の状態が引けず、計画レビュー / PR中 のカードが手前の列に落ちて見えるため
    */
   readonly unsetPr: { readonly iid: number; readonly since: string } | null;
+  /**
+   * GitHub が未設定（`isForgeUnset`）のボードで、実装中のカードの締めが済んだ（カードのブランチで計画が archive 済み。`findClosed`）ときの、
+   * そのブランチ名と止まりの起点（archive のコミットの時刻）。それ以外は null。
+   * PR が無いので PR中 の列が立たず、人がメインにマージするまで 実装中 に残るため
+   */
+  readonly branchClosed: { readonly branch: string; readonly since: string } | null;
 }
 
 /** 止まりの理由。人が何をすればよいかを書く */
@@ -106,6 +112,8 @@ export const HOLD_REASONS = {
     `PR の状態を引けない（${message}）。時間を置いても続くなら、GitHub で PR を確かめてください`,
   forgeUnset: (iid: number): string =>
     `PR #${iid} を持つが、GitHub が未設定なので PR の状態を引けない。config.yaml に github: を戻すか、中止してください`,
+  branchMerge: (branch: string): string =>
+    `ブランチ ${branch} の実装と締めが済んだ。メインのチェックアウトで git merge --no-ff ${branch} を打ってマージするか、ai-board decide で差し戻して計画から立て直させるか中止してください`,
   draftReverted: (iid: number): string =>
     `判断の後に PR #${iid} が Draft に戻された。GitHub で Ready に戻すか、ai-board decide で差し戻して計画から立て直させるか中止してください`,
 } as const;
@@ -144,6 +152,9 @@ export function pickNextAction(cards: readonly NextActionCard[]): NextAction | n
  *   Ready にした PR を人が Draft に戻すとカードは 実装中 に落ち、計画は archive 済みなので、
  *   見ないと `implement` の archive 済みの段が Ready にし直してしまう
  * - **plan 保留**: AI が保留を書いて止まった。同じ手を渡しても AI はまた止まる
+ * - **ブランチのマージを待っている**（実装中、GitHub が未設定のボード）: 締めの段がカードのブランチで計画を archive した（`branchClosed`）。
+ *   PR が無いので PR中 の列が立たず、見ないと `implement` の archive 済みの段が毎周選ばれる。
+ *   人がメインのチェックアウトでブランチをマージすれば、計画の archive がメインに入ってマージ済みになり、止まりは外れる
  * - **提出済みなのに成果物が見えない**（計画提案中で plan が提出済み）: どちらかがあれば
  *   計画レビュー に上がるはずである。作り直すと PR やブランチを二重に作りかねないので、推測で動かない。
  *   PR の状態を引けていない（`mrKnown` が偽）ときは、PR が無いのか分からないので止まりにしない
@@ -164,7 +175,7 @@ export function resolveHold(card: HoldInput): CardHold | null {
 
   switch (card.stage) {
     case 'impling':
-      return draftReverted(card);
+      return draftReverted(card) ?? mergeWaited(card);
     case 'planning':
       if (card.gates.plan === 'submitted') {
         return card.mrKnown ? since(card, 'plan', HOLD_REASONS.planLost) : null;
@@ -203,6 +214,14 @@ function draftReverted(card: HoldInput): CardHold | null {
   if (latest !== null && Date.parse(convertedAt) <= Date.parse(latest.at)) return null;
 
   return { kind: 'decision', reason: HOLD_REASONS.draftReverted(mr.iid), since: convertedAt };
+}
+
+/** GitHub が未設定のボードで、締めが済んだブランチを人がマージするのを待っているか */
+function mergeWaited(card: HoldInput): CardHold | null {
+  const closed = card.branchClosed;
+  if (closed === null) return null;
+
+  return { kind: 'decision', reason: HOLD_REASONS.branchMerge(closed.branch), since: closed.since };
 }
 
 function heldBy(card: HoldInput, gate: ReviewGate, reason: string): CardHold | null {
