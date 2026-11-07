@@ -1,0 +1,13 @@
+{
+  "loop": "7414db00-e686-4565-8ffc-dccc7aa87639",
+  "cardId": "drop-refresh-button",
+  "action": "plan",
+  "step": null,
+  "agent": null,
+  "harness": "v7",
+  "startedAt": "2026-11-07T02:32:46.463Z",
+  "finishedAt": null,
+  "result": null,
+  "tokens": null,
+  "durationMs": null
+}
