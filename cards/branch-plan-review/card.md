@@ -3,7 +3,7 @@ id: branch-plan-review
 title: ユーザは、GitHub に届かなくても、AI が計画を提出したら計画レビューの判断待ちに出してほしい
 created: '2026-11-06T09:36:57.022Z'
 skipGates: []
-branch: null
+branch: ccr-bb1fbf36-7v5cd6
 mr: null
 ---
 
