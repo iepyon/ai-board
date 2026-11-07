@@ -28,10 +28,12 @@ PR中 のカードは GitHub で PR をマージして判断するので、こ�
 ROOT=$(git rev-parse --show-toplevel)
 [ -d "$ROOT/node_modules" ] || (cd "$ROOT" && npm ci)
 node "$ROOT/dist/cli.js" dist-check --root "$ROOT" || npm --prefix "$ROOT" run build
-node "$ROOT/dist/cli.js" status --json --root "$ROOT" \
+node "$ROOT/dist/cli.js" status --json --active --root "$ROOT" \
   --only waiting,ideas,cards.id,cards.title,cards.stage,cards.skipGates,cards.latestReview,cards.prState ||
   echo "status が失敗した"
 ```
+
+`--active` は `cards` からマージ済みと中止のカードを外す（判断を書けるのはそれ以外のカードだけなので、終わったカードの `prState` を読まずに済む）。
 
 `ai-board decide` が「不明なオプション」で失敗するなら、`$ROOT` のコードが古い。`$ROOT` を `origin/main` に更新してビルドし直すよう頼んで止まる（自分では更新しない）。
 

@@ -161,6 +161,6 @@ GitHub への問い合わせは読むだけ（`gh api` の GET）で、本物の
 
 ### 3. 手順書とドキュメント
 
-- [ ] `.claude/skills/board-decide/SKILL.md` の手順 1 の読み出しに `--active` を足す
-- [ ] `docs/architecture.md` の `status` の出力の箇条に `--active` を、「控え」の箇条に中止のカードを引き直さないことを書く
-- [ ] `README.md` の `status` の使い方に `--active` を、「GitHub との接続」の問い合わせの対象の説明に中止のカードの扱いを書く
+- [x] `.claude/skills/board-decide/SKILL.md` の手順 1 の読み出しに `--active` を足す
+- [x] `docs/architecture.md` の `status` の出力の箇条に `--active` を、「控え」の箇条に中止のカードを引き直さないことを書く
+- [x] `README.md` の `status` の使い方に `--active` を、「GitHub との接続」の問い合わせの対象の説明に中止のカードの扱いを書く
