@@ -440,6 +440,59 @@ describe('PrFetcher の問い合わせの省略', () => {
     expect(fetcher.get('refresh-token')?.state).toBe('merged');
   });
 
+  describe('中止のカード', () => {
+    const aborted = () =>
+      makeCard({
+        pr: 42 as PullRequestNumber,
+        body: '## レビュー\n\n### 2026-11-05T00:00:00.000Z plan 中止\n',
+      });
+
+    it('控えがあれば、閉じた PR も 2 回目から問い合わせず、控えを返す', async () => {
+      const client = stubClient({ fetchByNumber: vi.fn(async () => snap({ state: 'closed' })) });
+      const fetcher = new PrFetcher(new InMemoryCardRepository([aborted()]), client, snapshots);
+
+      await fetcher.refresh();
+      await fetcher.refresh();
+
+      expect(client.fetchByNumber).toHaveBeenCalledTimes(1);
+      expect(fetcher.get('refresh-token')?.state).toBe('closed');
+    });
+
+    it('控えが無ければ一度問い合わせて控えに残す', async () => {
+      const client = stubClient({ fetchByNumber: vi.fn(async () => snap({ state: 'closed' })) });
+
+      await new PrFetcher(new InMemoryCardRepository([aborted()]), client, snapshots).refresh();
+
+      expect(client.fetchByNumber).toHaveBeenCalledWith(42, null);
+      expect(snapshots.rows.get('refresh-token' as CardId)?.pr.state).toBe('closed');
+    });
+
+    it('新しいプロセスの `PrFetcher` は控えから始め、問い合わせず、控えを消さない', async () => {
+      snapshots.rows.set('refresh-token' as CardId, snap({ state: 'opened' }));
+      const client = stubClient();
+      const fetcher = new PrFetcher(new InMemoryCardRepository([aborted()]), client, snapshots);
+
+      await fetcher.refresh();
+
+      expect(client.fetchByNumber).not.toHaveBeenCalled();
+      expect(client.fetchByBranch).not.toHaveBeenCalled();
+      expect(fetcher.get('refresh-token')?.state).toBe('opened');
+      expect(snapshots.rows.has('refresh-token' as CardId)).toBe(true);
+    });
+
+    it('控えの番号がカードと違えば問い合わせる', async () => {
+      snapshots.rows.set(
+        'refresh-token' as CardId,
+        snap({ state: 'closed', number: 41 as PullRequestNumber })
+      );
+      const client = stubClient({ fetchByNumber: vi.fn(async () => snap({ state: 'closed' })) });
+
+      await new PrFetcher(new InMemoryCardRepository([aborted()]), client, snapshots).refresh();
+
+      expect(client.fetchByNumber).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('PR 番号もブランチも外されたカードの控えを消す', async () => {
     const repository = new InMemoryCardRepository([card()]);
     const client = stubClient({ fetchByNumber: vi.fn(async () => snap()) });

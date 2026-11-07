@@ -1,3 +1,4 @@
+import { isAborted, parseReviewLog } from '../../cards/services/review-log.js';
 import type {
   ForgeCardFailure,
   ForgeConnection,
@@ -70,6 +71,25 @@ export function isSettled(
   snapshot: PrSnapshot | null
 ): boolean {
   return snapshot !== null && snapshot.pr.state === 'merged' && card.pr === snapshot.pr.number;
+}
+
+/**
+ * 中止のカードで、控えが今もそのカードの PR のものか。
+ *
+ * 中止のカードは、どのステージでも区画が 中止 に固定され（`board-sections.ts` の `sectionOf`）、
+ * 判断も作業も待っていないので、PR を引き直しても何にも効かない。
+ * 中止かは本文の `## レビュー` だけで決まり、GitHub を引かずに分かる。
+ * `PrFetcher` はこれが真なら引き直さず、控えをそのまま使う（控えは消さない）。
+ * 控えが無ければ偽で、今どおり一度引いて控えに残す。
+ * 中止の後に人が別の判断を書いて最新が 中止 でなくなれば偽に戻り、今どおり引き直す
+ */
+export function isFrozen(
+  card: { readonly pr: number | null; readonly body: string },
+  snapshot: PrSnapshot | null
+): boolean {
+  return (
+    snapshot !== null && card.pr === snapshot.pr.number && isAborted(parseReviewLog(card.body))
+  );
 }
 
 /** 決まった控え（`isSettled`）だけを、カード ID ごとの PR の状態にする。届かないときの供給元に渡す */

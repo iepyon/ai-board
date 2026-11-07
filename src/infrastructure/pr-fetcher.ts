@@ -2,7 +2,7 @@ import type { CardRepository } from '../cards/repositories/card.repository.js';
 import type { Card } from '../cards/models/card.js';
 import type { CardId } from '../shared/schemas/common.js';
 import { ForgeRequestError, type ForgeClient } from '../board/services/forge-client.js';
-import { isSettled, type PrStateProvider } from '../board/services/pr-state-provider.js';
+import { isFrozen, isSettled, type PrStateProvider } from '../board/services/pr-state-provider.js';
 import type { PrSnapshotRepository } from '../board/repositories/pr-snapshot.repository.js';
 import type {
   ForgeCardFailure,
@@ -164,11 +164,16 @@ export class PrFetcher implements PrStateProvider {
     }
   }
 
-  /** カード 1 枚分のレビュー要求を引き直す */
+  /**
+   * カード 1 枚分のレビュー要求を引き直す。
+   *
+   * マージ済みの PR（`isSettled`）と、中止のカードの PR（`isFrozen`）は、控えがあれば引き直さずにそのまま使う。
+   * 中止のカードも問い合わせの対象（`refresh` の `targets`）には残すので、`forgetUntracked` は控えを消さない
+   */
   private async refreshCard(card: Card): Promise<void> {
     const previous = this.cache.get(card.id) ?? null;
 
-    if (isSettled(card, previous)) return;
+    if (isSettled(card, previous) || isFrozen(card, previous)) return;
 
     const snapshot = await this.fetchFor(card, previous);
 
