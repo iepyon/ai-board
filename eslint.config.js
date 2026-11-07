@@ -23,6 +23,29 @@ export default tseslint.config(
     },
   },
   {
+    // src/shared/ はブラウザでも動く値と型だけを置く（ADR 0018）。テストは Node で動き画面のビルドに入らないので除く
+    files: ['src/shared/**/*.ts'],
+    ignores: ['src/shared/**/__tests__/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['node:*', 'fs', 'fs/*', 'path', 'os', 'child_process', 'url', 'crypto'],
+              message: 'src/shared/ はブラウザでも動く値と型だけを置く（ADR 0018）。Node の API は使わない',
+            },
+            {
+              group: ['**/board/**', '**/cards/**', '**/infrastructure/**'],
+              message:
+                'src/shared/ はブラウザでも動く値と型だけを置く（ADR 0018）。コンテキストと infrastructure を import しない',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['src/**/__tests__/**/*.ts'],
     rules: { 'max-lines-per-function': 'off', '@typescript-eslint/no-explicit-any': 'off' },
   }

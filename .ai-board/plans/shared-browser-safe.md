@@ -175,8 +175,8 @@
 
 ### 4. eslint で `src/shared/` の決まりを強制する
 
-- [ ] `eslint.config.js` に `src/shared/**/*.ts`（`__tests__` を除く）の `no-restricted-imports` を足す
-- [ ] 動作確認の手順 3 を走らせ、決まりが効くことを確かめる（作業ツリーには残さない）
+- [x] `eslint.config.js` に `src/shared/**/*.ts`（`__tests__` を除く）の `no-restricted-imports` を足す
+- [x] 動作確認の手順 3 を走らせ、決まりが効くことを確かめる（作業ツリーには残さない）
 
 ### 5. ドキュメントを今の形に直す
 
