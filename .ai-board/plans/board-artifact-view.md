@@ -167,8 +167,8 @@ PR #102 で `status --json --active` が入り、終わったカードを外し�
 
 ### 2. スキルと入口
 
-- [ ] `.claude/skills/board-view/SKILL.md` を書く（使うとき・手順 1〜3・失敗したとき・ハードルール）
-- [ ] `.claude/skills/board-loop/SKILL.md` の「ボードを見せて」の節を、`board-view` のスキルでページを出すことに書き換える
+- [x] `.claude/skills/board-view/SKILL.md` を書く（使うとき・手順 1〜3・失敗したとき・ハードルール）
+- [x] `.claude/skills/board-loop/SKILL.md` の「ボードを見せて」の節を、`board-view` のスキルでページを出すことに書き換える
 
 ### 3. ドキュメント
 

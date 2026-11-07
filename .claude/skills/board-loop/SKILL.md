@@ -171,7 +171,8 @@ node "$MAIN/dist/cli.js" loop finish --root "$MAIN" --loop "${CLAUDE_CODE_SESSIO
 
 ## ボードを見せて
 
-人が「ボードを見せて」と頼んだときは、周とは別に `ai-board status` の人向けの出力を見せるだけにする。周は回さない。
+人が「ボードを見せて」と頼んだときは、周とは別に `board-view` のスキルで、ボードを 1 枚のページにして Artifact で公開するだけにする。周は回さない。
+ターミナルの数行がほしいと言われたら、`ai-board status` の人向けの出力を見せる。
 
 ## ハードルール
 
