@@ -7,7 +7,7 @@ import {
   ideaRows,
   type Decision,
   type DecisionGate,
-} from '../../shared/board-sections.js';
+} from './board-sections.js';
 import type { Board, BoardCard } from '../models/board-card.js';
 import type { DecideRefusal } from '../errors/board-errors.js';
 import { forgeTrusted } from '../models/pr-state.js';

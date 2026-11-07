@@ -3,9 +3,13 @@
 ## 人に判断してほしいこと
 
 - `stage-labels.ts`（`STAGE_LABELS`）を `src/shared/` に残すか。既定: 残す。戻す画面が列の見出しに値として使うため
+  - → 回答（2026-11-07、plan 承認）: 理由なしで承認（既定のまま進む）
 - `card-reorder.ts`（`DIVIDER_ID` だけのファイル）の名前を変えるか。既定: 変えない（この計画では動かさない）
+  - → 回答（2026-11-07、plan 承認）: 理由なしで承認（既定のまま進む）
 - 動きなしの判定（`isStale`）を、カードの論点のように区画とは別のファイルに分けるか。既定: 分けず、区画のファイル（`board-sections.ts`）に残す。`isAwaitingPrFix` に依り、使う側も区画と同じ `get-status.query` だけのため
+  - → 回答（2026-11-07、plan 承認）: 理由なしで承認（既定のまま進む）
 - `src/shared/` の決まりを新しい ADR（0018）に書くか。既定: 書く。画面を戻すときに「`shared` に何を置くか」を迷わないよう、判断と退けた代案を残す
+  - → 回答（2026-11-07、plan 承認）: 理由なしで承認（既定のまま進む）
 
 既定と違う答えは、plan 承認の理由ではなく plan 差し戻しの理由で返してほしい。plan 承認は、回答の無い項目をすべて既定のまま進めると読む。
 
@@ -149,12 +153,12 @@
 
 ### 1. board 専用の純関数と型を board へ移す
 
-- [ ] `git mv` で `pr-feedback.ts`・`loop-activity.ts`・`loop-streak.ts`・`stage-gates.ts` を `src/board/services/` へ、`loop-step.ts` を `src/board/models/` へ移し、テスト（`pr-feedback` / `loop-activity` / `loop-streak` / `stage-gates`）も各 `__tests__/` へ移す
-- [ ] `board-sections.ts` を `src/board/services/` へ移し、テストも `src/board/services/__tests__/` へ移す（分けるのは 2）
-- [ ] 移したファイルと、それを引く側の import を直す
-- [ ] `GATE_OF_STAGE`・`withSkipGate`・`DecisionGate` の `'plan'` を `ReviewGate` にする
-- [ ] `CardHoldKind` を `next-action.ts` へ移し、`SectionCard.hold` を `CardHold | null` にする。`SectionCard` の古い docstring（`src/shared/` は型を import しない）を消す
-- [ ] `LOOP_VOCABULARY_IN_SYNC` と `loop-step.ts` の docstring から、`src/shared/` に置く理由の記述を直す
+- [x] `git mv` で `pr-feedback.ts`・`loop-activity.ts`・`loop-streak.ts`・`stage-gates.ts` を `src/board/services/` へ、`loop-step.ts` を `src/board/models/` へ移し、テスト（`pr-feedback` / `loop-activity` / `loop-streak` / `stage-gates`）も各 `__tests__/` へ移す
+- [x] `board-sections.ts` を `src/board/services/` へ移し、テストも `src/board/services/__tests__/` へ移す（分けるのは 2）
+- [x] 移したファイルと、それを引く側の import を直す
+- [x] `GATE_OF_STAGE`・`withSkipGate`・`DecisionGate` の `'plan'` を `ReviewGate` にする
+- [x] `CardHoldKind` を `next-action.ts` へ移し、`SectionCard.hold` を `CardHold | null` にする。`SectionCard` の古い docstring（`src/shared/` は型を import しない）を消す
+- [x] `LOOP_VOCABULARY_IN_SYNC` と `loop-step.ts` の docstring から、`src/shared/` に置く理由の記述を直す
 
 ### 2. `board-sections.ts` を 3 つに分ける
 

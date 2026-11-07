@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { LoopStep } from '../loop-step.js';
+import type { LoopStep } from '../../models/loop-step.js';
 import {
   describeAction,
   formatElapsed,

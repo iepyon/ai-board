@@ -4,8 +4,8 @@ import type { GateState, ReviewEntry, ReviewGate, ReviewKind } from '../../cards
 import { stripReviewSection } from '../../cards/services/review-log.js';
 import type { StageResolution } from '../services/stage-resolver.js';
 import type { CardHold } from '../services/next-action.js';
-import type { LoopStep } from '../../shared/loop-step.js';
-import type { BoardLoop } from '../../shared/loop-activity.js';
+import type { LoopStep } from './loop-step.js';
+import type { BoardLoop } from '../services/loop-activity.js';
 import type { TaskProgress } from './plan-state.js';
 import type { ForgeConnection, ForgeKind, PrLifecycleState } from './pr-state.js';
 

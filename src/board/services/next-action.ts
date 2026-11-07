@@ -3,7 +3,6 @@ import type { GateState, ReviewEntry, ReviewGate } from '../../cards/models/revi
 import { latestGateEntry } from '../../cards/services/review-log.js';
 import type { ImplStep } from './impl-step.js';
 import type { ForgeCardFailure } from '../models/pr-state.js';
-import type { CardHoldKind } from '../../shared/board-sections.js';
 
 // ============================================================
 // 次の一手 — ループが 1 周で進めるものを決める純関数
@@ -50,6 +49,14 @@ export interface NextAction {
  * ステージではない。ステージは「工程のどこにいるか」、止まりは「その工程で誰を待っているか」で、軸が違う。
  * どこにも保存せず、ボードを組み立てるたびに `resolveHold` で導く。
  */
+/**
+ * 止まりが何を待っているか。
+ *
+ * - `decision`: 人の判断（`ai-board decide` か GitHub の操作）で解く
+ * - `forge`: そのカードの PR の状態を引けない。時間が経てば解けることが多く、出せる判断は無い
+ */
+export type CardHoldKind = 'decision' | 'forge';
+
 export interface CardHold {
   /** 何を待っているか（`CardHoldKind`） */
   readonly kind: CardHoldKind;

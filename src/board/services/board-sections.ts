@@ -1,5 +1,7 @@
-import type { Stage } from './schemas/common.js';
-import { DIVIDER_ID } from './card-reorder.js';
+import type { Stage } from '../../shared/schemas/common.js';
+import type { ReviewGate } from '../../cards/models/review.js';
+import type { CardHold } from './next-action.js';
+import { DIVIDER_ID } from '../../shared/card-reorder.js';
 
 // ============================================================
 // ボードの区画 — `status` と `decide` が使う純関数
@@ -26,14 +28,6 @@ export const SECTION_OF_STAGE: Record<Stage, Exclude<BoardSection, 'aborted'>> =
   merged: 'merged',
 };
 
-/**
- * 止まりが何を待っているか。
- *
- * - `decision`: 人の判断（`ai-board decide` か GitHub の操作）で解く
- * - `forge`: そのカードの PR の状態を引けない。時間が経てば解けることが多く、出せる判断は無い
- */
-export type CardHoldKind = 'decision' | 'forge';
-
 /** 振り分けと並べ替えに要るフィールドだけ。`BoardCard` が満たす */
 export interface SectionCard {
   readonly id: string;
@@ -50,14 +44,9 @@ export interface SectionCard {
   } | null;
   /**
    * AI の列にいるが人の判断を待っているときの止まり（`resolveHold`）。
-   * `src/shared/` はコンテキストの型を import しないので、形だけを書く
+   * `kind` が `forge`（PR の状態を引けない）なら出せる判断は無い
    */
-  /** 止まり。`kind` が `forge`（PR の状態を引けない）なら出せる判断は無い */
-  readonly hold: {
-    readonly kind: CardHoldKind;
-    readonly reason: string;
-    readonly since: string;
-  } | null;
+  readonly hold: CardHold | null;
 }
 
 export type Sections<T> = Record<BoardSection, T[]>;
@@ -138,8 +127,8 @@ export function mergedAt(card: SectionCard): string | null {
 // 出せる判断
 // ============================================================
 
-/** 人が判断するゲート。`ReviewGate`（`src/cards/models/review.ts`）と同じ値をリテラルで書く */
-export type DecisionGate = 'plan';
+/** 人が判断するゲート */
+export type DecisionGate = ReviewGate;
 
 /**
  * 出せる判断 1 つ。書くと（`ai-board decide`）`## レビュー` へ `gate` の `kind` を追記する。

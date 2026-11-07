@@ -12,7 +12,7 @@ import {
   type LoopFinishResult,
   type LoopImplStep,
   type LoopStep,
-} from '../../shared/loop-step.js';
+} from '../models/loop-step.js';
 import { fromLogStamp, toLogStamp } from '../../cards/repositories/card-files.js';
 import type { ImplStep } from '../services/impl-step.js';
 import type { NextActionKind } from '../services/next-action.js';
@@ -53,7 +53,7 @@ type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 /**
  * `LoopCurrentAction`（今の手）と `NextActionKind`、`LoopImplStep` と `ImplStep` が食い違えば、ここで型エラーになる。
  * 過去の手（`LOOP_PAST_ACTIONS`）は記録を読むためだけにあり、次の一手とは突き合わせない。
- * `src/shared/` はコンテキストの型を import しないので、値の一覧を 2 か所に持つための縛り
+ * `ai-board loop start` は受け付ける手と段の一覧を実行時の値として要るので、型と配列を 2 か所に持つ。そのための縛り
  */
 export const LOOP_VOCABULARY_IN_SYNC: Same<LoopCurrentAction, NextActionKind> &
   Same<LoopImplStep, ImplStep> = true;

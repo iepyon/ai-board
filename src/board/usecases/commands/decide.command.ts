@@ -1,6 +1,6 @@
 import { ok, type Result } from '../../../shared/result.js';
 import type { CardId, Stage } from '../../../shared/schemas/common.js';
-import { withSkipGate } from '../../../shared/stage-gates.js';
+import { withSkipGate } from '../../services/stage-gates.js';
 import type { ReviewGate } from '../../../cards/models/review.js';
 import type { Card } from '../../../cards/models/card.js';
 import { transactCardWrite } from '../../../cards/usecases/commands/transact-card-write.js';

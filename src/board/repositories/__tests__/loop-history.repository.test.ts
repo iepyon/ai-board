@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { isErr } from '../../../shared/result.js';
-import type { LoopStep } from '../../../shared/loop-step.js';
+import type { LoopStep } from '../../models/loop-step.js';
 import {
   LOOP_DIR,
   LOOP_VOCABULARY_IN_SYNC,

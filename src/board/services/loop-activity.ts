@@ -1,4 +1,4 @@
-import type { LoopStep } from './loop-step.js';
+import type { LoopStep } from '../models/loop-step.js';
 
 // ============================================================
 // ループの様子 — `status` に出す要約の純関数

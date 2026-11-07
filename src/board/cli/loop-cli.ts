@@ -12,7 +12,7 @@ import {
   type LoopFinishResult,
   type LoopImplStep,
   type LoopStep,
-} from '../../shared/loop-step.js';
+} from '../models/loop-step.js';
 import type { DataStore, DataStoreError } from '../../infrastructure/data-store.js';
 import { describeDataStoreError } from '../../cards/cli/data-store-messages.js';
 import {

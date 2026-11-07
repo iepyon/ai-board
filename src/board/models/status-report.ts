@@ -1,6 +1,6 @@
-import type { Decision } from '../../shared/board-sections.js';
+import type { Decision } from '../services/board-sections.js';
 import type { Stage } from '../../shared/schemas/common.js';
-import type { BoardLoop } from '../../shared/loop-activity.js';
+import type { BoardLoop } from '../services/loop-activity.js';
 import type { NextAction } from '../services/next-action.js';
 import type { BoardCard } from './board-card.js';
 import type { ForgeConnection } from './pr-state.js';

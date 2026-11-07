@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DIVIDER_ID } from '../card-reorder.js';
+import { DIVIDER_ID } from '../../../shared/card-reorder.js';
 import {
   decisionsFor,
   groupBySection,

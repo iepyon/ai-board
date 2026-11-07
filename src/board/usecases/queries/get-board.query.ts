@@ -12,12 +12,12 @@ import {
 import { latestGateEntry, parseReviewLog } from '../../../cards/services/review-log.js';
 import { resolveHold, type HoldInput } from '../../services/next-action.js';
 import type { LoopHistoryRepository } from '../../repositories/loop-history.repository.js';
-import type { LoopStep } from '../../../shared/loop-step.js';
-import { toBoardLoop } from '../../../shared/loop-activity.js';
+import type { LoopStep } from '../../models/loop-step.js';
+import { toBoardLoop } from '../../services/loop-activity.js';
 import type { ReviewEntry } from '../../../cards/models/review.js';
 import type { Stage } from '../../../shared/schemas/common.js';
-import { GATE_OF_STAGE } from '../../../shared/stage-gates.js';
-import { awaitsPrFix } from '../../../shared/pr-feedback.js';
+import { GATE_OF_STAGE } from '../../services/stage-gates.js';
+import { awaitsPrFix } from '../../services/pr-feedback.js';
 import {
   toBoardCard,
   toBoardCardReview,
