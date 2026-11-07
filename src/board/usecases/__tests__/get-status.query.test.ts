@@ -15,6 +15,7 @@ import {
   type MrStateProvider,
 } from '../../services/mr-state-provider.js';
 import type { ImplStepPlan } from '../../services/impl-step.js';
+import type { MrState } from '../../models/mr-state.js';
 import { createGetBoardQuery, type GetBoardQuery } from '../queries/get-board.query.js';
 import { createGetStatusQuery } from '../queries/get-status.query.js';
 
@@ -32,6 +33,26 @@ function implementing(branch: string | null): Card {
     mr: null,
     rank: null,
     body: '## レビュー\n\n### 2026-11-03T00:00:00.000Z plan 承認\n',
+  };
+}
+
+/** マージ済みの PR の状態（控え） */
+function mergedPr(iid: number): MrState {
+  return {
+    forge: 'github',
+    iid: iid as MergeRequestIid,
+    state: 'merged',
+    draft: false,
+    sourceBranch: 'done',
+    title: 'done',
+    webUrl: `https://github.com/acme/board/pull/${iid}`,
+    latestNoteAt: null,
+    noteCount: 0,
+    latestAiNoteAt: null,
+    latestCommitAt: '2026-11-03T12:00:00Z',
+    mergedAt: '2026-11-04T00:00:00Z',
+    readyAt: '2026-11-03T12:00:00Z',
+    convertedToDraftAt: null,
   };
 }
 
@@ -135,6 +156,32 @@ describe('GetStatusQuery', () => {
     const result = await createGetStatusQuery(boardQuery([implementing(null)], unavailable))(NOW);
 
     expect(result.ok && result.value.next).toBeNull();
+  });
+
+  it('github: があって使えなくても、渡したマージ済みの控えを出す。次の一手は出さない', async () => {
+    const mergedCard: Card = {
+      ...implementing('done'),
+      id: 'done' as CardId,
+      mr: 7 as MergeRequestIid,
+    };
+    const provider = unavailableMrStateProvider(
+      'github',
+      'gh が無い',
+      new Map([['done', mergedPr(7)]])
+    );
+    const result = await createGetStatusQuery(
+      boardQuery([mergedCard, implementing(null)], provider)
+    )(NOW);
+    if (!result.ok) throw new Error('ボードを読めない');
+
+    expect(result.value.next).toBeNull();
+    const done = result.value.cards.find((card) => card.id === 'done');
+    expect(done?.stage).toBe('merged');
+    expect(done?.mrState).toMatchObject({
+      iid: 7,
+      state: 'merged',
+      mergedAt: '2026-11-04T00:00:00Z',
+    });
   });
 
   it('ボードを読めなければ、そのエラーをそのまま返す', async () => {

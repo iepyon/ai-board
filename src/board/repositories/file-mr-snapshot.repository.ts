@@ -110,6 +110,11 @@ export class FileMrSnapshotRepository implements MrSnapshotRepository {
     });
   }
 
+  /** データ用ブランチのマージ済みの控えだけを読む。使い捨ての控え（`cache/`）は読まない */
+  findMerged(): Promise<Map<CardId, MrSnapshot>> {
+    return settle(() => this.readMerged());
+  }
+
   async save(cardId: CardId, snapshot: MrSnapshot): Promise<void> {
     if (snapshot.mr.state === 'merged') {
       const written = await this.writeMerged(cardId, snapshot);

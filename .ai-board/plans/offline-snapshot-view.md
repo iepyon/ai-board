@@ -3,7 +3,9 @@
 ## 人に判断してほしいこと
 
 - **`status` の「GitHub: 使えません（…）」の行に、マージ済みの PR を控えで出していることを添えるか。** 添えるなら、例えば「GitHub: 使えません（…）。マージ済みの PR は手元の控えで表示」とする。人の答え（2026-11-07）でマージ済みだけを読むと決め、取得時刻は持たせないので、添えなくても古さで取り違えることは無い。既定: 添えない（`### Non-Goals`）
+  - → 回答（2026-11-07、plan 承認）: 理由なしで承認（既定のまま進む）
 - **`github:` があって `gh` は動くが、問い合わせが途中で失敗した（「GitHub: エラー（…）」）ボードの扱いを、このカードで揃えるか。** この場合は今も、ポーラーが最初に控えを読み戻すので、マージ済みに加えてマージ前の控え（`cache/`）でもボードを描いている。人の答え（マージ済みだけを読む）と食い違うが、今の振る舞いで、このカードが足すものではない。既定: 触らない（`### Non-Goals`）
+  - → 回答（2026-11-07、plan 承認）: 理由なしで承認（既定のまま進む）
 
 ## 提案
 
@@ -136,10 +138,10 @@
 
 ### 1. 届かないときにマージ済みの控えを読む
 
-- [ ] `src/board/repositories/mr-snapshot.repository.ts` に `findMerged` を足し、`file-mr-snapshot.repository.ts` で `snapshots/` だけを読む形で実装する（テストの差し替え実装にも足す）
-- [ ] `src/board/services/mr-state-provider.ts` の `unavailableMrStateProvider` が、マージ済みの PR の状態の表を受け取り `get` で返すようにする
-- [ ] `src/board/composition.ts` の `createMrStateSource` で、`checkAuth` が失敗したら `findMerged` とカードを読み、`mr` と番号の合う控えだけを渡す（読めなければ警告して空の表）
-- [ ] テスト: `findMerged`（`snapshots/` だけを読み `cache/` を読まない）、`unavailableMrStateProvider`（表にあれば返す・`synced` は false）、`createMrStateSource`（届かないときマージ済みで番号の合う控えだけを返す・番号が違えば null・読めなければ空）、`get-status.query`（届かないとき控えがあっても `next` は null）
+- [x] `src/board/repositories/mr-snapshot.repository.ts` に `findMerged` を足し、`file-mr-snapshot.repository.ts` で `snapshots/` だけを読む形で実装する（テストの差し替え実装にも足す）
+- [x] `src/board/services/mr-state-provider.ts` の `unavailableMrStateProvider` が、マージ済みの PR の状態の表を受け取り `get` で返すようにする
+- [x] `src/board/composition.ts` の `createMrStateSource` で、`checkAuth` が失敗したら `findMerged` とカードを読み、`mr` と番号の合う控えだけを渡す（読めなければ警告して空の表）
+- [x] テスト: `findMerged`（`snapshots/` だけを読み `cache/` を読まない）、`unavailableMrStateProvider`（表にあれば返す・`synced` は false）、`createMrStateSource`（届かないときマージ済みで番号の合う控えだけを返す・番号が違えば null・読めなければ空）、`get-status.query`（届かないとき控えがあっても `next` は null）
 
 ### 2. ドキュメント
 

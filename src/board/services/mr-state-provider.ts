@@ -1,4 +1,10 @@
-import type { ForgeCardFailure, ForgeConnection, ForgeKind, MrState } from '../models/mr-state.js';
+import type {
+  ForgeCardFailure,
+  ForgeConnection,
+  ForgeKind,
+  MrSnapshot,
+  MrState,
+} from '../models/mr-state.js';
 
 // ============================================================
 // PR の状態の供給元
@@ -34,13 +40,40 @@ export const disabledMrStateProvider: MrStateProvider = {
 
 /**
  * 取得先は設定されているが問い合わせられないときの実装。
- * CLI が入っていない、あるいは未ログインの場合に使う。
+ * CLI が入っていない、あるいは未ログイン、ネットワークに届かない場合に使う。
+ *
+ * `merged` に渡したマージ済みの PR の状態だけを `get` で返す（手元の控え。二度と変わらないので古さを気にしない）。
+ * 接続は `disabled` のまま、`synced` も偽のままにするので、次の一手・判断の検査・「PR が見えない」止まりは今までどおり止まる
  */
-export function unavailableMrStateProvider(kind: ForgeKind, reason: string): MrStateProvider {
+export function unavailableMrStateProvider(
+  kind: ForgeKind,
+  reason: string,
+  merged: ReadonlyMap<string, MrState> = new Map()
+): MrStateProvider {
   return {
-    get: () => null,
+    get: (cardId) => merged.get(cardId) ?? null,
     connection: () => ({ status: 'disabled', kind, reason }),
     synced: () => false,
     failure: () => null,
   };
+}
+
+/**
+ * マージ済みの控えのうち、カードの PR 番号（`mr`）と番号が合うものだけを、カード ID ごとの PR の状態にする。
+ *
+ * 接続済みなら、番号の違う控えはポーラーが引き直し、カードの無い控えは消す。
+ * 届かないときは引き直せないので、合わない控えは古い PR のものとみなして使わない
+ */
+export function matchMergedSnapshots(
+  cards: readonly { readonly id: string; readonly mr: number | null }[],
+  snapshots: ReadonlyMap<string, MrSnapshot>
+): Map<string, MrState> {
+  const matched = new Map<string, MrState>();
+  for (const card of cards) {
+    const snapshot = snapshots.get(card.id);
+    if (snapshot !== undefined && card.mr !== null && snapshot.mr.iid === card.mr) {
+      matched.set(card.id, snapshot.mr);
+    }
+  }
+  return matched;
 }
