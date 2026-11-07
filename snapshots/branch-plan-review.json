@@ -1,0 +1,19 @@
+{
+  "fingerprint": "[3,\"closed\",\"2026-11-07T02:26:56Z\",false,\"7c850bc31e6832d4ffa22a22449c409eda92dd40\",0,0,\"2026-11-07T02:26:57Z\"]",
+  "mr": {
+    "forge": "github",
+    "iid": 97,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "ccr-bb1fbf36-7v5cd6",
+    "title": "GitHub が未設定のボードで、ブランチの計画から計画レビューを立てる",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/97",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestAiNoteAt": null,
+    "latestCommitAt": "2026-11-07T02:21:31Z",
+    "mergedAt": "2026-11-07T02:26:56Z",
+    "readyAt": "2026-11-07T02:14:19Z",
+    "convertedToDraftAt": null
+  }
+}
