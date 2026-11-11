@@ -156,9 +156,9 @@ usecase はエラーや拒否を `{ type: 'DecisionUnavailable', ... }` のよ�
 
 ## AI レビュー
 
-- [ ] `CLAUDE.md:108` の「`cli/` は引数・使い方・終了コード・出力だけを持つ」と `docs/architecture.md:89` の「人に読ませる 1 行（エラー・拒否・…）は presenters の純関数が作る」は例外の無い決まりとして読めるが、計画の Decisions（人に判断してほしいことの回答）で `loop-cli.ts:257` の `describeError` と `init-cli.ts:104` の `describeBranchError` は CLI に残すと決めており、食い違う。後から読んだエージェントがそれらを presenters へ移そうとしうる。両方の文に「CLI でだけ使う操作（`loop` / `init`）の文言と、端末向けの並べ方（`formatStatus` / `formatPullRequest` など）は `cli/` に残す」と例外を書き足す
-- [ ] `REVIEW.md:26-27` の Important「エラー種の網羅漏れ」が、まだ「CLI のエラーの文言の `switch` が網羅していないもの」と書いている。この PR で `switch` は presenters（`src/board/presenters/decide-messages.ts` / `src/cards/presenters/card-write-messages.ts` / `src/infrastructure/data-store-messages.ts`）へ移ったので、`CLAUDE.md:106-107` と同じく「presenters のエラーの文言の `switch`」に直す
-- [ ] `docs/architecture.md:17` の「各コンテキストは `models/ errors/ services/ repositories/ usecases/ cli/ composition.ts` を持つ」に、この PR で board と cards に足した `presenters/` が無い。`presenters/` を並べに足す
+- [x] `CLAUDE.md:108` の「`cli/` は引数・使い方・終了コード・出力だけを持つ」と `docs/architecture.md:89` の「人に読ませる 1 行（エラー・拒否・…）は presenters の純関数が作る」は例外の無い決まりとして読めるが、計画の Decisions（人に判断してほしいことの回答）で `loop-cli.ts:257` の `describeError` と `init-cli.ts:104` の `describeBranchError` は CLI に残すと決めており、食い違う。後から読んだエージェントがそれらを presenters へ移そうとしうる。両方の文に「CLI でだけ使う操作（`loop` / `init`）の文言と、端末向けの並べ方（`formatStatus` / `formatPullRequest` など）は `cli/` に残す」と例外を書き足す
+- [x] `REVIEW.md:26-27` の Important「エラー種の網羅漏れ」が、まだ「CLI のエラーの文言の `switch` が網羅していないもの」と書いている。この PR で `switch` は presenters（`src/board/presenters/decide-messages.ts` / `src/cards/presenters/card-write-messages.ts` / `src/infrastructure/data-store-messages.ts`）へ移ったので、`CLAUDE.md:106-107` と同じく「presenters のエラーの文言の `switch`」に直す
+- [x] `docs/architecture.md:17` の「各コンテキストは `models/ errors/ services/ repositories/ usecases/ cli/ composition.ts` を持つ」に、この PR で board と cards に足した `presenters/` が無い。`presenters/` を並べに足す
 
 ### 見送った指摘
 

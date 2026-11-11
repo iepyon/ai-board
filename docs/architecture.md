@@ -14,7 +14,7 @@ src/
   infrastructure/       外部コマンド・設定とワークツリーの解決・データのワークツリー・GitHub の問い合わせ
 ```
 
-各コンテキストは `models/ errors/ services/ repositories/ usecases/ cli/ composition.ts` を持つ。
+各コンテキストは `models/ errors/ services/ repositories/ usecases/ presenters/ cli/ composition.ts` を持つ。
 
 ## ゲートの状態
 
@@ -89,6 +89,7 @@ PR の状態は `refresh()` を 1 回待って引き、`branch` から解決し�
 人に読ませる 1 行（エラー・拒否・書いた結果・「GitHub:」「ループ:」「次の一手:」の行）は、入口に依存しない presenters の純関数が作る。
 ボードの文言は `src/board/presenters/`、カードの文言は `src/cards/presenters/`、データ用ブランチの失敗は `src/infrastructure/data-store-messages.ts`（外部コマンドの失敗の `describeCliError` と同じ置き方）に置く。
 CLI はそれを呼んで出力し、戻す HTTP の入口も同じものを呼ぶ。`cli/` の外から `cli/` を import しないことは eslint の `no-restricted-imports` で止める。
+ただし、CLI でだけ使う操作（`loop` / `init`）の文言と、端末向けの並べ方（`formatStatus` / `formatPullRequest` など）は `cli/` に残す。
 
 - 人向けの形は「GitHub:」「ループ:」の行・判断待ち・AI 作業中・次の一手だけを出す（`src/board/presenters/status-describe.ts`）。`--json` は `next` / `waiting` / `working` / `cards` / `ideas` / `forge` / `loop` / `generatedAt`
 - `--only <項目,...>`（`pickFields`）は `<key>` か `<key>.<field>`（最上位の配列の各要素から 1 項目）で絞る。入れ子は 1 段まで。誤りは GitHub に問い合わせる前に失敗する
