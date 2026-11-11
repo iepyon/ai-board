@@ -1,0 +1,19 @@
+{
+  "fingerprint": "[3,\"closed\",\"2026-11-11T09:19:40Z\",false,\"2b8aaa597eccde7cb89639cf0e40f5fe8d38a9ff\",0,0,\"2026-11-11T09:19:41Z\"]",
+  "pr": {
+    "forge": "github",
+    "number": 103,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "ccr-01d0954b-chx3cl",
+    "title": "「ボードを見せて」で、判断待ち・AI 作業中・アイデアを 1 枚の Artifact のページにする",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/103",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestAiNoteAt": null,
+    "latestCommitAt": "2026-11-07T22:31:23Z",
+    "mergedAt": "2026-11-11T09:19:40Z",
+    "readyAt": "2026-11-07T22:31:26Z",
+    "convertedToDraftAt": null
+  }
+}
