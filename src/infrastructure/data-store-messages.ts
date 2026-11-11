@@ -1,5 +1,5 @@
-import { dataModePath } from '../../infrastructure/config.js';
-import type { DataStoreError } from '../../infrastructure/data-store.js';
+import { dataModePath } from './config.js';
+import type { DataStoreError } from './data-store.js';
 
 // ============================================================
 // データ用ブランチの読み書きの失敗を、人が次に何をすればよいかの文にする

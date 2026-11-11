@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { describeForge, describeLoop, describeNext } from '../board/cli/status-describe.js';
+import { describeForge, describeLoop, describeNext } from '../board/presenters/status-describe.js';
 import { STAGE_LABELS } from '../shared/stage-labels.js';
 
 /**

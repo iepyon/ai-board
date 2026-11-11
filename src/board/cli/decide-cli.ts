@@ -1,15 +1,11 @@
-import { CardIdSchema, type CardId, type Stage } from '../../shared/schemas/common.js';
+import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
 import { DIVIDER_ID } from '../../shared/card-reorder.js';
-import { STAGE_LABELS } from '../../shared/stage-labels.js';
-import { decisionsFor } from '../services/decision-options.js';
 import { REVIEW_GATES, isReviewGate, type ReviewGate } from '../../cards/models/review.js';
-import { describeDataStoreError } from '../../cards/cli/data-store-messages.js';
 import type { OrderRef } from '../../cards/usecases/commands/move-in-order.js';
 import type { Result } from '../../shared/result.js';
-import type { BoardCard } from '../models/board-card.js';
-import type { DecideError, DecideRefusal } from '../errors/board-errors.js';
+import type { DecideError } from '../errors/board-errors.js';
 import type { DecideCommands, Decided } from '../usecases/commands/decide.command.js';
-import { describeForge } from './status-describe.js';
+import { describeDecided, describeDecideError } from '../presenters/decide-messages.js';
 
 // ============================================================
 // ai-board decide — 人がチャットで頼んだ判断を書くための CLI
@@ -19,7 +15,8 @@ import { describeForge } from './status-describe.js';
  * 人の判断（承認 / 差し戻し / 中止、着手 / 着手を戻す、飛ばす宣言、並べ替え）を書く。
  *
  * 段取り（ボードの導出・検査・書き込み・コミットのメッセージ・書いた後の列）は usecase（`decide.command.ts`）が持つ。
- * この CLI は、引数の形を確かめて usecase を呼び、結果とエラーを人に読める 1 行に直すだけにする。
+ * この CLI は、引数の形を確かめて usecase を呼び、結果とエラーを人に読める 1 行にして出すだけにする。
+ * 1 行の文言は presenters（`decide-messages.ts`）が作り、戻す HTTP の入口も同じものを使う。
  *
  * 誰が使ってよいかは構造では分けない。人と、人がこの会話で自分の言葉で頼んだ Claude（`board-decide` のスキル）が使い、
  * `board-reviewer` とループの周の中では使わない。この境界は手順書の決まりで守る（ADR 0007）。
@@ -307,99 +304,13 @@ function requireCardId(args: ParsedArgs, io: DecideCliIo): CardId | null {
 }
 
 /**
- * 列を確かめて拒んだ操作の名前。`StageMismatch` を返すのは着手（アイデアから）と着手を戻す（計画提案中から）だけ
- */
-function startedAtLabel(from: Stage): string {
-  return from === 'idea' ? '着手' : '着手を戻す';
-}
-
-/**
- * 判断を書けない理由の 1 行。
- *
- * GitHub に繋がらない（設定があって使えない・エラー）ときは、PR の状態が引けないと計画レビューのカードが手前の列に落ちて見え、
- * 出せる判断や戻せる列を取り違えるので拒む（`status` が `next` を `null` にするのと同じ理由）。
- * 未設定のボードは拒まない（`forgeTrusted`）。
- */
-function describeRefusal(refusal: DecideRefusal): string {
-  switch (refusal.type) {
-    case 'ForgeUnavailable': {
-      const what = refusal.action === 'review' ? '承認 / 差し戻し / 中止' : '着手 / 着手を戻す';
-      return `GitHub に繋がらないので、${what}は書けません（GitHub: ${describeForge(refusal.forge)}）`;
-    }
-    case 'CardNotFound':
-      return `カードが見つかりません: ${refusal.id}`;
-    case 'DecisionUnavailable':
-      return `${refusal.id} に ${refusal.kind} は書けません（${describeChoices(refusal.card)}）`;
-    case 'ReasonRequired':
-      return `${refusal.kind}には --reason で理由を書いてください`;
-    case 'StageMismatch':
-      return (
-        `${refusal.id} は${startedAtLabel(refusal.from)}できません（今の列: ${STAGE_LABELS[refusal.card.stage]}。` +
-        `${STAGE_LABELS[refusal.from]}にあり、${STAGE_LABELS[refusal.to]}へ入れられるカードだけ）` +
-        forgeHoldNote(refusal.card)
-      );
-    case 'CardAborted':
-      return `${refusal.id} は中止されているので、飛ばす宣言を変えられません`;
-    case 'NotInIdeaTable':
-      return `アイデアの表に無いカードです: ${refusal.ref}`;
-  }
-}
-
-/**
- * PR の状態を引けない止まりなら、その理由を添える。
- * そのカードは出せる判断も入れられる列も無い（`decisionsFor` / `droppableStages`）ので、拒んだ理由がそれだと分かるようにする
- */
-function forgeHoldNote(card: BoardCard): string {
-  return card.hold?.kind === 'forge' ? `。${card.hold.reason}` : '';
-}
-
-function describeChoices(card: BoardCard): string {
-  const stage = `今の列: ${STAGE_LABELS[card.stage]}${card.aborted ? '（中止済み）' : ''}`;
-  const decisions = decisionsFor(card);
-  if (decisions.length === 0) return `${stage}。出せる判断はありません${forgeHoldNote(card)}`;
-  return `${stage}。出せる判断: ${decisions.map((d) => `${d.gate} ${d.kind}`).join(' / ')}`;
-}
-
-/**
  * 書いた結果を出す。成功なら、usecase が書いた後のボードで読んだ列の移りを 1 行で出す
  * （`board-decide` はこの行を人に伝える）。
  */
 function reportWrite(result: Result<Decided, DecideError>, io: DecideCliIo): number {
   if (!result.ok) return fail(io, describeDecideError(result.error));
-  const { id, what, from, to } = result.value;
-
-  const transition =
-    to === null
-      ? '書いた後の列は読めませんでした'
-      : to === from
-        ? STAGE_LABELS[to]
-        : `${STAGE_LABELS[from]} → ${STAGE_LABELS[to]}`;
-
-  io.stdout(`${id}: ${what} を書きました（${transition}）\n`);
+  io.stdout(`${describeDecided(result.value)}\n`);
   return 0;
-}
-
-function describeDecideError(error: DecideError): string {
-  switch (error.type) {
-    case 'BoardUnreadable':
-      return `ボードを読めませんでした: ${error.reason}`;
-    case 'CardNotFound':
-      return `カードが見つかりません: ${error.id}`;
-    case 'StaleOrder':
-      return `--after（${error.after}）と --before（${error.before}）の並びが今の表と逆です。status で並びを読み直してください`;
-    case 'CardWriteRefused':
-      return `カードのファイルへの書き込みを拒みました（${error.reason}）`;
-    case 'ForgeUnavailable':
-    case 'DecisionUnavailable':
-    case 'ReasonRequired':
-    case 'StageMismatch':
-    case 'CardAborted':
-    case 'NotInIdeaTable':
-      return describeRefusal(error);
-    default:
-      // 残りは DataStoreError。describeDataStoreError の switch が種別を網羅する
-      return describeDataStoreError(error);
-  }
 }
 
 function fail(io: DecideCliIo, message: string): number {

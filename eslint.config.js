@@ -23,6 +23,27 @@ export default tseslint.config(
     },
   },
   {
+    // cli/ は引数・使い方・終了コード・出力だけを持ち、人に読ませる文言は presenters が持つ。
+    // cli/ の外から cli/ を引くと、戻す HTTP の入口が CLI に依存するので止める。入口（src/cli.ts / src/cli-main.ts）と cli/ の中だけが引いてよい。
+    // コアの no-restricted-imports は src/shared/ の設定が上書きするので、別の規則（@typescript-eslint の方）に載せて重ならないようにする
+    files: ['src/**/*.ts'],
+    ignores: ['src/**/cli/**', 'src/cli.ts', 'src/cli-main.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/cli/**'],
+              message:
+                'cli/ の外から cli/ を import しない。人に読ませる文言は presenters（src/board/presenters/ など）に置く',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // src/shared/ はブラウザでも動く値と型だけを置く（ADR 0018）。テストは Node で動き画面のビルドに入らないので除く
     files: ['src/shared/**/*.ts'],
     ignores: ['src/shared/**/__tests__/**'],

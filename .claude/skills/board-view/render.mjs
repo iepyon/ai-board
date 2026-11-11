@@ -94,7 +94,7 @@ export function renderHtml(template, data) {
 async function main() {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const dist = path.resolve(here, '../../../dist');
-  const describe = await import(pathToFileURL(path.join(dist, 'board/cli/status-describe.js')).href);
+  const describe = await import(pathToFileURL(path.join(dist, 'board/presenters/status-describe.js')).href);
   const labels = await import(pathToFileURL(path.join(dist, 'shared/stage-labels.js')).href);
 
   const report = JSON.parse(readFileSync(0, 'utf-8'));
