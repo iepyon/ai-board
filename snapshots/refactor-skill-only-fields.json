@@ -1,0 +1,19 @@
+{
+  "fingerprint": "[3,\"closed\",\"2026-11-11T10:56:01Z\",false,\"5f1802eff5b53324eed80dcfdb564f13e3de18f2\",0,0,\"2026-11-11T10:56:01Z\"]",
+  "pr": {
+    "forge": "github",
+    "number": 106,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "refactor-skill-only-fields",
+    "title": "スキルが status --json --only で指す項目が出力にあることをテストで確かめる",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/106",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestAiNoteAt": null,
+    "latestCommitAt": "2026-11-11T10:47:58Z",
+    "mergedAt": "2026-11-11T10:56:01Z",
+    "readyAt": "2026-11-11T10:48:05Z",
+    "convertedToDraftAt": null
+  }
+}
