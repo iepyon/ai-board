@@ -1,0 +1,19 @@
+{
+  "fingerprint": "[3,\"closed\",\"2026-11-11T10:31:33Z\",false,\"b6bc39ec0386ab52b9cfc174484a2f098ae2a331\",0,0,\"2026-11-11T10:31:34Z\"]",
+  "pr": {
+    "forge": "github",
+    "number": 105,
+    "state": "merged",
+    "draft": false,
+    "sourceBranch": "refactor-message-presenters",
+    "title": "人に読ませる文言を CLI の外の presenters へ移す",
+    "webUrl": "https://github.com/iepyon/ai-board/pull/105",
+    "latestNoteAt": null,
+    "noteCount": 0,
+    "latestAiNoteAt": null,
+    "latestCommitAt": "2026-11-11T10:31:16Z",
+    "mergedAt": "2026-11-11T10:31:33Z",
+    "readyAt": "2026-11-11T10:07:30Z",
+    "convertedToDraftAt": null
+  }
+}
