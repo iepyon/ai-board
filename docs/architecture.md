@@ -93,7 +93,8 @@ CLI はそれを呼んで出力し、戻す HTTP の入口も同じものを呼�
 既知の制約として、presenters の文言には CLI の語彙（`--reason`・`--after` / `--before`・`ai-board init`・`AI_BOARD_DATA` など）が残っている。HTTP の入口を戻すときに、直し方の案内を入口の層へ分けるかを決める。
 
 - 人向けの形は「GitHub:」「ループ:」の行・判断待ち・AI 作業中・次の一手だけを出す（`src/board/presenters/status-describe.ts`）。`--json` は `next` / `waiting` / `working` / `cards` / `ideas` / `forge` / `loop` / `generatedAt`
-- `--only <項目,...>`（`pickFields`）は `<key>` か `<key>.<field>`（最上位の配列の各要素から 1 項目）で絞る。入れ子は 1 段まで。誤りは GitHub に問い合わせる前に失敗する
+- `--only <項目,...>`（`pickFields`）は `<key>` か `<key>.<field>`（最上位の配列の各要素から 1 項目）で絞る。入れ子は 1 段まで。誤りは GitHub に問い合わせる前に失敗する。
+  入れ子の項目名（`cards.<field>` の `<field>`）は検査せず、要素に無い項目は黙って出さないので、スキルと agent の手順書が `--only` で指す項目が出力にあることは `src/board/cli/__tests__/skill-only-fields.test.ts` が試しのボードで走らせて確かめる
 - `--active`（`onlyActiveCards`）は `cards` から区画が マージ済み と 中止 のカード（`board-sections.ts` の `isActiveCard`）を外す。ほかの項目は変えず、`--only` の前に効く。`--json` と一緒にだけ使える
 - 次の一手は `src/board/services/next-action.ts` の `pickNextAction`。GitHub が接続済みか未設定（`forgeTrusted`）でないと `next` は `null`。未設定のボードで PR 番号を持つカードは止まりになり選ばれない
 - `implement` のときだけ、query が選んだ 1 枚のブランチの計画を読んで `next.step` を埋める（`pickNextAction` 自体は `step: null` を返す純関数）。
