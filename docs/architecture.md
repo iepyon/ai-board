@@ -14,7 +14,7 @@ src/
   infrastructure/       外部コマンド・設定とワークツリーの解決・データのワークツリー・GitHub の問い合わせ
 ```
 
-各コンテキストは `models/ errors/ services/ repositories/ usecases/ cli/ composition.ts` を持つ。
+各コンテキストは `models/ errors/ services/ repositories/ usecases/ presenters/ cli/ composition.ts` を持つ。
 
 ## ゲートの状態
 
@@ -86,7 +86,13 @@ push が拒否されたら取り直したボードで検査からやり直す。
 PR の状態は `refresh()` を 1 回待って引き、`branch` から解決した PR 番号の書き戻しもここで起きる。
 見せる形は `src/board/usecases/queries/get-status.query.ts` が組み、`status-cli.ts` は引数と整形だけを持つ。
 
-- 人向けの形は「GitHub:」「ループ:」の行・判断待ち・AI 作業中・次の一手だけを出す（`status-describe.ts`）。`--json` は `next` / `waiting` / `working` / `cards` / `ideas` / `forge` / `loop` / `generatedAt`
+人に読ませる 1 行（エラー・拒否・書いた結果・「GitHub:」「ループ:」「次の一手:」の行）は、入口に依存しない presenters の純関数が作る。
+ボードの文言は `src/board/presenters/`、カードの文言は `src/cards/presenters/`、データ用ブランチの失敗は `src/infrastructure/data-store-messages.ts`（外部コマンドの失敗の `describeCliError` と同じ置き方）に置く。
+CLI はそれを呼んで出力し、戻す HTTP の入口も同じものを呼ぶ。`cli/` の外から `cli/` を import しないことは eslint の `@typescript-eslint/no-restricted-imports` で止める。
+ただし、CLI でだけ使う操作（`loop` / `init`）の文言と、端末向けの並べ方（`formatStatus` / `formatPullRequest` など）は `cli/` に残す。
+既知の制約として、presenters の文言には CLI の語彙（`--reason`・`--after` / `--before`・`ai-board init`・`AI_BOARD_DATA` など）が残っている。HTTP の入口を戻すときに、直し方の案内を入口の層へ分けるかを決める。
+
+- 人向けの形は「GitHub:」「ループ:」の行・判断待ち・AI 作業中・次の一手だけを出す（`src/board/presenters/status-describe.ts`）。`--json` は `next` / `waiting` / `working` / `cards` / `ideas` / `forge` / `loop` / `generatedAt`
 - `--only <項目,...>`（`pickFields`）は `<key>` か `<key>.<field>`（最上位の配列の各要素から 1 項目）で絞る。入れ子は 1 段まで。誤りは GitHub に問い合わせる前に失敗する
 - `--active`（`onlyActiveCards`）は `cards` から区画が マージ済み と 中止 のカード（`board-sections.ts` の `isActiveCard`）を外す。ほかの項目は変えず、`--only` の前に効く。`--json` と一緒にだけ使える
 - 次の一手は `src/board/services/next-action.ts` の `pickNextAction`。GitHub が接続済みか未設定（`forgeTrusted`）でないと `next` は `null`。未設定のボードで PR 番号を持つカードは止まりになり選ばれない

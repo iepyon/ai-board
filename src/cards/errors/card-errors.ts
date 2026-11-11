@@ -74,3 +74,17 @@ export type SubmitReviewError =
   CardNotFound | SubmitBeforeStart | SubmitGateClosed | CardWriteFailure;
 export type HoldReviewError = CardNotFound | HoldGateNotRejected | CardWriteFailure;
 export type MoveCardError = CardNotFound | StaleOrder | CardWriteFailure;
+
+/**
+ * カードの usecase（起票・本文の差し替え・ブランチの紐付け・提出・保留・判断の追記・並べ替え）のどれかが返すエラー。
+ * 人に読ませる 1 行は `describeCardError`（`src/cards/presenters/card-messages.ts`）が作る。
+ * リポジトリが書き込みを拒んだ理由の `CardWriteError`（`card-files.ts`）とは別のもの
+ */
+export type CardUsecaseError =
+  | CreateCardError
+  | UpdateCardError
+  | UpdateCardBodyError
+  | SubmitReviewError
+  | HoldReviewError
+  | AppendReviewError
+  | MoveCardError;

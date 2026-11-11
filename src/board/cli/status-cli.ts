@@ -3,7 +3,12 @@ import { STAGE_LABELS } from '../../shared/stage-labels.js';
 import type { StatusReport, CardSummary } from '../models/status-report.js';
 import { isActiveCard } from '../services/board-sections.js';
 import type { GetStatusQuery } from '../usecases/queries/get-status.query.js';
-import { describeForge, describeLoop, describeNext, describeStuck } from './status-describe.js';
+import {
+  describeForge,
+  describeLoop,
+  describeNext,
+  describeStuck,
+} from '../presenters/status-describe.js';
 
 // ============================================================
 // ai-board status — ボードの状態を読む

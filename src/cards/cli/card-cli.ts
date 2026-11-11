@@ -3,16 +3,14 @@ import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
 import type { DataStore } from '../../infrastructure/data-store.js';
 import type { CardCliParts } from '../composition.js';
 import type { Card } from '../models/card.js';
-import type {
-  CreateCardError,
-  HoldReviewError,
-  SubmitReviewError,
-  UpdateCardBodyError,
-  UpdateCardError,
-} from '../errors/card-errors.js';
+import type { CardUsecaseError } from '../errors/card-errors.js';
 import { serializeCard } from '../repositories/card-markdown.js';
 import { isReviewGate, REVIEW_GATES, type ReviewGate } from '../models/review.js';
-import { describeDataStoreError, describeOfflineRead } from './data-store-messages.js';
+import {
+  describeDataStoreError,
+  describeOfflineRead,
+} from '../../infrastructure/data-store-messages.js';
+import { describeCardError } from '../presenters/card-messages.js';
 import { readSeedCards, type SeedFile } from './seed-cards.js';
 
 // ============================================================
@@ -82,10 +80,6 @@ export interface CardCliDependencies extends CardCliParts {
 }
 
 type Handler = (args: ParsedArgs, deps: CardCliDependencies, io: CardCliIo) => Promise<number>;
-
-/** 書き込みの usecase のエラー。リポジトリの拒否（`CardWriteRefused`）と `transact` の失敗が含まれる */
-type WriteFailure =
-  CreateCardError | UpdateCardError | UpdateCardBodyError | SubmitReviewError | HoldReviewError;
 
 const VALUE_FLAGS = new Set(['--title', '--id', '--reason', '--from', '--gate']);
 
@@ -276,7 +270,7 @@ async function runSeed(
       // 頭の取り直しの後に、ほかの人が同じ ID を起票していた
       io.stdout(`${card.id}: 既にあるので飛ばしました\n`);
     } else {
-      io.stderr(`${card.file}: ${describeError(result.error)}\n`);
+      io.stderr(`${card.file}: ${describeCardError(result.error)}\n`);
       return 1;
     }
   }
@@ -436,36 +430,12 @@ function requireCardId(args: ParsedArgs, io: CardCliIo): CardId | null {
 }
 
 /** 成功なら書き込んだカードの ID を出す。失敗なら理由を stderr に出す */
-function report(result: Result<Card, WriteFailure>, io: CardCliIo): number {
+function report(result: Result<Card, CardUsecaseError>, io: CardCliIo): number {
   if (result.ok) {
     io.stdout(`${result.value.id}\n`);
     return 0;
   }
 
-  io.stderr(`${describeError(result.error)}\n`);
+  io.stderr(`${describeCardError(result.error)}\n`);
   return 1;
-}
-
-function describeError(error: WriteFailure): string {
-  switch (error.type) {
-    case 'CardNotFound':
-      return `カードが見つかりません: ${error.id}`;
-    case 'DuplicateCardId':
-      return `同じ ID のカードが既にあります: ${error.id}`;
-    case 'InvalidCardId':
-      return `カード ID が不正です: ${error.reason}`;
-    case 'SubmitBeforeStart':
-      return 'plan の提出は着手したカードにしかできません（着手は人が指示します）';
-    case 'SubmitGateClosed':
-      return `${error.gate} の提出は、${error.gate} が未提出か差し戻されたときにしかできません（今の ${error.gate} ゲート: ${error.state}）`;
-    case 'HoldGateNotRejected':
-      return `保留は ${error.gate} の最新の判断が差し戻しのときにしか書けません`;
-    case 'CardWriteRefused':
-      return `カードのファイルへの書き込みを拒みました（${error.reason}）`;
-    case 'ReviewEntriesChanged':
-      return '## レビュー のエントリが変わる差し替えはできません。提出 / 再提出は submit で追記してください';
-    default:
-      // 残りは DataStoreError。describeDataStoreError の switch が種別を網羅する
-      return describeDataStoreError(error);
-  }
 }

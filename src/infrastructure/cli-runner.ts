@@ -158,3 +158,15 @@ export function describeCliError(error: CliError): string {
       return `${error.command} の${error.message}`;
   }
 }
+
+/**
+ * `describeCliError` に、HTTP のステータスが分かれば添えた 1 行（`ai-board pr` の失敗に出す）。
+ * stderr の本文は資格情報が混じりうるので載せない（`describeCliError` と同じ方針）。
+ */
+export function describeCliErrorWithStatus(error: CliError): string {
+  const message = describeCliError(error);
+
+  return error.type === 'Failed' && error.httpStatus !== null
+    ? `${message}（HTTP ${error.httpStatus}）`
+    : message;
+}

@@ -14,7 +14,7 @@ import {
   type LoopStep,
 } from '../models/loop-step.js';
 import type { DataStore, DataStoreError } from '../../infrastructure/data-store.js';
-import { describeDataStoreError } from '../../cards/cli/data-store-messages.js';
+import { describeDataStoreError } from '../../infrastructure/data-store-messages.js';
 import {
   writeLoopFinish,
   writeLoopStart,
