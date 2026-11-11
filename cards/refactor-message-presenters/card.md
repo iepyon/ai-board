@@ -4,7 +4,7 @@ title: 'リファクタリング: AIエージェントは、人に読ませる�
 created: '2026-11-11T06:47:18.268Z'
 skipGates:
   - plan
-branch: null
+branch: refactor-message-presenters
 pr: null
 ---
 
