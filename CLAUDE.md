@@ -105,7 +105,7 @@ ai-board status [--json [--only <項目,...>]]           # ステージ・判断
 - **usecase は例外を投げず `Result<T, E>` を返す**（`src/shared/result.ts`）。
 - **エラーは discriminated union**（`{ type: 'CardNotFound', id }`）。presenters（`src/board/presenters/`・`src/cards/presenters/`、データ用ブランチの失敗は `src/infrastructure/data-store-messages.ts`）が
   `switch` で人に読める 1 行へ変換し、CLI と（戻す）HTTP の入口はそれを呼ぶ。エラー種を増やしたら変換も網羅する。
-- **`cli/` は引数・使い方・終了コード・出力だけを持つ。** `cli/` の外（入口の `src/cli.ts` / `src/cli-main.ts` を除く）から `cli/` を import しない（eslint の `no-restricted-imports` で止めている）。
+- **`cli/` は引数・使い方・終了コード・出力だけを持つ。** `cli/` の外（入口の `src/cli.ts` / `src/cli-main.ts` を除く）から `cli/` を import しない（eslint の `@typescript-eslint/no-restricted-imports` で止めている）。
   ただし、CLI でだけ使う操作（`loop` / `init`）の文言と、端末向けの並べ方（`formatStatus` / `formatPullRequest` など）は `cli/` に残す。
 - **依存はコンテキストごとの `composition.ts` で組む。** usecase やリポジトリの中で `new` しない。
 - **ID は Branded Type**（`CardId` / `PullRequestNumber`）。`createCardId` などのファクトリを通す。

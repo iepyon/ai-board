@@ -3,14 +3,14 @@ import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
 import type { DataStore } from '../../infrastructure/data-store.js';
 import type { CardCliParts } from '../composition.js';
 import type { Card } from '../models/card.js';
-import type { CardWriteError } from '../errors/card-errors.js';
+import type { CardUsecaseError } from '../errors/card-errors.js';
 import { serializeCard } from '../repositories/card-markdown.js';
 import { isReviewGate, REVIEW_GATES, type ReviewGate } from '../models/review.js';
 import {
   describeDataStoreError,
   describeOfflineRead,
 } from '../../infrastructure/data-store-messages.js';
-import { describeCardWriteError } from '../presenters/card-write-messages.js';
+import { describeCardError } from '../presenters/card-messages.js';
 import { readSeedCards, type SeedFile } from './seed-cards.js';
 
 // ============================================================
@@ -270,7 +270,7 @@ async function runSeed(
       // 頭の取り直しの後に、ほかの人が同じ ID を起票していた
       io.stdout(`${card.id}: 既にあるので飛ばしました\n`);
     } else {
-      io.stderr(`${card.file}: ${describeCardWriteError(result.error)}\n`);
+      io.stderr(`${card.file}: ${describeCardError(result.error)}\n`);
       return 1;
     }
   }
@@ -430,12 +430,12 @@ function requireCardId(args: ParsedArgs, io: CardCliIo): CardId | null {
 }
 
 /** 成功なら書き込んだカードの ID を出す。失敗なら理由を stderr に出す */
-function report(result: Result<Card, CardWriteError>, io: CardCliIo): number {
+function report(result: Result<Card, CardUsecaseError>, io: CardCliIo): number {
   if (result.ok) {
     io.stdout(`${result.value.id}\n`);
     return 0;
   }
 
-  io.stderr(`${describeCardWriteError(result.error)}\n`);
+  io.stderr(`${describeCardError(result.error)}\n`);
   return 1;
 }

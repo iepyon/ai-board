@@ -3,7 +3,11 @@ import type { CardCliIo } from '../../cards/cli/card-cli.js';
 import type { ForgeConfig } from '../../infrastructure/config.js';
 import type { PullRequestNumber } from '../../shared/schemas/common.js';
 import { isErr } from '../../shared/result.js';
-import type { CliError, CliRunner } from '../../infrastructure/cli-runner.js';
+import {
+  describeCliErrorWithStatus,
+  type CliError,
+  type CliRunner,
+} from '../../infrastructure/cli-runner.js';
 import { toPullRequestNumber } from '../services/forge-client.js';
 import {
   GhPullRequestClient,
@@ -14,7 +18,6 @@ import {
 } from '../services/github-client.js';
 import type { PrLifecycleState } from '../models/pr-state.js';
 import type { CheckRow, ChecksSummary, ChecksVerdict } from '../services/pr-checks.js';
-import { describePrError } from '../presenters/pr-messages.js';
 
 // ============================================================
 // ai-board pr — 手順書の `gh pr` を置き換える CLI
@@ -315,8 +318,8 @@ async function runReady(
   if (isErr(ready)) {
     io.stderr(
       `PR #${number} を Ready にできませんでした\n` +
-        `  gh pr ready: ${describePrError(ready.error.gh)}\n` +
-        `  ccr/ready_for_review: ${describePrError(ready.error.ccr)}\n`
+        `  gh pr ready: ${describeCliErrorWithStatus(ready.error.gh)}\n` +
+        `  ccr/ready_for_review: ${describeCliErrorWithStatus(ready.error.ccr)}\n`
     );
     return 1;
   }
@@ -367,7 +370,7 @@ async function runChecks(
     const fetched = await client.checks(number, options.sha);
     if (isErr(fetched)) {
       io.stderr(
-        `PR #${number} のチェックを読めませんでした（${describePrError(fetched.error)}）\n`
+        `PR #${number} のチェックを読めませんでした（${describeCliErrorWithStatus(fetched.error)}）\n`
       );
       return CHECKS_UNREADABLE_EXIT;
     }
@@ -551,7 +554,7 @@ async function readBodyFile(args: ParsedArgs, io: PrCliIo): Promise<string | nul
 }
 
 function fail(io: PrCliIo, what: string, error: CliError): number {
-  io.stderr(`${what}（${describePrError(error)}）\n`);
+  io.stderr(`${what}（${describeCliErrorWithStatus(error)}）\n`);
   return 1;
 }
 
