@@ -56,6 +56,7 @@ ranks:
   pr-screenshots: -3757.8277587890625
   refactor-cli-usecase-entry: 1794006484048.5
   refactor-message-presenters: 1793955178075
+  refactor-skill-only-fields: 1793955178075
   refactor-status-json-contract: 1793955178575
   rename-mr-to-pr: 30000
   retro-decisions: 1793955180075
