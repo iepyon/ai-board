@@ -2,7 +2,8 @@
 id: refactor-message-presenters
 title: 'リファクタリング: AIエージェントは、人に読ませる文言を CLI の外に置き、CLI とサーバの両方から同じ 1 行を返したい'
 created: '2026-11-11T06:47:18.268Z'
-skipGates: []
+skipGates:
+  - plan
 branch: null
 pr: null
 ---
