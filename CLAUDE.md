@@ -17,7 +17,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 読む場所
 
-- 使い方・ステージの判定表・止まり・1 周の流れ・AI ループ: `README.md`
+- 準備と最初のチケットの流れ（チュートリアル）: `README.md`
+- ステージの判定表・止まり・人の判断・計画ファイル・AI ループ・カードの移し方: `docs/reference.md`
 - 実装の細部: 各モジュールの先頭と関数の docstring
 - 仕様: `docs/specs/*/spec.md`、PR レビューだけに効く指示: `REVIEW.md`
 - 設計判断の理由と捨てた代案: `docs/adr/`（ADR。不変条件を外したくなったら先に読む。書くときは `adr` のスキル）
@@ -39,11 +40,12 @@ npm run typecheck && npm run lint && npm run format:check && npm test
 **このリポジトリ自身のバックログはボードのカードとして `origin` の `ai-board/data` ブランチにある。** 何に着手するかはまずここを見る。
 手元ではメインのチェックアウトの `.ai-board/data/` に展開され（どのワークツリーからも共有する）、CLI は書くたびにコミットと push をする。
 **読み書きは `ai-board card` の CLI で行い、データのワークツリーのファイルを直接書き換えない。データ用ブランチへ直接コミット・push もしない**（`.claude/settings.json` の deny ルールでも止めている。ADR 0012）。
-開発中は `node dist/cli.js ...`（先に `npm run build`）。ほかのサブコマンドは `--help` と `README.md`。
+開発中は `node dist/cli.js ...`（先に `npm run build`）。ほかのサブコマンドは `--help` と `docs/reference.md`。
 
 ```bash
 ai-board card list | show <id>                         # 一覧（JSON、rank 順）/ 1 枚を Markdown で
 ai-board card create --title <t> [--id <id>] < body.md # アイデアカードの起票（seed --from <dir> でまとめて）
+ai-board card export --to <dir> [--started]            # seed が読む形でカードを書き出す（別のリポジトリへ移すとき）
 ai-board card body <id> < body.md                      # 本文の差し替え（## レビュー のエントリは変えられない）
 ai-board card branch <id> <name>                       # ブランチの紐付け（--clear で外す）
 ai-board card submit <id> [--resubmit] [--reason <text>]   # plan 提出 / 再提出
