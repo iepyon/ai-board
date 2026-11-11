@@ -4,7 +4,7 @@ title: 'リファクタリング: ユーザは、スキルが status --json --on
 created: '2026-11-11T10:41:53.147Z'
 skipGates:
   - plan
-branch: null
+branch: refactor-skill-only-fields
 pr: null
 ---
 
