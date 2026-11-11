@@ -73,6 +73,12 @@ cp .ai-board/config.example.yaml .ai-board/config.yaml
 カードはこのブランチに置かれ、手元では `.ai-board/data/` に展開される。
 ほかの人が同じ fork を clone したときは、最初に CLI を動かした時点で展開されるので、これは 1 回だけでよい。
 
+`ai-board/data` は main とは歴史を共有しない別のブランチで、カードの正本は GitHub 側にある。
+手元の `.ai-board/data/` はその写しで、CLI やチャットでカードを書くたびに、このブランチへのコミットと push が自動で走る。
+main からは `.gitignore` で外してあるので、コードのコミットや PR にカードの変更は混ざらない。
+人がこのディレクトリのファイルを直接書き換えたり、このブランチへ push したりはしない。
+中身と、なぜブランチに置くのかは [リファレンス](docs/reference.md#カード) と [ADR 0010](docs/adr/0010-cards-on-data-branch.md) にある。
+
 > ai-board の init を走らせて
 
 ```bash
