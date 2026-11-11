@@ -149,7 +149,7 @@ usecase はエラーや拒否を `{ type: 'DecisionUnavailable', ... }` のよ�
 
 ### 3. 決まりを守らせ、ドキュメントを直す
 
-- [ ] `eslint.config.js` に、`cli/` の外から `cli/` を import できなくする `no-restricted-imports` を足す（Decisions のとおり、`src/shared/` の設定にも同じパターンを並べる）
-- [ ] `CLAUDE.md` のコードの規約の「CLI が `switch` で人に読める 1 行へ変換する」を、presenters が変換し CLI と（戻す）HTTP の両方が呼ぶ形に直す。`cli/` の外から `cli/` を import しないことも書く
-- [ ] `docs/architecture.md` の `status-describe.ts` の記述に置き場所（`src/board/presenters/`）を添え、presenters の置き方（コンテキストごと、データ用ブランチの失敗は infrastructure）を 1 段落で書く
-- [ ] 動作確認の手順の `grep` で、`cli/` の外から `cli/` を引く import が残っていないことを確かめる
+- [x] `eslint.config.js` に、`cli/` の外から `cli/` を import できなくする `no-restricted-imports` を足す（Decisions のとおり、`src/shared/` の設定にも同じパターンを並べる）
+- [x] `CLAUDE.md` のコードの規約の「CLI が `switch` で人に読める 1 行へ変換する」を、presenters が変換し CLI と（戻す）HTTP の両方が呼ぶ形に直す。`cli/` の外から `cli/` を import しないことも書く
+- [x] `docs/architecture.md` の `status-describe.ts` の記述に置き場所（`src/board/presenters/`）を添え、presenters の置き方（コンテキストごと、データ用ブランチの失敗は infrastructure）を 1 段落で書く
+- [x] 動作確認の手順の `grep` で、`cli/` の外から `cli/` を引く import が残っていないことを確かめる
