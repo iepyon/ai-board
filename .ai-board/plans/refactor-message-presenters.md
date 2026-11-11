@@ -141,11 +141,11 @@ usecase はエラーや拒否を `{ type: 'DecisionUnavailable', ... }` のよ�
 
 ### 2. ボードの文言を移す
 
-- [ ] `src/board/cli/status-describe.ts` を `src/board/presenters/status-describe.ts` へ、`src/board/cli/__tests__/status-describe.test.ts` を `src/board/presenters/__tests__/` へ `git mv` し、import を直す（`status-cli.ts` / `decide-cli.ts` / `src/__tests__/board-view-render.test.ts`）
-- [ ] `.claude/skills/board-view/render.mjs` の import 先を `dist/board/presenters/status-describe.js` に直す
-- [ ] `decide-cli.ts` の `describeDecideError` / `describeRefusal` / `describeChoices` / `forgeHoldNote` / `startedAtLabel` を `src/board/presenters/decide-messages.ts` に移し、`reportWrite` の 1 行を `describeDecided` にする。`decide-cli.ts` はそれらを呼ぶ
-- [ ] `pr-cli.ts` の `describePrError` を `src/board/presenters/pr-messages.ts` に移し、`pr-cli.ts` はそれを呼ぶ
-- [ ] `src/board/presenters/__tests__/decide-messages.test.ts` に、`describeDecided`（列が変わる・変わらない・読めない）と、`describeDecideError` の拒否の種ごとの文のテストを足す。`pr-messages.ts` には `describePrError`（HTTP のステータスの有無）のテストを足す
+- [x] `src/board/cli/status-describe.ts` を `src/board/presenters/status-describe.ts` へ、`src/board/cli/__tests__/status-describe.test.ts` を `src/board/presenters/__tests__/` へ `git mv` し、import を直す（`status-cli.ts` / `decide-cli.ts` / `src/__tests__/board-view-render.test.ts`）
+- [x] `.claude/skills/board-view/render.mjs` の import 先を `dist/board/presenters/status-describe.js` に直す
+- [x] `decide-cli.ts` の `describeDecideError` / `describeRefusal` / `describeChoices` / `forgeHoldNote` / `startedAtLabel` を `src/board/presenters/decide-messages.ts` に移し、`reportWrite` の 1 行を `describeDecided` にする。`decide-cli.ts` はそれらを呼ぶ
+- [x] `pr-cli.ts` の `describePrError` を `src/board/presenters/pr-messages.ts` に移し、`pr-cli.ts` はそれを呼ぶ
+- [x] `src/board/presenters/__tests__/decide-messages.test.ts` に、`describeDecided`（列が変わる・変わらない・読めない）と、`describeDecideError` の拒否の種ごとの文のテストを足す。`pr-messages.ts` には `describePrError`（HTTP のステータスの有無）のテストを足す
 
 ### 3. 決まりを守らせ、ドキュメントを直す
 

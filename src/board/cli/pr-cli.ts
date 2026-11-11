@@ -3,11 +3,7 @@ import type { CardCliIo } from '../../cards/cli/card-cli.js';
 import type { ForgeConfig } from '../../infrastructure/config.js';
 import type { PullRequestNumber } from '../../shared/schemas/common.js';
 import { isErr } from '../../shared/result.js';
-import {
-  describeCliError,
-  type CliError,
-  type CliRunner,
-} from '../../infrastructure/cli-runner.js';
+import type { CliError, CliRunner } from '../../infrastructure/cli-runner.js';
 import { toPullRequestNumber } from '../services/forge-client.js';
 import {
   GhPullRequestClient,
@@ -18,6 +14,7 @@ import {
 } from '../services/github-client.js';
 import type { PrLifecycleState } from '../models/pr-state.js';
 import type { CheckRow, ChecksSummary, ChecksVerdict } from '../services/pr-checks.js';
+import { describePrError } from '../presenters/pr-messages.js';
 
 // ============================================================
 // ai-board pr — 手順書の `gh pr` を置き換える CLI
@@ -556,18 +553,6 @@ async function readBodyFile(args: ParsedArgs, io: PrCliIo): Promise<string | nul
 function fail(io: PrCliIo, what: string, error: CliError): number {
   io.stderr(`${what}（${describePrError(error)}）\n`);
   return 1;
-}
-
-/**
- * 失敗の 1 行。HTTP のステータスが分かれば添える。
- * stderr の本文は資格情報が混じりうるので載せない（`cli-runner.ts` の方針のまま）。
- */
-export function describePrError(error: CliError): string {
-  const message = describeCliError(error);
-
-  return error.type === 'Failed' && error.httpStatus !== null
-    ? `${message}（HTTP ${error.httpStatus}）`
-    : message;
 }
 
 const STATE_LABELS: Readonly<Record<PrLifecycleState, string>> = {

@@ -23,7 +23,7 @@ export type GetBoardError = BoardUnreadable;
 /**
  * 人の判断を書けなかった理由（`ai-board decide` の usecase が返す）。
  * 検査の拒否、書き込みの中で読んだボードが読めない、カードの usecase の失敗、書き込みの 1 操作（`transact`）の失敗。
- * 人に読める 1 行への直しは CLI が持ち、`switch` で種別を網羅する。
+ * 人に読める 1 行への直しは presenters（`decide-messages.ts`）が持ち、`switch` で種別を網羅する。
  */
 export type DecideError =
   | DecideRefusal
@@ -37,7 +37,7 @@ export type DecideError =
  * 人の判断を書けない理由（discriminated union）。
  *
  * どれも導出済みの `Board` だけで決まる。引数の形（カード ID・`--after` / `--before` の値・`--gate`）の誤りは
- * ボードを読む前に CLI が拒むので、ここには入れない。検査は `decision-guards.ts` の純関数が行い、人に読める 1 行への直しは CLI が持つ。
+ * ボードを読む前に CLI が拒むので、ここには入れない。検査は `decision-guards.ts` の純関数が行い、人に読める 1 行への直しは presenters（`decide-messages.ts`）が持つ。
  */
 export type DecideRefusal =
   /** GitHub に繋がらない。列と出せる判断が PR の状態に依るので、承認 / 差し戻し / 中止と着手 / 着手を戻すは拒む */
