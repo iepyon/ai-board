@@ -54,6 +54,7 @@ ranks:
   pr-closed-unmerged: -7812.5
   pr-feedback-ai-turn: -13750
   pr-screenshots: -3757.8277587890625
+  refactor-cli-usecase-entry: 1794006484048.5
   refactor-message-presenters: 1793955178075
   refactor-status-json-contract: 1793955178575
   rename-mr-to-pr: 30000
