@@ -5,7 +5,7 @@ created: '2026-11-11T06:47:18.268Z'
 skipGates:
   - plan
 branch: refactor-message-presenters
-pr: null
+pr: 105
 ---
 
 ## アイデア
