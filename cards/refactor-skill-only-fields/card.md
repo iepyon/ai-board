@@ -2,7 +2,8 @@
 id: refactor-skill-only-fields
 title: 'リファクタリング: ユーザは、スキルが status --json --only で読む項目が消えたら、テストで気付きたい'
 created: '2026-11-11T10:41:53.147Z'
-skipGates: []
+skipGates:
+  - plan
 branch: null
 pr: null
 ---
