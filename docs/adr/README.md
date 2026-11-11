@@ -1,7 +1,7 @@
 # ADR（Architecture Decision Record）
 
 ai-board の**今も効いている**設計判断を、なぜそう決めたか・何を捨てたかと一緒に 1 判断 1 ファイルで残す。
-今どう作られているかは [`docs/architecture.md`](../architecture.md)、何を満たすかは [`docs/specs/`](../specs/) にある。
+今どう作られているかはコードの docstring、何を満たすかは [`docs/specs/`](../specs/) にある。
 不変条件を外したくなったら、まず該当する ADR を読む。
 
 書き方は [`.claude/skills/adr/SKILL.md`](../../.claude/skills/adr/SKILL.md)（`adr` のスキル）、ひな形は [`template.md`](../../.claude/skills/adr/template.md)。

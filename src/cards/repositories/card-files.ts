@@ -29,6 +29,7 @@ import {
  *
  * ```
  * ai-board-data.yaml                      形の版（version: 2）
+ * config.yaml                             GitHub の接続設定（ai-board init が .ai-board/config.yaml を写す。config.ts）
  * order.yaml                              rank とアイデアの区切り線
  * cards/<id>/card.md                      frontmatter（id, title, created, skipGates, branch, pr）と本文
  * cards/<id>/log/<時刻>.<gate>.<種別>.md   判断 1 件。中身は理由の本文

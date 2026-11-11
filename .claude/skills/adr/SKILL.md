@@ -6,7 +6,7 @@ argument-hint: '[記録する判断。例: カードをデータ用ブランチ�
 
 # adr — 今も効いている設計判断を、短く残す
 
-`docs/architecture.md` は**今どう作られているか**、`docs/specs/` は**何を満たすか**を書く。
+コードの docstring は**今どう作られているか**、`docs/specs/` は**何を満たすか**を書く。
 ADR は**なぜそう決めたか・何を捨てたか**を 1 判断 1 ファイルで書く。
 読み手は「この不変条件を外してよいか」を決めたい人（人も AI も）。実装の説明書でも、開発の年表でもない。
 
@@ -78,7 +78,7 @@ Michael Nygard の形（背景 / 決定 / 結果）に、MADR の「退けた案
    書き直しの経緯は `git log --format='%h %ad %s' --date=short -- .ai-board/plans/<id>.md`。差し戻しの理由はデータ用ブランチの `cards/<id>/log/`。
 2. 仕様: `docs/specs/*/spec.md`（MUST / SHALL NOT の理由文）。
 3. git log: `git log --reverse --no-merges --format='%h %ad %s' --date=short`。浅いクローンなら先に `git fetch --unshallow origin main`。
-4. 今のドキュメント: `CLAUDE.md` の不変条件、`docs/architecture.md`。**今も効いているか**はここで確かめる。
+4. 今の形: `CLAUDE.md` の不変条件とコードの docstring。**今も効いているか**はここで確かめる。
 
 候補を並べたら「何を ADR にするか」でふるい、同じ判断を何度も直した系列は今の形の 1 件にまとめる。
 

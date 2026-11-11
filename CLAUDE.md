@@ -18,7 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### 読む場所
 
 - 使い方・ステージの判定表・止まり・1 周の流れ・AI ループ: `README.md`
-- 実装の細部（ゲートの状態・止まり・書き込みの境界・区画・`status`・保存・GitHub の取得・ループの記録）: `docs/architecture.md`
+- 実装の細部: 各モジュールの先頭と関数の docstring
 - 仕様: `docs/specs/*/spec.md`、PR レビューだけに効く指示: `REVIEW.md`
 - 設計判断の理由と捨てた代案: `docs/adr/`（ADR。不変条件を外したくなったら先に読む。書くときは `adr` のスキル）
 - ループの手順: `.claude/skills/board-loop/SKILL.md`（手ごとの手順は隣の `plan.md` / `implement.md` / `fix-pr.md`、共通の決まりは `rules.md`）、AI レビューのサブエージェント: `.claude/agents/board-reviewer.md`
@@ -83,7 +83,7 @@ ai-board status [--json [--only <項目,...>]]           # ステージ・判断
 
 `ai-board card`（`src/cards/cli/card-cli.ts`）はこれを構造で強制している。書き込みは AI に許す操作だけを並べた usecase（`CardCliDependencies.writes`）だけを通り、
 人の判断を足す `appendReviewCommand` や `startedAt` / `skipGates` を書ける `updateCardMetaCommand` は CLI の依存に渡らない。**`ai-board card` に入口を足すときはこの境界を崩さない。**
-人の判断の入口 `ai-board decide`（`src/board/cli/decide-cli.ts`）は、構造ではなく上の決まりで守る。細部は `docs/architecture.md` の「書き込みの境界」。
+人の判断の入口 `ai-board decide`（`src/board/cli/decide-cli.ts`）は、構造ではなく上の決まりで守る。
 
 ## 設計の不変条件
 

@@ -14,7 +14,7 @@
 人が動かすのは `アイデア ⇄ 計画提案中`（着手）だけで、あとは AI が右へ進め、★ で止まる。
 AI エージェントと開発を回すと実態がカード・計画・PR に散らばるので、それを 1 本のパイプラインとして「いま誰の番か」を見せる。
 
-実装の細部は [`docs/architecture.md`](docs/architecture.md)、設計判断の理由は [`docs/adr/`](docs/adr/)、仕様は `docs/specs/` にある。
+実装の細部は各モジュールの docstring、設計判断の理由は [`docs/adr/`](docs/adr/)、仕様は `docs/specs/` にある。
 
 ## 使い方
 
