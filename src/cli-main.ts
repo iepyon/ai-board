@@ -10,7 +10,10 @@ import {
 import { runCardCli, type CardCliIo } from './cards/cli/card-cli.js';
 import type { SeedFile } from './cards/cli/seed-cards.js';
 import { runInitCli } from './cards/cli/init-cli.js';
-import { describeDataStoreError, describeOfflineRead } from './cards/cli/data-store-messages.js';
+import {
+  describeDataStoreError,
+  describeOfflineRead,
+} from './infrastructure/data-store-messages.js';
 import { assembleBoard } from './board/composition.js';
 import { parseStatusArgs, runStatusCli, STATUS_USAGE } from './board/cli/status-cli.js';
 import { isPrCommand, runPrCli } from './board/cli/pr-cli.js';

@@ -3,8 +3,11 @@
 ## 人に判断してほしいこと
 
 - **カードの書き込みの失敗の文言も移すか。** カードに挙がっていない `src/cards/cli/card-cli.ts` の `describeError`（`CardNotFound`・`DuplicateCardId`・`SubmitGateClosed` など）も、戻す HTTP の入口（カードの起票・本文の編集）で要るので移す（既定: 移す。`src/cards/presenters/card-write-messages.ts` の `describeCardWriteError` にする）
+  - → 回答（2026-11-11、plan 承認）: 理由なしで承認（既定のまま進む）
 - **`loop` と `init` の CLI の文言は CLI に残すか。** `loop-cli.ts` の `describeError` と `init-cli.ts` の `describeBranchError` は、ループと初期化という CLI でだけ使う操作の文言なので移さない（既定: 残す）
+  - → 回答（2026-11-11、plan 承認）: 理由なしで承認（既定のまま進む）
 - **`cli/` の外から `cli/` を import できなくする eslint の決まりを足すか。** 足すと、presenters や usecase が CLI のファイルを逆向きに引いたときに lint で落ちる（既定: 足す）
+  - → 回答（2026-11-11、plan 承認）: 理由なしで承認（既定のまま進む）
 
 承認は、回答の無い項目をすべて既定のまま進めると読む。既定と違う答えは、差し戻しの理由で返してほしい。
 
@@ -131,10 +134,10 @@ usecase はエラーや拒否を `{ type: 'DecisionUnavailable', ... }` のよ�
 
 ### 1. infrastructure とカードの文言を移す
 
-- [ ] `src/cards/cli/data-store-messages.ts` を `src/infrastructure/data-store-messages.ts` へ `git mv` し、import を直す（`card-cli.ts` / `init-cli.ts` / `decide-cli.ts` / `loop-cli.ts` / `cli-main.ts`）
-- [ ] `src/cards/cli/__tests__/data-store-messages.test.ts` を `src/infrastructure/__tests__/` へ `git mv` し、import を直す
-- [ ] `card-cli.ts` の `WriteFailure` を `src/cards/errors/card-errors.ts` の `CardWriteError` に移し、`describeError` を `src/cards/presenters/card-write-messages.ts` の `describeCardWriteError` に移す。`card-cli.ts` はそれらを引く
-- [ ] `src/cards/presenters/__tests__/card-write-messages.test.ts` に、カードの書き込みの失敗の種ごとの文と、`DataStoreError` を `describeDataStoreError` に回すことのテストを足す
+- [x] `src/cards/cli/data-store-messages.ts` を `src/infrastructure/data-store-messages.ts` へ `git mv` し、import を直す（`card-cli.ts` / `init-cli.ts` / `decide-cli.ts` / `loop-cli.ts` / `cli-main.ts`）
+- [x] `src/cards/cli/__tests__/data-store-messages.test.ts` を `src/infrastructure/__tests__/` へ `git mv` し、import を直す
+- [x] `card-cli.ts` の `WriteFailure` を `src/cards/errors/card-errors.ts` の `CardWriteError` に移し、`describeError` を `src/cards/presenters/card-write-messages.ts` の `describeCardWriteError` に移す。`card-cli.ts` はそれらを引く
+- [x] `src/cards/presenters/__tests__/card-write-messages.test.ts` に、カードの書き込みの失敗の種ごとの文と、`DataStoreError` を `describeDataStoreError` に回すことのテストを足す
 
 ### 2. ボードの文言を移す
 

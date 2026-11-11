@@ -74,3 +74,7 @@ export type SubmitReviewError =
   CardNotFound | SubmitBeforeStart | SubmitGateClosed | CardWriteFailure;
 export type HoldReviewError = CardNotFound | HoldGateNotRejected | CardWriteFailure;
 export type MoveCardError = CardNotFound | StaleOrder | CardWriteFailure;
+
+/** カードの書き込みの usecase（起票・本文の差し替え・ブランチの紐付け・提出・保留）のどれかが返すエラー */
+export type CardWriteError =
+  CreateCardError | UpdateCardError | UpdateCardBodyError | SubmitReviewError | HoldReviewError;

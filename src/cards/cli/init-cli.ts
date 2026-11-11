@@ -13,7 +13,7 @@ import {
   serializeDataVersion,
   serializeOrder,
 } from '../repositories/card-files.js';
-import { describeDataStoreError } from './data-store-messages.js';
+import { describeDataStoreError } from '../../infrastructure/data-store-messages.js';
 
 // ============================================================
 // ai-board init — 空のデータ用ブランチを作る
