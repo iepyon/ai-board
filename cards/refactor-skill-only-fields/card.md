@@ -5,7 +5,7 @@ created: '2026-11-11T10:41:53.147Z'
 skipGates:
   - plan
 branch: refactor-skill-only-fields
-pr: null
+pr: 106
 ---
 
 ## アイデア
