@@ -153,3 +153,17 @@ usecase はエラーや拒否を `{ type: 'DecisionUnavailable', ... }` のよ�
 - [x] `CLAUDE.md` のコードの規約の「CLI が `switch` で人に読める 1 行へ変換する」を、presenters が変換し CLI と（戻す）HTTP の両方が呼ぶ形に直す。`cli/` の外から `cli/` を import しないことも書く
 - [x] `docs/architecture.md` の `status-describe.ts` の記述に置き場所（`src/board/presenters/`）を添え、presenters の置き方（コンテキストごと、データ用ブランチの失敗は infrastructure）を 1 段落で書く
 - [x] 動作確認の手順の `grep` で、`cli/` の外から `cli/` を引く import が残っていないことを確かめる
+
+## AI レビュー
+
+- [ ] `CLAUDE.md:108` の「`cli/` は引数・使い方・終了コード・出力だけを持つ」と `docs/architecture.md:89` の「人に読ませる 1 行（エラー・拒否・…）は presenters の純関数が作る」は例外の無い決まりとして読めるが、計画の Decisions（人に判断してほしいことの回答）で `loop-cli.ts:257` の `describeError` と `init-cli.ts:104` の `describeBranchError` は CLI に残すと決めており、食い違う。後から読んだエージェントがそれらを presenters へ移そうとしうる。両方の文に「CLI でだけ使う操作（`loop` / `init`）の文言と、端末向けの並べ方（`formatStatus` / `formatPullRequest` など）は `cli/` に残す」と例外を書き足す
+- [ ] `REVIEW.md:26-27` の Important「エラー種の網羅漏れ」が、まだ「CLI のエラーの文言の `switch` が網羅していないもの」と書いている。この PR で `switch` は presenters（`src/board/presenters/decide-messages.ts` / `src/cards/presenters/card-write-messages.ts` / `src/infrastructure/data-store-messages.ts`）へ移ったので、`CLAUDE.md:106-107` と同じく「presenters のエラーの文言の `switch`」に直す
+- [ ] `docs/architecture.md:17` の「各コンテキストは `models/ errors/ services/ repositories/ usecases/ cli/ composition.ts` を持つ」に、この PR で board と cards に足した `presenters/` が無い。`presenters/` を並べに足す
+
+### 見送った指摘
+
+- `src/board/presenters/__tests__/decide-messages.test.ts` は、タスク 2 の「拒否の種ごとの文」のうち `DecisionUnavailable` と `StageMismatch`（`describeChoices` / `forgeHoldNote` / `startedAtLabel` を通るもの）を試していない。文言は移しただけで変わっておらず、`src/board/cli/__tests__/decide-cli.test.ts:254` / `:261` / `:273` / `:333` / `:340` が CLI を通して同じ文を確かめているので見送る。HTTP の入口を戻して presenters を直接呼ぶときに足すのがよい
+- `.claude/skills/board-view/render.mjs:97` が `dist/board/presenters/status-describe.js` を引くようになったので、`dist/` が古いと、前のように古い文言で動くのではなく `ERR_MODULE_NOT_FOUND` で落ちる。`dist-check`（`src/infrastructure/dist-check-cli.ts`）が `dist/cli.js` の mtime と HEAD のコミット時刻を比べるだけなので、GitHub でマージした後にその時刻より新しい古い `dist/` が残ると「新しい」と判定される。判定の弱さは前からあり、落ちてもビルドし直せば直って人が気づけるので、この PR の目的の外として見送る
+- `src/board/presenters/decide-messages.ts:87` / `:91` の `CardNotFound` / `CardWriteRefused` の文は、`src/cards/presenters/card-write-messages.ts` の同じ種の文と同じ文字列を別に書いている。また同じファイルの `describeRefusal` の `case 'CardNotFound'`（`:49`）は、`describeDecideError` が先に `CardNotFound` を受けるのでそこからは通らない。どちらも `main` の `decide-cli.ts` からそのまま移した重複で振る舞いは変わらないので、移すだけの PR では見送る
+- `eslint.config.js` の `cli/` の import の禁止は、後の設定で `no-restricted-imports` を上書きすると外れるので、`src/shared/` の設定と同じく `NO_CLI_IMPORT` を手で並べ続ける必要がある。今の設定では正しく効いている（`src/board/usecases/` / `src/shared/` / `src/infrastructure/__tests__/` から `cli/` を引くと落ちることを確かめた）ので、作りの好みとして見送る
+- `src/cards/errors/card-errors.ts:79` の `CardWriteError` は、既にある `CardWriteFailure` / `CardWriteRefused` と名前が近い。計画の Decisions で決めた名前で、名前の好みなので見送る
