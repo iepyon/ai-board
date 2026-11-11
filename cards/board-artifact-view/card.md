@@ -3,7 +3,7 @@ id: board-artifact-view
 title: ユーザは、アイデアの一覧・AI 作業中・判断待ちを、Artifact のボード 1 枚で一目で見たい
 created: '2026-11-06T08:43:09.496Z'
 skipGates: []
-branch: board-artifact-view
+branch: ccr-01d0954b-chx3cl
 pr: 103
 ---
 
