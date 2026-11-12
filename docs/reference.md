@@ -255,16 +255,21 @@ cp .ai-board/config.example.yaml .ai-board/config.yaml   # github: { repository:
 カードは `origin` の `ai-board/data` ブランチにあるので、GitHub で fork しても（既定の「main だけをコピー」では）付いてこない。
 `ai-board/data` をそのまま移すと、根の `config.yaml` とカードの `pr` が元のリポジトリを指したままになる（PR を引けない止まりになる）。
 カードは `card export` でファイルにし、移す先で `card seed` で起票し直す。
+どれも移す先のリポジトリのメインのチェックアウト（`init` の後）で打つ。
 
 ```bash
-# 元のリポジトリのメインのチェックアウトで（読むだけで、データ用ブランチには書かない）
-node dist/cli.js card export --to ~/backlog            # 着手していない・中止していないカード
-node dist/cli.js card export --to ~/backlog --started  # 着手済みのカードも足す
+# 元のリポジトリの ai-board/data だけを clone する
+git clone --single-branch -b ai-board/data https://github.com/<owner>/<repo>.git /tmp/src-data
 
-# 移す先のリポジトリのメインのチェックアウトで（init の後）
+# AI_BOARD_DATA で元のカードを読み、書き出す（読むだけで、元のデータ用ブランチには書かない）
+AI_BOARD_DATA=/tmp/src-data node dist/cli.js card export --to ~/backlog            # 着手していない・中止していないカード
+AI_BOARD_DATA=/tmp/src-data node dist/cli.js card export --to ~/backlog --started  # 着手済みのカードも足す
+
+# AI_BOARD_DATA を付けずに、移す先の ai-board/data へ起票する
 node dist/cli.js card seed --from ~/backlog
 ```
 
+- 元のリポジトリの clone を既に持っていれば、その中で `AI_BOARD_DATA` を付けずに `card export` を打ってもよい
 - 書き出すファイルは `<id>.md` で、frontmatter の `id` と `title` と本文だけを持つ。本文の `## レビュー` は除く
 - 着手・ブランチ・PR 番号・判断・並び順（`rank`）は移らない。移した先ではどれもアイデアの末尾に、ファイル名の順で付く。並び順は `decide move` で付け直す
 - 書き出す先に同じ名前のファイルが 1 つでもあれば 1 枚も書かない。データのワークツリー（`.ai-board/data/`）の中へは書かない

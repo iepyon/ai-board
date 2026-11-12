@@ -102,26 +102,44 @@ node dist/cli.js status
 
 ### 元のリポジトリのカードを移す
 
-元のリポジトリの clone で、カードを 1 枚 1 ファイルに書き出す。
-書き出すのは、着手しておらず中止もしていないカードだけで、元のカードは変わらない。
+fork 元（`iepyon/ai-board`）のカードは、fork しても付いてこない。
+カードをいったん 1 枚 1 ファイルに書き出し、そのファイルから自分の fork に起票し直す。
+どのコマンドも、自分の fork の clone の根で打つ。
 
-> （元のリポジトリの clone で）着手していないカードを ~/backlog に書き出して
+まず、fork 元のカードの置き場所（`ai-board/data` ブランチ）だけを手元に clone する。
+main のコードは付いてこない。
+
+> iepyon/ai-board の ai-board/data ブランチだけを /tmp/src-data に clone して
 
 ```bash
-node dist/cli.js card export --to ~/backlog
+git clone --single-branch -b ai-board/data https://github.com/iepyon/ai-board.git /tmp/src-data
 ```
 
-自分の fork の clone で、書き出したファイルからカードを起票する。
+次に、そのカードを `~/backlog` に書き出す。
+`AI_BOARD_DATA` で置き場所を `/tmp/src-data` に向けるので、CLI は fork 元のカードを読む。
+書き出すのは着手しておらず中止もしていないカードだけで、読むだけなので fork 元は変わらない。
 
-> （自分の fork の clone で）~/backlog のカードを取り込んで
+> /tmp/src-data のカードのうち、着手していないものを ~/backlog に書き出して
 
 ```bash
-node dist/cli.js card seed --from ~/backlog
+AI_BOARD_DATA=/tmp/src-data node dist/cli.js card export --to ~/backlog
 ```
 
 書き出したファイルは `<id>.md` で、タイトルと本文だけを持つ。
 要らないカードは、取り込む前にそのファイルを消しておけばよい。
-並び順と、元のリポジトリでの判断は移らない（詳しくは [リファレンス](docs/reference.md#別のリポジトリへカードを移す)）。
+
+最後に、書き出したファイルから自分の fork に起票する。
+こちらは `AI_BOARD_DATA` を付けないので、自分の fork の `ai-board/data` に書く。
+
+> ~/backlog のカードを取り込んで
+
+```bash
+node dist/cli.js card seed --from ~/backlog
+rm -rf /tmp/src-data ~/backlog   # 済んだら片付ける
+```
+
+取り込んだカードはアイデアの列の末尾に、ファイル名の順で付く。
+並び順と、fork 元での着手や判断は移らない（詳しくは [リファレンス](docs/reference.md#別のリポジトリへカードを移す)）。
 
 ### 新しくカードを書く
 
