@@ -29,4 +29,4 @@
 - **frontmatter の配列や別ファイル（`reviews/<id>.jsonl`）** — 複数行の理由が手編集しにくい / カードを開いても理由が見えない。
 - **理由に見出しの行があれば拒む（`1108fec`・PR #61）** — 文字列を経由したまま入口ごとの検査に頼る。前の判断を引用して貼れない制約も人に残る。
 
-根拠: `.ai-board/plans/archive/board-lanes.md`、`.ai-board/plans/archive/review-append-port.md`、`docs/specs/card-review-log/spec.md`、`docs/specs/card-abort/spec.md`、PR #61・#62
+根拠: `docs/specs/card-review-log/spec.md`、`docs/specs/card-abort/spec.md`、PR #61・#62

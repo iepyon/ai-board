@@ -27,4 +27,4 @@
 
 - **差し戻しからの復帰を成果物のハッシュや mtime で検出する** — カードに導出用のキャッシュを持つことになる。mtime はレビューを書くだけで動く。AI が `再提出` を書く形にした。
 
-根拠: `.ai-board/plans/archive/board-lanes.md`、`docs/specs/board-stages/spec.md`、`9598f9a`、`99cc28a`
+根拠: `docs/specs/board-stages/spec.md`、`9598f9a`、`99cc28a`

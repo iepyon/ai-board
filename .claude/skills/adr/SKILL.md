@@ -75,6 +75,7 @@ Michael Nygard の形（背景 / 決定 / 結果）に、MADR の「退けた案
 材料は上ほど「なぜ」が書いてある。
 
 1. 計画: `.ai-board/plans/archive/*.md`（`### Why`・`### Decisions`・`### Non-Goals`）。
+   計画の archive は消して整理することがあるので、ADR の根拠には計画のパスではなく PR とコミットを書く。消した計画は `git log --all -- .ai-board/plans/archive/<id>.md` で引ける。
    書き直しの経緯は `git log --format='%h %ad %s' --date=short -- .ai-board/plans/<id>.md`。差し戻しの理由はデータ用ブランチの `cards/<id>/log/`。
 2. 仕様: `docs/specs/*/spec.md`（MUST / SHALL NOT の理由文）。
 3. git log: `git log --reverse --no-merges --format='%h %ad %s' --date=short`。浅いクローンなら先に `git fetch --unshallow origin main`。

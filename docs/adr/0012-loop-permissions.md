@@ -39,4 +39,4 @@ auto モードでは、許可ルールに当たらない操作を自動許可の
 - **force push をすべて禁じる** — リベースした後の push が止まる（計画レビューの差し戻し）。
 - **戻しにくい操作も `deny` にする** — 人がチャットで頼んだ `git reset --hard` などの正当な操作まで止まる。
 
-根拠: `.ai-board/plans/archive/loop-permissions.md`、PR #68
+根拠: PR #68

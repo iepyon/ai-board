@@ -41,4 +41,4 @@
 - **手元モードの指定をデータ用ブランチの `config.yaml` に置く** — 全員に効き、クラウドのセッションも push しなくなる。
 - **fetch に失敗したら自動で手元モードに倒す** — 一時的に切れただけで `origin` と分かれたコミットが黙って積もる。オンラインかオフラインかは人が選ぶ。
 
-根拠: `.ai-board/plans/archive/issue-store.md`、`.ai-board/plans/archive/board-seed.md`、`.ai-board/plans/archive/remove-sqlite.md`、`.ai-board/plans/archive/offline-data-mode.md`、PR #22・#54・#72・#95、`4d7fe32`
+根拠: PR #22・#54・#72・#95、`4d7fe32`
