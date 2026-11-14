@@ -113,6 +113,13 @@ describe('parseDataVersion', () => {
     });
   });
 
+  it('古い版も読まずに止まる', () => {
+    expect(parseDataVersion(`version: ${DATA_VERSION - 1}\n`)).toEqual({
+      ok: false,
+      error: { type: 'UnsupportedDataVersion', found: DATA_VERSION - 1, supported: DATA_VERSION },
+    });
+  });
+
   it('version が無い・数でないものは壊れているとする', () => {
     expect(parseDataVersion('').ok).toBe(false);
     expect(parseDataVersion('version: one\n').ok).toBe(false);

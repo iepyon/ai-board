@@ -59,7 +59,7 @@ describe('.claude/settings.json の許可ルール', () => {
     }
   });
 
-  it('deny にデータのワークツリーの編集・設定の編集・sqlite3 がある', () => {
+  it('deny にデータのワークツリーの編集と設定の編集がある', () => {
     for (const rule of [
       'Edit(/.ai-board/data/**)',
       'Edit(**/.ai-board/data/**)',
@@ -96,8 +96,6 @@ describe('.claude/settings.json の許可ルール', () => {
     'git -C /repo push origin +x',
     'git push origin --mirror',
     'git -C /repo push --mirror origin',
-    'sqlite3 .ai-board/board.db',
-    'sqlite3',
   ])('%s は deny に当たる', (command) => {
     expect(decide(perms, command)).toBe('deny');
   });
@@ -142,7 +140,7 @@ describe('.claude/settings.json の許可ルール', () => {
     'git push',
     'git -C /repo push',
     'node -e "1"',
-    'curl http://127.0.0.1:5673/api/cards',
+    'curl https://example.com',
     'gh pr merge 1',
     'git checkout -- .',
     'git -C /repo checkout -- .',

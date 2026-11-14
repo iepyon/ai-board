@@ -480,47 +480,14 @@ describe('形の版', () => {
     expect(await store(a).refresh()).toEqual(ok({ kind: 'fetched' }));
   });
 
-  describe('版 1 のデータ', () => {
-    /** ほかの clone から、版 1 の形（`mr:` のカード）を push する */
-    function pushVersion1(): void {
-      const other = cloneData(path.join(tmp, 'other'));
-      write(other, 'ai-board-data.yaml', 'version: 1\n');
-      write(other, 'cards/x/card.md', '---\nid: x\nmr: 7\n---\n\n本文\n');
-      git(other, 'add', '-A');
-      git(other, 'commit', '--quiet', '-m', 'data: 版 1');
-      git(other, 'push', '--quiet', 'origin', `HEAD:refs/heads/${DATA_BRANCH}`);
-    }
+  it('取り直した版がこの CLI より古ければ、移さずに UnsupportedDataVersion で止まる', async () => {
+    const a = cloneData(path.join(tmp, 'a'));
+    pushVersionFile('version: 1\n');
 
-    it('refresh は今の版へ書き換えて読ませるが、コミットも push もしない', async () => {
-      pushVersion1();
-      const a = cloneData(path.join(tmp, 'a'));
-
-      expect(await store(a).refresh()).toEqual(ok({ kind: 'fetched' }));
-
-      expect(fs.readFileSync(path.join(a, 'cards/x/card.md'), 'utf-8')).toBe(
-        '---\nid: x\npr: 7\n---\n\n本文\n'
-      );
-      expect(fs.readFileSync(path.join(a, 'ai-board-data.yaml'), 'utf-8')).toBe('version: 2\n');
-      expect(originLog()[0]).toBe('data: 版 1');
-    });
-
-    it('transact は書き換えを別のコミットにしてから op を走らせ、一緒に push する', async () => {
-      pushVersion1();
-      const a = cloneData(path.join(tmp, 'a'));
-
-      const result = await store(a).transact('data: y を足す', async (dir) => {
-        write(dir, 'cards/y/card.md', 'y\n');
-        return ok(undefined);
-      });
-
-      expect(result).toEqual(ok(undefined));
-      expect(originLog().slice(0, 3)).toEqual([
-        'data: y を足す',
-        'data: 形の版を 2 に上げる',
-        'data: 版 1',
-      ]);
-      expect(git(origin, 'show', `${DATA_BRANCH}:cards/x/card.md`)).toContain('pr: 7');
-    });
+    expect(await store(a).refresh()).toEqual(
+      err({ type: 'UnsupportedDataVersion', found: 1, supported: 2 })
+    );
+    expect(fs.readFileSync(path.join(a, 'ai-board-data.yaml'), 'utf-8')).toBe('version: 1\n');
   });
 });
 

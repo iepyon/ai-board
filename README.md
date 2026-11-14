@@ -223,7 +223,7 @@ git merge --no-ff <branch>                           # マージする
 - **`allow`:** `main` 以外への `git push --force-with-lease origin <branch>`、カードのワークツリーの中の取り消し（`checkout -- .` / `clean -fd`）
 - **`ask`:** `git reset --hard`、`git branch -D` / `-d`、`git worktree remove`、`ai-board init`
 - **`deny`:** データのワークツリーの編集とデータ用ブランチへの push、`main` への push、`--force` / `-f` / `+` の force push、`--mirror` の push、
-  `sqlite3`、メインのチェックアウトの `.claude/settings*.json` の編集
+  メインのチェックアウトの `.claude/settings*.json` の編集
 
 許可ルールは前方一致で迂回できる**事故よけの保険で、境界そのものではない。** 境界は `ai-board card` の構造と手順書の決まりに置く。
 `main` にはブランチ保護（直接の push と force push の禁止）を入れることを勧める。
