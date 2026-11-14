@@ -31,4 +31,4 @@
 - **`ai-board decide` を `deny` に置き、人が自分の端末で打つ** — Claude が代わりに書けなくなり、チャットから判断する意味が無くなる。
 - **人だけが呼べるスキル（`disable-model-invocation`）にする** — 自然に「承認して」と頼めない。
 
-根拠: `.ai-board/plans/archive/chat-decide.md`、`.ai-board/plans/archive/decide-via-cli.md`、`fdaf2d4`、`9b654c4`
+根拠: `fdaf2d4`、`9b654c4`

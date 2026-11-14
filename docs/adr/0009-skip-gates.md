@@ -26,4 +26,4 @@
 - **実装中のルールに着手時刻の条件を足す** — 導出に分岐が増え、Draft の PR があっても着手を戻せてしまう。
 - **plan の提出をいつでも書けるままにする** — 再提出が承認と読まれ、人の差し戻しや保留を経ずに AI の 1 回の呼び出しで計画を出し直せる。
 
-根拠: `.ai-board/plans/archive/skip-plan-needs-start.md`、`docs/specs/card-gate-skip/spec.md`、`9df4740`、`d8d2e85`、`4a910dd`
+根拠: `docs/specs/card-gate-skip/spec.md`、`9df4740`、`d8d2e85`、`4a910dd`

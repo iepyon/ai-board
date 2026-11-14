@@ -36,4 +36,4 @@
 - **引けなかったカードは控えをそのまま使い、止まりにしない** — 控えが古いと、人の指摘や Draft への戻しを見落としたまま進める。
 - **全カードが失敗したときだけ接続をエラーにする** — カードが 1 枚のときに見分けられない。失敗の種類（HTTP のステータス）で見分ける。
 
-根拠: `.ai-board/plans/archive/loop-respect-human.md`、`.ai-board/plans/archive/forge-card-error.md`、`.ai-board/plans/archive/forge-unset-decide.md`、`docs/specs/card-review-authority/spec.md`、`docs/specs/board-hold/spec.md`、`e3bb4be`、`e3dc5a7`
+根拠: `docs/specs/card-review-authority/spec.md`、`docs/specs/board-hold/spec.md`、`e3bb4be`、`e3dc5a7`
