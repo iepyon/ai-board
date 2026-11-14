@@ -1,3 +1,4 @@
+import * as path from 'node:path';
 import { isErr, type Result } from '../../shared/result.js';
 import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
 import type { DataStore } from '../../infrastructure/data-store.js';
@@ -11,7 +12,7 @@ import {
   describeOfflineRead,
 } from '../../infrastructure/data-store-messages.js';
 import { describeCardError } from '../presenters/card-messages.js';
-import { readSeedCards, type SeedFile } from './seed-cards.js';
+import { readSeedCards, selectExportCards, toSeedFile, type SeedFile } from './seed-cards.js';
 
 // ============================================================
 // ai-board card — エージェントがカードに書くための CLI
@@ -42,6 +43,11 @@ Commands:
   seed --from <dir>        <dir> の *.md（show と同じ形）のうち、まだ無いカードだけを
                            アイデアカードとして作る。既にある ID は飛ばす。読むのは id・title・本文だけ。
                            1 つでも読めないファイルがあれば 1 枚も作らない
+  export --to <dir> [--started]
+                           カードを seed が読む形（<id>.md。id・title・本文だけで、## レビュー を除く）で
+                           <dir> に書き出す。別のリポジトリのボードへ移すときに使う。中止のカードは書き出さない。
+                           既定は着手していないカードだけで、--started で着手済みのカードも足す。
+                           <dir> に同じ名前のファイルが 1 つでもあれば 1 枚も書かない
   body <id>                本文を標準入力の内容に差し替える
                            （## レビュー のエントリが変わる差し替えは拒否する）
   branch <id> <name>       ブランチを紐付ける。--clear で外す
@@ -64,6 +70,14 @@ export interface CardCliIo {
    * 読めなければ理由の文を返す
    */
   readonly readMarkdownDir: (dir: string) => Promise<Result<readonly SeedFile[], string>>;
+  /**
+   * ディレクトリ（無ければ作る）に `*.md` を書く（`export` が使う）。相対パスは作業ディレクトリから解決する。
+   * 同じ名前のファイルが 1 つでもあれば 1 つも書かずに理由の文を返す
+   */
+  readonly writeMarkdownFiles: (
+    dir: string,
+    files: readonly SeedFile[]
+  ) => Promise<Result<void, string>>;
   readonly now: () => Date;
 }
 
@@ -76,18 +90,19 @@ interface ParsedArgs {
 /** 読む口（`cards`）と AI に許す書き込みの口（`writes`）は `createCardCliParts` が組む */
 export interface CardCliDependencies extends CardCliParts {
   /** データのワークツリー。読む前に取り直す */
-  readonly store: Pick<DataStore, 'refresh'>;
+  readonly store: Pick<DataStore, 'refresh' | 'dataDir'>;
 }
 
 type Handler = (args: ParsedArgs, deps: CardCliDependencies, io: CardCliIo) => Promise<number>;
 
-const VALUE_FLAGS = new Set(['--title', '--id', '--reason', '--from', '--gate']);
+const VALUE_FLAGS = new Set(['--title', '--id', '--reason', '--from', '--to', '--gate']);
 
 const HANDLERS: Readonly<Record<string, Handler>> = {
   list: runList,
   show: runShow,
   create: runCreate,
   seed: runSeed,
+  export: runExport,
   body: runBody,
   branch: runBranch,
   submit: runSubmit,
@@ -273,6 +288,55 @@ async function runSeed(
       io.stderr(`${card.file}: ${describeCardError(result.error)}\n`);
       return 1;
     }
+  }
+  return 0;
+}
+
+/**
+ * カードを `seed` が読む形のファイルに書き出す。読むだけで、データ用ブランチには書かない。
+ *
+ * 別の GitHub のリポジトリへボードを移すときに、元のリポジトリで書き出し、移した先で `seed --from` で起票する。
+ * データ用ブランチをそのまま移さないのは、根の `config.yaml` とカードの `pr` が元のリポジトリを指すため。
+ * データのワークツリーの中へは書かない（`cards/` の下に置くと次の書き込みでデータ用ブランチに載る）。
+ */
+async function runExport(
+  args: ParsedArgs,
+  deps: CardCliDependencies,
+  io: CardCliIo
+): Promise<number> {
+  const to = args.flags.get('--to');
+  if (typeof to !== 'string') {
+    io.stderr('--to に書き出す先のディレクトリを指定してください\n');
+    return 1;
+  }
+
+  const dataDir = path.resolve(deps.store.dataDir);
+  const target = path.resolve(to);
+  if (target === dataDir || target.startsWith(`${dataDir}${path.sep}`)) {
+    io.stderr(
+      `データのワークツリー（${dataDir}）の中へは書き出せません。外のディレクトリを指定してください\n`
+    );
+    return 1;
+  }
+
+  if (!(await refreshForRead(deps, io))) return 1;
+
+  const cards = selectExportCards(await deps.cards.cardRepository.findAll(), {
+    includeStarted: args.flags.get('--started') === true,
+  });
+  if (cards.length === 0) {
+    io.stderr('書き出すカードがありません\n');
+    return 1;
+  }
+
+  const written = await io.writeMarkdownFiles(to, cards.map(toSeedFile));
+  if (isErr(written)) {
+    io.stderr(`${to} に書き出せません: ${written.error}\n1 枚も書き出しませんでした\n`);
+    return 1;
+  }
+
+  for (const card of cards) {
+    io.stdout(`${card.id}: 書き出しました\n`);
   }
   return 0;
 }
