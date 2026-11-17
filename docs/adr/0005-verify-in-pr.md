@@ -31,4 +31,4 @@
 - **動作確認の列を残し、小さなカードは「動作確認を飛ばす」で和らげる**（2026-10-30〜11-03） — 宣言の読み方と止まりの扱いが増え、手順書と導出が重くなった。
 - **過去の記録を活かすために verify のエントリを読む経路を持つ** — 消したゲートの解釈がコードに残り続ける。
 
-根拠: `.ai-board/plans/archive/verify-gate.md`、`.ai-board/plans/archive/merge-verify-into-pr.md`、`.ai-board/plans/archive/verify-evidence.md`、PR #37、PR #76、PR #78
+根拠: PR #37、PR #76、PR #78

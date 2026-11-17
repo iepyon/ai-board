@@ -30,4 +30,4 @@ ADR [17](0017-remove-web-and-server.md) で画面・サーバ・`status --html` 
 - **Artifact の Dashboard の型** — 数字とグラフを出どころ付きで見せる型で、カード一覧には重い。
 - **Claude がその場で HTML を書く・ひな形に文言の表を写す** — 見た目がぶれる / 本体と食い違っても気づけない。
 
-根拠: `.ai-board/plans/archive/board-artifact-view.md`、カード `board-artifact-view` の `## 探索メモ`
+根拠: カード `board-artifact-view` の `## 探索メモ`

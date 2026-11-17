@@ -28,4 +28,4 @@ AI の列にいるカードが、ループに拾われるのを待っている�
 - **記録をカードの中に置く・形の版を上げる** — カードの書き込み境界と混ざる / 古い CLI がカードを読めなくなる。
 - **後から届いた値で、閉じた記録を書き足す入口を作る** — 「終わった記録を書き換えない」を崩す。記録は見るためのものなので、止まらないことを優先した。
 
-根拠: `.ai-board/plans/archive/loop-activity.md`・`loop-single-session.md`・`loop-continue-on-handback.md`、`docs/specs/loop-activity/spec.md`
+根拠: `docs/specs/loop-activity/spec.md`

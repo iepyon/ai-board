@@ -31,4 +31,4 @@ GitHub の PR を取得先に足すとき、それまでの GitLab 連携は Per
 - **`gh auth token` でトークンを取り出して `fetch` する** — トークンをメモリに載せた時点で「扱わない」にならない。
 - **`disabled` なら設定の有無に依らず判断と次の一手を通す** — `github:` を書いたまま届かないボードも通り、PR を持つカードが手前の列に落ちて見えたまま進む。
 
-根拠: `.ai-board/plans/archive/github-pr-provider.md`、`.ai-board/plans/archive/forge-unset-decide.md`、`cf402fc`、`8566331`、`CLAUDE.md`「設計の不変条件」
+根拠: `cf402fc`、`8566331`、`CLAUDE.md`「設計の不変条件」

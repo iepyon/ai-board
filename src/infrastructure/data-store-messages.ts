@@ -43,13 +43,19 @@ export function describeDataStoreError(error: DataStoreError): string {
     case 'DataStoreGitFailed':
       return `データ用ブランチの git ${error.step} に失敗しました（${error.message}）`;
     case 'UnsupportedDataVersion':
-      return (
-        `データ用ブランチの形の版（${error.found}）が、この ai-board が読める版（${error.supported}）より新しいため、読まずに止まりました。` +
-        'ai-board を新しくしてからやり直してください'
-      );
+      return describeUnsupportedVersion(error.found, error.supported);
     case 'MalformedDataVersion':
       return `データ用ブランチの ai-board-data.yaml が読めないため、読まずに止まりました（${error.reason}）`;
   }
+}
+
+/** 形の版がこの ai-board と違う。新しければ ai-board を上げ、古ければ移す処理のある版を案内する */
+function describeUnsupportedVersion(found: number, supported: number): string {
+  const head = `データ用ブランチの形の版（${found}）が、この ai-board が読める版（${supported}）より`;
+  return found > supported
+    ? `${head}新しいため、読まずに止まりました。ai-board を新しくしてからやり直してください`
+    : `${head}古いため、読まずに止まりました。` +
+        '古い版から移す処理は a15da2b までの ai-board にあるので、その版で一度読み書きしてからやり直してください';
 }
 
 /** 読み出しの前の取り直しで fetch に失敗したときの警告。手元の内容で読み続ける */

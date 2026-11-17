@@ -32,4 +32,4 @@ OpenSpec の内部の定数にも追従する義務があった。
 - **接続済みのボードでもブランチの計画を読む** — Draft の PR を出す前のコミットの時点で計画レビューが立ち、`status` のたびに git を走らせる。
 - **ブランチの archive を導出に読み、未設定のボードに「マージ待ち」の列を立てる** — 導出の核を変える。規則 1 に渡すとマージ前にマージ済みに見える。止まりなら保存も新しい列も要らない。
 
-根拠: PR #5・#24、`.ai-board/plans/archive/branch-plan-review.md`、`.ai-board/plans/archive/unset-impl-close.md`、`99cc28a`、`a3a7e42`、`src/board/services/stage-resolver.ts` の docstring
+根拠: PR #5・#24、`99cc28a`、`a3a7e42`、`src/board/services/stage-resolver.ts` の docstring

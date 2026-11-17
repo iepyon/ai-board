@@ -31,6 +31,7 @@
 - 手元モードで書いたものは `origin` に上がらず、クラウドのセッションやほかの clone から見えない。上げる CLI は無く、人が `git push` する。`ai-board init` は手元モードの対象外。
 - push の前にプロセスが落ちて残ったコミットも、黙って捨てずに止まるようになった（手元モードのコミットと見分ける印を持たないため）。
 - `board.db` からの移行の `ai-board migrate` は `d2380ce` までの版にあり、今の版は SQLite を読まない。空のデータ用ブランチは `ai-board init` で作る。
+- 形の版 1 から 2 へ移す処理は `a15da2b` までの版にあり、今の版は自分と違う版のデータを読まずに止まる。
 
 ## 退けた案
 
@@ -41,4 +42,4 @@
 - **手元モードの指定をデータ用ブランチの `config.yaml` に置く** — 全員に効き、クラウドのセッションも push しなくなる。
 - **fetch に失敗したら自動で手元モードに倒す** — 一時的に切れただけで `origin` と分かれたコミットが黙って積もる。オンラインかオフラインかは人が選ぶ。
 
-根拠: `.ai-board/plans/archive/issue-store.md`、`.ai-board/plans/archive/board-seed.md`、`.ai-board/plans/archive/remove-sqlite.md`、`.ai-board/plans/archive/offline-data-mode.md`、PR #22・#54・#72・#95、`4d7fe32`
+根拠: PR #22・#54・#72・#95、`4d7fe32`

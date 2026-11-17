@@ -30,4 +30,4 @@ PR もコメントも人のアカウントで書かれるため、GitHub の Req
 - **区画を移すだけにし、直すのは今の Draft に戻す道に任せる** — 区画が AI を示しても誰も動かない。
 - **指摘ごとに返信する** — 人が選ばなかった。返信は直すものが無いときの 1 件だけにした。
 
-根拠: `.ai-board/plans/archive/pr-feedback-ai-turn.md`、カード `pr-feedback-ai-turn` の `## 探索メモ`、PR #79
+根拠: カード `pr-feedback-ai-turn` の `## 探索メモ`、PR #79

@@ -19,4 +19,4 @@
 
 - **<案>** — <退けた理由を 1 行>
 
-根拠: `.ai-board/plans/archive/<id>.md`、PR #<n>、`<hash>`
+根拠: PR #<n>、`<hash>`、カード `<id>` の `## 探索メモ`

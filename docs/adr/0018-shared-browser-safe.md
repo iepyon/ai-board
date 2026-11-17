@@ -30,4 +30,4 @@
 - **`shared` をそのままにして eslint だけ足す** — 書き写しが残り、`node:fs` を使う設定の読み込みが決まりに反する。
 - **`tsconfig` を分けて `shared` だけ Node の型を外す** — 設定が二重になり、`board/` への import は拒めない。
 
-根拠: `.ai-board/plans/shared-browser-safe.md`、カード `shared-browser-safe` の `## 背景` と `## 探索メモ`、PR #101
+根拠: カード `shared-browser-safe` の `## 背景` と `## 探索メモ`、PR #101
