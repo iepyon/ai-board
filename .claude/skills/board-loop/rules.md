@@ -152,7 +152,7 @@ ai-board card hold <id> --gate plan --reason "<なぜ止まったか、人に何
 S=<スクラッチパッドの下の作業用ディレクトリ>
 export AI_BOARD_STORE="$S/store"
 node "$WT/dist/cli.js" store init --root "$WT"        # board/meta を送る箱に積む
-node "$WT/dist/cli.js" store ack --root "$WT"         # 送ったことにする（写しには board/meta が残る）
+node "$WT/dist/cli.js" store ack --through 999999 --root "$WT"   # 送ったことにする（写しには board/meta が残る）
 node "$WT/dist/cli.js" store seed --root "$WT"        # 試すカードを起票する
 ```
 

@@ -1,4 +1,4 @@
-import { err, isErr, ok, type Result } from '../shared/result.js';
+import { err, ok, type Result } from '../shared/result.js';
 
 // ============================================================
 // 置き場所の口 — カードの正本を文書（コレクションと ID で指す JSON）として読み書きする
@@ -131,18 +131,30 @@ export function assertWritable(collection: string, id: string): void {
   if (!isValidDocumentId(id)) throw new Error(`文書の ID に使えない文字があります: ${id}`);
 }
 
+/** `copyDocuments` の指定 */
+export interface CopyOptions<E> {
+  /** 写すコレクション。既定は全部 */
+  readonly collections?: readonly Collection[];
+  /** 写し先の今の中身を見て、写さずに止める理由を返す（`transact` の中で、写し先を読み直した後に呼ぶ）。写すなら null */
+  readonly refuse?: (to: DocumentReader) => E | null;
+}
+
 /**
  * 置き場所の間で文書を写す（`ai-board store import`、将来 SQLite へ移すとき）。
  *
- * `from` の全コレクションの文書を、`to` の 1 回の `transact` で書く。`to` に既にある ID は上書きする。
+ * `from` の文書を、`to` の 1 回の `transact` で書く。`to` に既にある ID は上書きする。
+ * `refuse` が理由を返したら何も書かない（例: 写し先にカードがあれば二重に移さない）。
  */
-export async function copyDocuments(
+export async function copyDocuments<E = never>(
   from: DocumentReader,
   to: DocumentStore,
   label: string,
-  collections: readonly Collection[] = COLLECTIONS
-): Promise<Result<number, StoreError>> {
-  const result = await to.transact<number, never>(label, () => {
+  options: CopyOptions<E> = {}
+): Promise<Result<number, E | StoreError>> {
+  const collections = options.collections ?? COLLECTIONS;
+  return to.transact<number, E>(label, () => {
+    const refused = options.refuse?.(to) ?? null;
+    if (refused !== null) return Promise.resolve(err(refused));
     let count = 0;
     for (const collection of collections) {
       for (const doc of from.list(collection)) {
@@ -152,8 +164,6 @@ export async function copyDocuments(
     }
     return Promise.resolve(ok(count));
   });
-  if (isErr(result)) return result;
-  return ok(result.value);
 }
 
 // ============================================================

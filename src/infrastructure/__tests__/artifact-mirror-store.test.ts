@@ -72,6 +72,47 @@ describe('ArtifactMirrorStore', () => {
     expect(store.check()).toEqual(ok(undefined));
   });
 
+  it('読めない改訂があれば check が取り込み直しを促し、連番はその改訂の次から振る', async () => {
+    const store = pulledStore();
+    await store.transact('1', () => {
+      store.set('cards', 'a', { title: 'A' });
+      return Promise.resolve(ok(undefined));
+    });
+    await store.ack('999999');
+    // 書きかけで壊れた改訂
+    const broken = path.join(store.mirrorDir, 'cards', 'a~000002.json');
+    fs.writeFileSync(broken, '{ "title": ');
+    const reopened = new ArtifactMirrorStore(store.storeDir);
+
+    const checked = reopened.check();
+    expect(isErr(checked) && checked.error).toMatchObject({
+      type: 'StoreInvalidDocument',
+      path: broken,
+    });
+    expect(reopened.get('cards', 'a')).toBeNull();
+
+    const refused = await reopened.transact<undefined, never>('2', () =>
+      Promise.resolve(ok(undefined))
+    );
+    expect(isErr(refused) && refused.error.type).toBe('StoreInvalidDocument');
+  });
+
+  it('ack は連番が --through 以下の束だけを消す', async () => {
+    const store = pulledStore();
+    for (const id of ['a', 'b', 'c']) {
+      await store.transact(id, () => {
+        store.set('cards', id, { title: id });
+        return Promise.resolve(ok(undefined));
+      });
+    }
+    expect(store.outbox().map((batch) => batch.seq)).toEqual(['000001', '000002', '000003']);
+
+    expect(await store.ack('000002')).toEqual(ok(2));
+
+    expect(store.outbox().map((batch) => batch.label)).toEqual(['c']);
+    expect(fs.readdirSync(path.join(store.outboxDir, 'docs'))).toEqual(['000003-1.json']);
+  });
+
   it('写しが無ければ check が取り込みを促す', () => {
     const store = new ArtifactMirrorStore(path.join(tempDir(), 'store'));
     expect(store.check()).toEqual(err({ type: 'StoreNotPulled', mirrorDir: store.mirrorDir }));
@@ -210,7 +251,7 @@ describe('ArtifactMirrorStore', () => {
       store.set('cards', 'a', { title: 'A' });
       return Promise.resolve(ok(undefined));
     });
-    store.ack();
+    await store.ack('999999');
     await store.transact('2', () => {
       store.delete('cards', 'a');
       return Promise.resolve(ok(undefined));
@@ -277,7 +318,7 @@ describe('ArtifactMirrorStore', () => {
       store.set('cards', 'a', { title: 'A' });
       return Promise.resolve(ok(undefined));
     });
-    expect(store.ack()).toBe(1);
+    expect(await store.ack('999999')).toEqual(ok(1));
     expect(store.pendingWrites()).toBe(0);
     expect(store.get('cards', 'a')).toEqual({ title: 'A' });
   });
@@ -288,7 +329,7 @@ describe('ArtifactMirrorStore', () => {
       store.set('cards', 'a', { title: 'A' });
       return Promise.resolve(ok(undefined));
     });
-    store.ack();
+    await store.ack('999999');
     await store.transact('2', () => {
       store.set('cards', 'a', { title: 'B' });
       store.set('log', 'a.1', { kind: 'submit' });

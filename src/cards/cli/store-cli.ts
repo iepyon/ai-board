@@ -2,6 +2,8 @@ import { isErr, ok, type Result } from '../../shared/result.js';
 import type { OutboxBatch } from '../../infrastructure/artifact-mirror-store.js';
 import {
   checkMeta,
+  copyDocuments,
+  MemoryDocumentStore,
   initialDocuments,
   META_COLLECTION,
   META_ID,
@@ -21,7 +23,7 @@ import type { ImportDocument } from '../repositories/data-branch-import.js';
  *
  * - `pull`: `ArtifactData` の `list` が `out_dir` に書き出したディレクトリを、写しに取り込む
  * - `outbox`: 送る箱の書き込みを、`ArtifactData` の `batch` の `writes` にそのまま渡せる形で出す
- * - `ack` / `discard`: 送り終えた送る箱を空にする / 改訂がぶつかったので捨てて写しを戻す
+ * - `ack` / `discard`: 送り終えた束を送る箱から消す / 改訂がぶつかったので捨てて写しを戻す
  * - `init` / `import`: 空の置き場所を始める / データ用ブランチから移す。どちらも書き込みを送る箱に積むだけ
  *
  * カードの書き込みの口（AI に許す usecase）はここに無い。`import` は人の判断を含む移行なので、人が頼んだときだけ使う。
@@ -35,8 +37,9 @@ Commands:
   pull --from <dir>     ArtifactData の list が out_dir に書き出したディレクトリを、写しに取り込む
                         （写しを丸ごと入れ替える。送る箱が空でなければ拒む）
   outbox [--json]       送る箱の書き込みを出す。--json は ArtifactData の batch の writes に
-                        そのまま渡せる形（{"batches":[{"label","writes":[...]}]}、1 つ 50 件まで）
-  ack                   送り終えた送る箱を空にする（続けて取り込み直す）
+                        そのまま渡せる形（{"batches":[{"seq","label","writes":[...]}]}、1 つ 50 件まで）
+  ack --through <seq>   送り終えた束（連番が <seq> 以下）を送る箱から消す。outbox を読んだ後に
+                        ほかのプロセスが積んだ束は残す
   discard               送る箱を捨て、写しを積む前に戻す（batch が既にある改訂で拒まれたとき）
   init                  空の置き場所に最初の文書（board/meta）を積む
   import --from <dir>   データ用ブランチ（ai-board/data）の clone から、カード・判断・並び順を積む
@@ -49,7 +52,7 @@ Commands:
 export interface StoreCliStore extends DocumentStore {
   pull(fromDir: string): Promise<Result<{ readonly count: number }, StoreError>>;
   outbox(): readonly OutboxBatch[];
-  ack(): number;
+  ack(through: string): Promise<Result<number, StoreError>>;
   discard(): Promise<Result<number, StoreError>>;
   /** 写しを確かめずに書く（`init` だけが使う） */
   transactUnchecked: DocumentStore['transact'];
@@ -83,7 +86,7 @@ type Handler = (flags: Flags, deps: StoreCliDependencies, io: StoreCliIo) => Pro
 const HANDLERS: Readonly<Record<StoreCommand, Handler>> = {
   pull: runPull,
   outbox: runOutbox,
-  ack: (_flags, deps, io) => runAck(deps, io),
+  ack: runAck,
   discard: (_flags, deps, io) => runDiscard(deps, io),
   init: (_flags, deps, io) => runInit(deps, io),
   import: runImport,
@@ -163,10 +166,20 @@ function runOutbox(
   return Promise.resolve(0);
 }
 
-function runAck(deps: StoreCliDependencies, io: StoreCliIo): Promise<number> {
-  const count = deps.store.ack();
-  io.stdout(`送る箱を空にしました（${count} 束）。続けて取り込み直してください\n`);
-  return Promise.resolve(0);
+async function runAck(flags: Flags, deps: StoreCliDependencies, io: StoreCliIo): Promise<number> {
+  const through = flags.get('--through');
+  if (typeof through !== 'string' || !/^\d{6}$/.test(through)) {
+    return fail(
+      io,
+      '--through に送り終えた最後の束の連番（outbox --json の seq）を指定してください'
+    );
+  }
+  const acked = await deps.store.ack(through);
+  if (isErr(acked)) return fail(io, describeStoreError(acked.error));
+  io.stdout(
+    `送り終えた ${acked.value} 束を送る箱から消しました（残り ${deps.store.pendingWrites()} 束）\n`
+  );
+  return 0;
 }
 
 async function runDiscard(deps: StoreCliDependencies, io: StoreCliIo): Promise<number> {
@@ -222,14 +235,12 @@ async function runImport(
   const docs = deps.readDataBranch(from);
   if (isErr(docs)) return fail(io, docs.error);
 
-  const store = deps.store;
-  const result = await store.transact<number, 'NotEmpty'>('データ用ブランチから移す', () => {
-    if (store.list('cards').length > 0) {
-      return Promise.resolve({ ok: false, error: 'NotEmpty' } as const);
-    }
-    for (const doc of docs.value) store.set(doc.collection, doc.id, doc.data);
-    return Promise.resolve(ok(docs.value.length));
-  });
+  const result = await copyDocuments<'NotEmpty'>(
+    new MemoryDocumentStore(docs.value),
+    deps.store,
+    'データ用ブランチから移す',
+    { refuse: (to) => (to.list('cards').length > 0 ? 'NotEmpty' : null) }
+  );
 
   if (isErr(result)) {
     return fail(
@@ -251,7 +262,7 @@ async function runImport(
 // ヘルパー
 // ============================================================
 
-const VALUE_FLAGS = new Set(['--from']);
+const VALUE_FLAGS = new Set(['--from', '--through']);
 const BOOLEAN_FLAGS = new Set(['--json']);
 
 function parseFlags(argv: readonly string[]): ReadonlyMap<string, string | true> | string {

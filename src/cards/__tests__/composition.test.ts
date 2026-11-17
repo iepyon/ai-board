@@ -100,7 +100,7 @@ describe('createTransactionalPrWriter', () => {
     fs.mkdirSync(path.join(store.mirrorDir, 'board'), { recursive: true });
     fs.writeFileSync(path.join(store.mirrorDir, 'board', 'meta~000001.json'), '{"version":3}');
     await store.transact('始める', () => new DocCardRepository(store).create(makeCard()).then(ok));
-    store.ack();
+    await store.ack('999999');
     return store;
   }
 

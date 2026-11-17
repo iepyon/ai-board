@@ -100,7 +100,7 @@ describe('DocPrSnapshotRepository', () => {
     const { repository } = setup(store);
 
     await repository.save(id, merged());
-    store.ack();
+    await store.ack('999999');
     await repository.save(id, merged());
 
     expect(store.pendingWrites()).toBe(0);

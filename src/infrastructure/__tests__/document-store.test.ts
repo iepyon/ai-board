@@ -46,10 +46,25 @@ describe('copyDocuments', () => {
     ]);
     const to = new MemoryDocumentStore(initialDocuments());
 
-    const result = await copyDocuments(from, to, '写す', ['cards', 'log']);
+    const result = await copyDocuments(from, to, '写す', { collections: ['cards', 'log'] });
 
     expect(result).toEqual(ok(2));
     expect(to.get('cards', 'a')).toEqual({ title: 'A' });
     expect(to.get('log', 'a.1')).toEqual({ kind: 'submit' });
+  });
+
+  it('refuse が理由を返したら何も写さない', async () => {
+    const from = new MemoryDocumentStore([{ collection: 'cards', id: 'a', data: { title: 'A' } }]);
+    const to = new MemoryDocumentStore([
+      ...initialDocuments(),
+      { collection: 'cards', id: 'x', data: { title: 'X' } },
+    ]);
+
+    const result = await copyDocuments(from, to, '写す', {
+      refuse: (reader) => (reader.list('cards').length > 0 ? ('NotEmpty' as const) : null),
+    });
+
+    expect(result).toEqual(err('NotEmpty'));
+    expect(to.get('cards', 'a')).toBeNull();
   });
 });

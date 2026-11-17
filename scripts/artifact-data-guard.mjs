@@ -8,7 +8,8 @@
 // Claude は人の権限で DB に書けるので、CLI を通さずに判断などを書く道をここで塞ぐ。
 //
 // - 読み出し（get / list / query / profiles）は通す
-// - `batch` は、どのエントリも `op: "set"` で `if_version` を持たず、`file_path` が送る箱の `docs/` の下を指すときだけ通す
+// - `batch` は、どのエントリも `op: "set"` で `if_version` を持たず、`file_path` の実体がメインのチェックアウトの
+//   送る箱の `docs/` の下にあり、その collection・doc_id・ファイルの組が送る箱の束（`outbox/<連番>.json`）に載っているときだけ通す
 //   （置き場所の文書は書き換えず、改訂を新しい文書として作るため、版は使わない）
 // - それ以外の書き込み（set / update / str_replace / delete と、条件に合わない batch）は拒む
 // - ボードの置き場所でない Artifact と、`store.url` が未設定のときは何もしない
@@ -16,12 +17,12 @@
 // 拒むときは終了コード 2 で理由を標準エラーに出す（Claude Code はツールの呼び出しを止め、理由を Claude に返す）。
 // 入力が読めないなど hook 自身の不具合では、止めずに 0 で終える（hook の不具合で読み出しまで止めない）。
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const READ_ACTIONS = new Set(['get', 'list', 'query', 'profiles']);
-const OUTBOX_DOCS = path.join('.ai-board', 'store', 'outbox', 'docs');
+const OUTBOX_DIR = path.join('.ai-board', 'store', 'outbox');
 
 /** Artifact の URL から ID を取り出す。claude.ai/artifact/<id> と claude.ai/code/artifact/<id> の両方を読む */
 export function artifactIdOf(url) {
@@ -47,11 +48,12 @@ export function storeUrlOf(configYaml) {
 /**
  * ツールの呼び出しを通すか決める。通すなら null、拒むなら理由の文を返す。
  *
- * `storeUrl` はボードの置き場所の URL（未設定なら null）、`projectDir` はリポジトリの根。
- * 送る箱は、どのワークツリーからもメインのチェックアウトの `.ai-board/store/` を使うので、
- * パスの中に `.ai-board/store/outbox/docs/` を含むかで見る（`..` で抜けるものは拒む）。
+ * `storeUrl` はボードの置き場所の URL（未設定なら null）。
+ * `outbox` は送る箱の中身で、`docsDir`（メインのチェックアウトの `.ai-board/store/outbox/docs` の実体のパス）と、
+ * 束に載っている書き込みの組（`<collection>|<doc_id>|<ファイル名>`）の集まり `entries`。
+ * `realpath` はパスを実体のパスに直す関数（無いファイルなら null）。テストで差し替える。
  */
-export function decide(input, storeUrl) {
+export function decide(input, storeUrl, outbox, realpath = realpathOrNull) {
   const toolInput = input && typeof input === 'object' ? input.tool_input : null;
   if (!toolInput || typeof toolInput !== 'object') return null;
 
@@ -72,7 +74,7 @@ export function decide(input, storeUrl) {
   if (writes.length === 0) return 'batch の writes が空です';
 
   for (const [index, write] of writes.entries()) {
-    const problem = problemOf(write);
+    const problem = problemOf(write, outbox, realpath);
     if (problem !== null) {
       return (
         `ボードの置き場所への batch の writes[${index}] は送れません（${problem}）。` +
@@ -83,21 +85,70 @@ export function decide(input, storeUrl) {
   return null;
 }
 
-function problemOf(write) {
+function problemOf(write, outbox, realpath) {
   if (!write || typeof write !== 'object') return '形が違います';
   if (write.op !== 'set') return `op が ${String(write.op)} です`;
   if (write.if_version !== undefined) return 'if_version を付けています';
   if (write.data !== undefined) return 'data で中身を直に渡しています';
   if (typeof write.file_path !== 'string') return 'file_path がありません';
-  const normalized = path.normalize(write.file_path);
-  if (normalized.split(path.sep).includes('..')) return 'file_path に .. があります';
-  if (
-    !normalized.includes(`${path.sep}${OUTBOX_DOCS}${path.sep}`) &&
-    !normalized.startsWith(`${OUTBOX_DOCS}${path.sep}`)
-  ) {
-    return 'file_path が送る箱の docs/ の下ではありません';
+  if (outbox === null) return '送る箱がありません';
+
+  const real = realpath(write.file_path);
+  if (real === null) return 'file_path のファイルがありません';
+  if (path.dirname(real) !== outbox.docsDir) {
+    return 'file_path がメインのチェックアウトの送る箱の docs/ の下ではありません';
   }
+  const key = `${String(write.collection)}|${String(write.doc_id)}|${path.basename(real)}`;
+  if (!outbox.entries.has(key))
+    return 'collection・doc_id・ファイルの組が送る箱の束に載っていません';
   return null;
+}
+
+function realpathOrNull(file) {
+  try {
+    return realpathSync(file);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * メインのチェックアウトの根を求める。リンクされたワークツリーでは `.git` がファイルで、
+ * `gitdir: <main>/.git/worktrees/<name>` を指す
+ */
+export function mainCheckoutOf(projectDir) {
+  try {
+    const gitPath = path.join(projectDir, '.git');
+    if (statSync(gitPath).isDirectory()) return projectDir;
+    const match = /^gitdir:\s*(.+)$/m.exec(readFileSync(gitPath, 'utf-8'));
+    if (!match) return projectDir;
+    const gitdir = path.resolve(projectDir, match[1].trim());
+    const worktrees = path.dirname(gitdir);
+    if (path.basename(worktrees) !== 'worktrees') return projectDir;
+    return path.dirname(path.dirname(worktrees));
+  } catch {
+    return projectDir;
+  }
+}
+
+/** メインのチェックアウトの送る箱を読む。無ければ null */
+export function readOutbox(mainRoot) {
+  const outboxDir = path.join(mainRoot, OUTBOX_DIR);
+  const docsDir = realpathOrNull(path.join(outboxDir, 'docs'));
+  if (docsDir === null) return null;
+  const entries = new Set();
+  for (const name of readdirSync(outboxDir)) {
+    if (!/^\d{6}\.json$/.test(name)) continue;
+    try {
+      const batch = JSON.parse(readFileSync(path.join(outboxDir, name), 'utf-8'));
+      for (const write of batch.writes ?? []) {
+        entries.add(`${write.collection}|${write.physicalId}|${write.file}`);
+      }
+    } catch {
+      // 読めない束は載っていないものとして扱う
+    }
+  }
+  return { docsDir, entries };
 }
 
 function main() {
@@ -116,7 +167,7 @@ function main() {
     return 0;
   }
 
-  const reason = decide(input, storeUrlOf(configYaml));
+  const reason = decide(input, storeUrlOf(configYaml), readOutbox(mainCheckoutOf(projectDir)));
   if (reason === null) return 0;
   process.stderr.write(`${reason}\n`);
   return 2;

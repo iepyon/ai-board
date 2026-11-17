@@ -42,6 +42,8 @@ export class ArtifactMirrorStore implements DocumentStore {
   readonly outboxDir: string;
   private readonly lockPath: string;
   private index: MirrorIndex | null = null;
+  /** 写しの中の読めない改訂のファイル（`loadIndex` が埋める） */
+  private corrupt: string[] = [];
   /** `transact` の中で作った改訂（論理 ID ごとの物理 ID）。null なら transact の外 */
   private written: Map<string, WrittenRevision> | null = null;
 
@@ -54,16 +56,30 @@ export class ArtifactMirrorStore implements DocumentStore {
     this.lockPath = path.join(storeDir, LOCK_FILE);
   }
 
+  /**
+   * 写しがあり、形の版が合い、どの改訂のファイルも読めるか。
+   * 読めない改訂（書きかけで壊れたなど）があれば、取り込み直すまで読み書きしない
+   * （古い改訂を読んで書くと、送るときに原因の分からないぶつかりになるため）
+   */
   check(): Result<void, StoreError> {
     if (!fs.existsSync(this.mirrorDir)) {
       return err({ type: 'StoreNotPulled', mirrorDir: this.mirrorDir });
+    }
+    this.loadIndex();
+    const corrupt = this.corrupt[0];
+    if (corrupt !== undefined) {
+      return err({
+        type: 'StoreInvalidDocument',
+        path: corrupt,
+        reason: '写しの改訂が JSON のオブジェクトとして読めません。取り込み直してください',
+      });
     }
     return checkMeta(this);
   }
 
   get(collection: Collection, id: string): DocumentData | null {
     const entry = this.loadIndex().get(collection)?.get(id);
-    if (entry === undefined || isDeleted(entry.data)) return null;
+    if (entry === undefined || entry.data === null || isDeleted(entry.data)) return null;
     return entry.data;
   }
 
@@ -71,9 +87,10 @@ export class ArtifactMirrorStore implements DocumentStore {
     const table = this.loadIndex().get(collection);
     if (table === undefined) return [];
     return [...table.entries()]
-      .filter(([, entry]) => !isDeleted(entry.data))
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-      .map(([id, entry]) => ({ id, data: entry.data }));
+      .flatMap(([id, entry]) =>
+        entry.data === null || isDeleted(entry.data) ? [] : [{ id, data: entry.data }]
+      )
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   }
 
   set(collection: Collection, id: string, data: DocumentData): void {
@@ -174,9 +191,10 @@ export class ArtifactMirrorStore implements DocumentStore {
    */
   outbox(): readonly OutboxBatch[] {
     const batches: OutboxBatch[] = [];
-    for (const batch of this.readBatches()) {
+    for (const [seq, batch] of this.readBatchesWithSeq()) {
       for (let i = 0; i < batch.writes.length; i += BATCH_LIMIT) {
         batches.push({
+          seq,
           label: batch.label,
           writes: batch.writes.slice(i, i + BATCH_LIMIT).map((write) => ({
             op: 'set',
@@ -190,11 +208,25 @@ export class ArtifactMirrorStore implements DocumentStore {
     return batches;
   }
 
-  /** 送り終えた送る箱を空にする。写しはそのまま（続けて取り込み直す） */
-  ack(): number {
-    const count = this.readBatches().length;
-    fs.rmSync(this.outboxDir, { recursive: true, force: true });
-    return count;
+  /**
+   * 送り終えた束を送る箱から消す。消すのは連番が `through` 以下の束だけで、`outbox` を読んだ後に
+   * ほかのプロセスが積んだ束は残す。写しはそのまま
+   */
+  async ack(through: string): Promise<Result<number, StoreError>> {
+    const locked = await withFileLock(this.lockPath, this.lockOptions, () => {
+      let count = 0;
+      for (const [seq, batch] of this.readBatchesWithSeq()) {
+        if (seq > through) continue;
+        for (const write of batch.writes) {
+          fs.rmSync(path.join(this.outboxDir, DOCS_DIR, write.file), { force: true });
+        }
+        fs.rmSync(path.join(this.outboxDir, `${seq}.json`), { force: true });
+        count += 1;
+      }
+      return Promise.resolve(count);
+    });
+    if (isErr(locked)) return err({ type: 'StoreLockTimeout', lockPath: locked.error.lockPath });
+    return ok(locked.value);
   }
 
   /** 送る箱を捨て、写しに足した改訂を消して、積む前に戻す（改訂がぶつかったとき） */
@@ -224,6 +256,7 @@ export class ArtifactMirrorStore implements DocumentStore {
     const table = this.table(collection);
     let revision = this.written.get(key);
     if (revision === undefined) {
+      // 読めない改訂も連番に数える（同じ名前のファイルを上書きしない）
       const next = (table.get(id)?.rev ?? 0) + 1;
       revision = { collection, id, physicalId: physicalId(id, next), rev: next };
       this.written.set(key, revision);
@@ -275,9 +308,14 @@ export class ArtifactMirrorStore implements DocumentStore {
   }
 
   private readBatches(): StoredBatch[] {
-    return this.batchFiles().map(
-      (name) => JSON.parse(fs.readFileSync(path.join(this.outboxDir, name), 'utf-8')) as StoredBatch
-    );
+    return this.readBatchesWithSeq().map(([, batch]) => batch);
+  }
+
+  private readBatchesWithSeq(): [string, StoredBatch][] {
+    return this.batchFiles().map((name) => [
+      name.slice(0, -'.json'.length),
+      JSON.parse(fs.readFileSync(path.join(this.outboxDir, name), 'utf-8')) as StoredBatch,
+    ]);
   }
 
   private table(collection: Collection): Map<string, IndexEntry> {
@@ -290,31 +328,39 @@ export class ArtifactMirrorStore implements DocumentStore {
     return table;
   }
 
+  /**
+   * 写しを読み、論理 ID ごとに最新の改訂を選ぶ。読めない改訂も連番には数え、`corrupt` に控える
+   * （最新が読めなければ、その文書は無いものとして読み、`check` が取り込み直しを促す）
+   */
   private loadIndex(): MirrorIndex {
     if (this.index !== null) return this.index;
     const index: MirrorIndex = new Map();
+    const corrupt: string[] = [];
     for (const collection of COLLECTIONS) {
       const dir = path.join(this.mirrorDir, collection);
       if (!fs.existsSync(dir)) continue;
       const table = new Map<string, IndexEntry>();
-      for (const name of fs.readdirSync(dir)) {
+      for (const name of fs.readdirSync(dir).sort()) {
         const parsed = parsePhysicalFile(name);
         if (parsed === null) continue;
+        const data = readJsonObject(path.join(dir, name));
+        if (data === null) corrupt.push(path.join(dir, name));
         const current = table.get(parsed.id);
         if (current !== undefined && current.rev >= parsed.rev) continue;
-        const data = readJsonObject(path.join(dir, name));
-        if (data === null) continue;
         table.set(parsed.id, { rev: parsed.rev, data });
       }
       index.set(collection, table);
     }
     this.index = index;
+    this.corrupt = corrupt;
     return index;
   }
 }
 
 /** `outbox --json` の 1 つの束。`writes` は `ArtifactData` の `batch` の `writes` にそのまま渡せる */
 export interface OutboxBatch {
+  /** 束の連番。送り終えたら `ack --through <連番>` に渡す（50 件で分けた束は同じ連番を持つ） */
+  readonly seq: string;
   readonly label: string;
   readonly writes: readonly {
     readonly op: 'set';
@@ -336,7 +382,8 @@ const DELETED: DocumentData = { __deleted: true };
 
 interface IndexEntry {
   readonly rev: number;
-  readonly data: DocumentData;
+  /** 最新の改訂が読めなければ null */
+  readonly data: DocumentData | null;
 }
 type MirrorIndex = Map<Collection, Map<string, IndexEntry>>;
 

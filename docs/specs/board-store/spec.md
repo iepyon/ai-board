@@ -42,7 +42,7 @@ git のブランチに正本を置いては SHALL NOT。
 書く前の検査（判断を書けるか、ゲートの状態など）は、写しの最新のカードに対して行わなければならない (MUST)。
 `ai-board store outbox --json` は、積んだ書き込みを `ArtifactData` の `batch` の `writes` にそのまま渡せる形（1 回 50 件まで）で出さなければならない (MUST)。
 書き込みには `if_version` を付けない。既にある改訂と同じ ID を作る書き込みを含む束は、置き場所が丸ごと拒むので、それを書き込みのぶつかりとして扱わなければならない (MUST)。
-`ai-board store ack` は送る箱を空にし、`ai-board store discard` は送る箱を捨てて写しを積む前に戻さなければならない (MUST)。
+`ai-board store ack --through <連番>` は送り終えた束（連番がそれ以下のもの）だけを送る箱から消し、`outbox` を読んだ後にほかのプロセスが積んだ束を残さなければならない (MUST)。`ai-board store discard` は送る箱を捨てて写しを積む前に戻さなければならない (MUST)。
 
 #### Scenario: 提出を積む
 

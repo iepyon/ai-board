@@ -115,7 +115,7 @@ async function prepare(
 ): Promise<void> {
   const result = await deps.store.transact('テストの準備', () => op(deps.cards));
   if (isErr(result)) throw new Error(`準備に失敗しました: ${JSON.stringify(result.error)}`);
-  deps.store.ack();
+  await deps.store.ack('999999');
 }
 
 /**

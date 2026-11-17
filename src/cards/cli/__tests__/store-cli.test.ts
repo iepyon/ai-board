@@ -171,6 +171,7 @@ describe('runStoreCli', () => {
       const parsed = JSON.parse(stdout) as { batches: { label: string; writes: unknown[] }[] };
       expect(parsed.batches).toEqual([
         {
+          seq: '000001',
           label: 'a を作る',
           writes: [
             {
@@ -197,18 +198,36 @@ describe('runStoreCli', () => {
       expect(stdout).toBe('a を作る（1 件）\n');
     });
 
-    it('ack は送る箱を空にし、写しはそのまま残す', async () => {
+    it('ack --through は送り終えた束だけを消し、後から積んだ束と写しは残す', async () => {
+      await pullMeta();
+      await store.transact('a を作る', () => {
+        store.set('cards', 'a', { title: 'A' });
+        return Promise.resolve(ok(undefined));
+      });
+      // outbox を読んで送っている間に、ほかのプロセスが積んだ束
+      await store.transact('b を作る', () => {
+        store.set('cards', 'b', { title: 'B' });
+        return Promise.resolve(ok(undefined));
+      });
+
+      expect(await run(['ack', '--through', '000001'])).toBe(0);
+
+      expect(stdout).toContain('送り終えた 1 束を送る箱から消しました（残り 1 束）');
+      expect(store.outbox().map((batch) => batch.label)).toEqual(['b を作る']);
+      expect(store.get('cards', 'a')).toEqual({ title: 'A' });
+    });
+
+    it('ack は --through が無い・連番の形でなければ拒み、送る箱を変えない', async () => {
       await pullMeta();
       await store.transact('a を作る', () => {
         store.set('cards', 'a', { title: 'A' });
         return Promise.resolve(ok(undefined));
       });
 
-      expect(await run(['ack'])).toBe(0);
-
-      expect(stdout).toContain('送る箱を空にしました（1 束）');
-      expect(store.pendingWrites()).toBe(0);
-      expect(store.get('cards', 'a')).toEqual({ title: 'A' });
+      expect(await run(['ack'])).toBe(1);
+      expect(await run(['ack', '--through', '1'])).toBe(1);
+      expect(stderr).toContain('--through');
+      expect(store.pendingWrites()).toBe(1);
     });
 
     it('discard は送る箱を捨て、写しを積む前に戻す', async () => {
@@ -271,7 +290,7 @@ describe('runStoreCli', () => {
         store.set('cards', 'x', { title: 'X' });
         return Promise.resolve(ok(undefined));
       });
-      store.ack();
+      await store.ack('999999');
       importResult = ok(docs);
 
       expect(await run(['import', '--from', '/clone'])).toBe(1);
