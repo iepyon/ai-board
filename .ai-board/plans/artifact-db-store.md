@@ -420,3 +420,23 @@ AI エージェントが使う CLI に、宣言を書く手段を設けては SH
   - → 回答（2026-11-17、plan 承認）: 理由なしで承認（既定のまま進む）
 - **最初の seed のカードを何枚置くか。** 既定: README のチュートリアルの題材 `status-stage-counts` の 1 枚だけ
   - → 回答（2026-11-17、plan 差し戻し）: 最初のタスクの seed は、main ブランチのファイルに置く。
+
+## AI レビュー
+
+- [ ] `src/infrastructure/artifact-mirror-store.ts:194` の `ack()` はロックを取らずに `outbox/` を丸ごと消すので、`store outbox --json` を読んだ後に別のプロセス（同じ `.ai-board/store/` を見る別のワークツリーのループなど）が積んだ束も消え、写しにだけ残って DB に届かないまま次の `pull` で消える。`outbox --json` に束の連番を出し、`ack` は送った連番まで（例: `ack --through <連番>`）をロックの中で消すようにし、`board-store` の SKILL.md の手順 2 とテスト（後から積んだ束が残る）を合わせて直す
+- [ ] `scripts/artifact-data-guard.mjs:94` の `problemOf` は `file_path` に `.ai-board/store/outbox/docs/` を含むかだけを見るので、`/tmp/x/.ai-board/store/outbox/docs/a.json` のような送る箱の外のファイルや、Bash で送る箱に置いたファイル（deny は `Edit` だけ）を指す `batch` で、CLI を通さない判断の文書を DB に書けてしまう。`file_path` を実体のパスに直し、メインのチェックアウトの `.ai-board/store/outbox/docs/` の下にあることと、その `collection`・`doc_id`・ファイルの組が `outbox/<連番>.json` のどれかの束に載っていることを確かめ、`src/__tests__/artifact-data-guard.test.ts` に外のパスと束に無い組を拒むテストを足す
+- [ ] `src/infrastructure/artifact-mirror-store.ts:305` の `loadIndex` は読めない改訂のファイルを黙って飛ばすので、書きかけで壊れた `cards/x~000003.json` があると古い `~000002` を読み、次の書き込みが同じ `~000003` を作ってファイルを上書きし（`rollback` なら消し）、送るときに原因の分からないぶつかりになる。読めない改訂も連番の最大には数えたうえで、`check()` が `StoreInvalidDocument` を返して取り込み直しを促すようにし、テストを足す
+- [ ] `src/cards/cli/store-cli.ts:226` の `runImport` は `copyDocuments` を使わず同じ書き込みの繰り返しをその場で書いており、計画の Decisions「置き場所の間で文書を写す処理（`copyDocuments(from, to)`）を口の上に置く。今は `import` が使い」と食い違う（`src/infrastructure/document-store.ts:139` の `copyDocuments` は今テストからしか呼ばれない）。`copyDocuments` に「写し先にカードがあれば拒む」を渡せる形にして `runImport` から使う
+- [ ] `.claude/skills/board-store/SKILL.md:16` の「2 つの端末が同時に同じカードを書いても片方だけが通る」は、判断・提出・着手（`log` の文書。毎回新しい論理 ID）には当たらず、2 つの端末の承認と差し戻しは両方とも届く。計画の仮定と Risks の「新しい文書の追記（判断）は止まらない」に合わせ、ぶつかるのはカード本文・並び順など同じ論理 ID の改訂だけだと書き直す
+- [ ] `.claude/skills/board-store/SKILL.md:73` の「改訂がぶつかったとき」は、送る箱に複数のコマンドの束があって途中の束で拒まれたとき、前の束は既に DB に届いていることを書いていないので、届いた束のコマンドまで走らせ直しうる（`store import` については 76 行目に書いてある）。拒まれた束の `label` から、その束と後ろの束を作ったコマンドだけを走らせ直す、と書き足す
+
+### 見送った指摘
+
+- `src/infrastructure/file-lock.ts:79` の死んだロックの取り直しは、2 つの待ち手が同時に死んだ持ち主を見ると互いのロックを消しうる。`data-store.ts` のロックをそのまま移したもので、この PR の目的の外なので見送る
+- `src/cards/repositories/doc-card.repository.ts:177` の `logsOf` は 1 枚のカードの判断を得るために全カードの `log` を読み直す。振る舞いは正しく、件数の少ない今は速さの問題にならないので見送る
+- `.claude/settings.json` に、消した `ai-board init` の `ask` の規則と `.ai-board/data/**` の `Edit` の deny が残っている。どちらも害が無く、データ用ブランチを人が消すまでの守りにもなるので見送る
+- `.ai-board/config.yaml` を git に載せたので、追跡していない `config.yaml` を持つ既存の clone は `git pull` で止まる。1 回限りの移行で、git がそのファイルを名指しして止めるので見送る
+
+### 人に判断してほしいこと
+
+- 判断・提出・着手は毎回新しい論理 ID の `log` の文書なので、古い写しを土台にした 2 つの端末の承認と差し戻しが両方 DB に届き、データ用ブランチの「push が拒まれたら取り直して検査し直す」の守りが判断には効かない（`src/board/usecases/commands/decide.command.ts:118`）。計画の仮定と Risks はこれを受け入れているが、判断のたびにカードの文書の改訂も 1 つ作って同時の判断をぶつからせるか、今のまま受け入れるかは人が決める
