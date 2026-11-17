@@ -1,9 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { CliRunner } from '../../infrastructure/cli-runner.js';
-import { createFileCardDependencies } from '../../cards/composition.js';
+import { createCardDependencies } from '../../cards/composition.js';
+import { initialDocuments, MemoryDocumentStore } from '../../infrastructure/document-store.js';
 import { ok, err } from '../../shared/result.js';
 import type { ForgeConfig } from '../../infrastructure/config.js';
 import { PrFetcher } from '../../infrastructure/pr-fetcher.js';
@@ -17,15 +15,20 @@ import type { CardId, PullRequestNumber } from '../../shared/schemas/common.js';
 // レビュー要求の状態の供給元
 // ============================================================
 
-let dataDir: string;
+let store: MemoryDocumentStore;
 
 beforeEach(() => {
-  dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-board-composition-'));
+  store = new MemoryDocumentStore(initialDocuments());
 });
 
-afterEach(() => {
-  fs.rmSync(dataDir, { recursive: true, force: true });
-});
+/** カードを置き場所に書く（書き込みは transact の中で行う） */
+async function createCards(...cards: Card[]): Promise<void> {
+  const { cardRepository } = createCardDependencies(store);
+  await store.transact('test', async () => {
+    for (const card of cards) await cardRepository.create(card);
+    return ok(undefined);
+  });
+}
 
 /** 控えを持たないリポジトリ。ここでは供給元の組み立てだけを確かめる */
 const noSnapshots: PrSnapshotRepository = {
@@ -51,7 +54,7 @@ function authRunner(loggedIn: boolean): CliRunner {
 
 describe('createPrStateSource', () => {
   it('取得先が未設定なら、問い合わせずに disabled を返す', async () => {
-    const { cardRepository } = createFileCardDependencies(dataDir);
+    const { cardRepository } = createCardDependencies(store);
     const source = await createPrStateSource(null, cardRepository, noSnapshots, authRunner(true));
 
     expect(source.fetcher).toBeNull();
@@ -59,7 +62,7 @@ describe('createPrStateSource', () => {
   });
 
   it('gh が使えなければ、理由付きの disabled を返す', async () => {
-    const { cardRepository } = createFileCardDependencies(dataDir);
+    const { cardRepository } = createCardDependencies(store);
     const source = await createPrStateSource(forge, cardRepository, noSnapshots, authRunner(false));
 
     expect(source.fetcher).toBeNull();
@@ -68,7 +71,7 @@ describe('createPrStateSource', () => {
   });
 
   it('gh が使えれば、`PrFetcher` を供給元にする', async () => {
-    const { cardRepository } = createFileCardDependencies(dataDir);
+    const { cardRepository } = createCardDependencies(store);
     const source = await createPrStateSource(forge, cardRepository, noSnapshots, authRunner(true));
 
     expect(source.fetcher).toBeInstanceOf(PrFetcher);
@@ -119,9 +122,8 @@ describe('createPrStateSource', () => {
     }
 
     it('マージ済みの控えのうち、カードの PR 番号と合うものだけを返す', async () => {
-      const { cardRepository } = createFileCardDependencies(dataDir);
-      await cardRepository.create(card('done', 7));
-      await cardRepository.create(card('renumbered', 9));
+      const { cardRepository } = createCardDependencies(store);
+      await createCards(card('done', 7), card('renumbered', 9));
       const repository = snapshots(() =>
         Promise.resolve(
           new Map([
@@ -146,8 +148,8 @@ describe('createPrStateSource', () => {
 
     it('控えを読めなければ、警告してすべて null にする', async () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-      const { cardRepository } = createFileCardDependencies(dataDir);
-      await cardRepository.create(card('done', 7));
+      const { cardRepository } = createCardDependencies(store);
+      await createCards(card('done', 7));
       const repository = snapshots(() => Promise.reject(new Error('壊れた')));
 
       const source = await createPrStateSource(

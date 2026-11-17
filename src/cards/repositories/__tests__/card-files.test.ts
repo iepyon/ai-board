@@ -399,7 +399,7 @@ describe('planCardWrite', () => {
     // 組み立てた Card をそのまま保存し直しても、何も書かない
     expect(planCardWrite(stored, assembled, NOW)).toEqual({
       ok: true,
-      value: { cardMd: null, logFiles: [], rankChanged: false },
+      value: { cardMd: null, cardDocument: null, logFiles: [], rankChanged: false },
     });
   });
 
@@ -514,7 +514,10 @@ describe('planCardWrite', () => {
     expect(branch.ok && branch.value.cardMd).toContain('branch: feature');
 
     const rank = planCardWrite(stored, { ...card, rank: 500 }, NOW);
-    expect(rank).toEqual({ ok: true, value: { cardMd: null, logFiles: [], rankChanged: true } });
+    expect(rank).toEqual({
+      ok: true,
+      value: { cardMd: null, cardDocument: null, logFiles: [], rankChanged: true },
+    });
   });
 
   describe('着手', () => {

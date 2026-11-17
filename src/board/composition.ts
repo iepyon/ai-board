@@ -1,5 +1,5 @@
 import type { CardRepository } from '../cards/repositories/card.repository.js';
-import { createFileCardDependencies, createTransactionalPrWriter } from '../cards/composition.js';
+import { createCardDependencies, createTransactionalPrWriter } from '../cards/composition.js';
 import type { IdeaDividerRepository } from '../cards/repositories/idea-divider.repository.js';
 import { loadConfig, type ForgeConfig } from '../infrastructure/config.js';
 import type { CliRunner } from '../infrastructure/cli-runner.js';
@@ -9,13 +9,17 @@ import { GhForgeClient } from './services/github-client.js';
 import { FsPlanRepository, type PlanRepository } from './repositories/plan.repository.js';
 import type { PrSnapshotRepository } from './repositories/pr-snapshot.repository.js';
 import type { PrState } from './models/pr-state.js';
-import { FilePrSnapshotRepository } from './repositories/file-pr-snapshot.repository.js';
+import {
+  DocPrSnapshotRepository,
+  PR_SNAPSHOT_CACHE_FILE,
+} from './repositories/doc-pr-snapshot.repository.js';
 import {
   emptyBranchPlanRepository,
   GitBranchPlanRepository,
   type BranchPlanRepository,
 } from './repositories/branch-plan.repository.js';
-import type { DataStore } from '../infrastructure/data-store.js';
+import type { DocumentStore } from '../infrastructure/document-store.js';
+import * as path from 'node:path';
 import {
   disabledPrStateProvider,
   matchMergedSnapshots,
@@ -26,7 +30,7 @@ import { createGetBoardQuery, type GetBoardQuery } from './usecases/queries/get-
 import { createGetStatusQuery, type GetStatusQuery } from './usecases/queries/get-status.query.js';
 import { createDecideCommands, type DecideCommands } from './usecases/commands/decide.command.js';
 import {
-  createFileLoopHistoryRepository,
+  createDocLoopHistoryRepository,
   type LoopHistoryRepository,
 } from './repositories/loop-history.repository.js';
 
@@ -67,9 +71,9 @@ export function createBoardDependencies(
   };
 }
 
-/** データのワークツリーの `loop/` から 1 手の記録を読む */
-export function createLoopHistoryRepository(dataDir: string): LoopHistoryRepository {
-  return createFileLoopHistoryRepository(dataDir);
+/** 置き場所の `loop` から 1 手の記録を読む */
+export function createLoopHistoryRepository(store: DocumentStore): LoopHistoryRepository {
+  return createDocLoopHistoryRepository(store);
 }
 
 export function createForgeClient(forge: ForgeConfig, runner: CliRunner): ForgeClient {
@@ -82,9 +86,12 @@ export interface PrStateSource {
   readonly fetcher: PrFetcher | null;
 }
 
-/** マージ済みの控えはデータ用ブランチに、それ以外は `<dataDir の親>/cache/` に置く */
-export function createFilePrSnapshotRepository(store: DataStore): PrSnapshotRepository {
-  return new FilePrSnapshotRepository(store);
+/** マージ済みの控えは置き場所に、それ以外は `<storeDir>/cache/` に置く */
+export function createPrSnapshotRepository(
+  store: DocumentStore,
+  storeDir: string
+): PrSnapshotRepository {
+  return new DocPrSnapshotRepository(store, path.join(storeDir, PR_SNAPSHOT_CACHE_FILE));
 }
 
 /**
@@ -104,7 +111,7 @@ export function createBranchPlanRepository(
  * CLI の有無とログイン状態はここで 1 度だけ確かめる。
  * 1 分ごとに確認するほど頻繁に変わるものではない。
  *
- * 届かない（CLI が無い・未ログイン・ネットワークが無い）ときは、データ用ブランチのマージ済みの控えのうち、
+ * 届かない（CLI が無い・未ログイン・ネットワークが無い）ときは、置き場所のマージ済みの控えのうち、
  * カードの PR 番号と合うものだけを供給元に渡す。マージ前の控え（`cache/`）は古いことがあるので使わない。
  */
 export async function createPrStateSource(
@@ -164,24 +171,24 @@ export interface AssembledBoard {
 }
 
 /**
- * `status` と `decide` が使うボードの組み立て。データ用ブランチは呼び出し側が取り直しておく。
+ * `status` と `decide` が使うボードの組み立て。置き場所の写しは呼び出し側が確かめておく（`check`）。
  *
  * PR の状態は`refresh()` を 1 回だけ待ってから読む。
  * `branch` から解決した PR 番号の書き戻しも、この `refresh()` の中で起きる。
  */
 export async function assembleBoard(
   root: string,
-  store: DataStore,
+  store: DocumentStore,
   runner: CliRunner
 ): Promise<AssembledBoard> {
   const config = loadConfig(root);
-  const cards = createFileCardDependencies(store.dataDir);
+  const cards = createCardDependencies(store);
   const { provider, fetcher } = await createPrStateSource(
     config.forge,
     cards.cardRepository,
-    createFilePrSnapshotRepository(store),
+    createPrSnapshotRepository(store, config.paths.storeDir),
     runner,
-    // ブランチから解決した PR 番号は、コミットして push する。ファイルに書くだけでは次の取り直しで捨てられる
+    // ブランチから解決した PR 番号は、書き込みの 1 操作として送る箱に積む
     { writePr: createTransactionalPrWriter(store) }
   );
   await fetcher?.refresh();
@@ -192,7 +199,7 @@ export async function assembleBoard(
     cards.cardRepository,
     cards.ideaDividerRepository,
     provider,
-    createLoopHistoryRepository(store.dataDir),
+    createLoopHistoryRepository(store),
     branchPlans
   );
 

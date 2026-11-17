@@ -55,6 +55,23 @@ function pulledStore(): ArtifactMirrorStore {
 describeDocumentStoreContract('Artifact の DB（写しと送る箱）', pulledStore);
 
 describe('ArtifactMirrorStore', () => {
+  it('写しが無い・形の版が違うときは transact が書かない（init だけは transactUnchecked で書ける）', async () => {
+    const store = new ArtifactMirrorStore(path.join(tempDir(), 'store'));
+    const refused = await store.transact('書く', () => {
+      store.set('cards', 'a', { title: 'A' });
+      return Promise.resolve(ok(undefined));
+    });
+    expect(refused).toEqual(err({ type: 'StoreNotPulled', mirrorDir: store.mirrorDir }));
+    expect(store.pendingWrites()).toBe(0);
+
+    const init = await store.transactUnchecked('始める', () => {
+      store.set('board', 'meta', { version: STORE_VERSION });
+      return Promise.resolve(ok(undefined));
+    });
+    expect(init).toEqual(ok(undefined));
+    expect(store.check()).toEqual(ok(undefined));
+  });
+
   it('写しが無ければ check が取り込みを促す', () => {
     const store = new ArtifactMirrorStore(path.join(tempDir(), 'store'));
     expect(store.check()).toEqual(err({ type: 'StoreNotPulled', mirrorDir: store.mirrorDir }));

@@ -366,29 +366,27 @@ AI エージェントが使う CLI に、宣言を書く手段を設けては SH
 
 ### 2. リポジトリを文書の上に置き換える
 
-- [ ] `card-files.ts` を文書の値の純関数に直す（`assembleCard`・判断の文書の ID・`order` の形）
-- [ ] `DocCardRepository`・`DocIdeaDividerRepository` を置き、`FileCardRepository`・`FileIdeaDividerRepository` を消す
-- [ ] PR の控えとループの記録のリポジトリを文書の上に置き換える（開いている PR の控えは `.ai-board/store/cache/`）
-- [ ] リポジトリのテストを `MemoryDocumentStore` で書き直す
+- [x] `card-files.ts` を文書の値の純関数に直す（`assembleCard`・判断の文書の ID・`order` の形）
+- [x] `DocCardRepository`・`DocIdeaDividerRepository` を置き、`FileCardRepository`・`FileIdeaDividerRepository` を消す
+- [x] PR の控えとループの記録のリポジトリを文書の上に置き換える（開いている PR の控えは `.ai-board/store/cache/`）
+- [x] リポジトリのテストを `MemoryDocumentStore` で書き直す
 
-### 3. CLI を新しい置き場所で組む
+- [x] `config.ts` に `store.url` を足し、`AI_BOARD_STORE` で置き場所を指せるようにする。`DATA_ENV`・`DATA_MODE_FILE`・`readDataMode` を消す
+- [x] `src/cards/composition.ts`・`src/board/composition.ts`・`transact-card-write.ts`・`createTransactionalPrWriter` を `DocumentStore` で組む
+- [x] `src/cli-main.ts` の `card` / `decide` / `loop` / `status` / `pr` を新しい置き場所で組み、写しが無い・置き場所が未設定のときの 1 行を出す
+- [x] `src/cards/cli/store-cli.ts` に `pull` / `outbox` / `ack` / `discard` / `init` / `seed` / `import` を置き、`run*Cli` のテストを書く
+- [x] `init-cli.ts`・`data-store.ts`・データ用ブランチ向けの `data-store-messages.ts` とそれぞれのテストを消す
+- [x] 仕様の差分を `docs/specs/board-store/spec.md` に写す
+- [x] 仕様の差分を `docs/specs/loop-activity/spec.md` に写す
+- [x] 仕様の差分を `docs/specs/card-gate-skip/spec.md` に写す
 
-- [ ] `config.ts` に `store.url` を足し、`AI_BOARD_STORE` で置き場所を指せるようにする。`DATA_ENV`・`DATA_MODE_FILE`・`readDataMode` を消す
-- [ ] `src/cards/composition.ts`・`src/board/composition.ts`・`transact-card-write.ts`・`createTransactionalPrWriter` を `DocumentStore` で組む
-- [ ] `src/cli-main.ts` の `card` / `decide` / `loop` / `status` / `pr` を新しい置き場所で組み、写しが無い・置き場所が未設定のときの 1 行を出す
-- [ ] `src/cards/cli/store-cli.ts` に `pull` / `outbox` / `ack` / `discard` / `init` / `seed` / `import` を置き、`run*Cli` のテストを書く
-- [ ] `init-cli.ts`・`data-store.ts`・データ用ブランチ向けの `data-store-messages.ts` とそれぞれのテストを消す
-- [ ] 仕様の差分を `docs/specs/board-store/spec.md` に写す
-- [ ] 仕様の差分を `docs/specs/loop-activity/spec.md` に写す
-- [ ] 仕様の差分を `docs/specs/card-gate-skip/spec.md` に写す
-
-### 4. 設定・seed・書き込みの守り
+### 3. 設定・seed・書き込みの守り
 
 - [ ] `.ai-board/config.yaml`（`github.repository` と `store.url` の空欄）を git に載せ、`config.example.yaml` を消し、`.gitignore` に `.ai-board/store/` を足す
 - [ ] `.ai-board/seed/status-stage-counts.md` を置く
 - [ ] `scripts/artifact-data-guard.mjs` と `.claude/settings.json` の hook を置き、データ用ブランチの deny を消して `.ai-board/store/` の deny を足す。`src/__tests__/claude-settings.test.ts` を直し、hook のスクリプトのテストを足す
 
-### 5. 手順書とドキュメント
+### 4. 手順書とドキュメント
 
 - [ ] `.claude/skills/board-store/SKILL.md`（取り込み・送り出し・食い違い・最初の用意）を書く
 - [ ] `board-loop`（`rules.md` の「カードの読み書き」と「動かして確かめるとき」、`SKILL.md` の手順 1）・`board-decide`・`board-view`（`store.url` に `db` 付きで出し直す）を直す

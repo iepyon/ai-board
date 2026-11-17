@@ -11,6 +11,8 @@ import {
   type DocumentStore,
   type StoredDocument,
   type StoreError,
+  type TransactLabel,
+  labelOf,
 } from './document-store.js';
 import { defaultLockOptions, withFileLock, type LockOptions } from './file-lock.js';
 
@@ -91,8 +93,22 @@ export class ArtifactMirrorStore implements DocumentStore {
     return this.readBatches().length;
   }
 
+  /** 写しが無い・形の版が違うときは、`op` を走らせずに Err を返す（古い CLI や取り込み忘れで書かない） */
   async transact<T, E>(
-    label: string,
+    label: TransactLabel<T>,
+    op: () => Promise<Result<T, E>>
+  ): Promise<Result<T, E | StoreError>> {
+    const checked = this.check();
+    if (isErr(checked)) return checked;
+    return this.transactUnchecked(label, op);
+  }
+
+  /**
+   * 写しを確かめずに書く。空の置き場所を始める `ai-board store init` だけが使う
+   * （`board/meta` を書く前なので `check` が通らない）
+   */
+  async transactUnchecked<T, E>(
+    label: TransactLabel<T>,
     op: () => Promise<Result<T, E>>
   ): Promise<Result<T, E | StoreError>> {
     const locked = await withFileLock(this.lockPath, this.lockOptions, async () => {
@@ -103,7 +119,7 @@ export class ArtifactMirrorStore implements DocumentStore {
       try {
         const result = await op();
         if (result.ok) {
-          this.enqueue(label, [...this.written.values()]);
+          this.enqueue(labelOf(label, result.value), [...this.written.values()]);
           succeeded = true;
         }
         return result;

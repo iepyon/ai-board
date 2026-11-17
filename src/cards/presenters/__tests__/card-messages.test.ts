@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createCardId } from '../../../shared/schemas/common.js';
-import { describeDataStoreError } from '../../../infrastructure/data-store-messages.js';
+import { describeStoreError } from '../../../infrastructure/store-messages.js';
 import type { CardUsecaseError } from '../../errors/card-errors.js';
 import { describeCardError } from '../card-messages.js';
 
@@ -36,9 +36,9 @@ describe('describeCardError', () => {
       '--after（a1）と --before（a2）の並びが今の表と逆です。status で並びを読み直してください',
     ],
     [
-      'ファイルへの書き込みの拒否',
+      '書き込みの拒否',
       { type: 'CardWriteRefused', reason: '判断が増える' },
-      'カードのファイルへの書き込みを拒みました（判断が増える）',
+      'カードの書き込みを拒みました（判断が増える）',
     ],
     [
       '## レビュー が変わる差し替え',
@@ -49,9 +49,12 @@ describe('describeCardError', () => {
     expect(describeCardError(error)).toBe(expected);
   });
 
-  it('データ用ブランチの失敗は describeDataStoreError と同じ文にする', () => {
-    const error = { type: 'DataStoreLockTimeout', lockPath: '/repo/.ai-board/data.lock' } as const;
+  it('置き場所の失敗は describeStoreError と同じ文にする', () => {
+    const error = {
+      type: 'StoreLockTimeout',
+      lockPath: '/repo/.ai-board/store/store.lock',
+    } as const;
 
-    expect(describeCardError(error)).toBe(describeDataStoreError(error));
+    expect(describeCardError(error)).toBe(describeStoreError(error));
   });
 });

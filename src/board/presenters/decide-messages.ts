@@ -81,7 +81,7 @@ export function describeDecideError(error: DecideError): string {
     case 'BoardUnreadable':
       return `ボードを読めませんでした: ${error.reason}`;
     default:
-      // 残りはカードの usecase のエラー（CardNotFound・StaleOrder・CardWriteRefused）と DataStoreError
+      // 残りはカードの usecase のエラー（CardNotFound・StaleOrder・CardWriteRefused）と StoreError
       return describeCardError(error);
   }
 }

@@ -1,4 +1,4 @@
-import type { DataStoreError } from '../../infrastructure/data-store.js';
+import type { StoreError } from '../../infrastructure/document-store.js';
 import type { GateState, ReviewGate } from '../models/review.js';
 
 // ============================================================
@@ -56,12 +56,12 @@ export type HoldGateNotRejected = {
 };
 
 /**
- * データ用ブランチへの書き込みの 1 操作（`DataStore.transact`）が失敗した。
+ * 置き場所への書き込みの 1 操作（`DocumentStore.transact`）が失敗した。
  *
- * push の失敗（`DataStorePushFailed`）、取り直しの失敗、ロック待ちの上限などを含む。
+ * ロック待ちの上限、写しが無い・形の版が違う、などを含む。
  * カードの usecase 自身は返さず、usecase を書き込みの 1 操作（`transactCardWrite`）の中で走らせたときに起きる。
  */
-export type CardStoreError = DataStoreError;
+export type CardStoreError = StoreError;
 
 /** 書き込みを `transact` の中で走らせたときに、usecase のエラーに加わるもの */
 export type CardWriteFailure = CardWriteRefused | CardStoreError;

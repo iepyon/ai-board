@@ -1,35 +1,32 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { promises as fs } from 'node:fs';
-import * as os from 'node:os';
+import { describe, it, expect, beforeEach } from 'vitest';
 import * as path from 'node:path';
-import { createFileCardDependencies } from '../../../cards/composition.js';
+import { createCardDependencies } from '../../../cards/composition.js';
 import { parseCard } from '../../../cards/repositories/card-markdown.js';
-import { err, isErr } from '../../../shared/result.js';
+import { err, isErr, ok, type Result } from '../../../shared/result.js';
 import type { CardId } from '../../../shared/schemas/common.js';
-import type { CommitMessage, DataOperation } from '../../../infrastructure/data-store.js';
+import {
+  initialDocuments,
+  MemoryDocumentStore,
+  type TransactLabel,
+} from '../../../infrastructure/document-store.js';
 import { createBoardDependencies } from '../../composition.js';
 import type { PrStateProvider } from '../../services/pr-state-provider.js';
 import type { GetBoardQuery } from '../queries/get-board.query.js';
 import { createDecideCommands, type DecideDependencies } from '../commands/decide.command.js';
 
 // ============================================================
-// テスト用のデータ。git は使わず、ファイルのリポジトリで直に読み書きする
+// テスト用のデータ。メモリの置き場所で直に読み書きする
 // ============================================================
 
-let root: string;
-let dataDir: string;
-let commits: string[];
+let store: MemoryDocumentStore;
+let labels: string[];
 
 const NOW = new Date('2026-11-06T00:00:00.000Z');
+const PLANS = path.join('/nonexistent-ai-board-root', '.ai-board', 'plans');
 
-beforeEach(async () => {
-  root = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-board-decide-command-'));
-  dataDir = path.join(root, 'data');
-  commits = [];
-});
-
-afterEach(async () => {
-  await fs.rm(root, { recursive: true, force: true });
+beforeEach(() => {
+  store = new MemoryDocumentStore(initialDocuments());
+  labels = [];
 });
 
 async function writeIdea(id: string): Promise<void> {
@@ -37,9 +34,10 @@ async function writeIdea(id: string): Promise<void> {
     `${id}.md`,
     `---\nid: ${id}\ntitle: ${id} のタイトル\ncreated: '2026-11-01T00:00:00.000Z'\n---\n`
   );
-  if (card === null || !(await createFileCardDependencies(dataDir).cardRepository.create(card))) {
-    throw new Error(`テスト用のカードを作れません: ${id}`);
-  }
+  const created = await store.transact('test', async () =>
+    ok(card !== null && (await createCardDependencies(store).cardRepository.create(card)))
+  );
+  if (!created.ok || !created.value) throw new Error(`テスト用のカードを作れません: ${id}`);
 }
 
 const connected: PrStateProvider = {
@@ -50,30 +48,36 @@ const connected: PrStateProvider = {
 };
 
 function boardQuery(): GetBoardQuery {
-  const cards = createFileCardDependencies(dataDir);
+  const cards = createCardDependencies(store);
   return createBoardDependencies(
-    path.join(root, '.ai-board', 'plans'),
+    PLANS,
     cards.cardRepository,
     cards.ideaDividerRepository,
     connected
   ).getBoardQuery;
 }
 
-/** `op` をそのまま 1 回走らせ、通ったらコミットしたことにしてメッセージを控える試しの store */
-const onceStore: DecideDependencies['store'] = {
-  transact: async <T, E>(message: CommitMessage<T>, op: DataOperation<T, E>) => {
-    const result = await op(dataDir);
-    if (result.ok) commits.push(typeof message === 'string' ? message : message(result.value));
-    return result;
-  },
-};
+/** 本物の transact に通し、通ったら束の名前を控える store */
+function recordingStore(): DecideDependencies['store'] {
+  return {
+    transact: async <T, E>(label: TransactLabel<T>, op: () => Promise<Result<T, E>>) => {
+      const result = await store.transact(label, op);
+      if (result.ok) labels.push(typeof label === 'string' ? label : label(result.value));
+      return result;
+    },
+  };
+}
 
-function commands(loadBoard: GetBoardQuery, store = onceStore) {
-  return createDecideCommands({ loadBoard, store, cards: createFileCardDependencies(dataDir) });
+function commands(loadBoard: GetBoardQuery) {
+  return createDecideCommands({
+    loadBoard,
+    store: recordingStore(),
+    cards: createCardDependencies(store),
+  });
 }
 
 describe('createDecideCommands', () => {
-  it('書いた判断と、書いた後に読み直した列を返し、コミットのメッセージを決める', async () => {
+  it('書いた判断と、書いた後に読み直した列を返し、束の名前を決める', async () => {
     await writeIdea('a');
 
     const result = await commands(boardQuery()).start({ id: 'a' as CardId, at: NOW });
@@ -82,7 +86,7 @@ describe('createDecideCommands', () => {
       ok: true,
       value: { id: 'a', what: '着手', from: 'idea', to: 'planning' },
     });
-    expect(commits).toEqual(['data: a の startedAt を変える']);
+    expect(labels).toEqual(['a の startedAt を変える']);
   });
 
   it('書いた後のボードが読めなければ、書いたまま to を null にして返す', async () => {
@@ -101,10 +105,10 @@ describe('createDecideCommands', () => {
       ok: true,
       value: { id: 'a', what: '着手', from: 'idea', to: null },
     });
-    expect(commits).toEqual(['data: a の startedAt を変える']);
+    expect(labels).toEqual(['a の startedAt を変える']);
   });
 
-  it('push が拒否されたら、取り直した状態でボードを導き直し、検査からやり直す', async () => {
+  it('ほかのセッションが先に着手していれば、transact の中で導き直したボードで拒み、何も書かない', async () => {
     await writeIdea('a');
     const load = boardQuery();
     let loads = 0;
@@ -113,31 +117,19 @@ describe('createDecideCommands', () => {
       return load();
     };
 
-    // 1 回目の試みは push が拒否されたことにして書きかけを捨て、その間にほかのセッションが着手していた
-    const backup = path.join(root, 'backup');
-    const rejectedOnce: DecideDependencies['store'] = {
-      transact: async <T, E>(message: CommitMessage<T>, op: DataOperation<T, E>) => {
-        await fs.cp(dataDir, backup, { recursive: true });
-        await op(dataDir);
-        await fs.rm(dataDir, { recursive: true, force: true });
-        await fs.cp(backup, dataDir, { recursive: true });
+    // 判断を書く前に、ほかのセッションが着手を書いた
+    const started = await store.transact('other', () =>
+      createCardDependencies(store).updateCardMetaCommand({
+        id: 'a' as CardId,
+        patch: { startedAt: '2026-11-05T00:00:00.000Z' },
+      })
+    );
+    if (isErr(started)) throw new Error('ほかのセッションの着手を書けません');
 
-        const started = await createFileCardDependencies(dataDir).updateCardMetaCommand({
-          id: 'a' as CardId,
-          patch: { startedAt: '2026-11-05T00:00:00.000Z' },
-        });
-        if (isErr(started)) throw new Error('ほかのセッションの着手を書けません');
-
-        const result = await op(dataDir);
-        if (result.ok) commits.push(typeof message === 'string' ? message : message(result.value));
-        return result;
-      },
-    };
-
-    const result = await commands(counting, rejectedOnce).start({ id: 'a' as CardId, at: NOW });
+    const result = await commands(counting).start({ id: 'a' as CardId, at: NOW });
 
     expect(result).toMatchObject({ ok: false, error: { type: 'StageMismatch', id: 'a' } });
-    expect(loads).toBe(2);
-    expect(commits).toEqual([]);
+    expect(loads).toBe(1);
+    expect(labels).toEqual([]);
   });
 });

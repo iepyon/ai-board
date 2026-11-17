@@ -31,7 +31,7 @@ export interface DocumentStore extends DocumentReader {
    * `op` は標準出力にも標準エラーにも書かない。拒むときは Err を返す
    */
   transact<T, E>(
-    label: string,
+    label: TransactLabel<T>,
     op: () => Promise<Result<T, E>>
   ): Promise<Result<T, E | StoreError>>;
 
@@ -43,6 +43,13 @@ export interface DocumentStore extends DocumentReader {
 
   /** 置き場所にまだ届いていない書き込みの束の数 */
   pendingWrites(): number;
+}
+
+/** 書き込みの束の名前（送る箱に残す）。結果から決めるときは関数で渡す。ID・ゲート・種別だけを入れ、ブランチ名や理由は入れない */
+export type TransactLabel<T> = string | ((value: T) => string);
+
+export function labelOf<T>(label: TransactLabel<T>, value: T): string {
+  return typeof label === 'string' ? label : label(value);
 }
 
 /** 読み出しだけの口 */
@@ -192,7 +199,7 @@ export class MemoryDocumentStore implements DocumentStore {
   }
 
   transact<T, E>(
-    _label: string,
+    _label: TransactLabel<T>,
     op: () => Promise<Result<T, E>>
   ): Promise<Result<T, E | StoreError>> {
     // 同じプロセスの中の transact を 1 列にする（ファイルのロックと同じ振る舞い）

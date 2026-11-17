@@ -3,10 +3,11 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createFileCardDependencies } from '../../../cards/composition.js';
+import { createCardDependencies } from '../../../cards/composition.js';
+import { initialDocuments, MemoryDocumentStore } from '../../../infrastructure/document-store.js';
 import { parseCard } from '../../../cards/repositories/card-markdown.js';
 import { REVIEW_HEADING, parseReviewLog } from '../../../cards/services/review-log.js';
-import { isErr } from '../../../shared/result.js';
+import { isErr, ok } from '../../../shared/result.js';
 import { createBoardDependencies, createLoopHistoryRepository } from '../../composition.js';
 import { runStatusCli } from '../status-cli.js';
 import type { PrStateProvider } from '../../services/pr-state-provider.js';
@@ -57,11 +58,11 @@ function collectOnlyUsages(): OnlyUsage[] {
 // ============================================================
 
 let root: string;
-let dataDir: string;
+let store: MemoryDocumentStore;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-board-skill-only-'));
-  dataDir = path.join(root, 'data');
+  store = new MemoryDocumentStore(initialDocuments());
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
   await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\n");
@@ -86,22 +87,25 @@ async function writeCard(id: string, frontmatter: string, body = ''): Promise<vo
   );
   if (card === null) throw new Error(`テスト用のカードが読めません: ${id}`);
 
-  // 新しいカードの本文に判断があると、ファイルのリポジトリは書かずに拒む。判断は 1 件ずつ足す
-  const cards = createFileCardDependencies(dataDir);
+  // 新しいカードの本文に判断があると、リポジトリは書かずに拒む。判断は 1 件ずつ足す
+  const cards = createCardDependencies(store);
   const index = card.body.indexOf(REVIEW_HEADING);
   const prose = index === -1 ? card.body : card.body.slice(0, index).replace(/\n+$/, '');
-  if (!(await cards.cardRepository.create({ ...card, body: prose }))) {
-    throw new Error(`テスト用のカードを作れません: ${id}`);
-  }
+  await store.transact('test', async () => {
+    if (!(await cards.cardRepository.create({ ...card, body: prose }))) {
+      throw new Error(`テスト用のカードを作れません: ${id}`);
+    }
 
-  for (const entry of parseReviewLog(card.body)) {
-    const appended = await cards.appendReviewCommand({
-      ...entry,
-      id: card.id,
-      at: new Date(entry.at),
-    });
-    if (isErr(appended)) throw new Error(`判断を足せません: ${JSON.stringify(appended.error)}`);
-  }
+    for (const entry of parseReviewLog(card.body)) {
+      const appended = await cards.appendReviewCommand({
+        ...entry,
+        id: card.id,
+        at: new Date(entry.at),
+      });
+      if (isErr(appended)) throw new Error(`判断を足せません: ${JSON.stringify(appended.error)}`);
+    }
+    return ok(undefined);
+  });
 }
 
 async function writePlan(id: string, content: string): Promise<void> {
@@ -120,13 +124,13 @@ const connected: PrStateProvider = {
 async function runStatus(
   argv: readonly string[]
 ): Promise<{ code: number; stdout: string; stderr: string }> {
-  const cards = createFileCardDependencies(dataDir);
+  const cards = createCardDependencies(store);
   const board = createBoardDependencies(
     path.join(root, '.ai-board', 'plans'),
     cards.cardRepository,
     cards.ideaDividerRepository,
     connected,
-    createLoopHistoryRepository(dataDir)
+    createLoopHistoryRepository(store)
   );
 
   let stdout = '';

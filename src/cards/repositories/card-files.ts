@@ -141,6 +141,18 @@ export function parseOrder(raw: string | null): Result<OrderFile, OrderFileError
     return err({ type: 'MalformedOrderFile', reason: errorMessage(error) });
   }
 
+  return parseOrderData(data);
+}
+
+/**
+ * 並び順の値（置き場所の `order/order` の文書、または `order.yaml` を読んだ値）を読む。null なら `EMPTY_ORDER`。
+ *
+ * 形そのものが壊れていれば失敗にする（読み流して書き戻すと、全カードの rank を失う）。
+ * ID として不正なキーや数でない rank は、警告して読み飛ばす（1 枚でボード全体を止めない）。
+ */
+export function parseOrderData(data: unknown): Result<OrderFile, OrderFileError> {
+  if (data === null || data === undefined) return ok(EMPTY_ORDER);
+
   const result = OrderFileSchema.safeParse(data);
   if (!result.success) {
     return err({
@@ -163,11 +175,19 @@ export function parseOrder(raw: string | null): Result<OrderFile, OrderFileError
 
 /** `order.yaml` に戻す。差分が並びに左右されないよう、rank は ID の順に書く */
 export function serializeOrder(order: OrderFile): string {
+  return stringifyYaml(orderDocumentData(order));
+}
+
+/** 置き場所の `order/order` の文書の中身。rank は ID の順に並べる */
+export function orderDocumentData(order: OrderFile): {
+  divider: number | null;
+  ranks: Record<string, number>;
+} {
   const ranks = Object.fromEntries(
     Object.entries(order.ranks).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
   );
 
-  return stringifyYaml({ divider: order.divider, ranks });
+  return { divider: order.divider, ranks };
 }
 
 /** カードの rank を差し替える。null なら `ranks` から消す */
@@ -381,9 +401,9 @@ export interface CardFiles {
 }
 
 /** `card.md` が持つ項目。`startedAt` と `rank` と `## レビュー` は持たない */
-type CardFileFields = Omit<Card, 'startedAt' | 'rank' | 'body'>;
+export type CardFileFields = Omit<Card, 'startedAt' | 'rank' | 'body'>;
 
-interface ParsedCardFile {
+export interface ParsedCardFile {
   readonly fields: CardFileFields;
   /** `## レビュー` の節を除いた本文 */
   readonly body: string;
@@ -394,7 +414,7 @@ interface ParsedCardFile {
  * 警告して null を返す（1 枚でボード全体を止めない）。
  * frontmatter に `startedAt` や `rank` があっても読まない。本文の `## レビュー` の節も読まない。
  */
-function parseCardFile(id: string, raw: string): ParsedCardFile | null {
+export function parseCardFile(id: string, raw: string): ParsedCardFile | null {
   let parsed: matter.GrayMatterFile<string>;
   try {
     parsed = matter(raw);
@@ -509,6 +529,8 @@ export interface StoredCard {
 export interface CardWrite {
   /** 書き換える `card.md` の中身。変わらなければ null */
   readonly cardMd: string | null;
+  /** 書き換えるカードの文書の中身（`cardMd` と同じ内容）。変わらなければ null */
+  readonly cardDocument: CardDocument | null;
   /** `log/` に足すファイル。既存のファイルは書き換えも削除もしない */
   readonly logFiles: readonly LogFile[];
   /** rank が変わったか。変わったら `withRank` で `order.yaml` を書き換える */
@@ -552,6 +574,7 @@ export function planCardWrite(
 
   return ok({
     cardMd: unchanged ? null : cardMd,
+    cardDocument: unchanged ? null : cardDocumentOf(next, body.value),
     logFiles: additions.files,
     rankChanged: (current?.card.rank ?? null) !== next.rank,
   });
@@ -671,6 +694,96 @@ function planStartedAt(
   }
 
   return ok(null);
+}
+
+// ============================================================
+// 置き場所の文書との行き来 — 文書をファイルの形に写して、上の純関数をそのまま使う
+// ============================================================
+
+/** カードの文書のコレクション（ID はカード ID） */
+export const CARD_COLLECTION = 'cards';
+/** 判断の文書のコレクション（ID は `<カード ID>.<判断のファイル名から .md を除いたもの>`） */
+export const LOG_COLLECTION = 'log';
+/** 並び順の文書のコレクションと ID */
+export const ORDER_COLLECTION = 'order';
+export const ORDER_ID = 'order';
+
+/** カードの文書の中身。`card.md` の frontmatter の項目と、`## レビュー` の節を除いた本文 */
+export interface CardDocument {
+  readonly id: string;
+  readonly title: string;
+  readonly created: string;
+  readonly skipGates: readonly string[];
+  readonly branch: string | null;
+  readonly pr: number | null;
+  readonly body: string;
+}
+
+function cardDocumentOf(fields: CardFileFields, body: string): CardDocument {
+  return {
+    id: fields.id,
+    title: fields.title,
+    created: fields.created,
+    skipGates: [...fields.skipGates],
+    branch: fields.branch,
+    pr: fields.pr,
+    body: trimNewlines(body),
+  };
+}
+
+/**
+ * カードの文書を `card.md` の中身に写す。項目の検査はしない（`parseCardFile` が読むときに検査し、不正なら読み飛ばす）
+ */
+export function cardMarkdownFromDocument(data: Readonly<Record<string, unknown>>): string {
+  const frontmatter: Record<string, unknown> = {};
+  for (const key of ['id', 'title', 'created', 'skipGates', 'branch', 'pr']) {
+    if (data[key] !== undefined) frontmatter[key] = data[key];
+  }
+  const body = typeof data['body'] === 'string' ? trimNewlines(data['body']) : '';
+
+  return matter.stringify(body === '' ? '' : `\n${body}\n`, frontmatter);
+}
+
+/** `card.md` の中身をカードの文書にする。読めなければ null（`import` が使う） */
+export function cardDocumentFromMarkdown(id: string, cardMd: string): CardDocument | null {
+  const parsed = parseCardFile(id, cardMd);
+  return parsed === null ? null : cardDocumentOf(parsed.fields, parsed.body);
+}
+
+/** 判断のファイルの名前から、判断の文書の ID を作る */
+export function logDocumentId(cardId: string, fileName: string): string {
+  return `${cardId}.${fileName.replace(/\.md$/, '')}`;
+}
+
+/** 判断の文書の ID からカード ID を読む（カード ID は `.` を含まない） */
+export function cardIdOfLogDocument(docId: string): string {
+  const at = docId.indexOf('.');
+  return at < 0 ? docId : docId.slice(0, at);
+}
+
+/** 判断の文書を `log/` のファイルの形に写す */
+export function logFileFromDocument(
+  cardId: string,
+  docId: string,
+  data: Readonly<Record<string, unknown>>
+): LogFile {
+  const reason = typeof data['reason'] === 'string' ? data['reason'] : '';
+  return { name: `${docId.slice(cardId.length + 1)}.md`, content: logContent(reason) };
+}
+
+/**
+ * 判断のファイルを、判断の文書の中身にする。ページや人が読みやすいよう、名前から読んだ時刻・ゲート・種別も入れる
+ * （読むときは文書の ID から読み直すので、これらは控えである）
+ */
+export function logDocumentData(cardId: string, file: LogFile): Record<string, unknown> {
+  const name = parseLogFileName(file.name);
+  return {
+    cardId,
+    at: name?.at ?? null,
+    gate: name?.gate ?? null,
+    kind: name === null ? null : name.gate === 'start' ? name.kind : REVIEW_KIND_NAMES[name.kind],
+    reason: file.content.trim(),
+  };
 }
 
 // ============================================================
