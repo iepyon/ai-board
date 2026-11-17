@@ -22,7 +22,9 @@
 ## カードの読み書き
 
 カードは `node "$MAIN/dist/cli.js" card ... --root "$MAIN"` で読み書きする（各定義では `ai-board card ...` と書く）。
-データのワークツリー（`$MAIN/.ai-board/data/`）のファイルを直接書き換えない。データ用ブランチ `ai-board/data` へ直接コミット・push もしない。
+カードの正本は置き場所（Artifact の DB）にあり、CLI は手元の写しを読み、書き込みは送る箱に積む。
+CLI が「送る箱に N 束の書き込みがあります」と出したら、`board-store` のスキルの 2 で送り出してから次へ進む（送らなければほかの端末から見えない）。
+置き場所の写しと送る箱（`$MAIN/.ai-board/store/`）のファイルを直接書き換えない。置き場所へ `ArtifactData` で直接書かない。
 PR は `node "$MAIN/dist/cli.js" pr ... --root "$MAIN"` で読み書きする（各定義では `ai-board pr ...` と書く）。
 クラウドのセッションでは GraphQL が 403 になり `gh pr` が動かないので、`gh pr` は使わない。
 何を書いてよいかは手順書ごとに違い、各手順書のハードルールに書く。
@@ -142,20 +144,21 @@ ai-board card hold <id> --gate plan --reason "<なぜ止まったか、人に何
 
 ## 動かして確かめるとき
 
-計画の `## 動作確認の手順` や CLI・API を動かすときは、共有のカードを汚さないよう `AI_BOARD_DATA` で別のデータのワークツリーを指す。
-指さなければ、カードへの書き込みは本物の `origin` の `ai-board/data` にコミットされ push される。
-`AI_BOARD_DATA` の指すディレクトリの `origin` へ push するので、スクラッチパッドに bare リポジトリを作り、それを `origin` にした clone を指す。
+計画の `## 動作確認の手順` や CLI・API を動かすときは、共有のカードを汚さないよう `AI_BOARD_STORE` で別の置き場所のディレクトリを指す。
+指さなければ、カードへの書き込みは本物の写しの送る箱に積まれ、次の送り出しで本物の置き場所に届く。
+`AI_BOARD_STORE` の指すディレクトリの送る箱は、送り出さなければどこにも届かない。
 
 ```bash
 S=<スクラッチパッドの下の作業用ディレクトリ>
-git init --bare "$S/origin.git"
-git clone "$S/origin.git" "$S/data"
-AI_BOARD_DATA="$S/data" node "$WT/dist/cli.js" init   # 空のデータ用ブランチを作る
+export AI_BOARD_STORE="$S/store"
+node "$WT/dist/cli.js" store init --root "$WT"        # board/meta を送る箱に積む
+node "$WT/dist/cli.js" store ack --root "$WT"         # 送ったことにする（写しには board/meta が残る）
+node "$WT/dist/cli.js" store seed --root "$WT"        # 試すカードを起票する
 ```
 
-ロック（`data.lock`）・PR の状態の控え（`cache/`）は、`AI_BOARD_DATA` の指すディレクトリの親に置かれる。
-clone は `$S/data` のように専用のディレクトリにし、スクラッチパッドの根そのものを指さない。
-clone・bare リポジトリ・一時ファイルは `$WT` の外（スクラッチパッドなど）に置く。`$WT` の中に置くと未コミットの変更として残る。
+`AI_BOARD_STORE` を指すと、`.ai-board/config.yaml` に `store.url` が無くても CLI は動く。
+写しは `out_dir` の形（`<collection>/<ID>~<連番>.json`）のディレクトリを `store pull --from` で丸ごと入れ替えられるので、手で作った文書から始めてもよい。
+ディレクトリ・一時ファイルは `$WT` の外（スクラッチパッドなど）に置く。`$WT` の中に置くと未コミットの変更として残る。
 自分で起動したプロセスは止めてから終える。
 
 ## ハードルール
@@ -168,7 +171,7 @@ clone・bare リポジトリ・一時ファイルは `$WT` の外（スクラッ
 - 1 手の記録（`ai-board loop`）は `SKILL.md` の手順でだけ書く。`board-reviewer` は書かない
 - 手の中で `board-decide` のスキルと、人の判断を書く `ai-board decide` を使わない（人がチャットで頼んだときの扱いは `SKILL.md` のハードルール）。
   `ai-board decide` は構造では止めていない。この決まりが人の判断の守りである。
-  `AI_BOARD_DATA` で試しの clone を指して `ai-board decide` を試すのは構わない
+  `AI_BOARD_STORE` で試しの置き場所を指して `ai-board decide` を試すのは構わない
 - 計画レビューのカードに触らない。PR中 のカードには `fix-pr` の手（`fix-pr.md`）でだけ触り、修正の push と返信 1 件のほかはしない。PR をマージしない
 - 品質ゲート `cd "$WT" && npm run typecheck && npm run lint && npm run format:check && npm test` を通らないままコミットしない。
   計画ファイルだけの変更でも走らせる（ブランチが既に壊れていれば、そこへ積まずに気づける）

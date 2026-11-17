@@ -25,8 +25,8 @@ export type PrNumberWriter = (cardId: CardId, number: PrState['number']) => Prom
 
 export interface PrFetcherOptions {
   /**
-   * PR 番号の書き戻し。データ用ブランチでは `DataStore.transact` を通すものを渡す
-   * （ファイルを書くだけでは、次の取り直しで捨てられる）。
+   * PR 番号の書き戻し。置き場所では `DocumentStore.transact` を通すものを渡す
+   * （書き込みの 1 操作として送る箱に積む）。
    * 既定はカードのリポジトリへ直接書く。
    */
   readonly writePr?: PrNumberWriter;

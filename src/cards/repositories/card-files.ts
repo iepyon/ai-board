@@ -21,25 +21,24 @@ import {
 } from '../services/review-log.js';
 
 // ============================================================
-// データ用ブランチのファイルの形 — 純関数のみ。I/O は持たない
+// カードの形 — 純関数のみ。I/O は持たない
 // ============================================================
 
 /**
- * データ用ブランチ（`ai-board/data`）の中身は次のとおり。
+ * カードの組み立てと書く前の検査は、`card.md`（frontmatter と本文）と `log/` の判断のファイルの形で行う。
+ * 置き場所の文書（`cards/<id>`・`log/<id>.<判断>`・`order/order`）は、下の「置き場所の文書との行き来」で
+ * この形に写してから使う（`doc-card.repository.ts`）。
  *
  * ```
- * ai-board-data.yaml                      形の版（version: 2）
- * config.yaml                             GitHub の接続設定（ai-board init が .ai-board/config.yaml を写す。config.ts）
+ * card.md                                 frontmatter（id, title, created, skipGates, branch, pr）と本文
+ * log/<時刻>.<gate>.<種別>.md              判断 1 件。中身は理由の本文
  * order.yaml                              rank とアイデアの区切り線
- * cards/<id>/card.md                      frontmatter（id, title, created, skipGates, branch, pr）と本文
- * cards/<id>/log/<時刻>.<gate>.<種別>.md   判断 1 件。中身は理由の本文
- * snapshots/<id>.json                    マージ済みの PR の控え（file-pr-snapshot.repository.ts）
- * loop/<時刻>.<ループの識別子>.json        ループの 1 手の記録（loop-history.repository.ts）
  * ```
  *
- * `Card` の `startedAt` は `log/` の着手のファイルから、`rank` は `order.yaml` から、
- * 本文の `## レビュー` は `log/` の判断のファイルから組み立てる。`card.md` はこの 3 つを持たない。
- * ここはファイルの中身の文字列とファイル名だけを扱い、読み書きと git はリポジトリと `DataStore` が行う。
+ * `Card` の `startedAt` は着手の判断から、`rank` は並び順から、本文の `## レビュー` は判断から組み立てる。
+ * `card.md` はこの 3 つを持たない。
+ * 前の置き場所（データ用ブランチ `ai-board/data`、形の版 2）もこのファイルの形だったので、
+ * `ai-board store import`（`data-branch-import.ts`）はここの関数で読む。
  */
 
 export const DATA_VERSION_FILE = 'ai-board-data.yaml';

@@ -3,7 +3,7 @@
  *
  * 1 手の記録は、ループ（`/board-loop` を動かした本筋のセッション）が 1 つの手を始めてから終えるまでを 1 件にしたもの。
  * 本筋のセッションが手の始まりに `ai-board loop start`、終わりに `finish` を書き（`src/board/cli/loop-cli.ts`）、
- * データ用ブランチの `loop/` に置く。
+ * 置き場所の `loop` に置く。
  * ステージの導出にも次の一手にも使わない。ループの状態はカードの属性ではない。
  * `status` の要約（`src/board/services/loop-activity.ts`）もここから語を引く。
  */
@@ -19,7 +19,7 @@ export type LoopCurrentAction = (typeof LOOP_CURRENT_ACTIONS)[number];
 
 /**
  * 廃止した手。動作確認の列とともに消えた `revise-impl`（動作確認で差し戻された実装を直す）と `ready`（動作確認の後に Ready にする）。
- * データ用ブランチの `loop/` に残る過去の記録を読むためだけに持ち、新しく書くことはできない。
+ * 置き場所の `loop` に残る過去の記録を読むためだけに持ち、新しく書くことはできない。
  */
 export const LOOP_PAST_ACTIONS = ['revise-impl', 'ready'] as const;
 

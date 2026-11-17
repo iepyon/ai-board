@@ -388,10 +388,10 @@ AI エージェントが使う CLI に、宣言を書く手段を設けては SH
 
 ### 4. 手順書とドキュメント
 
-- [ ] `.claude/skills/board-store/SKILL.md`（取り込み・送り出し・食い違い・最初の用意）を書く
-- [ ] `board-loop`（`rules.md` の「カードの読み書き」と「動かして確かめるとき」、`SKILL.md` の手順 1）・`board-decide`・`board-view`（`store.url` に `db` 付きで出し直す）を直す
-- [ ] `README.md`（fork して準備する手順と、移した後にデータ用ブランチを消す手順）・`docs/reference.md`・`CLAUDE.md`（データ用ブランチの節と書き込み境界の表）を直す
-- [ ] `adr` のスキルで新しい ADR（カードの正本を Artifact の DB に置き、置き場所の口に閉じる）を書き（SQLite へ切り替えるときに書き込み系を新たに実装することと、書き込みは人がいる会話で行うことを含める）、ADR 0010 を「置き換えた」にし、ADR 0014・0019 を今の形に書き直す
+- [x] `.claude/skills/board-store/SKILL.md`（取り込み・送り出し・食い違い・最初の用意）を書く
+- [x] `board-loop`（`rules.md` の「カードの読み書き」と「動かして確かめるとき」、`SKILL.md` の手順 1）・`board-decide`・`board-view`（`store.url` に `db` 付きで出し直す）を直す
+- [x] `README.md`（fork して準備する手順と、移した後にデータ用ブランチを消す手順）・`docs/reference.md`・`CLAUDE.md`（データ用ブランチの節と書き込み境界の表）を直す
+- [x] `adr` のスキルで新しい ADR（カードの正本を Artifact の DB に置き、置き場所の口に閉じる）を書き（SQLite へ切り替えるときに書き込み系を新たに実装することと、書き込みは人がいる会話で行うことを含める）、ADR 0010 を「置き換えた」にし、ADR 0014・0019 を今の形に書き直す
 
 ## 探索メモとの対応
 

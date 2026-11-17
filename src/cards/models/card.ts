@@ -6,8 +6,8 @@ import type { ReviewGate } from './review.js';
 // ============================================================
 
 /**
- * カードはデータ用ブランチ `ai-board/data` の `cards/<id>/` に対応する。frontmatter と本文は `card.md` に、
- * `## レビュー` の判断と着手は `log/` の 1 件 1 ファイルに、`rank` は根の `order.yaml` にあり、
+ * カードは置き場所の `cards/<id>` の文書に対応する。frontmatter の項目と本文は `cards/<id>` に、
+ * `## レビュー` の判断と着手は `log` の 1 件 1 文書に、`rank` は `order/order` にあり、
  * 読むときにこれらから組み立てる（`repositories/card-files.ts` の `assembleCard`）。
  *
  * `id` は不変で、`branch` / `pr` が進行に応じて後から埋まる。
