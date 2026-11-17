@@ -15,8 +15,9 @@
   - 取り込み: Claude が `ArtifactData` の `list`（`out_dir`）で DB の文書を手元に書き出し、`ai-board store pull --from <dir>` で写し（`.ai-board/store/mirror/`）に入れる
   - 書き込み: `ai-board card` / `decide` / `loop` / `status` が書く分は、写しを直したうえで送る箱（`.ai-board/store/outbox/`）に、文書ごとの版（`if_version`）付きで積む
   - 送り出し: Claude が `ai-board store outbox --json` の書き込みを `ArtifactData` の `batch` にそのまま渡し、通ったら `ai-board store ack` で箱を空にして取り込み直す。版が食い違ったら箱を捨てて取り込み直し、元のコマンドを頭からやり直す
-- **置き場所を 1 つの口（`DocumentStore`）に閉じる。** カードなどのリポジトリはこの口だけを使う。Artifact の DB の実装（写しと送る箱）と、テスト用のメモリの実装を置く。SQLite はこの口の実装を足すだけで差し替えられる
-- **データ用ブランチのコードと決まりを外す。** `data-store.ts`・`init` の CLI・手元モード・`AI_BOARD_DATA`・データのワークツリーの deny ルールを消す。データ用ブランチそのものは消さず、移した後は使わない
+  - 書き込みは人がいる会話のセッションで行う。DB への書き込みはセッションの最初の 1 回だけ人の承認が要り、ヘッドレスの `claude -p` からは書けない
+- **置き場所を 1 つの口（`DocumentStore`）に閉じる。** カードなどのリポジトリはこの口だけを使う。Artifact の DB の実装（写しと送る箱）と、テスト用のメモリの実装を置く。将来 SQLite に切り替えるときは、書き込み系を含む口の実装を新たに作り、その上の usecase・検査・リポジトリは変えない
+- **データ用ブランチをやめて消す。** `data-store.ts`・`init` の CLI・手元モード・`AI_BOARD_DATA`・データのワークツリーの deny ルールを消す。今のカードを移して確かめた後に、人が `origin` の `ai-board/data` と手元のデータのワークツリーを消す（手順を README と ADR に書く）
 - **最初のアイデアカードを固定の seed ファイルにする。** `main` の `.ai-board/seed/*.md`（`card seed` が読む形）を、`ai-board store seed` で送る箱に積む。fork や研修は「ページを 1 つ公開して URL を書き、seed を送る」で始められる
 - **設定を `main` に置く。** `.ai-board/config.yaml`（`github.repository` と `store.url`）を git に載せる。データ用ブランチへ写す仕組みは消す
 - **今のカードを移す。** `ai-board store import --from <データ用ブランチの clone>` で、カード・判断・並び順だけを送る箱に積む。PR の控えは GitHub から引き直し、ループの記録は移さない
@@ -251,7 +252,18 @@ AI エージェントが使う CLI に、宣言を書く手段を設けては SH
 - 写しを積む前に戻すため、送る箱の束に「書く前の文書」も控えておく（`discard` が戻す）
 - `card seed`・`card export` は残す（`export` は写しを読む）
 
+**SQLite へ切り替えるときのための決まり**
+
+- 将来 SQLite に切り替えるときは、書き込み系を含む `SqliteDocumentStore` を新たに実装する。その上の CLI・usecase・書く前の検査・リポジトリは変えない。この計画では実装しない
+- 送る箱のことを usecase とリポジトリに持ち込まない。「送り出しが要る」の案内は、CLI の入口が口の `pendingWrites()` に聞いて出す（SQLite の実装は常に 0 を返す）
+- 口の約束を、どちらの実装でも守れる形にする: 書く前の検査は最新に対して行う / 1 回の `transact` は全部か無し / 失敗は `StoreError` の同じ種類で返す
+- 口の約束を確かめるテストを 1 組（`document-store.contract.ts`）にまとめ、メモリの実装と Artifact の DB の実装に当てる。SQLite の実装を足すときも同じテストを当てる
+- 行き来のコマンド（`store pull` / `outbox` / `ack` / `discard`）と `board-store` のスキルは、Artifact の DB の実装に紐付ける。SQLite に替えたら、まとめて外す
+- 置き場所の間で文書を写す処理（`copyDocuments(from, to)`）を口の上に置く。今は `import` が使い、SQLite へ移すときにも使う
+
 **Claude が受け持つ行き来（新しい `board-store` のスキル）**
+
+- 書き込みは人がいる会話のセッションで行う。`ArtifactData` の書き込みはセッションの最初の 1 回だけ人の承認が要り、`allow` の規則でも外せない（2026-11-17 に確かめた）。ヘッドレスの `claude -p` と、人のいない定期実行のセッションでは送り出せない
 
 - 取り込み: `ArtifactData` の `list` を 5 つのコレクションに対して `out_dir` 付きで呼び（`next_cursor` があれば続けて）、`ai-board store pull --from <out_dir>`
 - 送り出し: `ai-board store outbox --json` の束ごとに `ArtifactData` の `batch`（`writes` をそのまま渡す）→ 全部通れば `ai-board store ack` → 取り込み直す
@@ -281,12 +293,12 @@ AI エージェントが使う CLI に、宣言を書く手段を設けては SH
 
 ### 仮定
 
-- `ArtifactData` の `out_dir` は `<out_dir>/<collection>/<doc_id>.json` に、版（`version`）と中身が読める JSON を書く（ツールの説明による）。版を中身と同じファイルから読めないときは、節 1 の最初のタスクで確かめ、`pull` の読み方を合わせる
+- `ArtifactData` の `list` は文書を `{"id","data","version","updatedAt"}` の形で返す（2026-11-17 に試しのページで確かめた）。`out_dir` のファイルも同じ形と見込む。違えば節 1 の最初のタスクで `pull` の読み方を合わせる
 - `ArtifactData` の `batch` は、版を付けたエントリがあれば全部か無しかで書く（ツールの説明による）。束を 50 件で分けると、束をまたいだ全部か無しかは保てない。今の書き込みは 1 操作で 50 件を超えない（`import` と `seed` だけが超え、どちらも新規の文書なので途中で止まっても `import` / `seed` を走らせ直せば足りない分だけを積む）
-- node の CLI から DB へ直接届く手段は使わない（Claude の `ArtifactData` のツールとページの口しか公開されていない）
+- node の CLI から DB へ直接届く手段は無い（2026-11-17 に確かめた）。`ArtifactData` は内部の口を claude.ai のログインの資格情報で呼んでいて公開されていない。CLI から起動した `claude -p` は読めるが、書き込みは人の承認で止まる
 - 写しの古さは、`status` の前に取り込む手順で抑える。取り込みを忘れた古い写しへの書き込みは、送るときの版の食い違いで止まる（新しい文書の書き込みは食い違わないので、判断の追記は古い写しを土台にしても重ならない）
 - ループの記録（ADR 0014）は残す。書くたびに送り出しが要るので、1 手あたり `batch` が 2 回増える
-- 今の `ai-board/data` は消さず、移した後は読まない（戻すときの控えにする）
+- `origin` の `ai-board/data` の削除は、`.claude/settings.json` の deny が止め、取り返しもつかないので、人が行う。AI は消す手順を書くだけにする
 
 ### 退けた代案
 
@@ -294,30 +306,33 @@ AI エージェントが使う CLI に、宣言を書く手段を設けては SH
 - **CLI が DB の API を直接呼ぶ（OAuth のトークンを使う）** — 公開された口ではなく、トークンを扱うことになる（GitHub のトークンを扱わない決まりと同じ理由）
 - **CLI を通さず、Claude が `ArtifactData` で直接カードを書く** — 書く前の検査と、AI に許す書き込みだけを渡す構造（`ai-board card`）が無くなる
 - **ページの `artifact` の能力（ページ自身を書き直す）に正本を埋め込む** — 書き手が 1 人ずつで、版の食い違いのたびにページ全体を書き直すことになる。Claude からも読み書きしにくい
-- **SQLite を今入れる** — 人が Artifact の DB を選んだ。口だけを用意し、実装は足さない（人に判断してほしいこと）
+- **SQLite を今入れる** — 人が Artifact の DB を選んだ。口だけを用意し、書き込み系を含む実装は切り替えるときに新たに作る
+- **CLI から `claude -p` を起動して送り出しまで自動にする** — 書き込みは人の承認で止まり、`allow` の規則でも外せない（2026-11-17 に確かめた）。1 回ごとにモデルの費用もかかる
+- **データ用ブランチを控えとして残す** — 人が削除する前提に決めた（plan 差し戻し）
 - **スマホのページから判断や本文を直接書けるようにする** — この計画では置き場所の差し替えに絞る。ページの書き込みは、ページでの検査（判断の出し方の純関数をページで動かす）と、AI と人の書き込みの見分けを決める別のカードにする（人に判断してほしいこと）
 - **`github.repository` を `origin` の URL から推して設定を要らなくする** — クラウドのセッションでは `origin` が代理の URL になる。fork では 2 行を書き換えるだけにする
 
 ### Risks / Trade-offs
 
-- **書き込みのたびに Claude のツールの呼び出しが要る。** 人が端末で `ai-board decide` を打っても送る箱に積まれるだけで、Claude に送り出しを頼むまで DB に届かない。端末だけでは使えない
+- **書き込みのたびに、人がいる会話の Claude のツールの呼び出しが要る。** 人のいない定期実行の `/board-loop` は、送り出しの段で止まる。 人が端末で `ai-board decide` を打っても送る箱に積まれるだけで、Claude に送り出しを頼むまで DB に届かない。端末だけでは使えない
 - **AI と人の書き込みの境界の一部が、hook と手順書になる。** `ai-board card` の構造は残るが、送る箱を通る `decide` と `card` の書き込みは DB の側で見分けられない。`ai-board decide` が誰でも呼べるのは今と同じ
 - **写しの古さ。** 取り込みを忘れると古いボードで次の一手を選ぶ。食い違いは送るときに止まるが、新しい文書の追記（判断）は止まらない
-- **判断の履歴が git に残らない。** 判断の文書は残るが、誰がいつ DB を書いたかのコミットは無い。DB を壊したときの戻し先は、移した時点のデータ用ブランチだけになる
+- **判断の履歴が git に残らない。** 判断の文書は残るが、誰がいつ DB を書いたかのコミットは無い。データ用ブランチを消した後は、DB を壊したときの戻し先が無い（ページの書き出しなどの控えは別のカードにする）
 - **claude.ai への依存。** ボードを使う人は全員 claude.ai のアカウントと、Artifact の共有が要る。DB の容量と回数の上限は相手次第
 - **変更が大きい。** `data-store.ts`（936 行）と `card-files.ts`（704 行）を作り直す。リポジトリのインターフェースと usecase を変えないことで、ステージの導出と判断の検査には触らない
 
 ### Non-Goals
 
-- SQLite の実装（口だけを用意する）（人に判断してほしいこと）
+- SQLite の実装（口と約束のテストだけを用意する）
 - スマホのページから判断・本文の編集・並べ替えを書くこと（人に判断してほしいこと）
 - ページが DB を読んで開いたまま新しくなること（`board-view` は今と同じく埋め込みで描く）（人に判断してほしいこと）
-- データ用ブランチ `ai-board/data` を消すこと（人に判断してほしいこと）
+- AI が `origin` の `ai-board/data` を消すこと（人が消す）
+- 人のいないセッション（ヘッドレス・定期実行）からの送り出し
 - ステージの導出（`stage-resolver.ts`）と判断の検査の変更
 
 ## 動作確認の手順
 
-1. `npm run typecheck && npm run lint && npm run format:check && npm test` が通る
+1. `npm run typecheck && npm run lint && npm run format:check && npm test` が通り、口の約束のテスト（`document-store.contract.ts`）がメモリの実装と Artifact の DB の実装の両方で通る
 2. スクラッチの置き場所（`AI_BOARD_STORE=<scratch>/store`）で `node dist/cli.js store init` → `store outbox --json` を見て、`board/meta` と `board/order` の新規の書き込みが出る
 3. 2 の後に `store ack` し、`board/meta` と `board/order` の JSON を手で置いた `out_dir` 形のディレクトリを `store pull --from` に渡して、`card list` が空の配列を出す
 4. 3 の後に `store seed` → `store outbox --json` で `status-stage-counts` の起票の書き込みが 1 件出て、`card list` にそのカードが出る
@@ -326,6 +341,7 @@ AI エージェントが使う CLI に、宣言を書く手段を設けては SH
 7. hook のスクリプトに、`ArtifactData` の `set` と、`outbox/docs/` の外を指す `batch` を渡すと拒み、`outbox/docs/` を指す `batch` と `list` は通す
 8. （AI が動かせない。人と Claude で行う）スクラッチの Artifact を `db` 付きで公開し、`board-store` のスキルの手順で `store init` を送り、`seed` を送り、取り込み直して `status` にアイデアが 1 枚出る
 9. （AI が動かせない。人の依頼で行う）本物の置き場所の Artifact を公開して `store.url` を書き、`store import` で今のカードを移し、`status` の判断待ち・AI 作業中・アイデアの件数が移す前と一致する
+10. （AI が動かせない。人が行う）9 の後に、README の手順で `origin` の `ai-board/data` と手元のデータのワークツリーを消し、`status` がそのまま読める
 
 ## タスク
 
@@ -335,7 +351,9 @@ AI エージェントが使う CLI に、宣言を書く手段を設けては SH
 - [ ] `src/infrastructure/document-store.ts` に口（`DocumentStore`・`DocumentSnapshot`・`DocumentTx`・`StoreError`）と `MemoryDocumentStore` を置く
 - [ ] `src/infrastructure/artifact-mirror-store.ts` に写し・送る箱・ロック・`pull` / `outbox` / `ack` / `discard` の読み書きを置く
 - [ ] `src/infrastructure/store-messages.ts` に `StoreError` を人に読める 1 行へ変える presenter を置く
-- [ ] 口の 2 つの実装に同じテスト（取り込み・積む・版の付け方・捨てて戻す・送る箱があるときの取り込みの拒否・形の版の食い違い）を当てる
+- [ ] 口の約束のテスト（`document-store.contract.ts`。最新への検査・全部か無し・`StoreError` の種類・`pendingWrites()`）を書き、2 つの実装に当てる
+- [ ] Artifact の DB の実装に固有のテスト（取り込み・版の付け方・捨てて戻す・送る箱があるときの取り込みの拒否・形の版の食い違い）を書く
+- [ ] 置き場所の間で文書を写す `copyDocuments(from, to)` を置き、テストを書く
 
 ### 2. リポジトリを文書の上に置き換える
 
@@ -365,8 +383,8 @@ AI エージェントが使う CLI に、宣言を書く手段を設けては SH
 
 - [ ] `.claude/skills/board-store/SKILL.md`（取り込み・送り出し・食い違い・最初の用意）を書く
 - [ ] `board-loop`（`rules.md` の「カードの読み書き」と「動かして確かめるとき」、`SKILL.md` の手順 1）・`board-decide`・`board-view`（`store.url` に `db` 付きで出し直す）を直す
-- [ ] `README.md`（fork して準備する手順）・`docs/reference.md`・`CLAUDE.md`（データ用ブランチの節と書き込み境界の表）を直す
-- [ ] `adr` のスキルで新しい ADR（カードの正本を Artifact の DB に置き、置き場所の口に閉じる）を書き、ADR 0010 を「置き換えた」にし、ADR 0014・0019 を今の形に書き直す
+- [ ] `README.md`（fork して準備する手順と、移した後にデータ用ブランチを消す手順）・`docs/reference.md`・`CLAUDE.md`（データ用ブランチの節と書き込み境界の表）を直す
+- [ ] `adr` のスキルで新しい ADR（カードの正本を Artifact の DB に置き、置き場所の口に閉じる）を書き（SQLite へ切り替えるときに書き込み系を新たに実装することと、書き込みは人がいる会話で行うことを含める）、ADR 0010 を「置き換えた」にし、ADR 0014・0019 を今の形に書き直す
 
 ## 探索メモとの対応
 
@@ -376,11 +394,19 @@ AI エージェントが使う CLI に、宣言を書く手段を設けては SH
 | 2   | スマホで触るとき、PC は閉じたままにしたい。オフラインの研修は要らない                       | 設計 / 消すもの（手元モード）、Risks / Trade-offs                     |                    |
 | 3   | データ用ブランチはやめて、正本は Artifact の DB。あとから SQLite に切り替え                 | 設計 / 置き場所の口、仕様の差分 / board-store                         |                    |
 | 4   | 最初のアイデアカードは、固定の seed ファイルでよい                                          | 設計 / 設定と seed、仕様の差分 / board-store、タスク 4                |                    |
+| 5   | plan 差し戻し（2026-11-17）: 最初のタスクの seed は、main ブランチのファイルに置く          | 設計 / 設定と seed、タスク 4                                          |                    |
+| 6   | plan 差し戻し（2026-11-17）: データ用ブランチは削除する前提にする                           | 提案 / What Changes、仮定、退けた代案、動作確認の手順 10、タスク 5    |                    |
+| 7   | plan 差し戻し（2026-11-17）: 書き込みは人の会話のルートで行う                               | 提案 / What Changes、設計 / Claude が受け持つ行き来、Risks、Non-Goals |                    |
+| 8   | plan 差し戻し（2026-11-17）: 将来 SQLite に切り替えるときは、書き込み系を新たに実装する     | 設計 / SQLite へ切り替えるときのための決まり、タスク 1                |                    |
+| 9   | 人と決めた（2026-11-17）: CLI から Artifact の DB へ直接届く道は無い（調べ直した結果）      | 仮定、退けた代案                                                      |                    |
 
 ## 人に判断してほしいこと
 
 - **スマホのページから判断・本文の編集・並べ替えを書くことと、ページが DB を読んで開いたまま新しくなることを、この計画に入れるか。** 既定: どちらも入れない。この計画は置き場所の差し替えに絞り、ページからの書き込みは別のカードにする（ページで判断の検査をどう動かすかと、AI と人の書き込みの見分けを別に決めるため）。それまでスマホからは、今と同じくクラウドのセッションのチャットで頼む
 - **SQLite の実装をこの計画に入れるか。** 既定: 入れない。口（`DocumentStore`）とテスト用のメモリの実装だけを置く
+  - → 回答（2026-11-17、plan 差し戻し）: 将来 SQLite に切り替えるときは、書き込み系を新たに実装する。
 - **データ用ブランチ `ai-board/data` を、移した後に消すか。** 既定: 消さずに残し、戻すときの控えにする
+  - → 回答（2026-11-17、plan 差し戻し）: データ用ブランチは削除する前提にする。
 - **ループの 1 手の記録（ADR 0014）を残すか。** 既定: 残す。ただし 1 手ごとに送り出しが 2 回増える。外すなら `ai-board loop` と `loop/` の文書もこの計画で消す
 - **最初の seed のカードを何枚置くか。** 既定: README のチュートリアルの題材 `status-stage-counts` の 1 枚だけ
+  - → 回答（2026-11-17、plan 差し戻し）: 最初のタスクの seed は、main ブランチのファイルに置く。
