@@ -3,7 +3,7 @@ id: artifact-db-store
 title: ユーザは、データ用ブランチをやめてカードを Artifact の DB に置き、PC を閉じたままスマホからも直したい
 created: '2026-11-17T21:52:16.885Z'
 skipGates: []
-branch: null
+branch: artifact-db-store
 pr: null
 ---
 
