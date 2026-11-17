@@ -4,7 +4,7 @@ title: ユーザは、データ用ブランチをやめてカードを Artifact 
 created: '2026-11-17T21:52:16.885Z'
 skipGates: []
 branch: artifact-db-store
-pr: null
+pr: 111
 ---
 
 ## アイデア
