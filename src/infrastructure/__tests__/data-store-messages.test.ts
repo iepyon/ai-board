@@ -15,4 +15,22 @@ describe('describeDataStoreError', () => {
       `${path.join('/repo', '.ai-board', 'data-mode.yaml')} に mode: local`
     );
   });
+
+  it('UnsupportedDataVersion は、新しい版なら ai-board を新しくし、古い版なら移す処理のある版を案内する', () => {
+    const newer = describeDataStoreError({
+      type: 'UnsupportedDataVersion',
+      found: 3,
+      supported: 2,
+    });
+    const older = describeDataStoreError({
+      type: 'UnsupportedDataVersion',
+      found: 1,
+      supported: 2,
+    });
+
+    expect(newer).toContain('より新しい');
+    expect(newer).toContain('ai-board を新しくして');
+    expect(older).toContain('より古い');
+    expect(older).toContain('a15da2b');
+  });
 });

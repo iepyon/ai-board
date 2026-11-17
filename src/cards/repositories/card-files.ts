@@ -49,8 +49,8 @@ export const CARD_FILE = 'card.md';
 export const LOG_DIR = 'log';
 
 /**
- * この版の CLI が読み書きできる形の版。これより新しい版は読まずに止まり、古い版は取り直した後に書き換える
- * （`src/infrastructure/data-migration.ts`）。2 で PR 番号の項目を `mr` から `pr` に改めた
+ * この版の CLI が読み書きできる形の版。ほかの版は読まずに止まる。2 で PR 番号の項目を `mr` から `pr` に改めた。
+ * 1 から移す処理は `a15da2b` までの版にあり、今の版は版 1 を読まない
  */
 export const DATA_VERSION = 2;
 
@@ -82,7 +82,7 @@ export function serializeDataVersion(): string {
   return stringifyYaml({ version: DATA_VERSION });
 }
 
-/** 形の版を読む。この CLI より新しい版なら、中身を読まずに失敗する */
+/** 形の版を読む。この CLI の版と違えば、中身を読まずに失敗する */
 export function parseDataVersion(raw: string): Result<number, DataVersionError> {
   let data: unknown;
   try {
@@ -100,7 +100,7 @@ export function parseDataVersion(raw: string): Result<number, DataVersionError> 
   }
 
   const { version } = result.data;
-  if (version > DATA_VERSION) {
+  if (version !== DATA_VERSION) {
     return err({ type: 'UnsupportedDataVersion', found: version, supported: DATA_VERSION });
   }
 

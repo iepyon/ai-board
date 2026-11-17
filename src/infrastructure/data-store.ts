@@ -13,7 +13,6 @@ import {
 import { CONFIG_FILE, type DataMode } from './config.js';
 import { err, isErr, ok, type Result } from '../shared/result.js';
 import { describeCliError, type CliError, type CliRunner } from './cli-runner.js';
-import { DATA_MIGRATION_MESSAGE, migrateData } from './data-migration.js';
 
 // ============================================================
 // データ用ブランチ — カードの正本を置く git のワークツリーの読み書き
@@ -112,8 +111,8 @@ export type DataStoreError =
    */
   | { readonly type: 'DataStoreLocalAhead'; readonly dataDir: string; readonly count: number }
   /**
-   * 取り直した `ai-board-data.yaml` の版が、この CLI より新しい（`UnsupportedDataVersion`）か読めない（`MalformedDataVersion`）。
-   * 古い CLI が新しい形を今の形として読み書きしないよう、中身を読まずに止まる
+   * 取り直した `ai-board-data.yaml` の版が、この CLI の版と違う（`UnsupportedDataVersion`）か読めない（`MalformedDataVersion`）。
+   * 違う形を今の形として読み書きしないよう、中身を読まずに止まる
    */
   | DataVersionError;
 
@@ -295,13 +294,6 @@ class GitDataStore implements DataStore {
     const base = await this.syncForWrite(attempt, rejected);
     if (isErr(base)) return done(base);
 
-    // 古い版から書き換えた分は、書き込みとは別のコミットにして一緒に push する
-    const migrated = await this.commit(DATA_MIGRATION_MESSAGE);
-    if (isErr(migrated)) {
-      await this.discardTo('HEAD');
-      return done(migrated);
-    }
-
     const written = await this.runOperation(op);
     if (isErr(written)) return done(written);
 
@@ -423,7 +415,7 @@ class GitDataStore implements DataStore {
    * 手元モードで書いたコミットを、既定のモードに戻した最初の取り直しで黙って捨てないためである。
    *
    * 合わせた後に形の版を確かめる。`refresh` と `transact`（`op` の前）はどちらもここを通るので、
-   * この CLI より新しい版のデータは、読み出しでも書き込みでも中身に触れる前に止まる。
+   * この CLI と違う版のデータは、読み出しでも書き込みでも中身に触れる前に止まる。
    */
   private async sync(): Promise<Result<RefreshOutcome, DataStoreError>> {
     const useOrigin = await this.usesOrigin(this.dataDir);
@@ -493,9 +485,8 @@ class GitDataStore implements DataStore {
   }
 
   /**
-   * `ai-board-data.yaml` の版が、この CLI が読み書きできる版かを確かめる。古い版なら今の版へ書き換える（`migrateData`）。
+   * `ai-board-data.yaml` の版が、この CLI が読み書きできる版かを確かめる。
    *
-   * 書き換えはワークツリーのファイルだけで、コミットは書き込みの `attempt` が `op` の前に作る。
    * ファイルが無ければ確かめない（`init` は必ず書くので、無いのは版を持たない試しのデータだけである）。
    */
   private checkVersion(outcome: RefreshOutcome): Result<RefreshOutcome, DataStoreError> {
@@ -503,10 +494,7 @@ class GitDataStore implements DataStore {
     if (raw === null) return ok(outcome);
 
     const version = parseDataVersion(raw);
-    if (isErr(version)) return version;
-
-    migrateData(this.dataDir, version.value);
-    return ok(outcome);
+    return isErr(version) ? version : ok(outcome);
   }
 
   /**
