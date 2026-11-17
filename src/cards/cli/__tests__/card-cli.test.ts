@@ -36,6 +36,9 @@ let stdout: string;
 let stderr: string;
 /** `seed` が読むディレクトリの中身。テストごとに差し替える */
 let seedFiles: Result<readonly SeedFile[], string>;
+/** `export` が書いたファイル。`writeResult` が err なら書かずにそれを返す */
+let written: { dir: string; files: readonly SeedFile[] } | null;
+let writeResult: Result<void, string>;
 
 const runner = createCliRunner({ timeoutMs: 30_000 });
 
@@ -101,6 +104,8 @@ beforeEach(() => {
   stdout = '';
   stderr = '';
   seedFiles = ok([]);
+  written = null;
+  writeResult = ok(undefined);
 });
 
 afterEach(() => {
@@ -119,6 +124,10 @@ function io(stdin: string | null = null, now: Date = NOW): CardCliIo {
     },
     readStdin: () => Promise.resolve(stdin),
     readMarkdownDir: () => Promise.resolve(seedFiles),
+    writeMarkdownFiles: (dir, files) => {
+      if (writeResult.ok) written = { dir, files };
+      return Promise.resolve(writeResult);
+    },
     now: () => now,
   };
 }
@@ -779,6 +788,69 @@ describe('runCardCli seed', () => {
     seedFiles = ok([]);
     expect(await run(['seed', '--from', 'cards'])).toBe(1);
     expect(stderr).toContain('*.md がありません');
+  });
+});
+
+describe('runCardCli export', () => {
+  it('着手していない・中止していないカードを rank 順に、## レビュー を除いて書き出し、データ用ブランチには書かない', async () => {
+    await seed('idea', '## アイデア\nまだ');
+    await seed('started', '## アイデア\n着手済み');
+    await start('started');
+    await seed(
+      'aborted',
+      `## アイデア\nやめた\n\n${REVIEW_HEADING}\n\n### 2026-09-20T00:00:00.000Z plan 中止\n\n要らない`
+    );
+    const commits = originLog().length;
+
+    expect(await run(['export', '--to', 'out'])).toBe(0);
+    expect(stdout).toBe('idea: 書き出しました\n');
+    expect(written?.dir).toBe('out');
+    expect(written?.files).toEqual([
+      { name: 'idea.md', content: '---\nid: idea\ntitle: idea\n---\n\n## アイデア\nまだ\n' },
+    ]);
+    expect(originLog()).toHaveLength(commits);
+  });
+
+  it('--started で着手済みのカードも足し、判断の節は除く。探索メモは残す', async () => {
+    await seed(
+      'started',
+      `## アイデア\n着手済み\n\n## 探索メモ\nメモ\n\n${REVIEW_HEADING}\n\n### 2026-09-20T00:00:00.000Z plan 差し戻し\n\n直して`
+    );
+    await start('started');
+
+    expect(await run(['export', '--to', 'out', '--started'])).toBe(0);
+    expect(stdout).toBe('started: 書き出しました\n');
+
+    const files = written?.files ?? [];
+    expect(files.map((file) => file.name)).toEqual(['started.md']);
+    expect(files[0]?.content).not.toContain(REVIEW_HEADING);
+
+    expect(files[0]?.content).toBe(
+      '---\nid: started\ntitle: started\n---\n\n## アイデア\n着手済み\n\n## 探索メモ\nメモ\n'
+    );
+  });
+
+  it('同じ名前のファイルがあって書けなければ 1 で、理由を出す', async () => {
+    await seed('idea', '## アイデア\nまだ');
+    writeResult = err('既にあるファイル: idea.md');
+
+    expect(await run(['export', '--to', 'out'])).toBe(1);
+    expect(stderr).toContain('out に書き出せません: 既にあるファイル: idea.md');
+    expect(stderr).toContain('1 枚も書き出しませんでした');
+  });
+
+  it('--to が無い、データのワークツリーの中を指す、書き出すカードが無いときは 1', async () => {
+    expect(await run(['export'])).toBe(1);
+    expect(stderr).toContain('--to');
+
+    stderr = '';
+    expect(await run(['export', '--to', path.join(deps.store.dataDir, 'cards')])).toBe(1);
+    expect(stderr).toContain('データのワークツリー');
+
+    stderr = '';
+    expect(await run(['export', '--to', 'out'])).toBe(1);
+    expect(stderr).toContain('書き出すカードがありません');
+    expect(written).toBeNull();
   });
 });
 

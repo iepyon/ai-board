@@ -9,4 +9,4 @@
 
 github:
   # owner/repo の形式で書く。
-  repository: 'iepyon/ai-board'
+  repository: 'owner/repo'

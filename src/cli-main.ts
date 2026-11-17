@@ -261,6 +261,7 @@ function createProcessIo(): CardCliIo {
       return Buffer.concat(chunks).toString('utf-8');
     },
     readMarkdownDir,
+    writeMarkdownFiles,
     now: () => new Date(),
   };
 }
@@ -280,6 +281,36 @@ async function readMarkdownDir(dir: string): Promise<Result<readonly SeedFile[],
         }))
       )
     );
+  } catch (error) {
+    return err(error instanceof Error ? error.message : String(error));
+  }
+}
+
+/**
+ * ディレクトリ（無ければ作る）に `*.md` を書く。相対パスは作業ディレクトリから解決する。
+ * 先に全部の名前を確かめ、同じ名前のファイルが 1 つでもあれば 1 つも書かない（手で直したファイルを上書きしない）
+ */
+async function writeMarkdownFiles(
+  dir: string,
+  files: readonly SeedFile[]
+): Promise<Result<void, string>> {
+  try {
+    const root = path.resolve(dir);
+    await fs.promises.mkdir(root, { recursive: true });
+
+    const existing = new Set(await fs.promises.readdir(root));
+    const clashes = files.filter((file) => existing.has(file.name)).map((file) => file.name);
+    if (clashes.length > 0) {
+      return err(`既にあるファイル: ${clashes.join(', ')}`);
+    }
+
+    for (const file of files) {
+      await fs.promises.writeFile(path.join(root, file.name), file.content, {
+        encoding: 'utf-8',
+        flag: 'wx',
+      });
+    }
+    return ok(undefined);
   } catch (error) {
     return err(error instanceof Error ? error.message : String(error));
   }

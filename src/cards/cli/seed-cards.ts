@@ -3,9 +3,11 @@ import { err, ok, type Result } from '../../shared/result.js';
 import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
 import { CardFrontmatterSchema } from '../models/schemas/card.schema.js';
 import { normalizeBody } from '../repositories/card-markdown.js';
+import type { Card } from '../models/card.js';
+import { isAborted, parseReviewLog, stripReviewSection } from '../services/review-log.js';
 
 // ============================================================
-// ai-board card seed — 題材のファイルからカードの候補を作る
+// ai-board card seed / export — 題材のファイルとカードの行き来
 // ============================================================
 
 /** 題材のディレクトリの `*.md` の 1 ファイル。`name` はディレクトリからの名前（例: `status-stage-counts.md`） */
@@ -100,4 +102,40 @@ function readSeedCard(file: SeedFile): Result<SeedCard, string> {
     title: title.data,
     body: normalizeBody(parsed.content),
   });
+}
+
+// ============================================================
+// ai-board card export — カードを seed が読む形のファイルにする
+// ============================================================
+
+/**
+ * 書き出すカードを rank 順のまま選ぶ。
+ *
+ * 中止のカードは書き出さない（移した先でアイデアに戻っても使い道が無い）。
+ * 既定では着手していないカード（`startedAt` が無い）だけを書き出す。着手済みのカードは
+ * ブランチ・計画・PR が元のリポジトリにあり、移した先ではアイデアに戻るので、`includeStarted` のときだけ足す。
+ */
+export function selectExportCards(
+  cards: readonly Card[],
+  options: { readonly includeStarted: boolean }
+): readonly Card[] {
+  return cards.filter(
+    (card) =>
+      !isAborted(parseReviewLog(card.body)) && (options.includeStarted || card.startedAt === null)
+  );
+}
+
+/**
+ * カードを `seed` が読む形の 1 ファイルにする。名前は `<id>.md`。
+ *
+ * frontmatter は `id` と `title` だけを書く（`seed` が読むのはこの 2 つと本文だけなので、
+ * 着手やブランチや PR 番号が移ると誤解させない）。本文から `## レビュー` の節は除く。
+ * 判断は元のリポジトリでの記録で、残すと起票の口（`createCardCommand`）が拒む。
+ */
+export function toSeedFile(card: Card): SeedFile {
+  const body = stripReviewSection(card.body);
+  return {
+    name: `${card.id}${MARKDOWN_EXTENSION}`,
+    content: matter.stringify(body === '' ? '' : `\n${body}\n`, { id: card.id, title: card.title }),
+  };
 }
