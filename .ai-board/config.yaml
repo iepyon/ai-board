@@ -1,0 +1,12 @@
+# ai-board の設定。git に載せる。fork したら 2 行を自分のものに書き換える。
+
+# レビュー要求（PR）の取得先。owner/repo の形式で書く。
+# 書かなければ連携は無効になり、PR 中 / マージ済みの列がレビュー要求由来の情報を持たないだけでボードは動く。
+# アクセストークンは要らない。認証はログイン済みの gh CLI に委ねる（gh auth login）。
+github:
+  repository: 'iepyon/ai-board'
+
+# カードの置き場所（Artifact の DB）。ボードのページの Artifact の URL を書く。
+# 用意の仕方は .claude/skills/board-store/SKILL.md の「最初の用意」。
+store:
+  url: null

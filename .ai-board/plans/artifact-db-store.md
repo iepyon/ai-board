@@ -382,9 +382,9 @@ AI エージェントが使う CLI に、宣言を書く手段を設けては SH
 
 ### 3. 設定・seed・書き込みの守り
 
-- [ ] `.ai-board/config.yaml`（`github.repository` と `store.url` の空欄）を git に載せ、`config.example.yaml` を消し、`.gitignore` に `.ai-board/store/` を足す
-- [ ] `.ai-board/seed/status-stage-counts.md` を置く
-- [ ] `scripts/artifact-data-guard.mjs` と `.claude/settings.json` の hook を置き、データ用ブランチの deny を消して `.ai-board/store/` の deny を足す。`src/__tests__/claude-settings.test.ts` を直し、hook のスクリプトのテストを足す
+- [x] `.ai-board/config.yaml`（`github.repository` と `store.url` の空欄）を git に載せ、`config.example.yaml` を消し、`.gitignore` に `.ai-board/store/` を足す
+- [x] `.ai-board/seed/status-stage-counts.md` を置く
+- [x] `scripts/artifact-data-guard.mjs` と `.claude/settings.json` の hook を置き、データ用ブランチの deny を消して `.ai-board/store/` の deny を足す。`src/__tests__/claude-settings.test.ts` を直し、hook のスクリプトのテストを足す
 
 ### 4. 手順書とドキュメント
 
