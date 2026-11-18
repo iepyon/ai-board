@@ -108,7 +108,7 @@ AI 作業中 (0)
 
 `.ai-board/seed/` にある 10 枚のアイデアカードを入れ、アイデアの列に 10 枚出れば成功である。
 題材の `status-stage-counts`（「ユーザは、status で列ごとの枚数を見たい」）と、ai-board 自身のアイデア 9 枚である。
-ファイル名の順（ID のアルファベット順）でアイデアの末尾に付く。
+`.ai-board/seed/order.txt` の順に付き、先頭にはボードのページの見た目を直す 4 枚（`board-view-*`）が並ぶ。
 
 ### 入れる
 
@@ -120,12 +120,12 @@ node dist/cli.js store seed
 ```
 
 ```text
+board-view-idea-cards: 起票しました
+board-view-wait-accent: 起票しました
+board-view-title-link: 起票しました
+board-view-relative-time: 起票しました
 board-artifact-loop-republish: 起票しました
 board-events: 起票しました
-board-view-idea-cards: 起票しました
-board-view-relative-time: 起票しました
-board-view-title-link: 起票しました
-board-view-wait-accent: 起票しました
 decision-notify: 起票しました
 refactor-cli-usecase-entry: 起票しました
 retro-decisions: 起票しました
@@ -144,7 +144,7 @@ status-stage-counts: 起票しました
 | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `node dist/cli.js card list`                      | JSON の配列に 10 件。どれも `startedAt` / `branch` / `pr` は `null`                                               |
 | `node dist/cli.js card show status-stage-counts`  | frontmatter と、本文の `## アイデア` / `## 背景`                                                                  |
-| チャットで「ボードを見せて」                      | ページの「アイデア（10）」に、ファイル名の順でタイトルと ID。その下に点線の区切り「ここから下はあとで考える」。判断待ちと AI 作業中は 0 のまま |
+| チャットで「ボードを見せて」                      | ページの「アイデア（10）」に、上の起票の順でタイトルと ID（先頭は `board-view-idea-cards`）。その下に点線の区切り「ここから下はあとで考える」。判断待ちと AI 作業中は 0 のまま |
 
 ### 自分で 1 枚書く（任意）
 

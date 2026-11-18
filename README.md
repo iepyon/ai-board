@@ -105,9 +105,9 @@ node dist/cli.js status
 node dist/cli.js store seed   # 既定は .ai-board/seed/。既にある ID は飛ばす
 ```
 
-起票したカードは、ファイル名の順でアイデアの列の末尾に付く。Claude は続けて DB へ送り出し、ボードのページを出し直す。
+起票したカードは、`.ai-board/seed/order.txt` の順（書いていない題材はその後にファイル名の順）でアイデアの列の末尾に付く。Claude は続けて DB へ送り出し、ボードのページを出し直す。
 ターミナルの `status` はアイデアを出さないので、入ったことは `node dist/cli.js card list` か「ボードを見せて」で確かめる。
-研修の題材を増やすときは、`.ai-board/seed/` に `<id>.md`（frontmatter に `id` と `title`、本文は自由）を足す。
+研修の題材を増やすときは、`.ai-board/seed/` に `<id>.md`（frontmatter に `id` と `title`、本文は自由）を足し、並べたい位置に合わせて `order.txt` に ID を書く。
 
 ### 新しくカードを書く
 

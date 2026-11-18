@@ -1,0 +1,15 @@
+# store seed / card seed が起票する順（1 行 1 ID）。アイデアの列はこの順に並ぶ。
+# ここに無い題材は、この後にファイル名の順で続く。
+
+# ボードのページの見た目の小さな修正
+board-view-idea-cards
+board-view-wait-accent
+board-view-title-link
+board-view-relative-time
+
+board-artifact-loop-republish
+board-events
+decision-notify
+refactor-cli-usecase-entry
+retro-decisions
+status-stage-counts

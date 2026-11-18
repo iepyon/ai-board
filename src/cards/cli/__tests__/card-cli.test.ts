@@ -17,6 +17,7 @@ import type { SeedFile } from '../seed-cards.js';
 import type { ReviewGate } from '../../models/review.js';
 import { REVIEW_HEADING, gateStates, parseReviewLog } from '../../services/review-log.js';
 import { demoteHeadings } from '../../repositories/card-files.js';
+import { compareCards } from '../../services/card-order.js';
 
 // ============================================================
 // 一時ディレクトリの写しと送る箱（ArtifactMirrorStore）を通して確かめる
@@ -32,6 +33,8 @@ let stdout: string;
 let stderr: string;
 /** `seed` が読むディレクトリの中身。テストごとに差し替える */
 let seedFiles: Result<readonly SeedFile[], string>;
+/** `seed` が読む起票する順のファイルの中身（無ければ null）。テストごとに差し替える */
+let seedOrder: Result<string | null, string>;
 /** `export` が書いたファイル。`writeResult` が err なら書かずにそれを返す */
 let written: { dir: string; files: readonly SeedFile[] } | null;
 let writeResult: Result<void, string>;
@@ -78,6 +81,7 @@ beforeEach(() => {
   stdout = '';
   stderr = '';
   seedFiles = ok([]);
+  seedOrder = ok(null);
   written = null;
   writeResult = ok(undefined);
 });
@@ -97,6 +101,7 @@ function io(stdin: string | null = null, now: Date = NOW): CardCliIo {
     },
     readStdin: () => Promise.resolve(stdin),
     readMarkdownDir: () => Promise.resolve(seedFiles),
+    readSeedOrder: () => Promise.resolve(seedOrder),
     writeMarkdownFiles: (dir, files) => {
       if (writeResult.ok) written = { dir, files };
       return Promise.resolve(writeResult);
@@ -669,6 +674,41 @@ describe('runCardCli seed', () => {
     expect(stderr).toContain('b.md:');
     expect(await deps.cards.cardRepository.findById('b' as CardId)).toBeNull();
     expect(await deps.cards.cardRepository.findById('c' as CardId)).toBeNull();
+  });
+
+  it('order.txt の順に起票し、同じ時刻でも起票の時刻を 1 ミリ秒ずつ増やしてその順に並べる', async () => {
+    seedFiles = ok([A, B, seedFile('c.md', 'title: 題材 C')]);
+    seedOrder = ok('# 見た目の修正を先に\nc\n\nb\n');
+
+    // 時計は止まっている（io.now は毎回 NOW）
+    expect(await run(['seed', '--from', 'cards'])).toBe(0);
+    expect(stdout).toBe('c: 起票しました\nb: 起票しました\na: 起票しました\n');
+
+    const cards = await deps.cards.cardRepository.findAll();
+    const created = (id: string) => cards.find((card) => card.id === id)?.created;
+    expect(created('c')).toBe(NOW.toISOString());
+    expect(created('b')).toBe(new Date(NOW.getTime() + 1).toISOString());
+    expect(created('a')).toBe(new Date(NOW.getTime() + 2).toISOString());
+    expect([...cards].sort(compareCards).map((card) => card.id)).toEqual(['c', 'b', 'a']);
+  });
+
+  it('order.txt に題材の無い ID や同じ ID があれば、1 枚も起票しない', async () => {
+    seedFiles = ok([A, B]);
+    seedOrder = ok('b\nzzz\nb\n');
+
+    expect(await run(['seed', '--from', 'cards'])).toBe(1);
+    expect(stderr).toContain('order.txt: zzz.md がありません');
+    expect(stderr).toContain('order.txt: b が 2 度書いてあります');
+    expect(stderr).toContain('1 枚も起票しませんでした');
+    expect(await deps.cards.cardRepository.findById('a' as CardId)).toBeNull();
+  });
+
+  it('order.txt を読めなければ 1', async () => {
+    seedFiles = ok([A]);
+    seedOrder = err('EACCES');
+
+    expect(await run(['seed', '--from', 'cards'])).toBe(1);
+    expect(stderr).toContain('cards/order.txt を読めません: EACCES');
   });
 
   it('--from が無い、ディレクトリを読めない、*.md が無いときは 1', async () => {

@@ -58,7 +58,7 @@ ai-board store pull --from <dir> | outbox --json | ack | discard   # 写しへ�
 
 - 計画は `.ai-board/plans/<id>.md`。ファイル名がカード ID と一致することで紐付く。
 - 本文の `## レビュー` は判断の追記専用ログで導出の入力。`## 探索メモ` は自由記述で、ループに伝えたい補足はここに書く。
-- 最初のアイデアカードは `.ai-board/seed/*.md`（`ai-board store seed` で起票する）。
+- 最初のアイデアカードは `.ai-board/seed/*.md`（`ai-board store seed` で起票する。並ぶ順は `.ai-board/seed/order.txt`）。
 - **カードに書くコードや、置き場所の形を変えるコードを動かすときは、`AI_BOARD_STORE` で別のディレクトリを指す。**
   指さなければ試しの書き込みが本物の送る箱に積まれ、次の送り出しで本物の置き場所に届く。形の版（`board/meta`）を上げればメインの古い CLI がカードを読めなくなる。
   手順は `.claude/skills/board-loop/rules.md` の「動かして確かめるとき」。

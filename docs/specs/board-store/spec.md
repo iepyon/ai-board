@@ -69,11 +69,13 @@ git のブランチに正本を置いては SHALL NOT。
 
 システムは `main` の `.ai-board/seed/*.md`（`card seed --from` が読む形）を、`ai-board store seed` で起票の書き込みとして送る箱に積まなければならない (MUST)。
 既にある ID は飛ばし、`rank`・着手・`## レビュー` は書いては SHALL NOT。
+起票は `.ai-board/seed/order.txt`（1 行 1 ID）に書いた順に、書いていない題材はその後にファイル名の順に行い、起票の時刻を前のカードより必ず後にしなければならない (MUST)（アイデアは `rank` が無ければ起票の時刻の順に並ぶので、`rank` を書かずにこの順で並べる）。
+`order.txt` に題材の無い ID や同じ ID が 2 度あれば、1 枚も起票してはならない (SHALL NOT)。
 
 #### Scenario: 空の置き場所に seed を入れる
 
 - **WHEN** 空の DB を取り込んだ写しで `ai-board store seed` を走らせ、送る箱を送って取り込み直す
-- **THEN** seed のカードがアイデアの列に並ぶ
+- **THEN** seed のカードが `order.txt` の順にアイデアの列に並ぶ
 
 ### Requirement: データ用ブランチから移す
 

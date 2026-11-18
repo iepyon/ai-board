@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { readSeedCards, selectExportCards, toSeedFile, type SeedFile } from '../seed-cards.js';
+import {
+  parseSeedOrder,
+  readSeedCards,
+  selectExportCards,
+  toSeedFile,
+  type SeedFile,
+} from '../seed-cards.js';
 import type { Card } from '../../models/card.js';
 import type { CardId } from '../../../shared/schemas/common.js';
 
@@ -78,6 +84,34 @@ describe('readSeedCards', () => {
 
   it('ファイルが無ければ空で返す（*.md が無いことは呼び出し側が扱う）', () => {
     expect(readSeedCards([])).toEqual({ ok: true, value: [] });
+  });
+});
+
+describe('parseSeedOrder と readSeedCards の起票する順', () => {
+  it('空行と # の行を読み飛ばし、書いた ID を先に、残りをファイル名の順で返す', () => {
+    const order = parseSeedOrder('# 先頭\r\n  c  \n\nb\n');
+    expect(order).toEqual(['c', 'b']);
+
+    const result = readSeedCards(
+      [
+        file('a.md', 'title: A'),
+        file('b.md', 'title: B'),
+        file('c.md', 'title: C'),
+        file('d.md', 'title: D'),
+      ],
+      order
+    );
+    expect(result.ok && result.value.map((card) => card.id)).toEqual(['c', 'b', 'a', 'd']);
+  });
+
+  it('順に書いた題材が読めないときは、その題材の問題だけを 1 度返す', () => {
+    const result = readSeedCards([file('a.md', 'id: a'), file('b.md', 'title: B')], ['a', 'b']);
+    expect(result).toEqual({
+      ok: false,
+      error: [
+        { file: 'a.md', reason: 'title がありません（1〜200 文字の文字列で書いてください）' },
+      ],
+    });
   });
 });
 

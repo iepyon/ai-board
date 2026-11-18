@@ -9,7 +9,14 @@ import { serializeCard } from '../repositories/card-markdown.js';
 import { isReviewGate, REVIEW_GATES, type ReviewGate } from '../models/review.js';
 import { describeStoreError } from '../../infrastructure/store-messages.js';
 import { describeCardError } from '../presenters/card-messages.js';
-import { readSeedCards, selectExportCards, toSeedFile, type SeedFile } from './seed-cards.js';
+import {
+  parseSeedOrder,
+  readSeedCards,
+  SEED_ORDER_FILE,
+  selectExportCards,
+  toSeedFile,
+  type SeedFile,
+} from './seed-cards.js';
 
 // ============================================================
 // ai-board card — エージェントがカードに書くための CLI
@@ -39,7 +46,9 @@ Commands:
                            アイデアカードを作る。本文は標準入力から読む（任意）
   seed --from <dir>        <dir> の *.md（show と同じ形）のうち、まだ無いカードだけを
                            アイデアカードとして作る。既にある ID は飛ばす。読むのは id・title・本文だけ。
-                           1 つでも読めないファイルがあれば 1 枚も作らない
+                           1 つでも読めないファイルがあれば 1 枚も作らない。
+                           <dir>/order.txt（1 行 1 ID）があればその順に、無い分はファイル名の順に作る
+                           （アイデアはこの順に並ぶ）
   export --to <dir> [--started]
                            カードを seed が読む形（<id>.md。id・title・本文だけで、## レビュー を除く）で
                            <dir> に書き出す。別のリポジトリのボードへ移すときに使う。中止のカードは書き出さない。
@@ -68,6 +77,11 @@ export interface CardCliIo {
    * 読めなければ理由の文を返す
    */
   readonly readMarkdownDir: (dir: string) => Promise<Result<readonly SeedFile[], string>>;
+  /**
+   * ディレクトリの直下の起票する順のファイル（`SEED_ORDER_FILE`）を読む（`seed` が使う）。無ければ null。
+   * 読めなければ理由の文を返す
+   */
+  readonly readSeedOrder: (dir: string) => Promise<Result<string | null, string>>;
   /**
    * ディレクトリ（無ければ作る）に `*.md` を書く（`export` が使う）。相対パスは作業ディレクトリから解決する。
    * 同じ名前のファイルが 1 つでもあれば 1 つも書かずに理由の文を返す
@@ -232,6 +246,7 @@ async function runCreate(
  * 起票は 1 枚ずつ `card create` と同じ口で行い、1 枚 1 コミットにする。既にある ID は失敗にせず飛ばすので、
  * 何度走らせても重複しない。途中で失敗したら止まり、それまでに起票した分は残る（次に走らせれば続きから起票される）。
  * `rank`・`startedAt`・`## レビュー` は書かない。本文の `## レビュー` に判断があれば起票の口が拒む。
+ * 起票する順は `SEED_ORDER_FILE`（無ければファイル名の順）で、起票の時刻をこの順に必ず増やすので、アイデアもこの順に並ぶ。
  */
 async function runSeed(
   args: ParsedArgs,
@@ -250,7 +265,16 @@ async function runSeed(
     return 1;
   }
 
-  const read = readSeedCards(files.value);
+  const orderText = await io.readSeedOrder(from);
+  if (isErr(orderText)) {
+    io.stderr(`${from}/${SEED_ORDER_FILE} を読めません: ${orderText.error}\n`);
+    return 1;
+  }
+
+  const read = readSeedCards(
+    files.value,
+    orderText.value === null ? [] : parseSeedOrder(orderText.value)
+  );
   if (isErr(read)) {
     const lines = read.error.map((problem) => `${problem.file}: ${problem.reason}`);
     io.stderr(`${lines.join('\n')}\n読めないファイルがあるので、1 枚も起票しませんでした\n`);
@@ -265,13 +289,18 @@ async function runSeed(
   if (!checkForRead(deps, io)) return 1;
   const existing = new Set((await deps.cards.cardRepository.findAll()).map((card) => card.id));
 
+  // アイデアは起票の時刻の順に並ぶ（同じ時刻なら ID の順）。速い端末で同じミリ秒に起票すると
+  // 起票した順が崩れるので、時刻は前に起票したカードより必ず後にする
+  let lastCreatedMs = Number.NEGATIVE_INFINITY;
+
   for (const card of read.value) {
     if (existing.has(card.id)) {
       io.stdout(`${card.id}: 既にあるので飛ばしました\n`);
       continue;
     }
 
-    const createdAt = io.now();
+    const createdAt = new Date(Math.max(io.now().getTime(), lastCreatedMs + 1));
+    lastCreatedMs = createdAt.getTime();
     const result = await deps.writes.create({
       title: card.title,
       id: card.id,
