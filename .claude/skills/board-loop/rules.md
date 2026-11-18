@@ -157,7 +157,7 @@ node "$WT/dist/cli.js" store seed --root "$WT"        # 試すカードを起票
 ```
 
 `AI_BOARD_STORE` を指すと、`.ai-board/config.yaml` に `store.url` が無くても CLI は動く。
-写しは `out_dir` の形（`<collection>/<ID>~<連番>.json`）のディレクトリを `store pull --from` で丸ごと入れ替えられるので、手で作った文書から始めてもよい。
+写しは `out_dir` の形（`<collection>/<ID>~<連番>.json`。`out_dir` が書く `<ID>@<連番>.json` も読む）のディレクトリを `store pull --from` で丸ごと入れ替えられるので、手で作った文書から始めてもよい。
 ディレクトリ・一時ファイルは `$WT` の外（スクラッチパッドなど）に置く。`$WT` の中に置くと未コミットの変更として残る。
 自分で起動したプロセスは止めてから終える。
 
