@@ -1,15 +1,12 @@
-import { isErr, ok, type Result } from '../../shared/result.js';
-import type { OutboxBatch } from '../../infrastructure/artifact-mirror-store.js';
+import { isErr, type Result } from '../../shared/result.js';
+import { SEQ_PATTERN, type MirrorSync } from '../../infrastructure/artifact-mirror-store.js';
 import {
   checkMeta,
   copyDocuments,
-  MemoryDocumentStore,
-  initialDocuments,
-  META_COLLECTION,
-  META_ID,
+  readerOf,
   type DocumentStore,
-  type StoreError,
 } from '../../infrastructure/document-store.js';
+import { CARD_COLLECTION } from '../repositories/card-files.js';
 import { describeStoreError } from '../../infrastructure/store-messages.js';
 import type { ImportDocument } from '../repositories/data-branch-import.js';
 
@@ -48,18 +45,9 @@ Commands:
                         （ai-board card seed と同じ）
 `;
 
-/** `store` が使う写しと送る箱の口。`ArtifactMirrorStore` が満たす */
-export interface StoreCliStore extends DocumentStore {
-  pull(fromDir: string): Promise<Result<{ readonly count: number }, StoreError>>;
-  outbox(): readonly OutboxBatch[];
-  ack(through: string): Promise<Result<number, StoreError>>;
-  discard(): Promise<Result<number, StoreError>>;
-  /** 写しを確かめずに書く（`init` だけが使う） */
-  transactUnchecked: DocumentStore['transact'];
-}
-
 export interface StoreCliDependencies {
-  readonly store: StoreCliStore;
+  /** 置き場所と、写しの行き来の口。`ArtifactMirrorStore` が満たす */
+  readonly store: DocumentStore & MirrorSync;
   /** データ用ブランチの clone を読む（`import`） */
   readonly readDataBranch: (dir: string) => Result<ImportDocument[], string>;
   /** `seed` を `ai-board card seed --from <dir>` に渡す */
@@ -87,8 +75,8 @@ const HANDLERS: Readonly<Record<StoreCommand, Handler>> = {
   pull: runPull,
   outbox: runOutbox,
   ack: runAck,
-  discard: (_flags, deps, io) => runDiscard(deps, io),
-  init: (_flags, deps, io) => runInit(deps, io),
+  discard: runDiscard,
+  init: runInit,
   import: runImport,
   seed: (flags, deps) => {
     const from = flags.get('--from');
@@ -127,11 +115,7 @@ export async function runStoreCli(
   return HANDLERS[command](flags, deps, io);
 }
 
-async function runPull(
-  flags: ReadonlyMap<string, string | true>,
-  deps: StoreCliDependencies,
-  io: StoreCliIo
-): Promise<number> {
+async function runPull(flags: Flags, deps: StoreCliDependencies, io: StoreCliIo): Promise<number> {
   const from = flags.get('--from');
   if (typeof from !== 'string')
     return fail(io, '--from に out_dir のディレクトリを指定してください');
@@ -145,30 +129,25 @@ async function runPull(
   return 0;
 }
 
-function runOutbox(
-  flags: ReadonlyMap<string, string | true>,
+async function runOutbox(
+  flags: Flags,
   deps: StoreCliDependencies,
   io: StoreCliIo
 ): Promise<number> {
   const batches = deps.store.outbox();
   if (flags.get('--json') === true) {
     io.stdout(`${JSON.stringify({ batches }, null, 2)}\n`);
-    return Promise.resolve(0);
-  }
-
-  if (batches.length === 0) {
+  } else if (batches.length === 0) {
     io.stdout('送る箱は空です\n');
-    return Promise.resolve(0);
+  } else {
+    for (const batch of batches) io.stdout(`${batch.label}（${batch.writes.length} 件）\n`);
   }
-  for (const batch of batches) {
-    io.stdout(`${batch.label}（${batch.writes.length} 件）\n`);
-  }
-  return Promise.resolve(0);
+  return 0;
 }
 
 async function runAck(flags: Flags, deps: StoreCliDependencies, io: StoreCliIo): Promise<number> {
   const through = flags.get('--through');
-  if (typeof through !== 'string' || !/^\d{6}$/.test(through)) {
+  if (typeof through !== 'string' || !SEQ_PATTERN.test(through)) {
     return fail(
       io,
       '--through に送り終えた最後の束の連番（outbox --json の seq）を指定してください'
@@ -182,7 +161,11 @@ async function runAck(flags: Flags, deps: StoreCliDependencies, io: StoreCliIo):
   return 0;
 }
 
-async function runDiscard(deps: StoreCliDependencies, io: StoreCliIo): Promise<number> {
+async function runDiscard(
+  _flags: Flags,
+  deps: StoreCliDependencies,
+  io: StoreCliIo
+): Promise<number> {
   const discarded = await deps.store.discard();
   if (isErr(discarded)) return fail(io, describeStoreError(discarded.error));
   io.stdout(
@@ -191,28 +174,11 @@ async function runDiscard(deps: StoreCliDependencies, io: StoreCliIo): Promise<n
   return 0;
 }
 
-async function runInit(deps: StoreCliDependencies, io: StoreCliIo): Promise<number> {
-  const store = deps.store;
-  const result = await store.transactUnchecked<number, 'AlreadyInitialized'>(
-    '置き場所を始める',
-    () => {
-      if (store.get(META_COLLECTION, META_ID) !== null) {
-        return Promise.resolve({ ok: false, error: 'AlreadyInitialized' } as const);
-      }
-      const docs = initialDocuments();
-      for (const doc of docs) store.set(doc.collection, doc.id, doc.data);
-      return Promise.resolve(ok(docs.length));
-    }
-  );
-
-  if (isErr(result)) {
-    return fail(
-      io,
-      result.error === 'AlreadyInitialized'
-        ? '置き場所は既に始まっています（写しに board/meta があります）'
-        : describeStoreError(result.error)
-    );
-  }
+async function runInit(_flags: Flags, deps: StoreCliDependencies, io: StoreCliIo): Promise<number> {
+  const result = await deps.store.initialize();
+  if (isErr(result)) return fail(io, describeStoreError(result.error));
+  if (!result.value)
+    return fail(io, '置き場所は既に始まっています（写しに board/meta があります）');
   io.stdout(
     '置き場所の最初の文書を送る箱に積みました。送り出してください（board-store のスキル）\n'
   );
@@ -220,7 +186,7 @@ async function runInit(deps: StoreCliDependencies, io: StoreCliIo): Promise<numb
 }
 
 async function runImport(
-  flags: ReadonlyMap<string, string | true>,
+  flags: Flags,
   deps: StoreCliDependencies,
   io: StoreCliIo
 ): Promise<number> {
@@ -236,10 +202,10 @@ async function runImport(
   if (isErr(docs)) return fail(io, docs.error);
 
   const result = await copyDocuments<'NotEmpty'>(
-    new MemoryDocumentStore(docs.value),
+    readerOf(docs.value),
     deps.store,
     'データ用ブランチから移す',
-    { refuse: (to) => (to.list('cards').length > 0 ? 'NotEmpty' : null) }
+    { refuse: (to) => (to.list(CARD_COLLECTION).length > 0 ? 'NotEmpty' : null) }
   );
 
   if (isErr(result)) {
@@ -251,7 +217,7 @@ async function runImport(
     );
   }
 
-  const cards = docs.value.filter((doc) => doc.collection === 'cards').length;
+  const cards = docs.value.filter((doc) => doc.collection === CARD_COLLECTION).length;
   io.stdout(
     `${cards} 枚のカードと ${result.value - cards} 件の文書（判断・並び順）を送る箱に積みました。送り出してください（board-store のスキル）\n`
   );

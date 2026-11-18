@@ -4,6 +4,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
+import { ArtifactMirrorStore } from '../infrastructure/artifact-mirror-store.js';
+import { BOARD_DIR, STORE_DIR } from '../infrastructure/config.js';
+import { ok } from '../shared/result.js';
 
 /**
  * `scripts/artifact-data-guard.mjs`（ArtifactData の PreToolUse の hook）を確かめる。
@@ -198,6 +201,25 @@ describe('artifact-data-guard', () => {
       expect(run(call({ action: 'list', collection: 'cards' }))).toBe(0);
       expect(run(call({ action: 'batch', writes: [write] }))).toBe(0);
       expect(run(call({ action: 'batch', writes: [{ ...write, doc_id: 'a.1~000002' }] }))).toBe(2);
+    });
+
+    it('ArtifactMirrorStore が積んだ束の outbox() の writes をそのまま通す（送る箱の形を突き合わせる）', async () => {
+      dir = mkdtempSync(path.join(tmpdir(), 'ai-board-guard-'));
+      mkdirSync(path.join(dir, '.ai-board'));
+      writeFileSync(path.join(dir, '.ai-board', 'config.yaml'), `store:\n  url: '${BOARD}'\n`);
+      const store = new ArtifactMirrorStore(path.join(dir, BOARD_DIR, STORE_DIR));
+      mkdirSync(path.join(store.mirrorDir, 'board'), { recursive: true });
+      writeFileSync(path.join(store.mirrorDir, 'board', 'meta~000001.json'), '{"version":3}');
+      await store.transact('書く', () => {
+        store.set('log', 'a.1', { reason: '' });
+        return Promise.resolve(ok(undefined));
+      });
+
+      const writes = store.outbox().flatMap((batch) => batch.writes);
+      expect(run(call({ action: 'batch', writes }))).toBe(0);
+      expect(
+        run(call({ action: 'batch', writes: writes.map((w) => ({ ...w, doc_id: 'x~000001' })) }))
+      ).toBe(2);
     });
 
     it('config.yaml が無ければ止めない', () => {

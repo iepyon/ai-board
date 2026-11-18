@@ -1,3 +1,4 @@
+import { compareStrings } from '../shared/compare.js';
 import { err, ok, type Result } from '../shared/result.js';
 
 // ============================================================
@@ -131,6 +132,21 @@ export function assertWritable(collection: string, id: string): void {
   if (!isValidDocumentId(id)) throw new Error(`文書の ID に使えない文字があります: ${id}`);
 }
 
+/** 文書の並びを読み出しだけの口にする（`copyDocuments` の写し元） */
+export function readerOf(
+  docs: readonly { collection: Collection; id: string; data: DocumentData }[]
+): DocumentReader {
+  return {
+    get: (collection, id) =>
+      docs.find((doc) => doc.collection === collection && doc.id === id)?.data ?? null,
+    list: (collection) =>
+      docs
+        .filter((doc) => doc.collection === collection)
+        .map(({ id, data }) => ({ id, data }))
+        .sort((a, b) => compareStrings(a.id, b.id)),
+  };
+}
+
 /** `copyDocuments` の指定 */
 export interface CopyOptions<E> {
   /** 写すコレクション。既定は全部 */
@@ -190,7 +206,7 @@ export class MemoryDocumentStore implements DocumentStore {
 
   list(collection: Collection): readonly StoredDocument[] {
     return [...this.table(this.current(), collection).entries()]
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .sort(([a], [b]) => compareStrings(a, b))
       .map(([id, data]) => ({ id, data }));
   }
 

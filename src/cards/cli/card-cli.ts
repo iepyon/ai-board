@@ -169,7 +169,7 @@ async function runList(
   deps: CardCliDependencies,
   io: CardCliIo
 ): Promise<number> {
-  if (!(await refreshForRead(deps, io))) return 1;
+  if (!checkForRead(deps, io)) return 1;
 
   const cards = await deps.cards.cardRepository.findAll();
   const summaries = cards.map(({ body: _body, ...meta }) => meta);
@@ -185,7 +185,7 @@ async function runShow(
 ): Promise<number> {
   const id = requireCardId(args, io);
   if (id === null) return 1;
-  if (!(await refreshForRead(deps, io))) return 1;
+  if (!checkForRead(deps, io)) return 1;
 
   const card = await deps.cards.cardRepository.findById(id);
   if (card === null) {
@@ -261,7 +261,7 @@ async function runSeed(
   }
 
   // 既にある ID は、書き込み（fetch・ロック・push）を経ずに飛ばす。取り直しは頭の 1 回だけにする
-  if (!(await refreshForRead(deps, io))) return 1;
+  if (!checkForRead(deps, io)) return 1;
   const existing = new Set((await deps.cards.cardRepository.findAll()).map((card) => card.id));
 
   for (const card of read.value) {
@@ -318,7 +318,7 @@ async function runExport(
     return 1;
   }
 
-  if (!(await refreshForRead(deps, io))) return 1;
+  if (!checkForRead(deps, io)) return 1;
 
   const cards = selectExportCards(await deps.cards.cardRepository.findAll(), {
     includeStarted: args.flags.get('--started') === true,
@@ -446,13 +446,10 @@ async function runHold(
 // ============================================================
 
 /** 読む前に写しを確かめる。読めなければ理由を出して false */
-function refreshForRead(deps: CardCliDependencies, io: CardCliIo): Promise<boolean> {
+function checkForRead(deps: CardCliDependencies, io: CardCliIo): boolean {
   const checked = deps.store.check();
-  if (isErr(checked)) {
-    io.stderr(`${describeStoreError(checked.error)}\n`);
-    return Promise.resolve(false);
-  }
-  return Promise.resolve(true);
+  if (isErr(checked)) io.stderr(`${describeStoreError(checked.error)}\n`);
+  return checked.ok;
 }
 
 // ============================================================

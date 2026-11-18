@@ -1,10 +1,14 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { err, isErr, ok, type Result } from '../shared/result.js';
+import { compareStrings } from '../shared/compare.js';
 import {
   assertWritable,
   checkMeta,
   COLLECTIONS,
+  initialDocuments,
+  META_COLLECTION,
+  META_ID,
   isValidDocumentId,
   type Collection,
   type DocumentData,
@@ -37,14 +41,14 @@ import { defaultLockOptions, withFileLock, type LockOptions } from './file-lock.
  * 既にある ID を版なしで作ろうとした `batch` は DB が丸ごと拒むので、2 つの端末が同じ改訂を作ると片方が拒まれる（楽観ロック）。
  * 拒まれたら `discard` で送る箱を捨て、取り込み直して元のコマンドを頭からやり直す。
  */
-export class ArtifactMirrorStore implements DocumentStore {
+export class ArtifactMirrorStore implements DocumentStore, MirrorSync {
   readonly mirrorDir: string;
   readonly outboxDir: string;
   private readonly lockPath: string;
   private index: MirrorIndex | null = null;
-  /** 写しの中の読めない改訂のファイル（`loadIndex` が埋める） */
+  /** 写しの中の、最新なのに読めない改訂のファイル（`loadIndex` が埋める） */
   private corrupt: string[] = [];
-  /** `transact` の中で作った改訂（論理 ID ごとの物理 ID）。null なら transact の外 */
+  /** `transact` の中で作った改訂（論理 ID ごと）。null なら transact の外 */
   private written: Map<string, WrittenRevision> | null = null;
 
   constructor(
@@ -57,7 +61,7 @@ export class ArtifactMirrorStore implements DocumentStore {
   }
 
   /**
-   * 写しがあり、形の版が合い、どの改訂のファイルも読めるか。
+   * 写しがあり、形の版が合い、どの文書の最新の改訂も読めるか。
    * 読めない改訂（書きかけで壊れたなど）があれば、取り込み直すまで読み書きしない
    * （古い改訂を読んで書くと、送るときに原因の分からないぶつかりになるため）
    */
@@ -79,18 +83,15 @@ export class ArtifactMirrorStore implements DocumentStore {
 
   get(collection: Collection, id: string): DocumentData | null {
     const entry = this.loadIndex().get(collection)?.get(id);
-    if (entry === undefined || entry.data === null || isDeleted(entry.data)) return null;
-    return entry.data;
+    return entry === undefined || isAbsent(entry.data) ? null : entry.data;
   }
 
   list(collection: Collection): readonly StoredDocument[] {
     const table = this.loadIndex().get(collection);
     if (table === undefined) return [];
     return [...table.entries()]
-      .flatMap(([id, entry]) =>
-        entry.data === null || isDeleted(entry.data) ? [] : [{ id, data: entry.data }]
-      )
-      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+      .flatMap(([id, entry]) => (isAbsent(entry.data) ? [] : [{ id, data: entry.data }]))
+      .sort((a, b) => compareStrings(a.id, b.id));
   }
 
   set(collection: Collection, id: string, data: DocumentData): void {
@@ -107,28 +108,17 @@ export class ArtifactMirrorStore implements DocumentStore {
   }
 
   pendingWrites(): number {
-    return this.readBatches().length;
+    return this.batchSeqs().length;
   }
 
-  /** 写しが無い・形の版が違うときは、`op` を走らせずに Err を返す（古い CLI や取り込み忘れで書かない） */
+  /** 写しが無い・形の版が違う・読めない改訂があるときは、`op` を走らせずに Err を返す */
   async transact<T, E>(
     label: TransactLabel<T>,
     op: () => Promise<Result<T, E>>
   ): Promise<Result<T, E | StoreError>> {
     const checked = this.check();
     if (isErr(checked)) return checked;
-    return this.transactUnchecked(label, op);
-  }
-
-  /**
-   * 写しを確かめずに書く。空の置き場所を始める `ai-board store init` だけが使う
-   * （`board/meta` を書く前なので `check` が通らない）
-   */
-  async transactUnchecked<T, E>(
-    label: TransactLabel<T>,
-    op: () => Promise<Result<T, E>>
-  ): Promise<Result<T, E | StoreError>> {
-    const locked = await withFileLock(this.lockPath, this.lockOptions, async () => {
+    const locked = await this.locked(async () => {
       // ほかのプロセスが書いたかもしれないので、写しを読み直してから始める
       this.index = null;
       this.written = new Map();
@@ -141,12 +131,30 @@ export class ArtifactMirrorStore implements DocumentStore {
         }
         return result;
       } finally {
-        if (!succeeded) this.rollback([...this.written.values()]);
+        if (!succeeded) this.removeRevisions([...this.written.values()]);
         this.written = null;
       }
     });
-    if (isErr(locked)) return err({ type: 'StoreLockTimeout', lockPath: locked.error.lockPath });
-    return locked.value;
+    return isErr(locked) ? locked : locked.value;
+  }
+
+  /**
+   * 空の置き場所を始める（`ai-board store init`）。`board/meta` が無いときだけ最初の文書を送る箱に積み、積んだら true。
+   * `board/meta` を書く前は `check` が通らないので、`transact` を通さずにここで書く
+   */
+  async initialize(): Promise<Result<boolean, StoreError>> {
+    return this.locked(() => {
+      this.index = null;
+      if (this.get(META_COLLECTION, META_ID) !== null) return false;
+      this.written = new Map();
+      try {
+        for (const doc of initialDocuments()) this.writeRevision(doc.collection, doc.id, doc.data);
+        this.enqueue('置き場所を始める', [...this.written.values()]);
+      } finally {
+        this.written = null;
+      }
+      return true;
+    });
   }
 
   /**
@@ -156,33 +164,27 @@ export class ArtifactMirrorStore implements DocumentStore {
    * 規定のコレクションの `*.json` だけを読み、どれか 1 つでも読めなければ何も変えない。
    */
   async pull(fromDir: string): Promise<Result<{ readonly count: number }, StoreError>> {
-    const locked = await withFileLock(
-      this.lockPath,
-      this.lockOptions,
-      (): Promise<Result<{ readonly count: number }, StoreError>> => {
-        const pending = this.readBatches().length;
-        if (pending > 0)
-          return Promise.resolve(err<StoreError>({ type: 'StorePendingWrites', count: pending }));
+    const locked = await this.locked((): Result<{ readonly count: number }, StoreError> => {
+      const pending = this.pendingWrites();
+      if (pending > 0) return err({ type: 'StorePendingWrites', count: pending });
 
-        const incoming = readExport(fromDir);
-        if (isErr(incoming)) return Promise.resolve(incoming);
+      const incoming = readExport(fromDir);
+      if (isErr(incoming)) return incoming;
 
-        const tmp = `${this.mirrorDir}.tmp-${process.pid}`;
-        fs.rmSync(tmp, { recursive: true, force: true });
-        for (const doc of incoming.value) {
-          const dir = path.join(tmp, doc.collection);
-          fs.mkdirSync(dir, { recursive: true });
-          fs.writeFileSync(path.join(dir, `${doc.physicalId}.json`), serialize(doc.data));
-        }
-        fs.mkdirSync(tmp, { recursive: true });
-        fs.rmSync(this.mirrorDir, { recursive: true, force: true });
-        fs.renameSync(tmp, this.mirrorDir);
-        this.index = null;
-        return Promise.resolve(ok({ count: incoming.value.length }));
+      const tmp = `${this.mirrorDir}.tmp-${process.pid}`;
+      fs.rmSync(tmp, { recursive: true, force: true });
+      fs.mkdirSync(tmp, { recursive: true });
+      for (const doc of incoming.value) {
+        const dir = path.join(tmp, doc.collection);
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, `${doc.physicalId}.json`), serialize(doc.data));
       }
-    );
-    if (isErr(locked)) return err({ type: 'StoreLockTimeout', lockPath: locked.error.lockPath });
-    return locked.value;
+      fs.rmSync(this.mirrorDir, { recursive: true, force: true });
+      fs.renameSync(tmp, this.mirrorDir);
+      this.index = null;
+      return ok({ count: incoming.value.length });
+    });
+    return isErr(locked) ? locked : locked.value;
   }
 
   /**
@@ -191,7 +193,7 @@ export class ArtifactMirrorStore implements DocumentStore {
    */
   outbox(): readonly OutboxBatch[] {
     const batches: OutboxBatch[] = [];
-    for (const [seq, batch] of this.readBatchesWithSeq()) {
+    for (const [seq, batch] of this.readBatches()) {
       for (let i = 0; i < batch.writes.length; i += BATCH_LIMIT) {
         batches.push({
           seq,
@@ -213,42 +215,45 @@ export class ArtifactMirrorStore implements DocumentStore {
    * ほかのプロセスが積んだ束は残す。写しはそのまま
    */
   async ack(through: string): Promise<Result<number, StoreError>> {
-    const locked = await withFileLock(this.lockPath, this.lockOptions, () => {
-      let count = 0;
-      for (const [seq, batch] of this.readBatchesWithSeq()) {
-        if (seq > through) continue;
+    return this.locked(() => {
+      const sent = this.readBatches().filter(([seq]) => seq <= through);
+      for (const [seq, batch] of sent) {
         for (const write of batch.writes) {
           fs.rmSync(path.join(this.outboxDir, DOCS_DIR, write.file), { force: true });
         }
-        fs.rmSync(path.join(this.outboxDir, `${seq}.json`), { force: true });
-        count += 1;
+        fs.rmSync(this.batchPath(seq), { force: true });
       }
-      return Promise.resolve(count);
+      return sent.length;
     });
-    if (isErr(locked)) return err({ type: 'StoreLockTimeout', lockPath: locked.error.lockPath });
-    return ok(locked.value);
   }
 
   /** 送る箱を捨て、写しに足した改訂を消して、積む前に戻す（改訂がぶつかったとき） */
   async discard(): Promise<Result<number, StoreError>> {
-    const locked = await withFileLock(this.lockPath, this.lockOptions, () => {
+    return this.locked(() => {
       const batches = this.readBatches();
-      for (const batch of batches) {
-        for (const write of batch.writes) {
-          fs.rmSync(path.join(this.mirrorDir, write.collection, `${write.physicalId}.json`), {
-            force: true,
-          });
-        }
-      }
+      this.removeRevisions(batches.flatMap(([, batch]) => batch.writes));
       fs.rmSync(this.outboxDir, { recursive: true, force: true });
-      this.index = null;
-      return Promise.resolve(batches.length);
+      return batches.length;
     });
-    if (isErr(locked)) return err({ type: 'StoreLockTimeout', lockPath: locked.error.lockPath });
-    return ok(locked.value);
   }
 
   // ------------------------------------------------------------
+
+  /** ロックを取って `op` を走らせる。待ち切れなければ `StoreLockTimeout` */
+  private async locked<T>(op: () => T | Promise<T>): Promise<Result<T, StoreError>> {
+    const result = await withFileLock(this.lockPath, this.lockOptions, async () => op());
+    return isErr(result)
+      ? err({ type: 'StoreLockTimeout', lockPath: result.error.lockPath })
+      : result;
+  }
+
+  private revisionPath(collection: Collection, physical: string): string {
+    return path.join(this.mirrorDir, collection, `${physical}.json`);
+  }
+
+  private batchPath(seq: string): string {
+    return path.join(this.outboxDir, `${seq}.json`);
+  }
 
   private writeRevision(collection: Collection, id: string, data: DocumentData): void {
     if (this.written === null) throw new Error('書き込みは transact の中でだけ行えます');
@@ -257,21 +262,24 @@ export class ArtifactMirrorStore implements DocumentStore {
     let revision = this.written.get(key);
     if (revision === undefined) {
       // 読めない改訂も連番に数える（同じ名前のファイルを上書きしない）
-      const next = (table.get(id)?.rev ?? 0) + 1;
-      revision = { collection, id, physicalId: physicalId(id, next), rev: next };
+      revision = { collection, physicalId: physicalId(id, (table.get(id)?.rev ?? 0) + 1) };
       this.written.set(key, revision);
     }
-    const dir = path.join(this.mirrorDir, collection);
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, `${revision.physicalId}.json`), serialize(data));
-    table.set(id, { rev: revision.rev, data: structuredClone(data) });
+    const file = this.revisionPath(collection, revision.physicalId);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, serialize(data));
+    table.set(id, {
+      rev: parsePhysicalId(revision.physicalId)?.rev ?? 0,
+      data: structuredClone(data),
+    });
   }
 
-  private rollback(revisions: readonly WrittenRevision[]): void {
+  /** 写しから改訂のファイルを消し、読み直させる（拒まれた transact と discard） */
+  private removeRevisions(
+    revisions: readonly { readonly collection: Collection; readonly physicalId: string }[]
+  ): void {
     for (const revision of revisions) {
-      fs.rmSync(path.join(this.mirrorDir, revision.collection, `${revision.physicalId}.json`), {
-        force: true,
-      });
+      fs.rmSync(this.revisionPath(revision.collection, revision.physicalId), { force: true });
     }
     this.index = null;
   }
@@ -280,41 +288,34 @@ export class ArtifactMirrorStore implements DocumentStore {
     if (revisions.length === 0) return;
     const docsDir = path.join(this.outboxDir, DOCS_DIR);
     fs.mkdirSync(docsDir, { recursive: true });
-    const seq = this.nextBatchSeq();
+    const last = this.batchSeqs().at(-1);
+    const seq = formatSeq(last === undefined ? 1 : Number.parseInt(last, 10) + 1);
     const writes = revisions.map((revision, n) => {
       const file = `${seq}-${n + 1}.json`;
       fs.copyFileSync(
-        path.join(this.mirrorDir, revision.collection, `${revision.physicalId}.json`),
+        this.revisionPath(revision.collection, revision.physicalId),
         path.join(docsDir, file)
       );
       return { collection: revision.collection, physicalId: revision.physicalId, file };
     });
     const batch: StoredBatch = { label, writes };
-    fs.writeFileSync(path.join(this.outboxDir, `${seq}.json`), serialize(batch));
+    fs.writeFileSync(this.batchPath(seq), serialize(batch));
   }
 
-  private nextBatchSeq(): string {
-    const last = this.batchFiles().at(-1);
-    const next = last === undefined ? 1 : Number.parseInt(last, 10) + 1;
-    return String(next).padStart(6, '0');
-  }
-
-  private batchFiles(): string[] {
+  /** 送る箱の束の連番。昇順 */
+  private batchSeqs(): string[] {
     if (!fs.existsSync(this.outboxDir)) return [];
     return fs
       .readdirSync(this.outboxDir)
-      .filter((name) => /^\d{6}\.json$/.test(name))
+      .filter((name) => BATCH_FILE.test(name))
+      .map((name) => name.slice(0, -'.json'.length))
       .sort();
   }
 
-  private readBatches(): StoredBatch[] {
-    return this.readBatchesWithSeq().map(([, batch]) => batch);
-  }
-
-  private readBatchesWithSeq(): [string, StoredBatch][] {
-    return this.batchFiles().map((name) => [
-      name.slice(0, -'.json'.length),
-      JSON.parse(fs.readFileSync(path.join(this.outboxDir, name), 'utf-8')) as StoredBatch,
+  private readBatches(): [string, StoredBatch][] {
+    return this.batchSeqs().map((seq) => [
+      seq,
+      JSON.parse(fs.readFileSync(this.batchPath(seq), 'utf-8')) as StoredBatch,
     ]);
   }
 
@@ -329,8 +330,8 @@ export class ArtifactMirrorStore implements DocumentStore {
   }
 
   /**
-   * 写しを読み、論理 ID ごとに最新の改訂を選ぶ。読めない改訂も連番には数え、`corrupt` に控える
-   * （最新が読めなければ、その文書は無いものとして読み、`check` が取り込み直しを促す）
+   * 写しを読み、論理 ID ごとに最新の改訂を選ぶ。先にファイル名で最新を選び、中身はその改訂だけを読む。
+   * 最新が読めなければその文書は無いものとして読み、`corrupt` に控えて `check` が取り込み直しを促す
    */
   private loadIndex(): MirrorIndex {
     if (this.index !== null) return this.index;
@@ -339,15 +340,19 @@ export class ArtifactMirrorStore implements DocumentStore {
     for (const collection of COLLECTIONS) {
       const dir = path.join(this.mirrorDir, collection);
       if (!fs.existsSync(dir)) continue;
-      const table = new Map<string, IndexEntry>();
-      for (const name of fs.readdirSync(dir).sort()) {
+      const latest = new Map<string, number>();
+      for (const name of fs.readdirSync(dir)) {
         const parsed = parsePhysicalFile(name);
-        if (parsed === null) continue;
-        const data = readJsonObject(path.join(dir, name));
-        if (data === null) corrupt.push(path.join(dir, name));
-        const current = table.get(parsed.id);
-        if (current !== undefined && current.rev >= parsed.rev) continue;
-        table.set(parsed.id, { rev: parsed.rev, data });
+        if (parsed !== null && parsed.rev > (latest.get(parsed.id) ?? 0)) {
+          latest.set(parsed.id, parsed.rev);
+        }
+      }
+      const table = new Map<string, IndexEntry>();
+      for (const [id, rev] of latest) {
+        const file = this.revisionPath(collection, physicalId(id, rev));
+        const data = readJsonObject(file);
+        if (data === null) corrupt.push(file);
+        table.set(id, { rev, data });
       }
       index.set(collection, table);
     }
@@ -355,6 +360,26 @@ export class ArtifactMirrorStore implements DocumentStore {
     this.corrupt = corrupt;
     return index;
   }
+}
+
+/**
+ * 写しと置き場所（Artifact の DB）の行き来の口。`ai-board store` が使う。
+ * `DocumentStore` の外に置き、SQLite に切り替えたら口ごと外す
+ */
+export interface MirrorSync {
+  pull(fromDir: string): Promise<Result<{ readonly count: number }, StoreError>>;
+  outbox(): readonly OutboxBatch[];
+  ack(through: string): Promise<Result<number, StoreError>>;
+  discard(): Promise<Result<number, StoreError>>;
+  initialize(): Promise<Result<boolean, StoreError>>;
+}
+
+/** 束の連番の形（6 桁）。`ack --through` の検査にも使う */
+export const SEQ_PATTERN = /^\d{6}$/;
+const BATCH_FILE = /^\d{6}\.json$/;
+
+function formatSeq(n: number): string {
+  return String(n).padStart(6, '0');
 }
 
 /** `outbox --json` の 1 つの束。`writes` は `ArtifactData` の `batch` の `writes` にそのまま渡せる */
@@ -389,11 +414,10 @@ type MirrorIndex = Map<Collection, Map<string, IndexEntry>>;
 
 interface WrittenRevision {
   readonly collection: Collection;
-  readonly id: string;
   readonly physicalId: string;
-  readonly rev: number;
 }
 
+/** 束の中身。`scripts/artifact-data-guard.mjs` も同じ形で読む（変えたら hook も直す） */
 interface StoredBatch {
   readonly label: string;
   readonly writes: readonly {
@@ -407,15 +431,23 @@ function isDeleted(data: DocumentData): boolean {
   return data.__deleted === true;
 }
 
+/** 読めない（null）か、消したことを表す改訂 */
+function isAbsent(data: DocumentData | null): data is null {
+  return data === null || isDeleted(data);
+}
+
 /** 論理 ID と連番から、置き場所の文書の ID を作る */
 export function physicalId(id: string, rev: number): string {
-  return `${id}${REVISION_SEPARATOR}${String(rev).padStart(6, '0')}`;
+  return `${id}${REVISION_SEPARATOR}${formatSeq(rev)}`;
 }
 
 /** `<論理 ID>~<連番>.json` を読み分ける。形が違えば null */
 export function parsePhysicalFile(name: string): { id: string; rev: number } | null {
-  if (!name.endsWith('.json')) return null;
-  const stem = name.slice(0, -'.json'.length);
+  return name.endsWith('.json') ? parsePhysicalId(name.slice(0, -'.json'.length)) : null;
+}
+
+/** `<論理 ID>~<連番>` を読み分ける。形が違えば null */
+function parsePhysicalId(stem: string): { id: string; rev: number } | null {
   const at = stem.lastIndexOf(REVISION_SEPARATOR);
   if (at <= 0) return null;
   const id = stem.slice(0, at);

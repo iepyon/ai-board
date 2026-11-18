@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from 'node:util';
 import matter from 'gray-matter';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { z } from 'zod';
+import { compareStrings } from '../../shared/compare.js';
 import { ok, err, type Result } from '../../shared/result.js';
 import { CardIdSchema, type CardId, type PullRequestNumber } from '../../shared/schemas/common.js';
 import { CardFrontmatterSchema } from '../models/schemas/card.schema.js';
@@ -183,7 +184,7 @@ export function orderDocumentData(order: OrderFile): {
   ranks: Record<string, number>;
 } {
   const ranks = Object.fromEntries(
-    Object.entries(order.ranks).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    Object.entries(order.ranks).sort(([a], [b]) => compareStrings(a, b))
   );
 
   return { divider: order.divider, ranks };
@@ -272,6 +273,12 @@ export function fromLogStamp(stamp: string): string | null {
 
   // 13 月や 25 時のような、Date が丸めてしまう値を通さない
   return !Number.isNaN(ms) && new Date(ms).toISOString() === iso ? iso : null;
+}
+
+/** 名前の形は正しく、ゲートが廃止したもの（`explore` / `verify`）の判断のファイルか */
+export function isRetiredLogFileName(name: string): boolean {
+  const gate = LOG_NAME.exec(name)?.[2];
+  return gate !== undefined && isRetiredReviewGate(gate);
 }
 
 /** 判断のファイル名を読む。形が違う・ゲートと種別の組み合わせが規定外なら null */
@@ -371,8 +378,7 @@ function readLog(id: string, files: readonly LogFile[]): ReadLogEntry[] {
     const name = parseLogFileName(file.name);
     if (name === null) {
       // 名前の形が正しく、ゲートが廃止したものなら、壊れたファイルではないので警告しない
-      const gate = LOG_NAME.exec(file.name)?.[2];
-      if (gate !== undefined && isRetiredReviewGate(gate)) continue;
+      if (isRetiredLogFileName(file.name)) continue;
       console.warn(`[ai-board] 判断のファイルを読み飛ばしました: ${id}/${LOG_DIR}/${file.name}`);
       continue;
     }
@@ -801,10 +807,6 @@ function sameInstant(a: string | null, b: string | null): boolean {
 
 function latestInstant(a: string, b: string | null): string {
   return b !== null && Date.parse(b) > Date.parse(a) ? b : a;
-}
-
-function compareStrings(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 function warnCardFile(id: string, reason: string): void {

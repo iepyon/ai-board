@@ -1,4 +1,5 @@
 import { isErr } from '../../shared/result.js';
+import { settle } from '../../shared/settle.js';
 import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
 import type { DocumentStore } from '../../infrastructure/document-store.js';
 import type { Card } from '../models/card.js';
@@ -174,8 +175,13 @@ export class DocCardRepository implements CardRepository {
     };
   }
 
+  /** 1 枚のカードの判断。判断の文書の ID は `<カード ID>.` で始まる */
   private logsOf(id: string): LogFile[] {
-    return this.logsByCard().get(id) ?? [];
+    const prefix = `${id}.`;
+    return this.store
+      .list(LOG_COLLECTION)
+      .filter((doc) => doc.id.startsWith(prefix))
+      .map((doc) => logFileFromDocument(id, doc.id, doc.data));
   }
 
   /** 判断の文書をカードごとに分ける */
@@ -241,11 +247,6 @@ export function writeOrder(store: Pick<DocumentStore, 'set'>, order: OrderFile):
 // ============================================================
 // ヘルパー
 // ============================================================
-
-/** 同期の処理を Promise にする。投げた例外は reject として返す */
-export function settle<T>(fn: () => T): Promise<T> {
-  return new Promise((resolve) => resolve(fn()));
-}
 
 function isCardId(id: string): boolean {
   return CardIdSchema.safeParse(id).success;

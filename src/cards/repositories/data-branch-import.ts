@@ -2,8 +2,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { isErr, err, ok, type Result } from '../../shared/result.js';
 import { CardIdSchema } from '../../shared/schemas/common.js';
-import { isRetiredReviewGate } from '../models/review.js';
 import type { Collection, DocumentData } from '../../infrastructure/document-store.js';
+import { readFileOrNull } from '../../infrastructure/read-file.js';
 import {
   CARDS_DIR,
   CARD_COLLECTION,
@@ -15,6 +15,7 @@ import {
   ORDER_FILE,
   ORDER_ID,
   cardDocumentFromMarkdown,
+  isRetiredLogFileName,
   logDocumentData,
   logDocumentId,
   orderDocumentData,
@@ -117,16 +118,6 @@ function readCard(cardsDir: string, id: string): ImportDocument[] {
 
 /** 読めない判断のファイルを警告する。廃止したゲートのものは壊れていないので黙って飛ばす */
 function warnUnreadableLog(id: string, name: string): void {
-  const gate = /^[^.]+\.[^.]+\.([a-z]+)\./.exec(name)?.[1];
-  if (gate !== undefined && isRetiredReviewGate(gate)) return;
+  if (isRetiredLogFileName(name)) return;
   console.warn(`[ai-board] 移さずに飛ばしました: ${CARDS_DIR}/${id}/${LOG_DIR}/${name}`);
-}
-
-function readFileOrNull(file: string): string | null {
-  try {
-    return fs.readFileSync(file, 'utf-8');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
-    throw error;
-  }
 }

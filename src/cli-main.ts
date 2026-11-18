@@ -2,11 +2,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { BOARD_DIR, loadConfig, resolvePaths, type BoardPaths } from './infrastructure/config.js';
 import { createCliRunner } from './infrastructure/cli-runner.js';
-import {
-  createBoardStore,
-  createCardCliParts,
-  createCardDependencies,
-} from './cards/composition.js';
+import { createBoardStore, createCardCliParts } from './cards/composition.js';
+import { CARD_COLLECTION } from './cards/repositories/card-files.js';
 import { runCardCli, type CardCliIo } from './cards/cli/card-cli.js';
 import type { SeedFile } from './cards/cli/seed-cards.js';
 import { runStoreCli } from './cards/cli/store-cli.js';
@@ -20,7 +17,7 @@ import { runLoopCli } from './board/cli/loop-cli.js';
 import { DECIDE_USAGE, isDecideCommand, runDecideCli } from './board/cli/decide-cli.js';
 import { readMtimeMs, runDistCheckCli } from './infrastructure/dist-check-cli.js';
 import { err, ok, type Result } from './shared/result.js';
-import { CardIdSchema, type CardId } from './shared/schemas/common.js';
+import { CardIdSchema } from './shared/schemas/common.js';
 
 // ============================================================
 // ai-board CLI
@@ -207,16 +204,16 @@ async function runLoop(argv: readonly string[]): Promise<number> {
   const io = createProcessIo();
   const paths = resolvePaths(root);
   const store = createBoardStore(paths);
-  const { cardRepository } = createCardDependencies(store);
 
   const code = await runLoopCli(
     rest,
     {
       store,
-      cardExists: async (id) => {
-        const parsed = CardIdSchema.safeParse(id);
-        return parsed.success && (await cardRepository.findById(parsed.data as CardId)) !== null;
-      },
+      // カードを組み立てずに、カードの文書があるかだけを見る
+      cardExists: (id) =>
+        Promise.resolve(
+          CardIdSchema.safeParse(id).success && store.get(CARD_COLLECTION, id) !== null
+        ),
     },
     io
   );

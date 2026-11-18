@@ -22,6 +22,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const READ_ACTIONS = new Set(['get', 'list', 'query', 'profiles']);
+// 送る箱の置き場所と束の形は `src/infrastructure/artifact-mirror-store.ts`（`OUTBOX_DIR`・`DOCS_DIR`・`StoredBatch`）と同じ。
+// hook は依存を持たずに走らせるので写して持つ。どちらかを変えたら両方を直す（`src/__tests__/artifact-data-guard.test.ts` が突き合わせる）
 const OUTBOX_DIR = path.join('.ai-board', 'store', 'outbox');
 
 /** Artifact の URL から ID を取り出す。claude.ai/artifact/<id> と claude.ai/code/artifact/<id> の両方を読む */
@@ -51,6 +53,7 @@ export function storeUrlOf(configYaml) {
  * `storeUrl` はボードの置き場所の URL（未設定なら null）。
  * `outbox` は送る箱の中身で、`docsDir`（メインのチェックアウトの `.ai-board/store/outbox/docs` の実体のパス）と、
  * 束に載っている書き込みの組（`<collection>|<doc_id>|<ファイル名>`）の集まり `entries`。
+ * 読むのに手間がかかるので、関数で渡せば書き込みの batch のときだけ読む。
  * `realpath` はパスを実体のパスに直す関数（無いファイルなら null）。テストで差し替える。
  */
 export function decide(input, storeUrl, outbox, realpath = realpathOrNull) {
@@ -73,8 +76,9 @@ export function decide(input, storeUrl, outbox, realpath = realpathOrNull) {
   const writes = Array.isArray(toolInput.writes) ? toolInput.writes : [];
   if (writes.length === 0) return 'batch の writes が空です';
 
+  const box = typeof outbox === 'function' ? outbox() : outbox;
   for (const [index, write] of writes.entries()) {
-    const problem = problemOf(write, outbox, realpath);
+    const problem = problemOf(write, box, realpath);
     if (problem !== null) {
       return (
         `ボードの置き場所への batch の writes[${index}] は送れません（${problem}）。` +
@@ -167,7 +171,9 @@ function main() {
     return 0;
   }
 
-  const reason = decide(input, storeUrlOf(configYaml), readOutbox(mainCheckoutOf(projectDir)));
+  const reason = decide(input, storeUrlOf(configYaml), () =>
+    readOutbox(mainCheckoutOf(projectDir))
+  );
   if (reason === null) return 0;
   process.stderr.write(`${reason}\n`);
   return 2;

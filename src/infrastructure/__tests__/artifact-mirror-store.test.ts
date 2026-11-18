@@ -55,7 +55,7 @@ function pulledStore(): ArtifactMirrorStore {
 describeDocumentStoreContract('Artifact の DB（写しと送る箱）', pulledStore);
 
 describe('ArtifactMirrorStore', () => {
-  it('写しが無い・形の版が違うときは transact が書かない（init だけは transactUnchecked で書ける）', async () => {
+  it('写しが無いときは transact が書かない（空の置き場所は initialize で始める）', async () => {
     const store = new ArtifactMirrorStore(path.join(tempDir(), 'store'));
     const refused = await store.transact('書く', () => {
       store.set('cards', 'a', { title: 'A' });
@@ -64,12 +64,14 @@ describe('ArtifactMirrorStore', () => {
     expect(refused).toEqual(err({ type: 'StoreNotPulled', mirrorDir: store.mirrorDir }));
     expect(store.pendingWrites()).toBe(0);
 
-    const init = await store.transactUnchecked('始める', () => {
-      store.set('board', 'meta', { version: STORE_VERSION });
-      return Promise.resolve(ok(undefined));
-    });
-    expect(init).toEqual(ok(undefined));
+    expect(await store.initialize()).toEqual(ok(true));
     expect(store.check()).toEqual(ok(undefined));
+    expect(store.outbox().map((batch) => batch.writes.map((w) => w.doc_id))).toEqual([
+      ['meta~000001'],
+    ]);
+    // 既に始まっていれば何も積まない
+    expect(await store.initialize()).toEqual(ok(false));
+    expect(store.pendingWrites()).toBe(1);
   });
 
   it('読めない改訂があれば check が取り込み直しを促し、連番はその改訂の次から振る', async () => {

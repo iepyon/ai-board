@@ -5,6 +5,8 @@ import { z } from 'zod';
 import { isErr, ok } from '../../shared/result.js';
 import { CardIdSchema, type CardId, type PullRequestNumber } from '../../shared/schemas/common.js';
 import type { DocumentStore, StoreError } from '../../infrastructure/document-store.js';
+import { readFileOrNull } from '../../infrastructure/read-file.js';
+import { settle } from '../../shared/settle.js';
 import { FORGE_KINDS, PR_STATES, type PrSnapshot, type PrState } from '../models/pr-state.js';
 import type { PrSnapshotRepository } from './pr-snapshot.repository.js';
 
@@ -205,20 +207,6 @@ export class DocPrSnapshotRepository implements PrSnapshotRepository {
 
 function warnStoreFailure(cardId: CardId, message: string, error: StoreError): void {
   console.warn(`[ai-board] ${cardId} の${message}: ${error.type}`);
-}
-
-/** 同期の処理を Promise にする。投げた例外は reject として返す */
-function settle<T>(fn: () => T): Promise<T> {
-  return new Promise((resolve) => resolve(fn()));
-}
-
-function readFileOrNull(file: string): string | null {
-  try {
-    return fs.readFileSync(file, 'utf-8');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
-    throw error;
-  }
 }
 
 function parseJsonOrNull(raw: string | null): unknown {
