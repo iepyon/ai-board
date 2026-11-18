@@ -10,7 +10,6 @@ Node 24 以上が要る（CI は 26 で走らせている）。
 ```bash
 npm install
 npm run build
-node dist/cli.js status --root /path/to/your-project   # .ai-board/ を持つプロジェクトのルート
 ```
 
 サブコマンドは `card`（カードの読み書き）・`status`・`store`（置き場所の写しと送る箱）・`pr`（`gh api` の REST での PR の読み書き）・`decide`（人の判断）・`loop`（ループの 1 手の記録）・`dist-check`（`dist/` が HEAD より古ければ 1）。
