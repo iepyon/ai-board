@@ -112,7 +112,16 @@ node "$MAIN/dist/cli.js" store discard --root "$MAIN"
    node "$MAIN/dist/cli.js" store init --root "$MAIN"
    ```
 
-   2 で送り出し、1 で取り込む。`status` が判断待ち (0)・AI 作業中 (0) を出せば用意は済んでいる
+   2 で送り出し、1 で取り込む。`status` が判断待ち (0)・AI 作業中 (0) を出せば用意は済んでいる。
+
+   作り直すときは、写しに前の置き場所の文書が残っていて `store init` が「置き場所は既に始まっています」で止まる。
+   先に送る箱が空であることを確かめ（`store outbox --json` の `batches` が空）、空のディレクトリを `store pull` に渡して写しを空にしてから `store init` する。
+   写しのファイルを直接消さない。前の Artifact は消さずに残し、消すかは人が決める
+
+   ```bash
+   mkdir -p "$SCRATCH/empty-pull"
+   node "$MAIN/dist/cli.js" store pull --from "$SCRATCH/empty-pull" --root "$MAIN"
+   ```
 
 ## 5. 最初のアイデアカードを入れる
 
