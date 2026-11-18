@@ -119,6 +119,21 @@ describe('selectExportCards と toSeedFile', () => {
     ]);
   });
 
+  it('startedAt が無くても、ブランチか PR のあるカードは着手済みとして既定では外す', () => {
+    const cards = [
+      card('idea'),
+      card('merged-legacy', { branch: 'chat-decide', pr: 42 as Card['pr'] }),
+      card('branch-only', { branch: 'feat/x' }),
+    ];
+
+    expect(selectExportCards(cards, { includeStarted: false }).map((c) => c.id)).toEqual(['idea']);
+    expect(selectExportCards(cards, { includeStarted: true }).map((c) => c.id)).toEqual([
+      'idea',
+      'merged-legacy',
+      'branch-only',
+    ]);
+  });
+
   it('書いたファイルは readSeedCards が id・title・判断を除いた本文で読み戻せる', () => {
     const source = card('refresh-token', {
       title: 'トークン: 更新 #1',

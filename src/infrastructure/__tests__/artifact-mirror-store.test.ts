@@ -6,6 +6,7 @@ import { err, isErr, ok } from '../../shared/result.js';
 import {
   ArtifactMirrorStore,
   BATCH_LIMIT,
+  parseExportFile,
   parsePhysicalFile,
   physicalId,
 } from '../artifact-mirror-store.js';
@@ -138,6 +139,30 @@ describe('ArtifactMirrorStore', () => {
     expect(store.get('cards', 'a')).toEqual({ title: '新しい' });
     expect(store.get('cards', 'b')).toBeNull();
     expect(store.list('cards').map((doc) => doc.id)).toEqual(['a']);
+  });
+
+  it('pull は out_dir が ~ を @ に置き換えた名前のファイルも読み、写しには ~ の名前で入れる', async () => {
+    const root = tempDir();
+    const store = new ArtifactMirrorStore(path.join(root, 'store'));
+    const exportDir = writeExport(path.join(root, 'export'), {
+      'board/meta@000001': { version: STORE_VERSION },
+      'cards/a@000001': { title: '古い' },
+      'cards/a@000002': { title: '新しい' },
+      'log/a.2026-11-18T07:00:00.000Z.plan.submit@000001': { kind: 'submit' },
+    });
+
+    const result = await store.pull(exportDir);
+
+    expect(result).toEqual(ok({ count: 4 }));
+    expect(store.check()).toEqual(ok(undefined));
+    expect(store.get('cards', 'a')).toEqual({ title: '新しい' });
+    expect(store.list('log').map((doc) => doc.id)).toEqual([
+      'a.2026-11-18T07:00:00.000Z.plan.submit',
+    ]);
+    expect(fs.readdirSync(path.join(store.mirrorDir, 'cards')).sort()).toEqual([
+      'a~000001.json',
+      'a~000002.json',
+    ]);
   });
 
   it('pull は写しを丸ごと入れ替える（取り込み元に無い文書は消える）', async () => {
@@ -398,4 +423,28 @@ describe('physicalId / parsePhysicalFile', () => {
   ])('%s は読み分けない', (name) => {
     expect(parsePhysicalFile(name)).toBeNull();
   });
+
+  it('写しのファイルは @ の区切りを読まない', () => {
+    expect(parsePhysicalFile('card-a@000007.json')).toBeNull();
+  });
+});
+
+describe('parseExportFile', () => {
+  it.each([
+    ['card-a~000007.json', { id: 'card-a', rev: 7 }],
+    ['card-a@000007.json', { id: 'card-a', rev: 7 }],
+    // 論理 ID の中の @ は残し、最後の @ だけを区切りにする
+    ['user@example@000002.json', { id: 'user@example', rev: 2 }],
+    // ~ があれば @ を区切りとして読まない（手で作った書き出し）
+    ['user@example~000002.json', { id: 'user@example', rev: 2 }],
+  ])('%s を読み分ける', (name, expected) => {
+    expect(parseExportFile(name)).toEqual(expected);
+  });
+
+  it.each(['a.json', 'a@1.json', '@000001.json', 'a@000001.txt', 'a@000000.json'])(
+    '%s は読み分けない',
+    (name) => {
+      expect(parseExportFile(name)).toBeNull();
+    }
+  );
 });

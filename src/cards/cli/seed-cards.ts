@@ -112,8 +112,10 @@ function readSeedCard(file: SeedFile): Result<SeedCard, string> {
  * 書き出すカードを rank 順のまま選ぶ。
  *
  * 中止のカードは書き出さない（移した先でアイデアに戻っても使い道が無い）。
- * 既定では着手していないカード（`startedAt` が無い）だけを書き出す。着手済みのカードは
+ * 既定では着手していないカードだけを書き出す。着手済みのカードは
  * ブランチ・計画・PR が元のリポジトリにあり、移した先ではアイデアに戻るので、`includeStarted` のときだけ足す。
+ * `startedAt` が無くてもブランチか PR があるカードは着手済みとして扱う
+ * （`startedAt` が入る前にマージしたカードがあり、アイデアとして配ると PR の無いアイデアに見えてしまう）
  */
 export function selectExportCards(
   cards: readonly Card[],
@@ -121,8 +123,12 @@ export function selectExportCards(
 ): readonly Card[] {
   return cards.filter(
     (card) =>
-      !isAborted(parseReviewLog(card.body)) && (options.includeStarted || card.startedAt === null)
+      !isAborted(parseReviewLog(card.body)) && (options.includeStarted || !isStartedCard(card))
   );
+}
+
+function isStartedCard(card: Card): boolean {
+  return card.startedAt !== null || card.branch !== null || card.pr !== null;
 }
 
 /**
