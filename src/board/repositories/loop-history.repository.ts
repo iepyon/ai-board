@@ -1,5 +1,3 @@
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import { z } from 'zod';
 import { err, ok, type Result } from '../../shared/result.js';
 import { CardIdSchema } from '../../shared/schemas/common.js';
@@ -14,28 +12,29 @@ import {
   type LoopStep,
 } from '../models/loop-step.js';
 import { fromLogStamp, toLogStamp } from '../../cards/repositories/card-files.js';
+import type { DocumentStore } from '../../infrastructure/document-store.js';
 import type { ImplStep } from '../services/impl-step.js';
 import type { NextActionKind } from '../services/next-action.js';
 
 // ============================================================
-// ループの 1 手の記録 — データ用ブランチの `loop/` のファイルの形と読み書き
+// ループの 1 手の記録 — 置き場所の `loop` の文書の形と読み書き
 // ============================================================
 
 /**
- * 1 手の記録は、データ用ブランチの `loop/` に 1 件 1 ファイルの JSON で置く。
+ * 1 手の記録は、置き場所の `loop` のコレクションに 1 件 1 文書で置く。文書の ID は次の形で、下の「ファイル名」の `.json` を除いたものである。
  *
  * ```
- * loop/<開始の時刻>.<ループの識別子>.json        時刻は判断のファイルと同じ `toLogStamp` の形
- * loop/<開始の時刻>.<ループの識別子>-2.json      同じ時刻と識別子が重なったら連番を付ける
+ * loop/<開始の時刻>.<ループの識別子>        時刻は判断の文書と同じ `toLogStamp` の形
+ * loop/<開始の時刻>.<ループの識別子>-2      同じ時刻と識別子が重なったら連番を付ける
  * ```
  *
  * 開始で `finishedAt` / `result` を null にしてファイルを作り、終了で同じファイルに 1 度だけ埋める。
  * 以前は手順書の版・トークン・時間（`harness` / `tokens` / `durationMs`）も書いていた。古い記録に残る項目は読むときに捨てる。
  * 終わった記録（`result` が null でない）は書き換えない。
- * 書き込みは `dataDir` を受け取る関数にし、`DataStore.transact` の中から呼ぶ（取り直した最新の状態に対して書く）。
+ * 書き込みは `DocumentStore` を受け取る関数にし、`DocumentStore.transact` の中から呼ぶ。
  * カードの中（`cards/<id>/`）には置かない。ループの状態はカードの属性ではない。
  */
-export const LOOP_DIR = 'loop';
+export const LOOP_COLLECTION = 'loop';
 
 /** 1 手の記録を読むリポジトリ。ボードの組み立てが使う */
 export interface LoopHistoryRepository {
@@ -158,36 +157,24 @@ interface StoredLoopStep {
 }
 
 /**
- * `loop/` の記録を全部読む。読めないファイル（JSON でない、項目が不正、ファイル名と中身が食い違う）は
- * 警告して読み飛ばす。1 つのファイルでボード全体を止めない。
+ * `loop` の記録を全部読む。読めない文書（項目が不正、ID と中身が食い違う）は警告して読み飛ばす。
+ * 1 つの文書でボード全体を止めない。
  */
-function readStored(dataDir: string): StoredLoopStep[] {
-  const dir = path.join(dataDir, LOOP_DIR);
-  if (!fs.existsSync(dir)) return [];
-
+function readStored(store: Pick<DocumentStore, 'list'>): StoredLoopStep[] {
   const stored: StoredLoopStep[] = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (!entry.isFile()) continue;
-
-    const step = readOne(path.join(dir, entry.name));
-    if (step === null || !matchesFileName(entry.name, step)) {
+  for (const doc of store.list(LOOP_COLLECTION)) {
+    const file = `${doc.id}.json`;
+    const step = parseLoopStep(doc.data);
+    if (step === null || !matchesFileName(file, step)) {
       console.warn(
-        `[ai-board] ループの記録を読み飛ばしました: ${LOOP_DIR}/${entry.name} — 名前か中身が不正です`
+        `[ai-board] ループの記録を読み飛ばしました: ${LOOP_COLLECTION}/${doc.id} — 名前か中身が不正です`
       );
       continue;
     }
-    stored.push({ file: entry.name, step });
+    stored.push({ file, step });
   }
 
   return stored.sort(byStart);
-}
-
-function readOne(file: string): LoopStep | null {
-  try {
-    return parseLoopStep(JSON.parse(fs.readFileSync(file, 'utf-8')));
-  } catch {
-    return null;
-  }
 }
 
 function byStart(a: StoredLoopStep, b: StoredLoopStep): number {
@@ -197,15 +184,26 @@ function byStart(a: StoredLoopStep, b: StoredLoopStep): number {
 }
 
 /** 読める記録を開始の時刻の順に返す */
-export function readLoopSteps(dataDir: string): LoopStep[] {
-  return readStored(dataDir).map(({ step }) => step);
+export function readLoopSteps(store: Pick<DocumentStore, 'list'>): LoopStep[] {
+  return readStored(store).map(({ step }) => step);
 }
 
-/** データのワークツリーの `loop/` を読むリポジトリ */
-export function createFileLoopHistoryRepository(dataDir: string): LoopHistoryRepository {
+/** 置き場所の `loop` を読むリポジトリ */
+export function createDocLoopHistoryRepository(
+  store: Pick<DocumentStore, 'list'>
+): LoopHistoryRepository {
   return {
-    findAll: () => Promise.resolve(readLoopSteps(dataDir)),
+    findAll: () => Promise.resolve(readLoopSteps(store)),
   };
+}
+
+/** 記録の中身を文書にする。項目の順をスキーマで決める */
+function loopStepData(step: LoopStep): Record<string, unknown> {
+  return LoopStepSchema.parse(step) as Record<string, unknown>;
+}
+
+function docIdOf(file: string): string {
+  return file.slice(0, -'.json'.length);
 }
 
 // ------------------------------------------------------------
@@ -249,15 +247,14 @@ export interface LoopStartOutcome {
  * 閉じた時刻は新しい手を始めた時刻にする（いつ途切れたかは分からないので、その上限）。
  */
 export function writeLoopStart(
-  dataDir: string,
+  store: Pick<DocumentStore, 'list' | 'set'>,
   input: LoopStartInput
 ): Result<LoopStartOutcome, LoopWriteError> {
   const startedAt = normalizeTime(input.startedAt);
   if (startedAt === null) return err({ type: 'InvalidLoopTime', at: input.startedAt });
 
-  const dir = path.join(dataDir, LOOP_DIR);
-  const stored = readStored(dataDir);
-  const taken = new Set(fs.existsSync(dir) ? fs.readdirSync(dir) : []);
+  const stored = readStored(store);
+  const taken = new Set(store.list(LOOP_COLLECTION).map((doc) => `${doc.id}.json`));
 
   const file = loopFileName(startedAt, input.loop, taken);
   if (file === null) return err({ type: 'InvalidLoopTime', at: input.startedAt });
@@ -267,7 +264,7 @@ export function writeLoopStart(
     if (step.loop !== input.loop || step.result !== null) continue;
 
     const closed: LoopStep = { ...step, finishedAt: startedAt, result: 'interrupted' };
-    fs.writeFileSync(path.join(dir, openFile), serializeLoopStep(closed));
+    store.set(LOOP_COLLECTION, docIdOf(openFile), loopStepData(closed));
     interrupted.push(closed);
   }
 
@@ -281,8 +278,7 @@ export function writeLoopStart(
     finishedAt: null,
     result: null,
   };
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, file), serializeLoopStep(started), { flag: 'wx' });
+  store.set(LOOP_COLLECTION, docIdOf(file), loopStepData(started));
 
   return ok({ started, interrupted });
 }
@@ -301,13 +297,13 @@ export interface LoopFinishInput {
  * 終わっていない記録が 2 つ以上残っていれば（開始が閉じるので通常は起きない）、最も新しいものを選ぶ。
  */
 export function writeLoopFinish(
-  dataDir: string,
+  store: Pick<DocumentStore, 'list' | 'set'>,
   input: LoopFinishInput
 ): Result<LoopStep, LoopWriteError> {
   const finishedAt = normalizeTime(input.finishedAt);
   if (finishedAt === null) return err({ type: 'InvalidLoopTime', at: input.finishedAt });
 
-  const running = readStored(dataDir).filter(
+  const running = readStored(store).filter(
     ({ step }) => step.loop === input.loop && step.result === null
   );
   const target = running.at(-1);
@@ -327,7 +323,7 @@ export function writeLoopFinish(
     finishedAt,
     result: input.result,
   };
-  fs.writeFileSync(path.join(dataDir, LOOP_DIR, target.file), serializeLoopStep(finished));
+  store.set(LOOP_COLLECTION, docIdOf(target.file), loopStepData(finished));
 
   return ok(finished);
 }

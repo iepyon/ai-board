@@ -1,18 +1,22 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { err, ok } from '../../shared/result.js';
-import { createCliRunner } from '../../infrastructure/cli-runner.js';
-import { createDataStore, DATA_BRANCH, type DataStore } from '../../infrastructure/data-store.js';
+import { err, ok, type Result } from '../../shared/result.js';
+import { ArtifactMirrorStore } from '../../infrastructure/artifact-mirror-store.js';
+import {
+  initialDocuments,
+  MemoryDocumentStore,
+  type StoreError,
+  type TransactLabel,
+} from '../../infrastructure/document-store.js';
 import { PrFetcher } from '../../infrastructure/pr-fetcher.js';
 import type { ForgeClient } from '../../board/services/forge-client.js';
 import type { PrSnapshot, PrState } from '../../board/models/pr-state.js';
 import type { PrSnapshotRepository } from '../../board/repositories/pr-snapshot.repository.js';
 import type { CardId, PullRequestNumber } from '../../shared/schemas/common.js';
 import type { Card } from '../models/card.js';
-import { FileCardRepository } from '../repositories/file-card.repository.js';
+import { DocCardRepository } from '../repositories/doc-card.repository.js';
 import { createTransactionalPrWriter } from '../composition.js';
 
 // ============================================================
@@ -21,7 +25,7 @@ import { createTransactionalPrWriter } from '../composition.js';
 
 const CARD_ID = 'refresh-token' as CardId;
 const BRANCH = 'feat/refresh-token';
-const WRITE_BACK_MESSAGE = `data: ${CARD_ID} の PR 番号を書き戻す`;
+const WRITE_BACK_MESSAGE = `${CARD_ID} の PR 番号を書き戻す`;
 
 function makeCard(overrides: Partial<Card> = {}): Card {
   return {
@@ -87,95 +91,59 @@ function branchClient(beforeResolve: () => Promise<void> = async () => undefined
   };
 }
 
-// 本物の git を何度も走らせるので、既定の 5 秒では遅い CI で足りないことがある
-describe('createTransactionalPrWriter', { timeout: 30_000 }, () => {
+describe('createTransactionalPrWriter', () => {
   let tmp: string;
-  let origin: string;
 
-  function git(args: readonly string[]): string {
-    return execFileSync('git', [...args], { stdio: ['ignore', 'pipe', 'pipe'] }).toString();
+  /** board/meta とカード 1 枚だけを取り込んだ写し。送る箱は空 */
+  async function pulledStore(name: string): Promise<ArtifactMirrorStore> {
+    const store = new ArtifactMirrorStore(path.join(tmp, name));
+    fs.mkdirSync(path.join(store.mirrorDir, 'board'), { recursive: true });
+    fs.writeFileSync(path.join(store.mirrorDir, 'board', 'meta~000001.json'), '{"version":3}');
+    await store.transact('始める', () => new DocCardRepository(store).create(makeCard()).then(ok));
+    await store.ack('999999');
+    return store;
   }
 
-  /** clone ごとに親を分ける。ロックはデータのワークツリーの親に置かれる */
-  function cloneStore(name: string): DataStore {
-    const dataDir = path.join(tmp, name, 'data');
-    fs.mkdirSync(path.dirname(dataDir), { recursive: true });
-    git(['clone', '--quiet', '--branch', DATA_BRANCH, origin, dataDir]);
-    const runner = createCliRunner({ timeoutMs: 30_000 });
-    return createDataStore({ dataDir, runner, lockPollMs: 10 });
-  }
-
-  function originLog(): string[] {
-    return git(['-C', origin, 'log', '--format=%s', DATA_BRANCH]).trim().split('\n');
-  }
-
-  /** origin の最新を、新しい clone で読む */
-  async function readFromOrigin(name: string): Promise<Card | null> {
-    const store = cloneStore(name);
-    return new FileCardRepository(store.dataDir).findById(CARD_ID);
-  }
-
-  beforeEach(async () => {
+  beforeEach(() => {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-board-pr-writer-'));
-
-    const globalConfig = path.join(tmp, 'gitconfig');
-    fs.writeFileSync(globalConfig, '');
-    vi.stubEnv('GIT_CONFIG_GLOBAL', globalConfig);
-    vi.stubEnv('GIT_CONFIG_NOSYSTEM', '1');
-    vi.stubEnv('GIT_AUTHOR_NAME', 'ai-board');
-    vi.stubEnv('GIT_AUTHOR_EMAIL', 'ai-board@example.com');
-    vi.stubEnv('GIT_COMMITTER_NAME', 'ai-board');
-    vi.stubEnv('GIT_COMMITTER_EMAIL', 'ai-board@example.com');
-
-    origin = path.join(tmp, 'origin.git');
-    git(['init', '--quiet', '--bare', origin]);
-    const seed = path.join(tmp, 'seed');
-    git(['clone', '--quiet', origin, seed]);
-    git(['-C', seed, 'checkout', '--quiet', '--orphan', DATA_BRANCH]);
-    fs.writeFileSync(path.join(seed, 'ai-board-data.yaml'), 'version: 2\n');
-    await new FileCardRepository(seed).create(makeCard());
-    git(['-C', seed, 'add', '-A']);
-    git(['-C', seed, 'commit', '--quiet', '-m', 'data: 始める']);
-    git(['-C', seed, 'push', '--quiet', 'origin', `HEAD:refs/heads/${DATA_BRANCH}`]);
   });
 
   afterEach(() => {
-    vi.unstubAllEnvs();
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 
-  it('ブランチから解決した PR 番号を、コミットして origin へ push する', async () => {
-    const store = cloneStore('a');
-    const cards = new FileCardRepository(store.dataDir);
+  it('ブランチから解決した PR 番号を、書き込みの 1 操作として送る箱に積む', async () => {
+    const store = await pulledStore('a');
+    const cards = new DocCardRepository(store);
     const fetcher = new PrFetcher(cards, branchClient(), new InMemoryPrSnapshotRepository(), {
       writePr: createTransactionalPrWriter(store),
     });
 
     await fetcher.refresh();
 
-    expect(originLog()[0]).toBe(WRITE_BACK_MESSAGE);
-    expect((await readFromOrigin('b'))?.pr).toBe(42);
+    expect(store.outbox().map((batch) => batch.label)).toEqual([WRITE_BACK_MESSAGE]);
+    expect((await cards.findById(CARD_ID))?.pr).toBe(42);
     expect(fetcher.connection()).toEqual({ status: 'connected', kind: 'github' });
   });
 
-  it('番号が既に入っていれば、コミットしない', async () => {
-    const store = cloneStore('a');
+  it('番号が既に入っていれば、送る箱に積まない', async () => {
+    const store = await pulledStore('a');
     const writePr = createTransactionalPrWriter(store);
 
     await writePr(CARD_ID, 42 as PullRequestNumber);
-    const before = originLog();
+    const before = store.pendingWrites();
     await writePr(CARD_ID, 42 as PullRequestNumber);
 
-    expect(originLog()).toEqual(before);
+    expect(store.pendingWrites()).toBe(before);
   });
 
-  it('問い合わせ中にほかの clone が書いた内容を、書き戻しで消さない', async () => {
-    const store = cloneStore('a');
-    const other = cloneStore('other');
+  it('問い合わせ中にほかのプロセスが写しに書いた内容を、書き戻しで消さない', async () => {
+    const store = await pulledStore('a');
+    const other = new ArtifactMirrorStore(store.storeDir);
     const client = branchClient(async () => {
-      // gh api の応答を待つ間に、クラウドのセッションが本文を書いて push した
-      const written = await other.transact('data: 本文を書く', async (dataDir) => {
-        const repository = new FileCardRepository(dataDir);
+      // gh api の応答を待つ間に、同じ写しを使う別のプロセスが本文を書いた
+      const written = await other.transact('本文を書く', async () => {
+        const repository = new DocCardRepository(other);
         const latest = await repository.findById(CARD_ID);
         if (latest === null) return err('missing');
         await repository.save({ ...latest, body: '## アイデア\n\n書き直した\n' });
@@ -184,27 +152,30 @@ describe('createTransactionalPrWriter', { timeout: 30_000 }, () => {
       expect(written.ok).toBe(true);
     });
 
-    await new PrFetcher(
-      new FileCardRepository(store.dataDir),
-      client,
-      new InMemoryPrSnapshotRepository(),
-      { writePr: createTransactionalPrWriter(store) }
-    ).refresh();
+    await new PrFetcher(new DocCardRepository(store), client, new InMemoryPrSnapshotRepository(), {
+      writePr: createTransactionalPrWriter(store),
+    }).refresh();
 
-    const card = await readFromOrigin('b');
+    const card = await new DocCardRepository(new ArtifactMirrorStore(store.storeDir)).findById(
+      CARD_ID
+    );
     expect(card?.pr).toBe(42);
     expect(card?.body).toContain('書き直した');
   });
 
   it('書き込みに失敗しても例外を投げず、警告して `PrFetcher` の接続を保つ', async () => {
-    const store = cloneStore('a');
+    const store = new MemoryDocumentStore(initialDocuments());
+    await store.transact('始める', () => new DocCardRepository(store).create(makeCard()).then(ok));
     const warn = vi.fn();
-    const failing: Pick<DataStore, 'transact'> = {
-      transact: async () =>
-        err({ type: 'DataStorePushFailed', attempts: 4, message: 'rejected' } as const),
-    };
+    const failing = Object.assign(Object.create(store) as MemoryDocumentStore, {
+      transact: <T, E>(
+        _label: TransactLabel<T>,
+        _op: () => Promise<Result<T, E>>
+      ): Promise<Result<T, E | StoreError>> =>
+        Promise.resolve(err({ type: 'StoreLockTimeout', lockPath: '/x/store.lock' } as const)),
+    });
     const fetcher = new PrFetcher(
-      new FileCardRepository(store.dataDir),
+      new DocCardRepository(store),
       branchClient(),
       new InMemoryPrSnapshotRepository(),
       { writePr: createTransactionalPrWriter(failing, warn) }
@@ -212,7 +183,7 @@ describe('createTransactionalPrWriter', { timeout: 30_000 }, () => {
 
     await fetcher.refresh();
 
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('DataStorePushFailed'));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('StoreLockTimeout'));
     expect(fetcher.connection()).toEqual({ status: 'connected', kind: 'github' });
     expect(fetcher.get(CARD_ID)?.number).toBe(42);
   });

@@ -23,6 +23,8 @@
       "Bash(node dist/cli.js init *)"
     ],
     "deny": [
+      "Edit(/.ai-board/store/**)",
+      "Edit(**/.ai-board/store/**)",
       "Edit(/.ai-board/data/**)",
       "Edit(**/.ai-board/data/**)",
       "Bash(git push *ai-board/data*)",
@@ -66,6 +68,19 @@
       "Bash(sqlite3)",
       "Bash(sqlite3 *)",
       "Edit(/.claude/settings*.json)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "ArtifactData",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/artifact-data-guard.mjs\""
+          }
+        ]
+      }
     ]
   }
 }

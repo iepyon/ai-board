@@ -15,7 +15,7 @@ import type {
   MoveIdeaDividerCommand,
   MoveIdeaDividerInput,
 } from '../../../cards/usecases/commands/move-idea-divider.command.js';
-import type { CommitMessage, DataStore } from '../../../infrastructure/data-store.js';
+import type { DocumentStore, TransactLabel } from '../../../infrastructure/document-store.js';
 import type { Board } from '../../models/board-card.js';
 import type { DecideError, GetBoardError } from '../../errors/board-errors.js';
 import {
@@ -30,7 +30,7 @@ import {
 // 人の判断を書く — `ai-board decide` の段取り
 // ============================================================
 
-/** 判断を書くのに使うカードの usecase。`store` のデータのワークツリーを読み書きするもの */
+/** 判断を書くのに使うカードの usecase。`store` の文書を読み書きするもの */
 export interface DecideCardUsecases {
   readonly appendReviewCommand: AppendReviewCommand;
   readonly updateCardMetaCommand: UpdateCardMetaCommand;
@@ -44,8 +44,8 @@ export interface DecideDependencies {
    * 書き込みの 1 操作の中で呼ぶので、`transact` を呼ばない
    */
   readonly loadBoard: () => Promise<Result<Board, GetBoardError>>;
-  /** データのワークツリー。ボードの導出・検査・書き込みを `transact` の 1 回の中で走らせる */
-  readonly store: Pick<DataStore, 'transact'>;
+  /** 置き場所。ボードの導出・検査・書き込みを `transact` の 1 回の中で走らせる */
+  readonly store: Pick<DocumentStore, 'transact'>;
   /** カードの usecase。`transact` の中で呼ぶ */
   readonly cards: DecideCardUsecases;
 }
@@ -105,18 +105,18 @@ export interface DecideCommands {
  * 人の判断（承認 / 差し戻し / 中止、着手 / 着手を戻す、飛ばす宣言、並べ替え）を書く usecase を組む。
  *
  * どの判断も、ボードの導出・検査（`decision-guards.ts`）・書き込みを、書き込みの 1 操作（`transactCardWrite`）の中で走らせる。
- * push が拒否されると、`transact` が取り直した最新の状態で `op` を頭から呼び直すので、ボードを導き直して検査からやり直す。
- * 検査の後、書くまでの間にほかのセッションがカードに書いても、古いボードに対する検査のまま書かない（ADR 0010）。
- * `op` は呼び直されるので、標準出力にも標準エラーにも書かない。拒むときは Err を返す（コミットしない）。
+ * `transact` はロックを取って写しを読み直してから `op` を走らせるので、検査は手元の最新のボードに対して行われる。
+ * 置き場所への送り出しで改訂がぶつかったら、取り込み直して頭からやり直す（board-store のスキル）。
+ * `op` は標準出力にも標準エラーにも書かない。拒むときは Err を返す（送る箱に積まない）。
  *
- * コミットのメッセージもここで決める。列の移る判断は、書いた後にボードを読み直して移った先の列を返す。
+ * 束の名前もここで決める。列の移る判断は、書いた後にボードを読み直して移った先の列を返す。
  *
  * 誰が使ってよいかは構造では分けない。人と、人がこの会話で自分の言葉で頼んだ Claude（`board-decide` のスキル）が使い、
  * `board-reviewer` とループの周の中では使わない。この境界は手順書の決まりで守る（ADR 0007）。
  */
 export function createDecideCommands(deps: DecideDependencies): DecideCommands {
   const decide = <T>(
-    message: CommitMessage<T>,
+    message: TransactLabel<T>,
     op: (board: Board) => Promise<Result<T, DecideError>>
   ): Promise<Result<T, DecideError>> =>
     transactCardWrite(deps.store, message, async () => {
@@ -126,7 +126,7 @@ export function createDecideCommands(deps: DecideDependencies): DecideCommands {
 
   /** 列の移る判断を書き、書いた後のボードで移った先の列（`to`）を読む */
   const decideMove = async (
-    message: CommitMessage<Omit<Decided, 'to'>>,
+    message: TransactLabel<Omit<Decided, 'to'>>,
     op: (board: Board) => Promise<Result<Omit<Decided, 'to'>, DecideError>>
   ): Promise<Result<Decided, DecideError>> => {
     const written = await decide(message, op);
@@ -147,7 +147,7 @@ export function createDecideCommands(deps: DecideDependencies): DecideCommands {
       readonly startedAt: string | null;
     }
   ) =>
-    decideMove(`data: ${id} の startedAt を変える`, async (board) => {
+    decideMove(`${id} の startedAt を変える`, async (board) => {
       const guarded = guardStartedAt(board, { id, from: move.from, to: move.to });
       if (!guarded.ok) return guarded;
 
@@ -161,7 +161,7 @@ export function createDecideCommands(deps: DecideDependencies): DecideCommands {
   return {
     review: ({ id, kind, reason, at }) =>
       decideMove(
-        (written) => `data: ${id} に ${written.what} を足す`,
+        (written) => `${id} に ${written.what} を足す`,
         async (board) => {
           const target = guardReview(board, { id, kind, reason });
           if (!target.ok) return target;
@@ -179,7 +179,7 @@ export function createDecideCommands(deps: DecideDependencies): DecideCommands {
       startedAt(id, { from: 'planning', to: 'idea', what: '着手を戻す', startedAt: null }),
 
     skip: ({ id, gate, remove }) =>
-      decideMove(`data: ${id} の skipGates を変える`, async (board) => {
+      decideMove(`${id} の skipGates を変える`, async (board) => {
         const guarded = guardSkip(board, { id });
         if (!guarded.ok) return guarded;
         const card = guarded.value;
@@ -198,7 +198,7 @@ export function createDecideCommands(deps: DecideDependencies): DecideCommands {
       }),
 
     move: (input) =>
-      decide(`data: ${input.id} を並べ替える`, async (board) => {
+      decide(`${input.id} を並べ替える`, async (board) => {
         const guarded = guardMove(board, input);
         if (!guarded.ok) return guarded;
 
@@ -206,7 +206,7 @@ export function createDecideCommands(deps: DecideDependencies): DecideCommands {
       }),
 
     moveDivider: (input) =>
-      decide('data: 区切り線を動かす', async (board) => {
+      decide('区切り線を動かす', async (board) => {
         const guarded = guardMoveDivider(board, input);
         if (!guarded.ok) return guarded;
 

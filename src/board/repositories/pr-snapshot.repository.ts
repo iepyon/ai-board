@@ -15,7 +15,7 @@ export interface PrSnapshotRepository {
   /** 読めない行（形の変わった古い控え）は黙って外す */
   findAll(): Promise<Map<CardId, PrSnapshot>>;
   /**
-   * マージ済みの PR の控えだけを読む（データ用ブランチの `snapshots/`）。
+   * マージ済みの PR の控えだけを読む（置き場所の `snapshots`）。
    * GitHub に届かないときの供給元が使う。マージ済みは二度と変わらないので、古さを気にせずに出せる
    */
   findMerged(): Promise<Map<CardId, PrSnapshot>>;

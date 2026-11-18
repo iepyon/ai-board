@@ -1,12 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { PrFetcher } from '../pr-fetcher.js';
-import { createCliRunner } from '../cli-runner.js';
-import { createDataStore, DATA_BRANCH } from '../data-store.js';
-import { FilePrSnapshotRepository } from '../../board/repositories/file-pr-snapshot.repository.js';
+import { ArtifactMirrorStore } from '../artifact-mirror-store.js';
+import { DocPrSnapshotRepository } from '../../board/repositories/doc-pr-snapshot.repository.js';
 import type { CardRepository } from '../../cards/repositories/card.repository.js';
 import { ForgeRequestError, type ForgeClient } from '../../board/services/forge-client.js';
 import type { CliError } from '../cli-runner.js';
@@ -525,30 +523,34 @@ describe('PrFetcher の問い合わせの省略', () => {
 });
 
 // ============================================================
-// 控えの置き場所 — データ用ブランチと使い捨ての JSON
+// 控えの置き場所 — 置き場所の文書と使い捨ての JSON
 // ============================================================
 
-// 本物の git を何度も走らせるので、既定の 5 秒では遅い CI で足りないことがある
-describe('PrFetcher と FilePrSnapshotRepository', { timeout: 30_000 }, () => {
+describe('PrFetcher と DocPrSnapshotRepository', () => {
   const card = () => makeCard({ pr: 42 as PullRequestNumber });
   let tmp: string;
-  let origin: string;
 
-  function sh(args: readonly string[]): void {
-    execFileSync('git', [...args], { stdio: ['ignore', 'pipe', 'pipe'] });
+  /** 端末（セッション）ごとの写しと控え。`from` を渡せば、その写しを置き場所から取り込んだ状態で始める */
+  function session(name: string, from?: ArtifactMirrorStore): DocPrSnapshotRepository {
+    const store = new ArtifactMirrorStore(path.join(tmp, name));
+    if (from === undefined) {
+      fs.mkdirSync(path.join(store.mirrorDir, 'board'), { recursive: true });
+      fs.writeFileSync(path.join(store.mirrorDir, 'board', 'meta~000001.json'), '{"version":3}');
+    } else {
+      // 置き場所へ送り出し、別のセッションが取り込んだのと同じ写しにする
+      fs.cpSync(from.mirrorDir, store.mirrorDir, { recursive: true });
+    }
+    stores.set(name, store);
+    return new DocPrSnapshotRepository(
+      store,
+      path.join(store.storeDir, 'cache', 'pr-snapshots.json')
+    );
   }
 
-  /** clone ごとに親を分ける。使い捨ての控えはデータのワークツリーの親に置かれる */
-  function cloneSnapshots(name: string): FilePrSnapshotRepository {
-    const dataDir = path.join(tmp, name, 'data');
-    fs.mkdirSync(path.dirname(dataDir), { recursive: true });
-    sh(['clone', '--quiet', '--branch', DATA_BRANCH, origin, dataDir]);
-    const runner = createCliRunner({ timeoutMs: 30_000 });
-    return new FilePrSnapshotRepository(createDataStore({ dataDir, runner, lockPollMs: 10 }));
-  }
+  const stores = new Map<string, ArtifactMirrorStore>();
 
   async function poll(
-    repository: FilePrSnapshotRepository,
+    repository: DocPrSnapshotRepository,
     client: ForgeClient
   ): Promise<PrFetcher> {
     const fetcher = new PrFetcher(new InMemoryCardRepository([card()]), client, repository);
@@ -558,49 +560,30 @@ describe('PrFetcher と FilePrSnapshotRepository', { timeout: 30_000 }, () => {
 
   beforeEach(() => {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-board-pr-fetcher-'));
-
-    const globalConfig = path.join(tmp, 'gitconfig');
-    fs.writeFileSync(globalConfig, '');
-    vi.stubEnv('GIT_CONFIG_GLOBAL', globalConfig);
-    vi.stubEnv('GIT_CONFIG_NOSYSTEM', '1');
-    vi.stubEnv('GIT_AUTHOR_NAME', 'ai-board');
-    vi.stubEnv('GIT_AUTHOR_EMAIL', 'ai-board@example.com');
-    vi.stubEnv('GIT_COMMITTER_NAME', 'ai-board');
-    vi.stubEnv('GIT_COMMITTER_EMAIL', 'ai-board@example.com');
-
-    origin = path.join(tmp, 'origin.git');
-    sh(['init', '--quiet', '--bare', origin]);
-    const seed = path.join(tmp, 'seed');
-    sh(['clone', '--quiet', origin, seed]);
-    sh(['-C', seed, 'checkout', '--quiet', '--orphan', DATA_BRANCH]);
-    fs.writeFileSync(path.join(seed, 'ai-board-data.yaml'), 'version: 2\n');
-    sh(['-C', seed, 'add', '-A']);
-    sh(['-C', seed, 'commit', '--quiet', '-m', 'data: 始める']);
-    sh(['-C', seed, 'push', '--quiet', 'origin', `HEAD:refs/heads/${DATA_BRANCH}`]);
+    stores.clear();
   });
 
   afterEach(() => {
-    vi.unstubAllEnvs();
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 
-  it('マージ済みの PR は、別の clone の新しい `PrFetcher` も問い合わせない', async () => {
-    // クラウドのセッションは毎回新しい clone から始まる。マージ済みの PR を毎回引き直さない
+  it('マージ済みの PR は、別のセッションの新しい `PrFetcher` も問い合わせない', async () => {
+    // クラウドのセッションは毎回まっさらから始まる。マージ済みの PR を毎回引き直さない
     await poll(
-      cloneSnapshots('a'),
+      session('a'),
       stubClient({ fetchByNumber: vi.fn(async () => snap({ state: 'merged' })) })
     );
 
     const second = stubClient();
-    const fetcher = await poll(cloneSnapshots('b'), second);
+    const fetcher = await poll(session('b', stores.get('a')), second);
 
     expect(second.fetchByNumber).not.toHaveBeenCalled();
     expect(fetcher.get('refresh-token')?.state).toBe('merged');
   });
 
-  it('開いている PR は、同じ clone の新しい `PrFetcher` は控えから始め、別の clone は引き直す', async () => {
+  it('開いている PR は、同じセッションの新しい `PrFetcher` は控えから始め、別のセッションは引き直す', async () => {
     const opened = snap();
-    const local = cloneSnapshots('a');
+    const local = session('a');
     await poll(local, stubClient({ fetchByNumber: vi.fn(async () => opened) }));
 
     const same = stubClient({ fetchByNumber: vi.fn(async () => opened) });
@@ -608,7 +591,7 @@ describe('PrFetcher と FilePrSnapshotRepository', { timeout: 30_000 }, () => {
     expect(same.fetchByNumber).toHaveBeenCalledWith(42, opened);
 
     const other = stubClient({ fetchByNumber: vi.fn(async () => opened) });
-    await poll(cloneSnapshots('b'), other);
+    await poll(session('b', stores.get('a')), other);
     expect(other.fetchByNumber).toHaveBeenCalledWith(42, null);
   });
 });

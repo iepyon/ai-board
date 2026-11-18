@@ -33,12 +33,12 @@ AI の手にはコマンドが無く、チャットで頼むだけになる。
 
 - Node 24 以上と git
 - GitHub の CLI（`gh`）。`gh auth login` でログインしておく。ai-board はアクセストークンを受け取らず、PR の問い合わせを `gh api` に任せる
-- Claude Code
+- Claude Code（claude.ai のアカウントでログインする。カードの置き場所の Artifact を使うため）
 
 ### fork して clone する
 
 GitHub でこのリポジトリを fork する。
-fork の画面の「Copy the `main` branch only」は入れたままにする（元のリポジトリのカードの置き場所である `ai-board/data` ブランチを持ち込まないため）。
+fork の画面の「Copy the `main` branch only」は入れたままでよい（カードは GitHub ではなく、Artifact の DB に置く）。
 
 ```bash
 git clone https://github.com/<you>/ai-board.git
@@ -57,35 +57,27 @@ npm run build
 
 ### 接続先を書く
 
-`.ai-board/config.yaml` に、PR を問い合わせる先として自分の fork を書く。
-このファイルは git に載らない。
+git に載っている `.ai-board/config.yaml` の `github.repository` を、自分の fork に書き換えて main に入れる。
+PR を問い合わせる先になる。
 
-> .ai-board/config.example.yaml から config.yaml を作って、repository を <you>/ai-board にして
-
-```bash
-cp .ai-board/config.example.yaml .ai-board/config.yaml
-# .ai-board/config.yaml の repository を <you>/ai-board に書き換える
-```
+> .ai-board/config.yaml の repository を <you>/ai-board にして、main にコミットして
 
 ### カードの置き場所を作る
 
-空の `ai-board/data` ブランチを作って fork に push し、`config.yaml` をその根へ写す。
-カードはこのブランチに置かれ、手元では `.ai-board/data/` に展開される。
-ほかの人が同じ fork を clone したときは、最初に CLI を動かした時点で展開されるので、これは 1 回だけでよい。
+カードは、ボードのページの Artifact の DB に置く。PC を閉じていても、スマホのクラウドのセッションから同じカードを読み書きできる。
+CLI は DB に直接は届かないので、手元の写し（`.ai-board/store/`）を読み、書き込みは送る箱に積む。
+DB との行き来は Claude が `board-store` のスキルで行う（取り込み・送り出し）。人が `.ai-board/store/` のファイルを書き換えることはない。
+しくみと、なぜこう置くのかは [リファレンス](docs/reference.md#カード) と [ADR 0020](docs/adr/0020-cards-in-artifact-db.md) にある。
 
-`ai-board/data` は main とは歴史を共有しない別のブランチで、カードの正本は GitHub 側にある。
-手元の `.ai-board/data/` はその写しで、CLI やチャットでカードを書くたびに、このブランチへのコミットと push が自動で走る。
-main からは `.gitignore` で外してあるので、コードのコミットや PR にカードの変更は混ざらない。
-人がこのディレクトリのファイルを直接書き換えたり、このブランチへ push したりはしない。
-中身と、なぜブランチに置くのかは [リファレンス](docs/reference.md#カード) と [ADR 0010](docs/adr/0010-cards-on-data-branch.md) にある。
+> 置き場所を用意して
 
-> ai-board の init を走らせて
+Claude は次を行う。
 
-```bash
-node dist/cli.js init
-```
+1. ボードのページを Artifact として公開し（DB を使う宣言を付ける）、その URL を伝える
+2. 人がその URL を `.ai-board/config.yaml` の `store.url` に書いて main に入れる
+3. `node dist/cli.js store init` で置き場所の最初の文書を積み、DB へ送り出す
 
-チャットで頼んだときは、`init` を走らせてよいかを Claude Code が確かめてくる（`.claude/settings.json` で確認を挟むようにしてある）。
+セッションで最初に DB へ書くとき、書いてよいかを Claude Code が確かめてくる。承認すると、そのセッションの残りの書き込みはまとめて通る。
 
 ### つながったかを確かめる
 
@@ -100,65 +92,38 @@ node dist/cli.js status
 
 ## 2. カードを入れる
 
-### 元のリポジトリのカードを移す
+### 最初のアイデアカードを入れる
 
-fork 元（`iepyon/ai-board`）のカードは、fork しても付いてこない。
-カードをいったん 1 枚 1 ファイルに書き出し、そのファイルから自分の fork に起票し直す。
-どのコマンドも、自分の fork の clone の根で打つ。
+`.ai-board/seed/` に、このチュートリアルの題材のカード（`status-stage-counts`）が置いてある。
 
-まず、fork 元のカードの置き場所（`ai-board/data` ブランチ）だけを手元に clone する。
-main のコードは付いてこない。
-
-> iepyon/ai-board の ai-board/data ブランチだけを /tmp/src-data に clone して
+> 最初のアイデアカードを入れて
 
 ```bash
-git clone --single-branch -b ai-board/data https://github.com/iepyon/ai-board.git /tmp/src-data
+node dist/cli.js store seed   # 既定は .ai-board/seed/。既にある ID は飛ばす
 ```
 
-次に、そのカードを `~/backlog` に書き出す。
-`AI_BOARD_DATA` で置き場所を `/tmp/src-data` に向けるので、CLI は fork 元のカードを読む。
-書き出すのは着手しておらず中止もしていないカードだけで、読むだけなので fork 元は変わらない。
-
-> /tmp/src-data のカードのうち、着手していないものを ~/backlog に書き出して
-
-```bash
-AI_BOARD_DATA=/tmp/src-data node dist/cli.js card export --to ~/backlog
-```
-
-書き出したファイルは `<id>.md` で、タイトルと本文だけを持つ。
-要らないカードは、取り込む前にそのファイルを消しておけばよい。
-
-最後に、書き出したファイルから自分の fork に起票する。
-こちらは `AI_BOARD_DATA` を付けないので、自分の fork の `ai-board/data` に書く。
-
-> ~/backlog のカードを取り込んで
-
-```bash
-node dist/cli.js card seed --from ~/backlog
-rm -rf /tmp/src-data ~/backlog   # 済んだら片付ける
-```
-
-取り込んだカードはアイデアの列の末尾に、ファイル名の順で付く。
-並び順と、fork 元での着手や判断は移らない（詳しくは [リファレンス](docs/reference.md#別のリポジトリへカードを移す)）。
+起票したカードはアイデアの列の末尾に付く。Claude は続けて DB へ送り出す。
+研修の題材を増やすときは、`.ai-board/seed/` に `<id>.md`（frontmatter に `id` と `title`、本文は自由）を足す。
 
 ### 新しくカードを書く
 
 やりたいことと、その理由を伝えて起票する。
 日本語だけのタイトルからは読みやすい ID が作れないので、短い kebab-case の ID を付けておくと後で指しやすい。
+チャットで頼むと、Claude は置き場所を取り込み、`card create` で送る箱に積み、DB へ送り出すまでを続けて行う。
 
-> 「ユーザは、status で列ごとの枚数を見たい」というアイデアカードを、ID を status-stage-counts にして起票して。
-> やることは、status の人向けの出力の先頭に列ごとのカードの枚数を出すこと。
-> 背景は、今は判断待ちと AI 作業中しか見えず、ボード全体の量が分からないこと。
+> 「ユーザは、status で中止のカードの枚数も見たい」というアイデアカードを、ID を status-aborted-count にして起票して。
+> やることは、列ごとの枚数の隣に中止のカードの枚数を出すこと。
+> 背景は、片付けたカードがどれだけあるかが分からないこと。
 
 ```bash
-node dist/cli.js card create --title 'ユーザは、status で列ごとの枚数を見たい' --id status-stage-counts <<'EOF'
+node dist/cli.js card create --title 'ユーザは、status で中止のカードの枚数も見たい' --id status-aborted-count <<'EOF'
 ## アイデア
 
-status の人向けの出力の先頭に、列ごとのカードの枚数を出す。
+列ごとの枚数の隣に、中止のカードの枚数を出す。
 
 ## 背景
 
-今は判断待ちと AI 作業中しか見えず、ボード全体の量が分からない。
+片付けたカードがどれだけあるかが分からない。
 EOF
 ```
 

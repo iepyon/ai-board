@@ -1,4 +1,4 @@
-import { describeDataStoreError } from '../../infrastructure/data-store-messages.js';
+import { describeStoreError } from '../../infrastructure/store-messages.js';
 import type { CardUsecaseError } from '../errors/card-errors.js';
 
 // ============================================================
@@ -27,11 +27,11 @@ export function describeCardError(error: CardUsecaseError): string {
     case 'StaleOrder':
       return `--after（${error.after}）と --before（${error.before}）の並びが今の表と逆です。status で並びを読み直してください`;
     case 'CardWriteRefused':
-      return `カードのファイルへの書き込みを拒みました（${error.reason}）`;
+      return `カードの書き込みを拒みました（${error.reason}）`;
     case 'ReviewEntriesChanged':
       return '## レビュー のエントリが変わる差し替えはできません。提出 / 再提出は submit で追記してください';
     default:
-      // 残りは DataStoreError。describeDataStoreError の switch が種別を網羅する
-      return describeDataStoreError(error);
+      // 残りは StoreError。describeStoreError の switch が種別を網羅する
+      return describeStoreError(error);
   }
 }

@@ -170,4 +170,20 @@ describe('.claude/settings.json の許可ルール', () => {
   it('allow と deny に同じルールが無い', () => {
     expect(perms.allow.filter((rule) => perms.deny.includes(rule))).toEqual([]);
   });
+
+  it('置き場所の写しと送る箱（.ai-board/store/）の直接の編集を deny する', () => {
+    for (const rule of ['Edit(/.ai-board/store/**)', 'Edit(**/.ai-board/store/**)']) {
+      expect(perms.deny).toContain(rule);
+    }
+  });
+
+  it('ArtifactData の PreToolUse に、置き場所への書き込みを送る箱だけに限る hook を置く', () => {
+    const parsed = JSON.parse(readFileSync(SETTINGS_PATH, 'utf-8')) as {
+      hooks?: { PreToolUse?: { matcher: string; hooks: { type: string; command: string }[] }[] };
+    };
+    const entry = parsed.hooks?.PreToolUse?.find((hook) => hook.matcher === 'ArtifactData');
+    expect(entry?.hooks).toEqual([
+      { type: 'command', command: 'node "$CLAUDE_PROJECT_DIR/scripts/artifact-data-guard.mjs"' },
+    ]);
+  });
 });

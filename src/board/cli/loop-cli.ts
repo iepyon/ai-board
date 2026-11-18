@@ -13,8 +13,8 @@ import {
   type LoopImplStep,
   type LoopStep,
 } from '../models/loop-step.js';
-import type { DataStore, DataStoreError } from '../../infrastructure/data-store.js';
-import { describeDataStoreError } from '../../infrastructure/data-store-messages.js';
+import type { DocumentStore, StoreError } from '../../infrastructure/document-store.js';
+import { describeStoreError } from '../../infrastructure/store-messages.js';
 import {
   writeLoopFinish,
   writeLoopStart,
@@ -27,16 +27,16 @@ import {
 // ============================================================
 
 /**
- * ループ（`/board-loop` を動かした本筋のセッション）だけが、手の始まりと終わりに使う。書くのはデータ用ブランチの `loop/` のファイルだけで、カードには書かない。
+ * ループ（`/board-loop` を動かした本筋のセッション）だけが、手の始まりと終わりに使う。書くのは置き場所の `loop` の文書だけで、カードには書かない。
  *
  * カードについては「その ID のカードがあるか」を読む関数（`cardExists`）だけを受け取り、
  * カードのリポジトリの書き込みの口を持たない。`card-cli.ts` の書き込み境界には入口を足さない。
- * 書き込みは `DataStore.transact` の 1 操作として走らせる（取り直した最新の状態に対して書き、コミットして push する）。
+ * 書き込みは `DocumentStore.transact` の 1 操作として走らせる（手元の最新の写しに対して書き、送る箱に積む）。
  */
 export const LOOP_USAGE = `使い方: ai-board loop <command> [--root <path>]
 
 ループ（/board-loop を動かした本筋のセッション）が、手の始まりと終わりに 1 手の記録を書く
-（データ用ブランチの loop/）。カードには書かない。
+（置き場所の loop）。カードには書かない。書いたものは送る箱に積まれる。
 
 Commands:
   start  --loop <id> --card <cardId> --action <手> [--step <段>] [--agent <name>]
@@ -58,9 +58,9 @@ export interface LoopCliIo {
 }
 
 export interface LoopCliDependencies {
-  /** データのワークツリー。書き込みは `transact` の中で行う */
-  readonly store: Pick<DataStore, 'transact'>;
-  /** その ID のカードがあるか。`transact` の中（取り直した後）で呼ぶ */
+  /** 置き場所。書き込みは `transact` の中で行う */
+  readonly store: Pick<DocumentStore, 'transact' | 'list' | 'set'>;
+  /** その ID のカードがあるか。`transact` の中（写しを読み直した後）で呼ぶ */
   readonly cardExists: (id: string) => Promise<boolean>;
 }
 
@@ -123,11 +123,11 @@ async function runStart(
   const startedAt = io.now().toISOString();
   const result = await deps.store.transact<LoopStartOutcome, LoopCliError>(
     `loop: start ${common.cardId} ${action}`,
-    async (dataDir) => {
+    async () => {
       if (!(await deps.cardExists(common.cardId))) {
         return err({ type: 'CardNotFound', id: common.cardId });
       }
-      return writeLoopStart(dataDir, {
+      return writeLoopStart(deps.store, {
         loop: common.loop,
         cardId: common.cardId,
         action,
@@ -166,9 +166,9 @@ async function runFinish(
   const finishedAt = io.now().toISOString();
   const result = await deps.store.transact<LoopStep, LoopCliError>(
     (step) => `loop: finish ${step.cardId} ${step.action}`,
-    (dataDir) =>
+    () =>
       Promise.resolve(
-        writeLoopFinish(dataDir, {
+        writeLoopFinish(deps.store, {
           loop: common.loop,
           cardId: common.cardId,
           result: loopResult,
@@ -254,7 +254,7 @@ function describeStep(step: LoopStep): string {
   return `${step.loop} ${step.cardId} ${step.action}${stepPart}${resultPart}`;
 }
 
-function describeError(error: LoopCliError | DataStoreError): string {
+function describeError(error: LoopCliError | StoreError): string {
   switch (error.type) {
     case 'CardNotFound':
       return `カードが見つかりません: ${error.id}`;
@@ -265,7 +265,7 @@ function describeError(error: LoopCliError | DataStoreError): string {
     case 'RunningLoopStepCardMismatch':
       return `ループ ${error.loop} の終わっていない記録は ${error.running} のものです（--card ${error.given} と食い違います）`;
     default:
-      // 残りは DataStoreError。describeDataStoreError の switch が種別を網羅する
-      return describeDataStoreError(error);
+      // 残りは StoreError。describeStoreError の switch が種別を網羅する
+      return describeStoreError(error);
   }
 }

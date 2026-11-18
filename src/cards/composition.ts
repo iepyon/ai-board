@@ -1,12 +1,15 @@
-import { readDataMode, type BoardPaths } from '../infrastructure/config.js';
-import type { CliRunner } from '../infrastructure/cli-runner.js';
+import type { BoardPaths } from '../infrastructure/config.js';
 import { err, isErr, ok } from '../shared/result.js';
-import { createDataStore, type DataStore } from '../infrastructure/data-store.js';
+import { ArtifactMirrorStore } from '../infrastructure/artifact-mirror-store.js';
+import type { DocumentStore } from '../infrastructure/document-store.js';
 import type { PrNumberWriter } from '../infrastructure/pr-fetcher.js';
 import type { CardRepository } from './repositories/card.repository.js';
 import type { IdeaDividerRepository } from './repositories/idea-divider.repository.js';
-import { CardWriteRefusedError, FileCardRepository } from './repositories/file-card.repository.js';
-import { FileIdeaDividerRepository } from './repositories/file-idea-divider.repository.js';
+import {
+  CardWriteRefusedError,
+  DocCardRepository,
+  DocIdeaDividerRepository,
+} from './repositories/doc-card.repository.js';
 import {
   createCreateCardCommand,
   type CreateCardCommand,
@@ -71,17 +74,17 @@ export interface CardDependencies {
 }
 
 /**
- * データのワークツリーのファイルでカードを読み書きする。
+ * 置き場所の文書でカードを読み書きする。
  *
- * リポジトリはコミットと push を持たない。書き込みの usecase は `transactCardWrite`（`usecases/commands/transact-card-write.ts`）の中で呼ぶ。
+ * 書き込みの usecase は `transactCardWrite`（`usecases/commands/transact-card-write.ts`）の中で呼ぶ。
  */
-export function createFileCardDependencies(dataDir: string): CardDependencies {
-  return assemble(new FileCardRepository(dataDir), new FileIdeaDividerRepository(dataDir));
+export function createCardDependencies(store: DocumentStore): CardDependencies {
+  return assemble(new DocCardRepository(store), new DocIdeaDividerRepository(store));
 }
 
 /** `ai-board card` が使う依存。読む口と、AI に許す書き込みの口だけ */
 export interface CardCliParts {
-  /** データのワークツリーのカードを読む */
+  /** 置き場所のカードを読む */
   readonly cards: Pick<CardDependencies, 'cardRepository'>;
   /**
    * AI に許す書き込みだけ（起票・本文・ブランチの紐付け・提出 / 再提出・保留）。
@@ -91,11 +94,11 @@ export interface CardCliParts {
 }
 
 /**
- * `ai-board card` の依存を組む。書き込みは `store` の書き込みの 1 操作としてコミットして push する。
+ * `ai-board card` の依存を組む。書き込みは `store` の書き込みの 1 操作として送る箱に積む。
  * 人の判断を書く usecase（`appendReviewCommand`・`updateCardMetaCommand`）は渡さない。
  */
-export function createCardCliParts(store: DataStore): CardCliParts {
-  const cards = createFileCardDependencies(store.dataDir);
+export function createCardCliParts(store: DocumentStore): CardCliParts {
+  const cards = createCardDependencies(store);
   return {
     cards: { cardRepository: cards.cardRepository },
     writes: createCardWriteCommands(store, cards),
@@ -103,34 +106,33 @@ export function createCardCliParts(store: DataStore): CardCliParts {
 }
 
 /**
- * `PrFetcher` が PR 番号を書き戻すとき、書き込みの 1 操作（`DataStore.transact`）の中で書く。
+ * `PrFetcher` が PR 番号を書き戻すとき、書き込みの 1 操作（`DocumentStore.transact`）の中で書く。
  *
- * データのワークツリーのファイルを書くだけでは、コミットも push もされず、次の取り直しで捨てられる。
- * 取り直した最新のカードを読み直し、番号が違うときだけ番号を書く（人がその間に書いた判断などを消さない）。
- * コミットには ID だけを入れ、ブランチ名は入れない。
+ * 最新のカードを読み直し、番号が違うときだけ番号を書く（人がその間に書いた判断などを消さない）。
+ * 束の名前には ID だけを入れ、ブランチ名は入れない。
  *
- * 書けなくても（オフライン、push の拒否、ロックの待ち切れ、リポジトリの拒否）、警告するだけで例外を投げない。
+ * 書けなくても（ロックの待ち切れ、リポジトリの拒否）、警告するだけで例外を投げない。
  * 投げると `PrFetcher` の接続の状態が error になり、ループが止まる。番号は次の問い合わせで解決し直される。
  * `transact` の中から呼ばないこと（同じプロセスの中で 1 列に並ぶので、自分を待って止まる）。
  */
 export function createTransactionalPrWriter(
-  store: Pick<DataStore, 'transact'>,
+  store: DocumentStore,
   warn: (message: string) => void = (message) => console.warn(message)
 ): PrNumberWriter {
   return async (cardId, number) => {
     const result = await store.transact<void, CardWriteRefusedError['reason']>(
-      `data: ${cardId} の PR 番号を書き戻す`,
-      async (dataDir) => {
-        const repository = new FileCardRepository(dataDir);
+      `${cardId} の PR 番号を書き戻す`,
+      async () => {
+        const repository = new DocCardRepository(store);
         const latest = await repository.findById(cardId);
 
-        // 取り直した後に番号が既に入っていれば、何も書かない（transact はコミットしない）
+        // 番号が既に入っていれば、何も書かない（transact は送る箱に積まない）
         if (latest === null || latest.pr === number) return ok(undefined);
 
         try {
           await repository.save({ ...latest, pr: number });
         } catch (error) {
-          // 今の card.md が読めないなど。書きかけは transact が捨てる
+          // 今のカードの文書が読めないなど。書きかけは transact が捨てる
           if (error instanceof CardWriteRefusedError) return err(error.reason);
           throw error;
         }
@@ -144,20 +146,9 @@ export function createTransactionalPrWriter(
   };
 }
 
-/**
- * 設定の置き場所から、データのワークツリーを読み書きする `DataStore` を組む。
- *
- * 既定の場所（`.ai-board/data/`）なら、無ければ `root` のリポジトリから `git worktree add` で作る。
- * `AI_BOARD_DATA` は用意済みの clone を指すので、無ければ作らずに失敗させる。
- * 読み書きのモードは `data-mode.yaml`（`readDataMode`）に従う。ストアを組むときに 1 回だけ読む。
- */
-export function createBoardDataStore(paths: BoardPaths, runner: CliRunner): DataStore {
-  return createDataStore({
-    dataDir: paths.dataDir,
-    ...(paths.dataSource === 'env' ? {} : { repoRoot: paths.root }),
-    runner,
-    mode: readDataMode(paths.dataDir),
-  });
+/** 設定の置き場所から、Artifact の DB の写しと送る箱（`DocumentStore`）を組む */
+export function createBoardStore(paths: BoardPaths): ArtifactMirrorStore {
+  return new ArtifactMirrorStore(paths.storeDir);
 }
 
 function assemble(

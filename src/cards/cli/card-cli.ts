@@ -1,16 +1,13 @@
 import * as path from 'node:path';
 import { isErr, type Result } from '../../shared/result.js';
 import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
-import type { DataStore } from '../../infrastructure/data-store.js';
+import type { DocumentStore } from '../../infrastructure/document-store.js';
 import type { CardCliParts } from '../composition.js';
 import type { Card } from '../models/card.js';
 import type { CardUsecaseError } from '../errors/card-errors.js';
 import { serializeCard } from '../repositories/card-markdown.js';
 import { isReviewGate, REVIEW_GATES, type ReviewGate } from '../models/review.js';
-import {
-  describeDataStoreError,
-  describeOfflineRead,
-} from '../../infrastructure/data-store-messages.js';
+import { describeStoreError } from '../../infrastructure/store-messages.js';
 import { describeCardError } from '../presenters/card-messages.js';
 import { readSeedCards, selectExportCards, toSeedFile, type SeedFile } from './seed-cards.js';
 
@@ -29,9 +26,9 @@ import { readSeedCards, selectExportCards, toSeedFile, type SeedFile } from './s
  * この CLI には承認 / 差し戻し / 中止を書く口が型の上でも無い（`CardCliDependencies.writes` に人の判断を書く口が無い）。
  * 提出 / 保留の判断は値のままリポジトリに渡すので、理由にどんな行を書いても判断は 1 件しか増えない。
  *
- * カードの正本はデータ用ブランチにある。読むコマンドは頭で 1 回取り直してから読み、
- * 書くコマンドは書き込みの usecase（`writes`）を呼ぶ。usecase が検査から書き込みまでを `DataStore.transact` の中で走らせ、
- * コミットのメッセージも決める。push が拒否されると取り直した状態で検査からやり直すので、検査は必ず最新のカードに対して行われる。
+ * カードの正本は置き場所（Artifact の DB）にあり、CLI は手元の写しを読む。読むコマンドは頭で写しを確かめてから読み、
+ * 書くコマンドは書き込みの usecase（`writes`）を呼ぶ。usecase が検査から書き込みまでを `DocumentStore.transact` の中で走らせ、
+ * 束の名前も決める。書いたものは送る箱に積まれ、Claude が置き場所へ送り出す（board-store のスキル）。
  */
 export const CARD_USAGE = `使い方: ai-board card <command> [--root <path>]
 
@@ -89,8 +86,10 @@ interface ParsedArgs {
 
 /** 読む口（`cards`）と AI に許す書き込みの口（`writes`）は `createCardCliParts` が組む */
 export interface CardCliDependencies extends CardCliParts {
-  /** データのワークツリー。読む前に取り直す */
-  readonly store: Pick<DataStore, 'refresh' | 'dataDir'>;
+  /** 置き場所。読む前に写しを確かめる */
+  readonly store: Pick<DocumentStore, 'check'>;
+  /** 写しと送る箱を置くディレクトリ。`export` はこの中へ書き出さない */
+  readonly storeDir: string;
 }
 
 type Handler = (args: ParsedArgs, deps: CardCliDependencies, io: CardCliIo) => Promise<number>;
@@ -170,7 +169,7 @@ async function runList(
   deps: CardCliDependencies,
   io: CardCliIo
 ): Promise<number> {
-  if (!(await refreshForRead(deps, io))) return 1;
+  if (!checkForRead(deps, io)) return 1;
 
   const cards = await deps.cards.cardRepository.findAll();
   const summaries = cards.map(({ body: _body, ...meta }) => meta);
@@ -186,7 +185,7 @@ async function runShow(
 ): Promise<number> {
   const id = requireCardId(args, io);
   if (id === null) return 1;
-  if (!(await refreshForRead(deps, io))) return 1;
+  if (!checkForRead(deps, io)) return 1;
 
   const card = await deps.cards.cardRepository.findById(id);
   if (card === null) {
@@ -262,7 +261,7 @@ async function runSeed(
   }
 
   // 既にある ID は、書き込み（fetch・ロック・push）を経ずに飛ばす。取り直しは頭の 1 回だけにする
-  if (!(await refreshForRead(deps, io))) return 1;
+  if (!checkForRead(deps, io)) return 1;
   const existing = new Set((await deps.cards.cardRepository.findAll()).map((card) => card.id));
 
   for (const card of read.value) {
@@ -293,11 +292,11 @@ async function runSeed(
 }
 
 /**
- * カードを `seed` が読む形のファイルに書き出す。読むだけで、データ用ブランチには書かない。
+ * カードを `seed` が読む形のファイルに書き出す。読むだけで、置き場所には書かない。
  *
- * 別の GitHub のリポジトリへボードを移すときに、元のリポジトリで書き出し、移した先で `seed --from` で起票する。
- * データ用ブランチをそのまま移さないのは、根の `config.yaml` とカードの `pr` が元のリポジトリを指すため。
- * データのワークツリーの中へは書かない（`cards/` の下に置くと次の書き込みでデータ用ブランチに載る）。
+ * 別のリポジトリへボードを移すときに、元のリポジトリで書き出し、移した先で `seed --from` で起票する。
+ * 置き場所をそのまま移さないのは、カードの `pr` が元のリポジトリを指すため。
+ * 写しと送る箱のディレクトリの中へは書かない。
  */
 async function runExport(
   args: ParsedArgs,
@@ -310,16 +309,16 @@ async function runExport(
     return 1;
   }
 
-  const dataDir = path.resolve(deps.store.dataDir);
+  const storeDir = path.resolve(deps.storeDir);
   const target = path.resolve(to);
-  if (target === dataDir || target.startsWith(`${dataDir}${path.sep}`)) {
+  if (target === storeDir || target.startsWith(`${storeDir}${path.sep}`)) {
     io.stderr(
-      `データのワークツリー（${dataDir}）の中へは書き出せません。外のディレクトリを指定してください\n`
+      `置き場所の写しのディレクトリ（${storeDir}）の中へは書き出せません。外のディレクトリを指定してください\n`
     );
     return 1;
   }
 
-  if (!(await refreshForRead(deps, io))) return 1;
+  if (!checkForRead(deps, io)) return 1;
 
   const cards = selectExportCards(await deps.cards.cardRepository.findAll(), {
     includeStarted: args.flags.get('--started') === true,
@@ -443,25 +442,14 @@ async function runHold(
   return report(await deps.writes.hold({ id, gate, reason: reason.trim(), at: io.now() }), io);
 }
 // ============================================================
-// データ用ブランチの読み書き
+// 置き場所の写し
 // ============================================================
 
-/**
- * 読む前に 1 回取り直す。読めなければ理由を出して false。
- *
- * fetch に失敗したとき（オフライン）は、警告を出して手元の内容で読む。
- */
-async function refreshForRead(deps: CardCliDependencies, io: CardCliIo): Promise<boolean> {
-  const refreshed = await deps.store.refresh();
-  if (isErr(refreshed)) {
-    io.stderr(`${describeDataStoreError(refreshed.error)}\n`);
-    return false;
-  }
-
-  if (refreshed.value.kind === 'offline') {
-    io.stderr(`${describeOfflineRead(refreshed.value.reason)}\n`);
-  }
-  return true;
+/** 読む前に写しを確かめる。読めなければ理由を出して false */
+function checkForRead(deps: CardCliDependencies, io: CardCliIo): boolean {
+  const checked = deps.store.check();
+  if (isErr(checked)) io.stderr(`${describeStoreError(checked.error)}\n`);
+  return checked.ok;
 }
 
 // ============================================================

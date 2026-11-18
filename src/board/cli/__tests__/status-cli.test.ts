@@ -2,12 +2,18 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { createFileCardDependencies } from '../../../cards/composition.js';
+import { createCardDependencies } from '../../../cards/composition.js';
+import { initialDocuments, MemoryDocumentStore } from '../../../infrastructure/document-store.js';
 import { parseCard } from '../../../cards/repositories/card-markdown.js';
 import { REVIEW_HEADING, parseReviewLog } from '../../../cards/services/review-log.js';
-import { isErr } from '../../../shared/result.js';
+import { isErr, ok } from '../../../shared/result.js';
 import { createBoardDependencies, createLoopHistoryRepository } from '../../composition.js';
-import { writeLoopFinish, writeLoopStart } from '../../repositories/loop-history.repository.js';
+import {
+  writeLoopFinish,
+  writeLoopStart,
+  type LoopFinishInput,
+  type LoopStartInput,
+} from '../../repositories/loop-history.repository.js';
 import type { PrStateProvider } from '../../services/pr-state-provider.js';
 import type { ForgeConnection, PrState } from '../../models/pr-state.js';
 import type { PullRequestNumber } from '../../../shared/schemas/common.js';
@@ -26,8 +32,8 @@ import { createGetStatusQuery } from '../../usecases/queries/get-status.query.js
 // ============================================================
 
 let root: string;
-/** データのワークツリーの代わりのディレクトリ。git は使わず、ファイルのリポジトリで直に読み書きする */
-let dataDir: string;
+/** 置き場所の代わり。メモリの置き場所で直に読み書きする */
+let store: MemoryDocumentStore;
 let stdout: string;
 let stderr: string;
 
@@ -35,7 +41,7 @@ const NOW = new Date('2026-10-23T00:00:00.000Z');
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-board-status-'));
-  dataDir = path.join(root, 'data');
+  store = new MemoryDocumentStore(initialDocuments());
   stdout = '';
   stderr = '';
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -53,22 +59,46 @@ async function writeCard(id: string, frontmatter: string, body = ''): Promise<vo
   );
   if (card === null) throw new Error(`テスト用のカードが読めません: ${id}`);
 
-  // 新しいカードの本文に判断があると、ファイルのリポジトリは書かずに拒む。判断は元の時刻のまま 1 件ずつ足す
-  const cards = createFileCardDependencies(dataDir);
+  // 新しいカードの本文に判断があると、リポジトリは書かずに拒む。判断は元の時刻のまま 1 件ずつ足す
+  const cards = createCardDependencies(store);
   const index = card.body.indexOf(REVIEW_HEADING);
   const prose = index === -1 ? card.body : card.body.slice(0, index).replace(/\n+$/, '');
-  if (!(await cards.cardRepository.create({ ...card, body: prose }))) {
-    throw new Error(`テスト用のカードを作れません: ${id}`);
-  }
+  await inStore(async () => {
+    if (!(await cards.cardRepository.create({ ...card, body: prose }))) {
+      throw new Error(`テスト用のカードを作れません: ${id}`);
+    }
 
-  for (const entry of parseReviewLog(card.body)) {
-    const appended = await cards.appendReviewCommand({
-      ...entry,
-      id: card.id,
-      at: new Date(entry.at),
-    });
-    if (isErr(appended)) throw new Error(`判断を足せません: ${JSON.stringify(appended.error)}`);
-  }
+    for (const entry of parseReviewLog(card.body)) {
+      const appended = await cards.appendReviewCommand({
+        ...entry,
+        id: card.id,
+        at: new Date(entry.at),
+      });
+      if (isErr(appended)) throw new Error(`判断を足せません: ${JSON.stringify(appended.error)}`);
+    }
+  });
+}
+
+/** 置き場所への書き込みは transact の中で行う */
+async function inStore(fn: () => unknown): Promise<void> {
+  await store.transact('test', async () => {
+    await fn();
+    return ok(undefined);
+  });
+}
+
+async function loopStart(input: LoopStartInput): Promise<void> {
+  await inStore(() => {
+    const written = writeLoopStart(store, input);
+    if (isErr(written)) throw new Error(`開始を書けません: ${JSON.stringify(written.error)}`);
+  });
+}
+
+async function loopFinish(input: LoopFinishInput): Promise<void> {
+  await inStore(() => {
+    const written = writeLoopFinish(store, input);
+    if (isErr(written)) throw new Error(`終了を書けません: ${JSON.stringify(written.error)}`);
+  });
 }
 
 async function writePlan(id: string, content: string): Promise<void> {
@@ -97,13 +127,13 @@ async function run(
   provider = stubProvider(),
   branchPlanRepository?: BranchPlanRepository
 ): Promise<number> {
-  const cards = createFileCardDependencies(dataDir);
+  const cards = createCardDependencies(store);
   const board = createBoardDependencies(
     path.join(root, '.ai-board', 'plans'),
     cards.cardRepository,
     cards.ideaDividerRepository,
     provider,
-    createLoopHistoryRepository(dataDir)
+    createLoopHistoryRepository(store)
   );
 
   return runStatusCli(
@@ -220,7 +250,7 @@ describe('ai-board status --json', () => {
     );
     await writePlan('reviewing', '# 計画\n\n- [ ] 1');
     await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\n");
-    writeLoopStart(dataDir, {
+    await loopStart({
       loop: 'session-a',
       cardId: 'reviewing',
       action: 'plan',
@@ -228,13 +258,13 @@ describe('ai-board status --json', () => {
       agent: 'board-planner',
       startedAt: '2026-10-19T18:00:00.000Z',
     });
-    writeLoopFinish(dataDir, {
+    await loopFinish({
       loop: 'session-a',
       cardId: 'reviewing',
       result: 'advanced',
       finishedAt: '2026-10-19T19:00:00.000Z',
     });
-    writeLoopStart(dataDir, {
+    await loopStart({
       loop: 'session-a',
       cardId: 'started',
       action: 'plan',
@@ -385,7 +415,7 @@ describe('ai-board status --json', () => {
     await writeCard('third', 'rank: 300\n');
     await writeCard('second', 'rank: 200\n');
     await writeCard('started', "startedAt: '2026-10-22T00:00:00.000Z'\nrank: 50\n");
-    await createFileCardDependencies(dataDir).ideaDividerRepository.set(250);
+    await inStore(() => createCardDependencies(store).ideaDividerRepository.set(250));
 
     const report = await runJson();
 
@@ -564,7 +594,7 @@ describe('ai-board status', () => {
 
   it('ループが今触っているカードと、その行の印を出す', async () => {
     await writeCard('impl', "startedAt: '2026-10-22T00:00:00.000Z'\n", review('承認'));
-    writeLoopStart(dataDir, {
+    await loopStart({
       loop: 'session-a',
       cardId: 'impl',
       action: 'implement',
@@ -582,7 +612,7 @@ describe('ai-board status', () => {
   it('次の一手のカードが同じ手で止まり続けていれば、回数を添える', async () => {
     await writeCard('impl', "startedAt: '2026-10-22T00:00:00.000Z'\n", review('承認'));
     for (const startedAt of ['2026-10-22T10:00:00.000Z', '2026-10-22T11:00:00.000Z']) {
-      writeLoopStart(dataDir, {
+      await loopStart({
         loop: 'session-a',
         cardId: 'impl',
         action: 'implement',
@@ -590,7 +620,7 @@ describe('ai-board status', () => {
         agent: null,
         startedAt,
       });
-      writeLoopFinish(dataDir, {
+      await loopFinish({
         loop: 'session-a',
         cardId: 'impl',
         result: 'stopped',

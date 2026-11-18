@@ -1,0 +1,70 @@
+import { describe, expect, it } from 'vitest';
+import { err, ok } from '../../shared/result.js';
+import {
+  checkMeta,
+  copyDocuments,
+  initialDocuments,
+  isValidDocumentId,
+  MemoryDocumentStore,
+  STORE_VERSION,
+} from '../document-store.js';
+import { describeDocumentStoreContract } from './document-store.contract.js';
+
+describeDocumentStoreContract('メモリ', () => new MemoryDocumentStore(initialDocuments()));
+
+describe('checkMeta', () => {
+  it('board/meta が無ければ未初期化', () => {
+    expect(checkMeta(new MemoryDocumentStore())).toEqual(err({ type: 'StoreUninitialized' }));
+  });
+
+  it('形の版が違えば読まない', () => {
+    const store = new MemoryDocumentStore([
+      { collection: 'board', id: 'meta', data: { version: 2 } },
+    ]);
+    expect(checkMeta(store)).toEqual(
+      err({ type: 'StoreVersionMismatch', found: 2, expected: STORE_VERSION })
+    );
+  });
+});
+
+describe('isValidDocumentId', () => {
+  it.each(['card-a', 'card.20261117T000000.000Z.plan.submit', 'a_b:c@d+e'])('%s は使える', (id) => {
+    expect(isValidDocumentId(id)).toBe(true);
+  });
+
+  it.each(['', '.', '..', 'a~1', 'a/b', 'あ', 'a b'])('%s は使えない', (id) => {
+    expect(isValidDocumentId(id)).toBe(false);
+  });
+});
+
+describe('copyDocuments', () => {
+  it('写し元の全コレクションを 1 回の transact で写す', async () => {
+    const from = new MemoryDocumentStore([
+      ...initialDocuments(),
+      { collection: 'cards', id: 'a', data: { title: 'A' } },
+      { collection: 'log', id: 'a.1', data: { kind: 'submit' } },
+    ]);
+    const to = new MemoryDocumentStore(initialDocuments());
+
+    const result = await copyDocuments(from, to, '写す', { collections: ['cards', 'log'] });
+
+    expect(result).toEqual(ok(2));
+    expect(to.get('cards', 'a')).toEqual({ title: 'A' });
+    expect(to.get('log', 'a.1')).toEqual({ kind: 'submit' });
+  });
+
+  it('refuse が理由を返したら何も写さない', async () => {
+    const from = new MemoryDocumentStore([{ collection: 'cards', id: 'a', data: { title: 'A' } }]);
+    const to = new MemoryDocumentStore([
+      ...initialDocuments(),
+      { collection: 'cards', id: 'x', data: { title: 'X' } },
+    ]);
+
+    const result = await copyDocuments(from, to, '写す', {
+      refuse: (reader) => (reader.list('cards').length > 0 ? ('NotEmpty' as const) : null),
+    });
+
+    expect(result).toEqual(err('NotEmpty'));
+    expect(to.get('cards', 'a')).toBeNull();
+  });
+});

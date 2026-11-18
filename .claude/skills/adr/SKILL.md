@@ -1,7 +1,7 @@
 ---
 name: adr
 description: ai-board の今も効いている設計判断を、短い ADR（Architecture Decision Record）として docs/adr/ に書く。新しい判断を記録するとき、判断が変わって ADR を書き直すとき、git log・計画の archive・仕様から判断を書き起こすときに使う。「ADR を書いて」「この判断を ADR に残して」「履歴から ADR を起こして」「ADR を整理して」で使う。
-argument-hint: '[記録する判断。例: カードをデータ用ブランチに置く]'
+argument-hint: '[記録する判断。例: カードを Artifact の DB に置く]'
 ---
 
 # adr — 今も効いている設計判断を、短く残す
@@ -76,7 +76,7 @@ Michael Nygard の形（背景 / 決定 / 結果）に、MADR の「退けた案
 
 1. 計画: `.ai-board/plans/archive/*.md`（`### Why`・`### Decisions`・`### Non-Goals`）。
    計画の archive は消して整理することがあるので、ADR の根拠には計画のパスではなく PR とコミットを書く。消した計画は `git log --all -- .ai-board/plans/archive/<id>.md` で引ける。
-   書き直しの経緯は `git log --format='%h %ad %s' --date=short -- .ai-board/plans/<id>.md`。差し戻しの理由はデータ用ブランチの `cards/<id>/log/`。
+   書き直しの経緯は `git log --format='%h %ad %s' --date=short -- .ai-board/plans/<id>.md`。差し戻しの理由は `ai-board card show <id>` の `
 2. 仕様: `docs/specs/*/spec.md`（MUST / SHALL NOT の理由文）。
 3. git log: `git log --reverse --no-merges --format='%h %ad %s' --date=short`。浅いクローンなら先に `git fetch --unshallow origin main`。
 4. 今の形: `CLAUDE.md` の不変条件とコードの docstring。**今も効いているか**はここで確かめる。

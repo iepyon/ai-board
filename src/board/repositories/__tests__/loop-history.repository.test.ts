@@ -1,14 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { execFileSync } from 'node:child_process';
-import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
 import { isErr } from '../../../shared/result.js';
 import type { LoopStep } from '../../models/loop-step.js';
 import {
-  LOOP_DIR,
+  LOOP_COLLECTION,
   LOOP_VOCABULARY_IN_SYNC,
-  createFileLoopHistoryRepository,
+  createDocLoopHistoryRepository,
   loopFileName,
   parseLoopFileName,
   parseLoopStep,
@@ -19,14 +15,28 @@ import {
   type LoopStartInput,
 } from '../loop-history.repository.js';
 
-let dataDir: string;
+/** `list` と `set` だけを持つ置き場所（書き込みの関数は transact の中から呼ばれる前提で、ここでは transact を省く） */
+function makeStore() {
+  const docs = new Map<string, Record<string, unknown>>();
+  return {
+    docs,
+    list: (collection: string) =>
+      collection !== LOOP_COLLECTION
+        ? []
+        : [...docs.keys()].sort().map((id) => ({ id, data: docs.get(id) ?? {} })),
+    set: (_collection: string, id: string, data: Record<string, unknown>) => {
+      docs.set(id, structuredClone(data));
+    },
+  };
+}
+
+let dataDir: ReturnType<typeof makeStore>;
 
 beforeEach(() => {
-  dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-board-loop-history-'));
+  dataDir = makeStore();
 });
 
 afterEach(() => {
-  fs.rmSync(dataDir, { recursive: true, force: true });
   vi.restoreAllMocks();
 });
 
@@ -40,16 +50,22 @@ const START: LoopStartInput = {
 };
 
 function loopFiles(): string[] {
-  return fs.readdirSync(path.join(dataDir, LOOP_DIR)).sort();
+  return [...dataDir.docs.keys()].map((id) => `${id}.json`).sort();
 }
 
 function readFile(name: string): unknown {
-  return JSON.parse(fs.readFileSync(path.join(dataDir, LOOP_DIR, name), 'utf-8'));
+  return dataDir.docs.get(name.slice(0, -'.json'.length));
 }
 
+/** 文書を直に置く。JSON として読めない中身は、形の合わない文書として置く */
 function writeRaw(name: string, content: string): void {
-  fs.mkdirSync(path.join(dataDir, LOOP_DIR), { recursive: true });
-  fs.writeFileSync(path.join(dataDir, LOOP_DIR, name), content);
+  let data: Record<string, unknown>;
+  try {
+    data = JSON.parse(content) as Record<string, unknown>;
+  } catch {
+    data = { broken: content };
+  }
+  dataDir.docs.set(name.replace(/\.json$/, ''), data);
 }
 
 function unwrap<T>(result: { ok: true; value: T } | { ok: false; error: unknown }): T {
@@ -209,7 +225,7 @@ describe('writeLoopStart', () => {
   it('時刻がファイル名にできなければ拒んで何も書かない', () => {
     const result = writeLoopStart(dataDir, { ...START, startedAt: 'nope' });
     expect(isErr(result) && result.error.type).toBe('InvalidLoopTime');
-    expect(fs.existsSync(path.join(dataDir, LOOP_DIR))).toBe(false);
+    expect(dataDir.docs.size).toBe(0);
   });
 });
 
@@ -235,19 +251,14 @@ describe('writeLoopFinish', () => {
   it('終わった記録は書き換えない。2 度目の終了は終わっていない記録が無いので拒む', () => {
     unwrap(writeLoopStart(dataDir, START));
     unwrap(writeLoopFinish(dataDir, FINISH));
-    const before = fs.readFileSync(
-      path.join(dataDir, LOOP_DIR, '20261102T111406.000Z.session-a.json'),
-      'utf-8'
-    );
+    const before = JSON.stringify(readFile('20261102T111406.000Z.session-a.json'));
 
     const again = writeLoopFinish(dataDir, { ...FINISH, result: 'stopped' });
     expect(isErr(again) && again.error.type).toBe('NoRunningLoopStep');
 
     // 開始も、終わった記録を interrupted で閉じ直さない
     unwrap(writeLoopStart(dataDir, { ...START, startedAt: '2026-11-02T12:00:00.000Z' }));
-    expect(
-      fs.readFileSync(path.join(dataDir, LOOP_DIR, '20261102T111406.000Z.session-a.json'), 'utf-8')
-    ).toBe(before);
+    expect(JSON.stringify(readFile('20261102T111406.000Z.session-a.json'))).toBe(before);
   });
 
   it('カードが食い違えば拒んで何も書かない', () => {
@@ -276,7 +287,7 @@ describe('読み出し', () => {
     unwrap(writeLoopStart(dataDir, { ...START, loop: 'b', startedAt: '2026-11-02T12:00:00.000Z' }));
     unwrap(writeLoopStart(dataDir, { ...START, loop: 'a' }));
     writeRaw('20261102T130000.000Z.c.json', '{ not json');
-    writeRaw('readme.txt', 'x');
+    writeRaw('readme', '{"x": 1}');
     // ファイル名の時刻と中身の時刻が食い違う
     writeRaw(
       '20261102T140000.000Z.a.json',
@@ -298,73 +309,13 @@ describe('読み出し', () => {
       })
     );
 
-    const steps = await createFileLoopHistoryRepository(dataDir).findAll();
+    const steps = await createDocLoopHistoryRepository(dataDir).findAll();
 
     expect(steps.map((s) => s.loop)).toEqual(['a', 'b']);
     expect(warn).toHaveBeenCalledTimes(4);
   });
 
-  it('loop/ が無ければ空', () => {
+  it('loop の文書が無ければ空', () => {
     expect(readLoopSteps(dataDir)).toEqual([]);
-  });
-});
-
-// ============================================================
-// 形の版を上げない前提: DATA_PATHS に loop を持たない古い CLI の書き込みでも loop/ は残る
-// ============================================================
-
-describe('古い CLI の書き込み', () => {
-  function git(cwd: string, ...args: string[]): string {
-    return execFileSync('git', ['-C', cwd, ...args], {
-      encoding: 'utf-8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }).trim();
-  }
-
-  let globalConfig: string;
-
-  beforeEach(() => {
-    // 利用者の git の設定（署名など）に左右されないよう、空の設定と名前を与える。dataDir の外に置く
-    globalConfig = `${dataDir}.gitconfig`;
-    fs.writeFileSync(globalConfig, '');
-    vi.stubEnv('GIT_CONFIG_GLOBAL', globalConfig);
-    vi.stubEnv('GIT_CONFIG_NOSYSTEM', '1');
-    vi.stubEnv('GIT_AUTHOR_NAME', 'ai-board');
-    vi.stubEnv('GIT_AUTHOR_EMAIL', 'ai-board@example.com');
-    vi.stubEnv('GIT_COMMITTER_NAME', 'ai-board');
-    vi.stubEnv('GIT_COMMITTER_EMAIL', 'ai-board@example.com');
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    fs.rmSync(globalConfig, { force: true });
-  });
-
-  it('loop を除いた add・clean・reset の後も、追跡済みの loop/ のファイルは消えない', () => {
-    git(dataDir, 'init', '--quiet', '--initial-branch', 'ai-board/data');
-    fs.writeFileSync(path.join(dataDir, 'ai-board-data.yaml'), 'version: 2\n');
-    unwrap(writeLoopStart(dataDir, START));
-    git(dataDir, 'add', '-A');
-    git(dataDir, 'commit', '--quiet', '-m', 'loop: start card-a implement');
-
-    // 古い CLI の DATA_PATHS（loop を持たない）で、カードを書いてコミットする道をなぞる
-    const oldPaths = ['cards', 'order.yaml', 'snapshots', 'ai-board-data.yaml', 'config.yaml'];
-    git(dataDir, 'reset', '--hard', '--quiet', 'HEAD');
-    git(dataDir, 'clean', '-fdq');
-    git(dataDir, 'clean', '-fdqx', '--', ...oldPaths);
-    fs.mkdirSync(path.join(dataDir, 'cards', 'card-a'), { recursive: true });
-    fs.writeFileSync(path.join(dataDir, 'cards', 'card-a', 'card.md'), '---\nid: card-a\n---\n');
-    const present = oldPaths.filter((p) => fs.existsSync(path.join(dataDir, p)));
-    git(dataDir, 'add', '--all', '--force', '--', ...present);
-    git(dataDir, 'add', '--update');
-    git(dataDir, 'commit', '--quiet', '--no-verify', '-m', 'data: card-a を書く');
-    git(dataDir, 'reset', '--hard', '--quiet', 'HEAD');
-    git(dataDir, 'clean', '-fdq');
-    git(dataDir, 'clean', '-fdqx', '--', ...oldPaths);
-
-    expect(git(dataDir, 'ls-tree', '-r', '--name-only', 'HEAD').split('\n')).toContain(
-      `${LOOP_DIR}/20261102T111406.000Z.session-a.json`
-    );
-    expect(readLoopSteps(dataDir)).toHaveLength(1);
   });
 });

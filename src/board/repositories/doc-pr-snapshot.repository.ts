@@ -4,24 +4,20 @@ import * as path from 'node:path';
 import { z } from 'zod';
 import { isErr, ok } from '../../shared/result.js';
 import { CardIdSchema, type CardId, type PullRequestNumber } from '../../shared/schemas/common.js';
-import type { DataStore, DataStoreError } from '../../infrastructure/data-store.js';
+import type { DocumentStore, StoreError } from '../../infrastructure/document-store.js';
+import { readFileOrNull } from '../../infrastructure/read-file.js';
+import { settle } from '../../shared/settle.js';
 import { FORGE_KINDS, PR_STATES, type PrSnapshot, type PrState } from '../models/pr-state.js';
 import type { PrSnapshotRepository } from './pr-snapshot.repository.js';
 
 // ============================================================
-// データ用ブランチと使い捨ての JSON による PR の状態の控えのリポジトリ実装
+// 置き場所の文書と使い捨ての JSON による PR の状態の控えのリポジトリ実装
 // ============================================================
 
-/** マージ済みの PR の控えを置く、データ用ブランチの中のディレクトリ */
-export const SNAPSHOTS_DIR = 'snapshots';
-/** 開いている PR の控えを置く、git に載せないファイル（データのワークツリーの親からの相対）。名前は手元の控えを読み続けるため変えない */
-/** 開いている PR の控えを置く、git に載せないファイル（データのワークツリーの親からの相対） */
+/** マージ済みの PR の控えを置く、置き場所のコレクション（ID はカード ID） */
+export const SNAPSHOTS_COLLECTION = 'snapshots';
+/** 開いている PR の控えを置く、置き場所に送らないファイル（置き場所のディレクトリからの相対） */
 export const PR_SNAPSHOT_CACHE_FILE = path.join('cache', 'pr-snapshots.json');
-
-/** マージ済みの PR の控えのファイル名 */
-export function snapshotFileName(cardId: CardId): string {
-  return `${cardId}.json`;
-}
 
 const PrStateSchema = z.object({
   forge: z.enum(FORGE_KINDS),
@@ -60,48 +56,34 @@ export function parsePrSnapshot(json: unknown): PrSnapshot | null {
   return { pr, fingerprint: parsed.data.fingerprint };
 }
 
-/**
- * マージ済みの PR の控えのファイルの中身。
- *
- * 項目の順をスキーマで決める。2 つの clone が同じ PR を書いたとき、同じバイト列にして余計なコミットを作らない。
- */
-export function serializeMergedSnapshot(snapshot: PrSnapshot): string {
-  return `${JSON.stringify(PrSnapshotSchema.parse(snapshot), null, 2)}\n`;
-}
-
-export interface FilePrSnapshotRepositoryOptions {
-  /** 開いている PR の控えのファイル。既定は `<dataDir の親>/cache/pr-snapshots.json` */
-  readonly cacheFile?: string;
+/** マージ済みの PR の控えの文書の中身。項目の順をスキーマで決める（同じ控えなら同じ中身にして、余計な改訂を作らない） */
+export function mergedSnapshotData(snapshot: PrSnapshot): Record<string, unknown> {
+  return PrSnapshotSchema.parse(snapshot) as Record<string, unknown>;
 }
 
 /**
  * PR の状態の控えを、2 か所に分けて置く。
  *
- * - マージ済みの PR は、データ用ブランチの `snapshots/<id>.json` に置く（`DataStore.transact` を通す）。
- *   二度と変わらないので、全員で 1 度引けば足りる。クラウドの新しい clone でも引き直さずに済む
- * - それ以外は、git に載せない使い捨ての `<dataDir の親>/cache/pr-snapshots.json` に置く。
- *   データのワークツリーの外なので、取り直しの `clean` で消えない。クラウドでは毎回空から始まる
+ * - マージ済みの PR は、置き場所の `snapshots/<id>` の文書に置く（`DocumentStore.transact` を通す）。
+ *   二度と変わらないので、全員で 1 度引けば足りる。クラウドの新しいセッションでも引き直さずに済む
+ * - それ以外は、置き場所に送らない使い捨ての `<置き場所のディレクトリ>/cache/pr-snapshots.json` に置く。
+ *   クラウドでは毎回空から始まる
  *
  * 控えはステージの導出の入力ではなく、gh の問い合わせを省くためのものである。
- * データ用ブランチへの書き込みに失敗しても（オフライン、push の拒否、ロックの待ち切れ）、警告するだけで例外を投げない。
+ * 置き場所への書き込みに失敗しても（ロックの待ち切れ、写しが無い）、警告するだけで例外を投げない。
  * 投げると `PrFetcher` の接続の状態が error になり、ループが止まる。書けなかった控えは、次のプロセスが引き直して書き直す。
  */
-export class FilePrSnapshotRepository implements PrSnapshotRepository {
-  private readonly cacheFile: string;
-
+export class DocPrSnapshotRepository implements PrSnapshotRepository {
   constructor(
-    private readonly store: DataStore,
-    options: FilePrSnapshotRepositoryOptions = {}
-  ) {
-    this.cacheFile =
-      options.cacheFile ?? path.join(path.dirname(store.dataDir), PR_SNAPSHOT_CACHE_FILE);
-  }
+    private readonly store: DocumentStore,
+    private readonly cacheFile: string
+  ) {}
 
   findAll(): Promise<Map<CardId, PrSnapshot>> {
     return settle(() => {
       const snapshots = new Map(this.readCache());
 
-      // 同じカードが両方にあれば、データ用ブランチのマージ済みを採る。番号が違えば `PrFetcher` が引き直す
+      // 同じカードが両方にあれば、置き場所のマージ済みを採る。番号が違えば `PrFetcher` が引き直す
       for (const [cardId, snapshot] of this.readMerged()) {
         snapshots.set(cardId, snapshot);
       }
@@ -110,7 +92,7 @@ export class FilePrSnapshotRepository implements PrSnapshotRepository {
     });
   }
 
-  /** データ用ブランチのマージ済みの控えだけを読む。使い捨ての控え（`cache/`）は読まない */
+  /** 置き場所のマージ済みの控えだけを読む。使い捨ての控え（`cache/`）は読まない */
   findMerged(): Promise<Map<CardId, PrSnapshot>> {
     return settle(() => this.readMerged());
   }
@@ -132,18 +114,18 @@ export class FilePrSnapshotRepository implements PrSnapshotRepository {
     await this.removeMerged(cardId);
   }
 
-  /** マージ済みの控えをデータ用ブランチに書く。書けたら true */
+  /** マージ済みの控えを置き場所に書く。書けたら true。中身が同じなら書かない */
   private async writeMerged(cardId: CardId, snapshot: PrSnapshot): Promise<boolean> {
-    const content = serializeMergedSnapshot(snapshot);
+    const data = mergedSnapshotData(snapshot);
 
     const result = await this.store.transact<void, never>(
-      `data: ${cardId} のマージ済みの PR の控えを書く`,
-      (dataDir) =>
+      `${cardId} のマージ済みの PR の控えを書く`,
+      () =>
         settle(() => {
-          const dir = path.join(dataDir, SNAPSHOTS_DIR);
-          fs.mkdirSync(dir, { recursive: true });
-          // 中身が同じなら変化が無いので、transact はコミットしない
-          fs.writeFileSync(path.join(dir, snapshotFileName(cardId)), content);
+          const current = this.store.get(SNAPSHOTS_COLLECTION, cardId);
+          if (current === null || JSON.stringify(current) !== JSON.stringify(data)) {
+            this.store.set(SNAPSHOTS_COLLECTION, cardId, data);
+          }
           return ok(undefined);
         })
     );
@@ -155,16 +137,15 @@ export class FilePrSnapshotRepository implements PrSnapshotRepository {
     return true;
   }
 
-  /** データ用ブランチのマージ済みの控えを消す。無ければ transact に入らない（取り直しと push を走らせない） */
+  /** 置き場所のマージ済みの控えを消す。無ければ transact に入らない */
   private async removeMerged(cardId: CardId): Promise<void> {
-    if (!fs.existsSync(this.mergedFile(this.store.dataDir, cardId))) return;
+    if (this.store.get(SNAPSHOTS_COLLECTION, cardId) === null) return;
 
     const result = await this.store.transact<void, never>(
-      `data: ${cardId} のマージ済みの PR の控えを消す`,
-      (dataDir) =>
+      `${cardId} のマージ済みの PR の控えを消す`,
+      () =>
         settle(() => {
-          // 取り直した後にはもう無いかもしれない。無ければ何も書かずに終わる
-          fs.rmSync(this.mergedFile(dataDir, cardId), { force: true });
+          this.store.delete(SNAPSHOTS_COLLECTION, cardId);
           return ok(undefined);
         })
     );
@@ -174,26 +155,14 @@ export class FilePrSnapshotRepository implements PrSnapshotRepository {
     }
   }
 
-  private mergedFile(dataDir: string, cardId: CardId): string {
-    return path.join(dataDir, SNAPSHOTS_DIR, snapshotFileName(cardId));
-  }
-
-  /** データ用ブランチの `snapshots/` を読む。名前が ID として不正なもの、形の合わないものは黙って外す */
+  /** 置き場所の `snapshots/` を読む。ID として不正なもの、形の合わないものは黙って外す */
   private readMerged(): Map<CardId, PrSnapshot> {
-    const dir = path.join(this.store.dataDir, SNAPSHOTS_DIR);
     const snapshots = new Map<CardId, PrSnapshot>();
-    if (!fs.existsSync(dir)) return snapshots;
-
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
-
-      const id = entry.name.slice(0, -'.json'.length);
-      if (!CardIdSchema.safeParse(id).success) continue;
-
-      const snapshot = parsePrSnapshot(parseJsonOrNull(readFileOrNull(path.join(dir, entry.name))));
-      if (snapshot !== null) snapshots.set(id as CardId, snapshot);
+    for (const doc of this.store.list(SNAPSHOTS_COLLECTION)) {
+      if (!CardIdSchema.safeParse(doc.id).success) continue;
+      const snapshot = parsePrSnapshot(doc.data);
+      if (snapshot !== null) snapshots.set(doc.id as CardId, snapshot);
     }
-
     return snapshots;
   }
 
@@ -236,22 +205,8 @@ export class FilePrSnapshotRepository implements PrSnapshotRepository {
 // ヘルパー
 // ============================================================
 
-function warnStoreFailure(cardId: CardId, message: string, error: DataStoreError): void {
+function warnStoreFailure(cardId: CardId, message: string, error: StoreError): void {
   console.warn(`[ai-board] ${cardId} の${message}: ${error.type}`);
-}
-
-/** 同期の処理を Promise にする。投げた例外は reject として返す */
-function settle<T>(fn: () => T): Promise<T> {
-  return new Promise((resolve) => resolve(fn()));
-}
-
-function readFileOrNull(file: string): string | null {
-  try {
-    return fs.readFileSync(file, 'utf-8');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
-    throw error;
-  }
 }
 
 function parseJsonOrNull(raw: string | null): unknown {

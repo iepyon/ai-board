@@ -112,7 +112,7 @@ export async function runDecideCli(
   return spec.run(parsed, deps, io);
 }
 
-/** 規定のサブコマンドか。呼び出し側は、そうでなければデータ用ブランチと PR の取り直しを起こさずに使い方を出す */
+/** 規定のサブコマンドか。呼び出し側は、そうでなければ置き場所の確かめと PR の問い合わせを起こさずに使い方を出す */
 export function isDecideCommand(command: string | undefined): boolean {
   return lookupCommand(command) !== undefined;
 }

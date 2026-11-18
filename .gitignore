@@ -4,15 +4,15 @@ coverage/
 *.log
 .DS_Store
 
-# 各自の GitHub 接続設定。config.example.yaml をコピーして使う
-/.ai-board/config.yaml
-
 # ループのサブエージェントがカードごとに作るワークツリー。中身はカードのブランチへコミットする
 /.claude/worktrees/
 
-# 共有のカードを置くデータ用ブランチ（ai-board/data）のワークツリーと、その隣に置く排他のロックと PR の状態の控え、
-# 読み書きのモード（mode: local で手元モード）。
-# データのワークツリーは ai-board の CLI が作り、コミットと push も CLI が行う
+# 置き場所（Artifact の DB）の手元の写しと送る箱、ロック、使い捨ての PR の控え。
+# ai-board の CLI が書き、置き場所との行き来は Claude が board-store のスキルで行う
+/.ai-board/store/
+
+# 前の置き場所（データ用ブランチ ai-board/data）のワークツリーと、その隣のロック・控え・モード。
+# 移して確かめた後に人が消す（README の「データ用ブランチを消す」）。消すまで追跡しない
 /.ai-board/data/
 /.ai-board/cache/
 /.ai-board/data.lock

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { loadConfig, readDataMode, resolvePaths } from '../config.js';
+import { loadConfig, resolvePaths } from '../config.js';
 
 let root: string;
 
@@ -127,9 +127,11 @@ describe('ワークツリーでの置き場所', () => {
     expect(paths.plansDir).toBe(path.join(tree, '.ai-board', 'plans'));
   });
 
-  it('リンクされたワークツリーでは config.yaml もメインのチェックアウトのものを読む', async () => {
-    await writeConfig(githubYaml);
+  it('リンクされたワークツリーでは、git に載せたワークツリー自身の config.yaml を読む', async () => {
+    await writeConfig('github:\n  repository: main/checkout\n');
     const tree = await makeLinkedWorktree('feature');
+    await fs.mkdir(path.join(tree, '.ai-board'), { recursive: true });
+    await fs.writeFile(path.join(tree, '.ai-board', 'config.yaml'), githubYaml, 'utf-8');
 
     expect(loadConfig(tree).forge).toEqual({ kind: 'github', owner: 'iepyon', repo: 'ai-board' });
   });
@@ -139,7 +141,7 @@ describe('ワークツリーでの置き場所', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     try {
-      expect(resolvePaths(root, {}).dataDir).toBe(path.join(root, '.ai-board', 'data'));
+      expect(resolvePaths(root, {}).storeDir).toBe(path.join(root, '.ai-board', 'store'));
       expect(warn).toHaveBeenCalledWith(
         expect.stringContaining('メインのチェックアウトを求められない')
       );
@@ -150,166 +152,74 @@ describe('ワークツリーでの置き場所', () => {
 });
 
 // ============================================================
-// データのワークツリーと、config.yaml の置き場所
+// 置き場所の写しのディレクトリと、store.url
 // ============================================================
 
-async function writeDataConfig(dataDir: string, yaml: string): Promise<void> {
-  await fs.mkdir(dataDir, { recursive: true });
-  await fs.writeFile(path.join(dataDir, 'config.yaml'), yaml, 'utf-8');
-}
-
-describe('データのワークツリーの置き場所', () => {
-  it('メインのチェックアウトでは .ai-board/data/', () => {
+describe('置き場所の写しのディレクトリ', () => {
+  it('メインのチェックアウトでは .ai-board/store/', () => {
     const paths = resolvePaths(root, {});
 
-    expect(paths.dataDir).toBe(path.join(root, '.ai-board', 'data'));
-    expect(paths.dataSource).toBe('local');
+    expect(paths.storeDir).toBe(path.join(root, '.ai-board', 'store'));
+    expect(paths.storeSource).toBe('local');
   });
 
-  it('リンクされたワークツリーではメインのチェックアウトの .ai-board/data/', async () => {
+  it('リンクされたワークツリーではメインのチェックアウトの .ai-board/store/', async () => {
     const tree = await makeLinkedWorktree('feature');
 
     const paths = resolvePaths(tree, {});
 
-    expect(paths.dataDir).toBe(path.join(root, '.ai-board', 'data'));
-    expect(paths.dataSource).toBe('main-checkout');
+    expect(paths.storeDir).toBe(path.join(root, '.ai-board', 'store'));
+    expect(paths.storeSource).toBe('main-checkout');
   });
 
-  it('AI_BOARD_DATA があれば、それをデータのワークツリーにする（相対パスはカレントディレクトリから）', async () => {
+  it('AI_BOARD_STORE があれば、それを写しのディレクトリにする（相対パスはカレントディレクトリから）', async () => {
     const tree = await makeLinkedWorktree('feature');
 
-    const paths = resolvePaths(tree, { AI_BOARD_DATA: 'dev-data' });
+    const paths = resolvePaths(tree, { AI_BOARD_STORE: 'dev-store' });
 
-    expect(paths.dataDir).toBe(path.resolve('dev-data'));
-    expect(paths.dataSource).toBe('env');
+    expect(paths.storeDir).toBe(path.resolve('dev-store'));
+    expect(paths.storeSource).toBe('env');
   });
 
-  it('AI_BOARD_DATA が空なら無いものとして扱う', () => {
-    expect(resolvePaths(root, { AI_BOARD_DATA: '' }).dataSource).toBe('local');
+  it('AI_BOARD_STORE が空なら無いものとして扱う', () => {
+    expect(resolvePaths(root, { AI_BOARD_STORE: '' }).storeSource).toBe('local');
   });
 
-  it('AI_BOARD_DATA があっても、共有の置き場所は .ai-board/ を指す', () => {
-    const paths = resolvePaths(root, { AI_BOARD_DATA: 'dev-data' });
+  it('AI_BOARD_STORE があっても、共有の置き場所は .ai-board/ を指す', () => {
+    const paths = resolvePaths(root, { AI_BOARD_STORE: 'dev-store' });
 
     expect(paths.sharedBoardDir).toBe(path.join(root, '.ai-board'));
   });
 });
 
-describe('config.yaml の置き場所', () => {
-  it('データ用ブランチの根に config.yaml があれば、それを読む', async () => {
-    await writeConfig('github:\n  repository: old/repo\n');
-    await writeDataConfig(path.join(root, '.ai-board', 'data'), githubYaml);
-
-    expect(loadConfig(root, {}).forge).toEqual({
-      kind: 'github',
-      owner: 'iepyon',
-      repo: 'ai-board',
-    });
-  });
-
-  it('データ用ブランチに無ければ .ai-board/config.yaml を読む', async () => {
+describe('store.url', () => {
+  it('書かれていなければ null', async () => {
     await writeConfig(githubYaml);
-    await fs.mkdir(path.join(root, '.ai-board', 'data'), { recursive: true });
 
-    expect(loadConfig(root, {}).forge).toEqual({
-      kind: 'github',
-      owner: 'iepyon',
-      repo: 'ai-board',
-    });
+    expect(loadConfig(root, {}).storeUrl).toBeNull();
   });
 
-  it('リンクされたワークツリーでは、メインのチェックアウトのデータのワークツリーの config.yaml を読む', async () => {
-    await writeDataConfig(path.join(root, '.ai-board', 'data'), githubYaml);
-    const tree = await makeLinkedWorktree('feature');
+  it('claude.ai の Artifact の URL を読む', async () => {
+    await writeConfig(`${githubYaml}store:\n  url: https://claude.ai/artifact/AbC123\n`);
 
-    expect(loadConfig(tree, {}).forge).toEqual({
-      kind: 'github',
-      owner: 'iepyon',
-      repo: 'ai-board',
-    });
+    expect(loadConfig(root, {}).storeUrl).toBe('https://claude.ai/artifact/AbC123');
   });
 
-  it('AI_BOARD_DATA を指せば、そのディレクトリの config.yaml を読む', async () => {
-    await writeConfig('github:\n  repository: old/repo\n');
-    const dataDir = path.join(root, 'elsewhere');
-    await writeDataConfig(dataDir, githubYaml);
+  it('claude.ai/code/artifact の URL も読む', async () => {
+    await writeConfig('store:\n  url: https://claude.ai/code/artifact/1a2b-3c\n');
 
-    expect(loadConfig(root, { AI_BOARD_DATA: dataDir }).forge).toEqual({
-      kind: 'github',
-      owner: 'iepyon',
-      repo: 'ai-board',
-    });
+    expect(loadConfig(root, {}).storeUrl).toBe('https://claude.ai/code/artifact/1a2b-3c');
   });
 
-  it('データ用ブランチの config.yaml が不正なら、そのファイルの名前を出してエラーにする', async () => {
-    const dataDir = path.join(root, '.ai-board', 'data');
-    await writeDataConfig(dataDir, 'github:\n  repository: 3\n');
+  it('url: null は未設定として読む', async () => {
+    await writeConfig('store:\n  url: null\n');
 
-    expect(() => loadConfig(root, {})).toThrow(path.join(dataDir, 'config.yaml'));
-  });
-});
-
-describe('データ用ブランチの読み書きのモード', () => {
-  async function writeMode(dir: string, yaml: string): Promise<void> {
-    await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(path.join(dir, 'data-mode.yaml'), yaml, 'utf-8');
-  }
-
-  it('data-mode.yaml が無ければ既定のモード（sync）', () => {
-    expect(readDataMode(resolvePaths(root, {}).dataDir)).toBe('sync');
+    expect(loadConfig(root, {}).storeUrl).toBeNull();
   });
 
-  it('mode: local なら手元モード', async () => {
-    await writeMode(path.join(root, '.ai-board'), 'mode: local\n');
+  it('Artifact の URL でなければ、ファイルの名前を出してエラーにする', async () => {
+    await writeConfig('store:\n  url: https://example.com/x\n');
 
-    expect(readDataMode(resolvePaths(root, {}).dataDir)).toBe('local');
-  });
-
-  it('mode: sync なら既定のモード', async () => {
-    await writeMode(path.join(root, '.ai-board'), 'mode: sync\n');
-
-    expect(readDataMode(resolvePaths(root, {}).dataDir)).toBe('sync');
-  });
-
-  it('形が違えば警告して既定のモードにする', async () => {
-    await writeMode(path.join(root, '.ai-board'), 'mode: offline\n');
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-
-    try {
-      expect(readDataMode(resolvePaths(root, {}).dataDir)).toBe('sync');
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('data-mode.yaml を読めないため'));
-    } finally {
-      warn.mockRestore();
-    }
-  });
-
-  it('YAML として読めなければ警告して既定のモードにする', async () => {
-    await writeMode(path.join(root, '.ai-board'), 'mode: [local\n');
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-
-    try {
-      expect(readDataMode(resolvePaths(root, {}).dataDir)).toBe('sync');
-      expect(warn).toHaveBeenCalledTimes(1);
-    } finally {
-      warn.mockRestore();
-    }
-  });
-
-  it('リンクされたワークツリーでは、メインのチェックアウトの data-mode.yaml を読む', async () => {
-    const tree = await makeLinkedWorktree('feature');
-    await writeMode(path.join(root, '.ai-board'), 'mode: local\n');
-
-    expect(readDataMode(resolvePaths(tree, {}).dataDir)).toBe('local');
-  });
-
-  it('AI_BOARD_DATA を指したときは、指した先の隣の data-mode.yaml を読み、本物のものは読まない', async () => {
-    await writeMode(path.join(root, '.ai-board'), 'mode: local\n');
-    const trial = path.join(root, 'trial');
-    const dataDir = path.join(trial, 'data');
-
-    expect(readDataMode(resolvePaths(root, { AI_BOARD_DATA: dataDir }).dataDir)).toBe('sync');
-
-    await writeMode(trial, 'mode: local\n');
-    expect(readDataMode(resolvePaths(root, { AI_BOARD_DATA: dataDir }).dataDir)).toBe('local');
+    expect(() => loadConfig(root, {})).toThrow(path.join(root, '.ai-board', 'config.yaml'));
   });
 });

@@ -35,11 +35,13 @@ npm run typecheck && npm run lint && npm run format:check && npm test
 
 整形は `npm run format`。単体は `npx vitest run <path>` / `-t '<name>'`。
 
-## タスクはデータ用ブランチ `ai-board/data` にある
+## タスクはボードの置き場所（Artifact の DB）にある
 
-**このリポジトリ自身のバックログはボードのカードとして `origin` の `ai-board/data` ブランチにある。** 何に着手するかはまずここを見る。
-手元ではメインのチェックアウトの `.ai-board/data/` に展開され（どのワークツリーからも共有する）、CLI は書くたびにコミットと push をする。
-**読み書きは `ai-board card` の CLI で行い、データのワークツリーのファイルを直接書き換えない。データ用ブランチへ直接コミット・push もしない**（`.claude/settings.json` の deny ルールでも止めている。ADR 0012）。
+**このリポジトリ自身のバックログはボードのカードとして、ボードのページの Artifact の DB にある**（URL は `.ai-board/config.yaml` の `store.url`）。何に着手するかはまずここを見る。
+CLI（node）は DB に届かないので、手元の写し（メインのチェックアウトの `.ai-board/store/`。どのワークツリーからも共有する）を読み、書き込みは送る箱に積む。
+DB との行き来（取り込み・送り出し）は Claude が `ArtifactData` で行う（`board-store` のスキル）。DB への書き込みは人がいる会話のセッションで行い、セッションの最初の 1 回は人が承認する。
+**読み書きは `ai-board card` の CLI で行い、写し・送る箱のファイルを直接書き換えない。ボードの置き場所へ `ArtifactData` で直接書かない**（送る箱の `batch` だけを通す hook が `.claude/settings.json` にある）。
+置き場所の文書は書き換えず、変えるたびに改訂（`<ID>~<連番>`）を足す。置き場所は `DocumentStore` の口に閉じてあり、SQLite に切り替えるときは書き込み系を含む実装を新たに作る（ADR 0020）。
 開発中は `node dist/cli.js ...`（先に `npm run build`）。ほかのサブコマンドは `--help` と `docs/reference.md`。
 
 ```bash
@@ -51,17 +53,19 @@ ai-board card branch <id> <name>                       # ブランチの紐付�
 ai-board card submit <id> [--resubmit] [--reason <text>]   # plan 提出 / 再提出
 ai-board card hold <id> --gate plan --reason <text>    # 保留（plan の最新が差し戻しのときだけ）
 ai-board status [--json [--only <項目,...>]]           # ステージ・判断待ち・次の一手
+ai-board store pull --from <dir> | outbox --json | ack | discard   # 写しへの取り込みと送る箱（board-store のスキルが使う）
 ```
 
 - 計画は `.ai-board/plans/<id>.md`。ファイル名がカード ID と一致することで紐付く。
 - 本文の `## レビュー` は判断の追記専用ログで導出の入力。`## 探索メモ` は自由記述で、ループに伝えたい補足はここに書く。
-- **カードに書くコードや、データ用ブランチの形を変えるコードを動かすときは、`AI_BOARD_DATA` で別のディレクトリを指す。**
-  指さなければ試しの書き込みが本物の `ai-board/data` に push され、形の版（`ai-board-data.yaml`）を上げればメインの古い CLI がカードを読めなくなる。
-  指すのはスクラッチパッドの bare リポジトリを `origin` にした clone（手順は `.claude/skills/board-loop/rules.md` の「動かして確かめるとき」）。
+- 最初のアイデアカードは `.ai-board/seed/*.md`（`ai-board store seed` で起票する）。
+- **カードに書くコードや、置き場所の形を変えるコードを動かすときは、`AI_BOARD_STORE` で別のディレクトリを指す。**
+  指さなければ試しの書き込みが本物の送る箱に積まれ、次の送り出しで本物の置き場所に届く。形の版（`board/meta`）を上げればメインの古い CLI がカードを読めなくなる。
+  手順は `.claude/skills/board-loop/rules.md` の「動かして確かめるとき」。
 
 ## 書き込み境界
 
-| 主体                         | `.ai-board/plans/`                           | カード（データ用ブランチ）                                                                     |
+| 主体                         | `.ai-board/plans/`                           | カード（置き場所）                                                                             |
 | ---------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `ai-board status` / `decide` | **read-only**                                | PR 番号とマージ済みの PR の控えを書き戻す。`decide` は人の判断も書く                           |
 | AI エージェント・ループ      | 書く（計画・タスクの更新・archive への移動） | `ai-board card` で本文・ブランチ・提出・保留のみ。ループは `ai-board loop` で 1 手の記録も書く |
@@ -105,10 +109,10 @@ ai-board status [--json [--only <項目,...>]]           # ステージ・判断
 ## コードの規約
 
 - **usecase は例外を投げず `Result<T, E>` を返す**（`src/shared/result.ts`）。
-- **エラーは discriminated union**（`{ type: 'CardNotFound', id }`）。presenters（`src/board/presenters/`・`src/cards/presenters/`、データ用ブランチの失敗は `src/infrastructure/data-store-messages.ts`）が
+- **エラーは discriminated union**（`{ type: 'CardNotFound', id }`）。presenters（`src/board/presenters/`・`src/cards/presenters/`、置き場所の失敗は `src/infrastructure/store-messages.ts`）が
   `switch` で人に読める 1 行へ変換し、CLI と（戻す）HTTP の入口はそれを呼ぶ。エラー種を増やしたら変換も網羅する。
 - **`cli/` は引数・使い方・終了コード・出力だけを持つ。** `cli/` の外（入口の `src/cli.ts` / `src/cli-main.ts` を除く）から `cli/` を import しない（eslint の `@typescript-eslint/no-restricted-imports` で止めている）。
-  ただし、CLI でだけ使う操作（`loop` / `init`）の文言と、端末向けの並べ方（`formatStatus` / `formatPullRequest` など）は `cli/` に残す。
+  ただし、CLI でだけ使う操作（`loop` / `store`）の文言と、端末向けの並べ方（`formatStatus` / `formatPullRequest` など）は `cli/` に残す。
 - **依存はコンテキストごとの `composition.ts` で組む。** usecase やリポジトリの中で `new` しない。
 - **ID は Branded Type**（`CardId` / `PullRequestNumber`）。`createCardId` などのファクトリを通す。
 - 入力検証は Zod（`models/schemas/`）。部分更新では `undefined`（変更しない）と `null`（値を消す）を区別する。

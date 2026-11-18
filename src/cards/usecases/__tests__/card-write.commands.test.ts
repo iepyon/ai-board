@@ -1,9 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import type {
-  CommitMessage,
-  DataOperation,
-  DataStore,
-} from '../../../infrastructure/data-store.js';
+import type { Result } from '../../../shared/result.js';
+import type { DocumentStore, TransactLabel } from '../../../infrastructure/document-store.js';
 import type { CardId } from '../../../shared/schemas/common.js';
 import type { Card } from '../../models/card.js';
 import type { CardRepository } from '../../repositories/card.repository.js';
@@ -70,10 +67,10 @@ function card(id: string, overrides: Partial<Card> = {}): Card {
 let repository: MemoryCards;
 let commits: string[];
 
-/** `op` を 1 回走らせ、通ったらコミットしたことにしてメッセージを控える試しの store */
-const store: Pick<DataStore, 'transact'> = {
-  transact: async <T, E>(message: CommitMessage<T>, op: DataOperation<T, E>) => {
-    const result = await op('unused');
+/** `op` を 1 回走らせ、通ったら送る箱に積んだことにして束の名前を控える試しの store */
+const store: Pick<DocumentStore, 'transact'> = {
+  transact: async <T, E>(message: TransactLabel<T>, op: () => Promise<Result<T, E>>) => {
+    const result = await op();
     if (result.ok) commits.push(typeof message === 'string' ? message : message(result.value));
     return result;
   },
@@ -137,11 +134,11 @@ describe('createCardWriteCommands', () => {
     await w.submit({ id: 'a' as CardId, gate: 'plan', resubmit: false, reason: '秘密', at });
 
     expect(commits).toEqual([
-      'data: a を作る',
-      'data: a の本文を差し替える',
-      'data: a にブランチを紐付ける',
-      'data: a のブランチを外す',
-      'data: a に plan 提出 を足す',
+      'a を作る',
+      'a の本文を差し替える',
+      'a にブランチを紐付ける',
+      'a のブランチを外す',
+      'a に plan 提出 を足す',
     ]);
   });
 
@@ -155,7 +152,7 @@ describe('createCardWriteCommands', () => {
     await w.hold({ id: 'a' as CardId, gate: 'plan', reason: '決めて', at });
     await w.submit({ id: 'b' as CardId, gate: 'plan', resubmit: true, reason: '', at });
 
-    expect(commits).toEqual(['data: a に plan 保留 を足す', 'data: b に plan 再提出 を足す']);
+    expect(commits).toEqual(['a に plan 保留 を足す', 'b に plan 再提出 を足す']);
   });
 
   it('usecase が拒んだ書き込みはコミットしない', async () => {

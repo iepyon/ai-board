@@ -51,7 +51,9 @@ Ready にしたカードは PR中 の列に移り、人が PR をマージする
 ## 1. ボードを読む
 
 メインのチェックアウト（以下 `$MAIN`）で `status` を読む。`dist/` が古ければ先にビルドする。
+`status` の前に、`board-store` のスキルの 1 で置き場所（Artifact の DB）を写しに取り込む（周ごとに 1 回。写しが古いと古いボードで手を選ぶ）。
 `status --json` は全カードの全項目を出すので、`--only next,waiting,forge,loop` で要る項目だけを出して読む。
+CLI が「送る箱に N 束の書き込みがあります」と出したら（`status` の PR 番号の書き戻し、`card` / `loop` の書き込み）、`board-store` のスキルの 2 で送り出してから続ける。
 
 ```bash
 MAIN=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
@@ -101,7 +103,7 @@ node "$MAIN/dist/cli.js" loop start --root "$MAIN" --loop "$LOOP_ID" \
 ```
 
 ループの識別子（`--loop`）はこのセッションの ID にする。自動の要約で記憶が落ちても変わらないので、`finish` で同じ記録を閉じられる。
-`ai-board loop` が失敗しても（オフライン、push の失敗、ロックの待ち切れ）、ループは止めない。
+`ai-board loop` が失敗しても（ロックの待ち切れ、写しが無い、送り出しの失敗）、ループは止めない。
 「ループの記録を書けなかった: <理由の 1 行>」と伝えて、そのまま手を進める。記録は見るためのもので、ステージの導出にも次の一手にも使わないためである。
 
 ### 3.2 計画と実装の手 — 自分で進める

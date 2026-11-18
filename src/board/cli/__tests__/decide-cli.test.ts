@@ -2,10 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { createFileCardDependencies } from '../../../cards/composition.js';
+import { createCardDependencies } from '../../../cards/composition.js';
 import { parseCard } from '../../../cards/repositories/card-markdown.js';
 import { REVIEW_HEADING, parseReviewLog } from '../../../cards/services/review-log.js';
-import { isErr } from '../../../shared/result.js';
+import { isErr, ok, type Result } from '../../../shared/result.js';
 import type { CardId } from '../../../shared/schemas/common.js';
 import { createBoardDependencies } from '../../composition.js';
 import type { PrStateProvider } from '../../services/pr-state-provider.js';
@@ -14,7 +14,11 @@ import {
   type BranchPlanRepository,
 } from '../../repositories/branch-plan.repository.js';
 import type { ForgeCardFailure, ForgeConnection } from '../../models/pr-state.js';
-import type { CommitMessage, DataOperation } from '../../../infrastructure/data-store.js';
+import {
+  initialDocuments,
+  MemoryDocumentStore,
+  type TransactLabel,
+} from '../../../infrastructure/document-store.js';
 import { runDecideCli } from '../decide-cli.js';
 import {
   createDecideCommands,
@@ -22,21 +26,21 @@ import {
 } from '../../usecases/commands/decide.command.js';
 
 // ============================================================
-// テスト用プロジェクトの組み立て。git は使わず、ファイルのリポジトリで直に読み書きする
+// テスト用プロジェクトの組み立て。メモリの置き場所で直に読み書きする
 // ============================================================
 
 let root: string;
-let dataDir: string;
+let store: MemoryDocumentStore;
 let stdout: string;
 let stderr: string;
-/** 試しの store がコミットしたことにしたメッセージ */
+/** 試しの store が送る箱に積んだ束の名前 */
 let commits: string[];
 
 const NOW = new Date('2026-11-04T00:00:00.000Z');
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-board-decide-'));
-  dataDir = path.join(root, 'data');
+  store = new MemoryDocumentStore(initialDocuments());
   stdout = '';
   stderr = '';
   commits = [];
@@ -54,21 +58,24 @@ async function writeCard(id: string, frontmatter: string, body = ''): Promise<vo
   );
   if (card === null) throw new Error(`テスト用のカードが読めません: ${id}`);
 
-  const cards = createFileCardDependencies(dataDir);
+  const cards = createCardDependencies(store);
   const index = card.body.indexOf(REVIEW_HEADING);
   const prose = index === -1 ? card.body : card.body.slice(0, index).replace(/\n+$/, '');
-  if (!(await cards.cardRepository.create({ ...card, body: prose }))) {
-    throw new Error(`テスト用のカードを作れません: ${id}`);
-  }
+  await store.transact('test', async () => {
+    if (!(await cards.cardRepository.create({ ...card, body: prose }))) {
+      throw new Error(`テスト用のカードを作れません: ${id}`);
+    }
 
-  for (const entry of parseReviewLog(card.body)) {
-    const appended = await cards.appendReviewCommand({
-      ...entry,
-      id: card.id,
-      at: new Date(entry.at),
-    });
-    if (isErr(appended)) throw new Error(`判断を足せません: ${JSON.stringify(appended.error)}`);
-  }
+    for (const entry of parseReviewLog(card.body)) {
+      const appended = await cards.appendReviewCommand({
+        ...entry,
+        id: card.id,
+        at: new Date(entry.at),
+      });
+      if (isErr(appended)) throw new Error(`判断を足せません: ${JSON.stringify(appended.error)}`);
+    }
+    return ok(undefined);
+  });
 }
 
 async function writePlan(id: string): Promise<void> {
@@ -108,16 +115,19 @@ const FAILING_B = stubProvider(
 );
 
 /**
- * git を使わない試しの store。`op` をそのまま走らせ、通ったらコミットしたことにしてメッセージを控える。
- * `beforeOp` は、`transact` が取り直した後、`op` の前に、ほかのセッションが書いた状態を作るのに使う
+ * メモリの置き場所の `transact` に通し、通ったら束の名前を控える試しの store。
+ * `beforeOp` は、`op` の前に、ほかのセッションが（別の書き込みの 1 操作で）書いた状態を作るのに使う
  */
 function stubStore(
   beforeOp: () => Promise<void> = () => Promise.resolve()
 ): DecideDependencies['store'] {
   return {
-    transact: async <T, E>(message: CommitMessage<T>, op: DataOperation<T, E>) => {
-      await beforeOp();
-      const result = await op(dataDir);
+    transact: async <T, E>(message: TransactLabel<T>, op: () => Promise<Result<T, E>>) => {
+      await store.transact('ほかのセッション', async () => {
+        await beforeOp();
+        return ok(undefined);
+      });
+      const result = await store.transact(message, op);
       if (result.ok) commits.push(typeof message === 'string' ? message : message(result.value));
       return result;
     },
@@ -127,10 +137,10 @@ function stubStore(
 async function run(
   argv: readonly string[],
   provider = stubProvider(),
-  store = stubStore(),
+  decideStore = stubStore(),
   branchPlans?: BranchPlanRepository
 ): Promise<number> {
-  const cards = createFileCardDependencies(dataDir);
+  const cards = createCardDependencies(store);
   const board = createBoardDependencies(
     path.join(root, '.ai-board', 'plans'),
     cards.cardRepository,
@@ -139,7 +149,11 @@ async function run(
     undefined,
     branchPlans
   );
-  const decide = createDecideCommands({ loadBoard: board.getBoardQuery, store, cards });
+  const decide = createDecideCommands({
+    loadBoard: board.getBoardQuery,
+    store: decideStore,
+    cards,
+  });
 
   return runDecideCli(
     argv,
@@ -153,7 +167,7 @@ async function run(
 }
 
 async function readCard(id: string) {
-  const card = await createFileCardDependencies(dataDir).cardRepository.findById(id as CardId);
+  const card = await createCardDependencies(store).cardRepository.findById(id as CardId);
   if (card === null) throw new Error(`カードがありません: ${id}`);
   return card;
 }
@@ -464,7 +478,7 @@ describe('ai-board decide', () => {
     });
 
     async function ideaOrder(): Promise<string[]> {
-      const cards = await createFileCardDependencies(dataDir).cardRepository.findAll();
+      const cards = await createCardDependencies(store).cardRepository.findAll();
       return cards.map((c) => c.id);
     }
 
@@ -494,7 +508,7 @@ describe('ai-board decide', () => {
     it('区切り線を動かせる。区切り線の指定は --after / --before に受けない', async () => {
       expect(await run(['move-divider', '--after', 'a', '--before', 'b'])).toBe(0);
       expect(stdout).toBe('区切り線を動かしました\n');
-      expect(await createFileCardDependencies(dataDir).ideaDividerRepository.get()).not.toBeNull();
+      expect(await createCardDependencies(store).ideaDividerRepository.get()).not.toBeNull();
 
       expect(await run(['move-divider', '--after', ':divider', '--before', 'b'])).toBe(1);
       expect(stderr).toContain('カード ID か none');
@@ -502,13 +516,13 @@ describe('ai-board decide', () => {
   });
 
   describe('書き込みの 1 操作', () => {
-    it('ボードの導出と検査を transact の中で行い、取り直した後に変わったカードには書かない', async () => {
+    it('ボードの導出と検査を transact の中で行い、ほかのセッションが先に変えたカードには書かない', async () => {
       await writeCard('a', STARTED, review('提出'));
       await writePlan('a');
 
       // 検査の前に、ほかのセッションが同じカードを承認していた
       const approvedElsewhere = stubStore(async () => {
-        const appended = await createFileCardDependencies(dataDir).appendReviewCommand({
+        const appended = await createCardDependencies(store).appendReviewCommand({
           id: 'a' as CardId,
           gate: 'plan',
           kind: '承認',
@@ -529,7 +543,7 @@ describe('ai-board decide', () => {
       expect(commits).toEqual([]);
     });
 
-    it('コミットのメッセージには ID・ゲート・種別・変えた項目の名前だけを入れる', async () => {
+    it('束の名前には ID・ゲート・種別・変えた項目の名前だけを入れる', async () => {
       await writeCard('r', STARTED, review('提出'));
       await writePlan('r');
       await writeCard('i', IDEA('2026-11-01T00:00:00.000Z'));
@@ -542,11 +556,11 @@ describe('ai-board decide', () => {
       expect(await run(['move-divider', '--after', 'j', '--before', 'none'])).toBe(0);
 
       expect(commits).toEqual([
-        'data: r に plan 承認 を足す',
-        'data: i の startedAt を変える',
-        'data: i の skipGates を変える',
-        'data: j を並べ替える',
-        'data: 区切り線を動かす',
+        'r に plan 承認 を足す',
+        'i の startedAt を変える',
+        'i の skipGates を変える',
+        'j を並べ替える',
+        '区切り線を動かす',
       ]);
     });
   });

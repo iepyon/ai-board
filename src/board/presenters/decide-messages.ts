@@ -52,7 +52,7 @@ function describeChoices(card: BoardCard): string {
  * 判断を書けなかった理由の 1 行。
  *
  * ボードに固有の理由（検査の拒否と、ボードが読めない）だけをここで書き、
- * 残り（カードの usecase のエラーとデータ用ブランチの失敗）は `describeCardError` に回す。
+ * 残り（カードの usecase のエラーと置き場所の失敗）は `describeCardError` に回す。
  *
  * GitHub に繋がらない（設定があって使えない・エラー）ときは、PR の状態が引けないと計画レビューのカードが手前の列に落ちて見え、
  * 出せる判断や戻せる列を取り違えるので拒む（`status` が `next` を `null` にするのと同じ理由）。
@@ -81,7 +81,7 @@ export function describeDecideError(error: DecideError): string {
     case 'BoardUnreadable':
       return `ボードを読めませんでした: ${error.reason}`;
     default:
-      // 残りはカードの usecase のエラー（CardNotFound・StaleOrder・CardWriteRefused）と DataStoreError
+      // 残りはカードの usecase のエラー（CardNotFound・StaleOrder・CardWriteRefused）と StoreError
       return describeCardError(error);
   }
 }
