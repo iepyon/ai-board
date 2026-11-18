@@ -28,6 +28,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 品質ゲート
 
 コミット前に必ず通す（CI は `npm test` の代わりに `test:coverage` を走らせ、`build` も加える）。
+CI は一旦 PR と main への push では走らせず、Actions の画面から手で起動したときだけ走る。PR で確かめるのは手元のこのゲートだけになる。
 
 ```bash
 npm run typecheck && npm run lint && npm run format:check && npm test

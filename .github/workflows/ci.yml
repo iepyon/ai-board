@@ -1,7 +1,7 @@
 name: CI
 
 # 一旦、PR と main への push では走らせない（GitHub の支払い・使用上限の問題でジョブが起動しないため。人の依頼）。
-# 戻すときは push（main）と pull_request のトリガーを足し直す。手で走らせるなら Actions の画面から workflow_dispatch で起動する
+# 戻すときは push（main）と pull_request のトリガーを足し直し、CLAUDE.md・REVIEW.md・docs/reference.md の「CI を一旦止めている」記述も外す。手で走らせるなら Actions の画面から workflow_dispatch で起動する
 on:
   workflow_dispatch:
 
