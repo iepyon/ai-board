@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { readSeedCards, selectExportCards, toSeedFile, type SeedFile } from '../seed-cards.js';
+import {
+  parseSeedOrder,
+  readSeedCards,
+  selectExportCards,
+  toSeedFile,
+  type SeedFile,
+} from '../seed-cards.js';
 import type { Card } from '../../models/card.js';
 import type { CardId } from '../../../shared/schemas/common.js';
 
@@ -81,6 +87,34 @@ describe('readSeedCards', () => {
   });
 });
 
+describe('parseSeedOrder と readSeedCards の起票する順', () => {
+  it('空行と # の行を読み飛ばし、書いた ID を先に、残りをファイル名の順で返す', () => {
+    const order = parseSeedOrder('# 先頭\r\n  c  \n\nb\n');
+    expect(order).toEqual(['c', 'b']);
+
+    const result = readSeedCards(
+      [
+        file('a.md', 'title: A'),
+        file('b.md', 'title: B'),
+        file('c.md', 'title: C'),
+        file('d.md', 'title: D'),
+      ],
+      order
+    );
+    expect(result.ok && result.value.map((card) => card.id)).toEqual(['c', 'b', 'a', 'd']);
+  });
+
+  it('順に書いた題材が読めないときは、その題材の問題だけを 1 度返す', () => {
+    const result = readSeedCards([file('a.md', 'id: a'), file('b.md', 'title: B')], ['a', 'b']);
+    expect(result).toEqual({
+      ok: false,
+      error: [
+        { file: 'a.md', reason: 'title がありません（1〜200 文字の文字列で書いてください）' },
+      ],
+    });
+  });
+});
+
 describe('selectExportCards と toSeedFile', () => {
   function card(id: string, overrides: Partial<Card> = {}): Card {
     return {
@@ -116,6 +150,21 @@ describe('selectExportCards と toSeedFile', () => {
       'b',
       'started',
       'a',
+    ]);
+  });
+
+  it('startedAt が無くても、ブランチか PR のあるカードは着手済みとして既定では外す', () => {
+    const cards = [
+      card('idea'),
+      card('merged-legacy', { branch: 'chat-decide', pr: 42 as Card['pr'] }),
+      card('branch-only', { branch: 'feat/x' }),
+    ];
+
+    expect(selectExportCards(cards, { includeStarted: false }).map((c) => c.id)).toEqual(['idea']);
+    expect(selectExportCards(cards, { includeStarted: true }).map((c) => c.id)).toEqual([
+      'idea',
+      'merged-legacy',
+      'branch-only',
     ]);
   });
 

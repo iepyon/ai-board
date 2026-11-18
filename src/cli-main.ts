@@ -5,7 +5,7 @@ import { createCliRunner } from './infrastructure/cli-runner.js';
 import { createBoardStore, createCardCliParts } from './cards/composition.js';
 import { CARD_COLLECTION } from './cards/repositories/card-files.js';
 import { runCardCli, type CardCliIo } from './cards/cli/card-cli.js';
-import type { SeedFile } from './cards/cli/seed-cards.js';
+import { SEED_ORDER_FILE, type SeedFile } from './cards/cli/seed-cards.js';
 import { runStoreCli } from './cards/cli/store-cli.js';
 import { readDataBranchDocuments } from './cards/repositories/data-branch-import.js';
 import type { ArtifactMirrorStore } from './infrastructure/artifact-mirror-store.js';
@@ -282,6 +282,7 @@ function createProcessIo(): CardCliIo {
       return Buffer.concat(chunks).toString('utf-8');
     },
     readMarkdownDir,
+    readSeedOrder,
     writeMarkdownFiles,
     now: () => new Date(),
   };
@@ -303,6 +304,16 @@ async function readMarkdownDir(dir: string): Promise<Result<readonly SeedFile[],
       )
     );
   } catch (error) {
+    return err(error instanceof Error ? error.message : String(error));
+  }
+}
+
+/** ディレクトリの直下の起票する順のファイル（`SEED_ORDER_FILE`）を読む。無ければ null。相対パスは作業ディレクトリから解決する */
+async function readSeedOrder(dir: string): Promise<Result<string | null, string>> {
+  try {
+    return ok(await fs.promises.readFile(path.join(path.resolve(dir), SEED_ORDER_FILE), 'utf-8'));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return ok(null);
     return err(error instanceof Error ? error.message : String(error));
   }
 }

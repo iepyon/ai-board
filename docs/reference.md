@@ -106,7 +106,7 @@ frontmatter の `skipGates` に `plan` を入れると、AI の 提出 / 再提�
 置き場所の文書は書き換えず、変えるたびに `<ID>~<6 桁の連番>` の改訂を足し、読むときは最新を使う。
 
 CLI（node）は DB に届かないので、手元の写し（メインのチェックアウトの `.ai-board/store/mirror/`）を読み、書き込みは「ロック → 写しを読み直す → 検査する → 写しに改訂を足す → 送る箱に積む」を 1 操作で行う。
-DB との行き来は Claude が `board-store` のスキルで行う。`ArtifactData` の `list` の `out_dir` を `ai-board store pull` で写しに取り込み、`ai-board store outbox --json` を `ArtifactData` の `batch` で送る。
+DB との行き来は Claude が `board-store` のスキルで行う。`ArtifactData` の `list` の `out_dir` を `ai-board store pull` で写しに取り込み（`out_dir` がファイル名の `~` を `@` にした名前もそのまま読む）、`ai-board store outbox --json` を `ArtifactData` の `batch` で送る。
 2 つの端末が同じ改訂を作ると、後から送った `batch` が丸ごと拒まれる。そのときは `store discard` → 取り込み直し → 元のコマンドのやり直し、で最新に対して検査し直す。
 DB への書き込みは人がいる会話のセッションで行い、セッションの最初の 1 回は人が承認する（ヘッドレスや人のいない定期実行からは送れない）。
 リンクされたワークツリーから動かしても、写しと送る箱は共有する。`ai-board card show <id>` は次の形で出す。
@@ -231,7 +231,7 @@ git merge --no-ff <branch>                           # マージする
 
 ## GitHub との接続
 
-設定は git に載せた `.ai-board/config.yaml`（`github.repository` と `store.url`）から読む。fork したら 2 行を自分のものに書き換える。
+設定は git に載せた `.ai-board/config.yaml`（`github.repository` と `store.url`）から読む。fork したら 2 行を自分のものに書き換える（`store.url` は元のリポジトリの持ち主にしか開けないので、`null` に戻してから `board-store` の「最初の用意」で作る）。
 アクセストークンは受け取らず、問い合わせは `gh api` で行う（認証は `gh auth login` に委ねる）。
 使えないときは連携が無効になり、理由が `status` の「GitHub:」の行に出る。使えないあいだも、マージ済みの PR は置き場所の控えで出る（リンクと Ready・マージの時刻、区間の時間）。マージ前の PR は出さず、次の一手と判断も止まる。問い合わせるのは `branch` か `pr` のあるカードだけで、中止のカードの PR は一度控えを取った後は引き直さない。
 
@@ -242,7 +242,7 @@ git merge --no-ff <branch>                           # マージする
 
 ```bash
 # 元のリポジトリの clone で（写しを取り込んだ後）
-node dist/cli.js card export --to ~/backlog            # 着手していない・中止していないカード
+node dist/cli.js card export --to ~/backlog            # 着手していない・中止していないカード（ブランチか PR があれば着手済みとみなす）
 node dist/cli.js card export --to ~/backlog --started  # 着手済みのカードも足す
 
 # 移す先のリポジトリの clone で（store init を送った後）
@@ -250,7 +250,7 @@ node dist/cli.js card seed --from ~/backlog            # 続けて board-store �
 ```
 
 - 書き出すファイルは `<id>.md` で、frontmatter の `id` と `title` と本文だけを持つ。本文の `## レビュー` は除く
-- 着手・ブランチ・PR 番号・判断・並び順（`rank`）は移らない。移した先ではどれもアイデアの末尾に、ファイル名の順で付く。並び順は `decide move` で付け直す
+- 着手・ブランチ・PR 番号・判断・並び順（`rank`）は移らない。移した先ではどれもアイデアの末尾に、`order.txt`（1 行 1 ID。書き出しには含まれないので、要れば手で書く）の順、無い分はファイル名の順で付く。並び順は `order.txt` か `decide move` で付け直す
 - 書き出す先に同じ名前のファイルが 1 つでもあれば 1 枚も書かない。写しのディレクトリ（`.ai-board/store/`）の中へは書かない
 - `seed` は既にある ID を飛ばすので、何度走らせても重複しない
 - 移す先の `main` の `.ai-board/plans/archive/` に同じ ID の計画があると、そのカードは起票した時点でマージ済みに見える（規則 1）

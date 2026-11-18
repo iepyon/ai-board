@@ -59,8 +59,9 @@ npm run build
 
 git に載っている `.ai-board/config.yaml` の `github.repository` を、自分の fork に書き換えて main に入れる。
 PR を問い合わせる先になる。
+`store.url` に URL が入っていたら、元のリポジトリの置き場所なので `null` に戻す（その Artifact は持ち主にしか開けない）。自分の置き場所は次の手順で作る。
 
-> .ai-board/config.yaml の repository を <you>/ai-board にして、main にコミットして
+> .ai-board/config.yaml の repository を <you>/ai-board にして、store.url が入っていれば null にして、main にコミットして
 
 ### カードの置き場所を作る
 
@@ -73,9 +74,11 @@ DB との行き来は Claude が `board-store` のスキルで行う（取り込
 
 Claude は次を行う。
 
-1. ボードのページを Artifact として公開し（DB を使う宣言を付ける）、その URL を伝える
-2. 人がその URL を `.ai-board/config.yaml` の `store.url` に書いて main に入れる
-3. `node dist/cli.js store init` で置き場所の最初の文書を積み、DB へ送り出す
+1. 空のボードのページを Artifact として公開し（DB を使う宣言を付ける）、その URL を伝える
+2. 人がその URL を `.ai-board/config.yaml` の `store.url` に書いて main に入れる（Claude に頼んでもよい）
+3. `node dist/cli.js store init` で置き場所の最初の文書を積み、DB へ送り出して取り込む
+
+用意はカードの無いボードで終わる。カードは次の「2. カードを入れる」で入れる。
 
 セッションで最初に DB へ書くとき、書いてよいかを Claude Code が確かめてくる。承認すると、そのセッションの残りの書き込みはまとめて通る。
 
@@ -94,7 +97,7 @@ node dist/cli.js status
 
 ### 最初のアイデアカードを入れる
 
-`.ai-board/seed/` に、このチュートリアルの題材のカード（`status-stage-counts`）が置いてある。
+`.ai-board/seed/` に、このチュートリアルの題材のカード（`status-stage-counts`）と、ai-board 自身のアイデアのカード 9 枚が置いてある。
 
 > 最初のアイデアカードを入れて
 
@@ -102,8 +105,9 @@ node dist/cli.js status
 node dist/cli.js store seed   # 既定は .ai-board/seed/。既にある ID は飛ばす
 ```
 
-起票したカードはアイデアの列の末尾に付く。Claude は続けて DB へ送り出す。
-研修の題材を増やすときは、`.ai-board/seed/` に `<id>.md`（frontmatter に `id` と `title`、本文は自由）を足す。
+起票したカードは、`.ai-board/seed/order.txt` の順（書いていない題材はその後にファイル名の順）でアイデアの列の末尾に付く。Claude は続けて DB へ送り出し、ボードのページを出し直す。
+ターミナルの `status` はアイデアを出さないので、入ったことは `node dist/cli.js card list` か「ボードを見せて」で確かめる。
+研修の題材を増やすときは、`.ai-board/seed/` に `<id>.md`（frontmatter に `id` と `title`、本文は自由）を足し、並べたい位置に合わせて `order.txt` に ID を書く。
 
 ### 新しくカードを書く
 

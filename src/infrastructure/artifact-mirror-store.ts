@@ -403,6 +403,8 @@ export const LOCK_FILE = 'store.lock';
 export const BATCH_LIMIT = 50;
 
 const REVISION_SEPARATOR = '~';
+/** `ArtifactData` の `out_dir` がファイル名で `~` の代わりに使う文字 */
+const EXPORT_REVISION_SEPARATOR = '@';
 const DELETED: DocumentData = { __deleted: true };
 
 interface IndexEntry {
@@ -446,6 +448,24 @@ export function parsePhysicalFile(name: string): { id: string; rev: number } | n
   return name.endsWith('.json') ? parsePhysicalId(name.slice(0, -'.json'.length)) : null;
 }
 
+/**
+ * `ArtifactData` の `out_dir` が書いた 1 ファイルの名前を読み分ける。形が違えば null。
+ *
+ * `out_dir` はファイル名の `~` を `@` に置き換えて書く（`meta~000001` → `meta@000001.json`）。
+ * 名前に `~` があればそのまま読み（手で作った書き出し）、無ければ最後の `@` を改訂の区切りとして読む。
+ * 論理 ID には `@` を使えるが、改訂の連番は数字だけで必ず末尾にあるので、最後の `@` で分ければ取り違えない。
+ * 写しの中のファイルは CLI が `~` で書くので、`parsePhysicalFile` で厳しく読む
+ */
+export function parseExportFile(name: string): { id: string; rev: number } | null {
+  if (!name.endsWith('.json')) return null;
+  const stem = name.slice(0, -'.json'.length);
+  if (stem.includes(REVISION_SEPARATOR)) return parsePhysicalId(stem);
+  const at = stem.lastIndexOf(EXPORT_REVISION_SEPARATOR);
+  return at <= 0
+    ? null
+    : parsePhysicalId(`${stem.slice(0, at)}${REVISION_SEPARATOR}${stem.slice(at + 1)}`);
+}
+
 /** `<論理 ID>~<連番>` を読み分ける。形が違えば null */
 function parsePhysicalId(stem: string): { id: string; rev: number } | null {
   const at = stem.lastIndexOf(REVISION_SEPARATOR);
@@ -475,7 +495,10 @@ function isPlainObject(value: unknown): value is DocumentData {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** `out_dir` の書き出しを読む。規定のコレクションの `*.json` だけで、どれか 1 つでも読めなければ Err */
+/**
+ * `out_dir` の書き出しを読む。規定のコレクションの `*.json` だけで、どれか 1 つでも読めなければ Err。
+ * ファイル名は `~` と `@` のどちらの区切りでも読む（`parseExportFile`）
+ */
 function readExport(
   fromDir: string
 ): Result<{ collection: Collection; physicalId: string; data: DocumentData }[], StoreError> {
@@ -489,7 +512,7 @@ function readExport(
     for (const name of fs.readdirSync(dir).sort()) {
       const file = path.join(dir, name);
       if (!name.endsWith('.json')) continue;
-      const parsed = parsePhysicalFile(name);
+      const parsed = parseExportFile(name);
       if (parsed === null) {
         return err({
           type: 'StoreInvalidDocument',
@@ -505,7 +528,8 @@ function readExport(
           reason: 'JSON のオブジェクトとして読めません',
         });
       }
-      docs.push({ collection, physicalId: name.slice(0, -'.json'.length), data });
+      // 写しには `~` の名前で入れる（書き出しの `@` の名前を持ち込まない）
+      docs.push({ collection, physicalId: physicalId(parsed.id, parsed.rev), data });
     }
   }
   return ok(docs);
