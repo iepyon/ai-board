@@ -38,7 +38,8 @@
 
 ## 報告しないこと
 
-- CI が既に検査しているもの: 型エラー、ESLint、Prettier の整形、カバレッジ閾値。
+- 型エラー、ESLint、Prettier の整形（コミット前に手元の品質ゲートで通している。`CLAUDE.md` の「品質ゲート」）と、カバレッジ閾値（`test:coverage` が検査する）。
+  CI は一旦 PR で走らせていない（`.github/workflows/ci.yml`）が、これらは報告しない。
 - `package-lock.json` の差分。
 - `.ai-board/plans/archive/` への移動だけの差分。
 - 計画ファイル（`.ai-board/plans/*.md`）の文章の言い回し。計画の中身は人が Draft の PR で判断する。
