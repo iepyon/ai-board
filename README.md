@@ -46,6 +46,20 @@ cd ai-board
 ```
 
 ここから先は、この clone（メインのチェックアウト）の根で進める。
+
+main は開発の途中の状態で、手順と実装が食い違っていることがある。
+動くと確かめた版にはタグを打ち、[Releases](https://github.com/iepyon/ai-board/releases) にこの版でできることを書いてある。
+今の版は `artifact-store-v1`（カードの置き場所を Artifact の DB に置いて動く最初の版）である。
+決まった版から始めたいときは、clone の直後に自分の main をそのタグに合わせる。
+
+> main を元のリポジトリのタグ artifact-store-v1 に合わせて、fork に push して
+
+```bash
+git fetch https://github.com/iepyon/ai-board.git tag artifact-store-v1
+git reset --hard artifact-store-v1
+git push --force origin main
+```
+
 まず依存を入れてビルドする。
 
 > 依存を入れて CLI をビルドして
@@ -238,6 +252,9 @@ npm run build
 ```
 
 CI（`.github/workflows/ci.yml`）は Actions の画面から手で起動したときだけ走る。PR のレビューだけに効く指示は `REVIEW.md` にある。
+
+動くと確かめた main のコミットには、注釈付きのタグを打って GitHub の Release を作る。
+タグの名前は、その版の置き場所や仕組みが分かるものにする（例: `artifact-store-v1`）。
 
 ## ライセンス
 
