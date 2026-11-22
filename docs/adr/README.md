@@ -29,3 +29,4 @@ ai-board の**今も効いている**設計判断を、なぜそう決めたか�
 | 18   | [`src/shared/` にはブラウザでも動く値と型だけを置き、計算はサーバ側のコンテキストに置く](0018-shared-browser-safe.md) | 2026-11-07 |
 | 19   | [ボードを見るページは、スキルのひな形に `status --json --active` を流し込んで Artifact で出す](0019-board-view-artifact.md) | 2026-11-07 |
 | 20   | [カードの正本は Artifact の DB に置き、置き場所を `DocumentStore` の口に閉じる](0020-cards-in-artifact-db.md) | 2026-11-17 |
+| 21   | [カードを main の Markdown に置き、計画を同じディレクトリに並べる](0021-cards-as-markdown-on-main.md)（提案） | 2026-11-22 |
