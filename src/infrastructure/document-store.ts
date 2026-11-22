@@ -108,7 +108,15 @@ export type StoreError =
   /** 取り込もうとした文書が読めない */
   | { readonly type: 'StoreInvalidDocument'; readonly path: string; readonly reason: string }
   /** 置き場所が設定されていない */
-  | { readonly type: 'StoreNotConfigured' };
+  | { readonly type: 'StoreNotConfigured' }
+  /** 置き場所のリモートがリポジトリに無い（git の置き場所） */
+  | { readonly type: 'StoreRemoteMissing'; readonly remote: string }
+  /** git の操作が失敗した（git の置き場所。届かない・権限が無い など） */
+  | { readonly type: 'StoreGitFailed'; readonly operation: string; readonly message: string }
+  /** push が先を越され続けた（git の置き場所） */
+  | { readonly type: 'StorePushConflict'; readonly attempts: number }
+  /** 置き場所は既に始まっている（`ai-board store init` を 2 度走らせた） */
+  | { readonly type: 'StoreAlreadyInitialized' };
 
 /** `board/meta` を確かめる。無い・版が違うときは Err */
 export function checkMeta(reader: DocumentReader): Result<void, StoreError> {

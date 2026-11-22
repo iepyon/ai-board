@@ -14,6 +14,18 @@ describe('createCliRunner', () => {
     if (result.ok) expect(result.value.trim()).toBe('hello');
   });
 
+  it('input を標準入力に渡す', async () => {
+    const result = await runner.run('cat', [], { input: 'あいう\n' });
+
+    expect(result).toEqual({ ok: true, value: 'あいう\n' });
+  });
+
+  it('input が無ければ標準入力を閉じ、読むコマンドが止まらない', async () => {
+    const result = await runner.run('cat', []);
+
+    expect(result).toEqual({ ok: true, value: '' });
+  });
+
   it('シェルの特殊文字を含む引数をコマンドとして解釈しない', async () => {
     const marker = path.join(os.tmpdir(), `ai-board-cli-runner-${process.pid}.marker`);
     await fs.rm(marker, { force: true });

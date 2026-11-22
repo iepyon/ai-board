@@ -38,5 +38,19 @@ export function describeStoreError(error: StoreError): string {
       return `ほかの ai-board が置き場所に書いています（${error.lockPath}）。しばらくしてからやり直してください`;
     case 'StoreInvalidDocument':
       return `取り込もうとした文書が読めません（${error.path}: ${error.reason}）。写しは変えていません`;
+    case 'StoreRemoteMissing':
+      return (
+        `置き場所のリモート ${error.remote} がこのリポジトリにありません。` +
+        'git remote add で足すか、.ai-board/config.yaml の store.remote を直してください'
+      );
+    case 'StoreGitFailed':
+      return `置き場所の git の操作（${error.operation}）に失敗しました: ${error.message}`;
+    case 'StorePushConflict':
+      return (
+        `置き場所への push が ${error.attempts} 回とも通りませんでした（ほかの人が続けて書いているか、届かないか、権限がありません）。` +
+        'しばらくしてからやり直してください'
+      );
+    case 'StoreAlreadyInitialized':
+      return '置き場所は既に始まっています（board/meta があります）';
   }
 }

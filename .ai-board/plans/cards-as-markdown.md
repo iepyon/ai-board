@@ -428,9 +428,9 @@ AI ループの次の一手に、止まっているカードを選んでは SHAL
 
 ### 2. git の置き場所
 
-- [ ] `cli-runner.ts` の `RunOptions` に標準入力（`input`）を足し、テストする
-- [ ] `src/infrastructure/git-document-store.ts` に `GitDocumentStore` を作る（専用の参照へ fetch して読む、`board.yaml` の読み書き、一時の index でコミットを作って push する、書き込みが置き場所に無ければ push しない、拒まれたらやり直す、空の置き場所の `init`、`snapshots` と `loop` は手元へ）
-- [ ] `document-store.contract.ts` を `GitDocumentStore` に当てる（bare のリポジトリを置き場所にする）。push のやり直し、作業ツリーに触らないこと、手元だけの書き込みで push しないことのテストを足す
+- [x] `cli-runner.ts` の `RunOptions` に標準入力（`input`）を足し、テストする
+- [x] `src/infrastructure/git-document-store.ts` に `GitDocumentStore` を作る（専用の参照へ fetch して読む、`board.yaml` の読み書き、一時の index でコミットを作って push する、書き込みが置き場所に無ければ push しない、拒まれたらやり直す、空の置き場所の `init`、`snapshots` と `loop` は手元へ）
+- [x] `document-store.contract.ts` を `GitDocumentStore` に当てる（bare のリポジトリを置き場所にする）。push のやり直し、作業ツリーに触らないこと、手元だけの書き込みで push しないことのテストを足す
 
 ### 3. 置き場所の組み替え
 
