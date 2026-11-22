@@ -491,3 +491,16 @@ AI ループの次の一手に、止まっているカードを選んでは SHAL
   - → 回答（2026-11-22、チャット）: 既定でいい、直して再提出して
 - 今の置き方（`plans/<id>.md`・`plans/archive/<id>.md`）の計画を互換として読むか。Artifact の置き場所のボードのために残すと決めていたが、その置き場所を外すので互換も外す。既定: 外す
   - → 回答（2026-11-22、チャット）: 既定でいい、直して再提出して（このときの既定は「互換を残す」。後の差し戻し「やっぱアーティファクト使うはずして」を受けて、既定を「外す」に改めた）
+
+## AI レビュー
+
+- [ ] `src/infrastructure/git-document-store.ts:278` の `readTree()` は `.ai-board/cards/` の下の blob を全部（`plan.md` も、カードのディレクトリに置いた画像なども）`cat-file --batch` で読み、`parseCatFileBatch()` が文字列を UTF-8 に戻して切り出すので、UTF-8 でないファイルが 1 つあるとバイト数がずれて `StoreGitFailed`（「読んだ中身の数がファイルの数と合いません」）になり、`card list` も `status` も動かなくなる（試しの置き場所の `cards/trial/shot.png` で再現）。`DocumentFileCodec` に置き場所のファイルかを返す口（`isStoreFilePath` と同じ判定）を足し、`ls-tree` の結果をそれで絞ってから `cat-file` に渡す（計画を毎回読み込む無駄も消える）。バイナリのファイルを置いても読めるテストを足す
+- [ ] `src/infrastructure/git-document-store.ts:197` の `initialize()` は `board/meta` があるかを `transact` の外で 1 度だけ確かめ、`op` は無条件に `board.yaml` と空の `order.yaml` を書く。2 台が同時に `store init` すると、後の方は push を拒まれて取り直した後も `op` が検査せずに書き、先に入った置き場所の `order.yaml`（seed 後なら rank と区切り線）を空で上書きする。`board/meta` の検査を `op` の中へ移して `StoreAlreadyInitialized` の Err を返し、やり直しで拒むテストを足す
+- [ ] `src/board/services/stage-resolver.ts:162` の plan-review の理由が `.ai-board/plans/${plan.cardId}.md が人の承認を待っている` のままで、`status` の出力（`status-cli.ts:226`）に今は無いパスを出す。GitHub が未設定のボードのブランチの計画なので、`.ai-board/cards/${plan.cardId}/plan.md（ブランチ）` を示す文に直し、テストで固める
+
+### 見送った指摘
+
+- `src/infrastructure/git-document-store.ts:165` の `transact()` は、push の失敗を「先を越された」「届かない」「権限が無い」で分けずにやり直す。届かなければやり直しの `load()` の fetch が `StoreGitFailed` で先に止まり、権限で断られ続けたときは `StorePushConflict` の文言（`store-messages.ts:30`）が権限の可能性も挙げているので、人は気づける。push が相手に届いた後に応答だけが時間切れになると、やり直しの `op` が自分の書き込みを含む置き場所で走り直す（`card create` が既にあると拒まれる、など）が、60 秒の上限を超える稀な場面なので見送る
+- `src/board/composition.ts:204` の `readPlanFilesAtRef()` は既定の `createCliRunner()`（出力 8MB）で main の計画を全部 `cat-file` するので、計画が 1 枚 50KB 前後なら 160 枚ほどで読めなくなり、警告を出して main の計画が無いもの（未設定のボードではマージ済みが落ちる）として扱う。今の枚数では起きないので見送る（置き場所の runner と同じ上限を渡すか、`plan.md` を数えるだけにする余地がある）
+- `src/infrastructure/git-branch-check.ts:47` の `changedStoreFiles()` は、`AI_BOARD_STORE` で試しの置き場所（`store init` が作る親の無い履歴）を指したまま走らせると `merge-base` が共通の祖先を見つけられず、「ブランチの差分を読めませんでした: 終了コード 1 で失敗した」で止まる（試しの置き場所で再現）。止まる側に倒れて気づけるので見送る（`rules.md` の「動かして確かめるとき」に、`check-branch` は `AI_BOARD_STORE` を外して走らせると書く余地がある）
+- `src/infrastructure/config.ts:13,78,125` の `PLANS_DIR` と `BoardPaths.plansDir` は、`.ai-board/plans/` を読まなくなった後もどこからも使われずに残っている。振る舞いを変えない整理なので見送る
