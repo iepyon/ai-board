@@ -159,7 +159,7 @@ const RULES: ReadonlyArray<(facts: Facts) => Derivation | null> = [
     return plan !== null
       ? {
           stage: 'plan-review',
-          reason: `.ai-board/plans/${plan.cardId}.md が人の承認を待っている`,
+          reason: `カードのブランチの .ai-board/cards/${plan.cardId}/plan.md が人の承認を待っている`,
         }
       : null;
   },

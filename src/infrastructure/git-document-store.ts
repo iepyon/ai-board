@@ -26,10 +26,13 @@ import { defaultLockOptions, withFileLock, type LockOptions } from './file-lock.
  *
  * - `toDocument`: 置き場所のファイル 1 つを文書にする。置き場所の文書でない・読めないなら null（読み飛ばす）
  * - `toFile`: 文書をファイルにする（`path` はリポジトリのルートからの相対）
- * - `roots`: `ls-tree` で読む範囲（リポジトリのルートからの相対）。ここに無いファイルは読まない
+ * - `roots`: `ls-tree` で並べる範囲（リポジトリのルートからの相対）。ここに無いファイルは読まない
+ * - `isDocumentFile`: 置き場所の文書になるファイルか。偽のファイル（計画・画像など）は中身を読まない
+ *   （置き場所のファイルは UTF-8 のテキストだが、同じディレクトリにほかのファイルが置かれることがある）
  */
 export interface DocumentFileCodec {
   readonly roots: readonly string[];
+  isDocumentFile(filePath: string): boolean;
   toDocument(
     filePath: string,
     content: string
@@ -186,16 +189,17 @@ export class GitDocumentStore implements DocumentStore {
   }
 
   /**
-   * 空の置き場所に最初の文書を書く（`ai-board store init`）。置き場所に既に `board/meta` があれば `StoreAlreadyInitialized`
+   * 空の置き場所に最初の文書を書く（`ai-board store init`）。置き場所に既に `board/meta` があれば `StoreAlreadyInitialized`。
+   * 確かめは書き込みの 1 操作の中で行う。2 台が同時に始めて push が先を越されたら、取り直した置き場所で確かめ直して拒む
+   * （先に入った並び順を空で上書きしない）
    */
   async initialize(
     docs: readonly { collection: Collection; id: string; data: DocumentData }[]
   ): Promise<Result<void, StoreError>> {
-    const loaded = await this.locked(() => this.load());
-    if (isErr(loaded)) return loaded;
-    if (isErr(loaded.value)) return loaded.value;
-    if (this.get('board', 'meta') !== null) return err({ type: 'StoreAlreadyInitialized' });
-    return this.transact('置き場所を始める', () => {
+    return this.transact<void, StoreError>('置き場所を始める', () => {
+      if (this.get('board', 'meta') !== null) {
+        return Promise.resolve(err({ type: 'StoreAlreadyInitialized' }));
+      }
       for (const doc of docs) this.set(doc.collection, doc.id, doc.data);
       return Promise.resolve(ok(undefined));
     });
@@ -281,8 +285,11 @@ export class GitDocumentStore implements DocumentStore {
       .flatMap((line) => {
         const tab = line.indexOf('\t');
         const [, type, object] = line.slice(0, tab).split(' ');
-        return type === 'blob' && object !== undefined
-          ? [{ object, path: line.slice(tab + 1) }]
+        const filePath = line.slice(tab + 1);
+        return type === 'blob' &&
+          object !== undefined &&
+          this.options.codec.isDocumentFile(filePath)
+          ? [{ object, path: filePath }]
           : [];
       });
     if (entries.length === 0) return ok([]);
@@ -533,6 +540,7 @@ export function jsonFileCodec(root: string): DocumentFileCodec {
   const prefix = `${root}/`;
   return {
     roots: [root],
+    isDocumentFile: (filePath) => filePath.startsWith(prefix) && filePath.endsWith('.json'),
     toDocument(filePath, content) {
       if (!filePath.startsWith(prefix) || !filePath.endsWith('.json')) return null;
       const [collection, name, ...rest] = filePath.slice(prefix.length).split('/');

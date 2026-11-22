@@ -603,6 +603,14 @@ describe('resolveStage — 理由の文言', () => {
     expect(resolution.reason).toBe('PR #42 がマージ済み');
   });
 
+  it('ブランチの計画（PR の無いボード）は、計画ファイルの場所を示す', () => {
+    const resolution = resolveStage(makeCard({ startedAt: T1 }), makePlan(), null);
+
+    expect(resolution.reason).toBe(
+      'カードのブランチの .ai-board/cards/refresh-token/plan.md が人の承認を待っている'
+    );
+  });
+
   it('Draft の PR は 計画の PR #n', () => {
     const resolution = resolveStage(makeCard({ startedAt: T1 }), null, makePr({ draft: true }));
 

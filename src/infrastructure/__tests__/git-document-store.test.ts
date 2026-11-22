@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { err, ok } from '../../shared/result.js';
-import { createCliRunner } from '../cli-runner.js';
+import { createCliRunner, type CliRunner } from '../cli-runner.js';
 import { initialDocuments } from '../document-store.js';
 import {
   GitDocumentStore,
@@ -56,7 +56,11 @@ function codeRepo(): string {
 
 const runner = createCliRunner({ timeoutMs: 20_000, maxBuffer: 64 * 1024 * 1024 });
 
-function makeStore(remote: string, repoDir = codeRepo()): GitDocumentStore {
+function makeStore(
+  remote: string,
+  repoDir = codeRepo(),
+  storeRunner: CliRunner = runner
+): GitDocumentStore {
   return new GitDocumentStore({
     repoDir,
     remote,
@@ -64,8 +68,22 @@ function makeStore(remote: string, repoDir = codeRepo()): GitDocumentStore {
     localDir: path.join(path.dirname(repoDir), `local-${path.basename(repoDir)}`),
     localCollections: ['snapshots', 'loop'],
     codec: jsonFileCodec('.ai-board'),
-    runner,
+    runner: storeRunner,
   });
+}
+
+/** 最初の push の直前に `before` を 1 度だけ走らせる runner（別の PC の書き込みを割り込ませる） */
+function interruptingRunner(before: () => Promise<unknown>): CliRunner {
+  let done = false;
+  return {
+    async run(command, args, options) {
+      if (!done && args.includes('push')) {
+        done = true;
+        await before();
+      }
+      return runner.run(command, args, options);
+    },
+  };
 }
 
 async function initializedStore(remote = bareRepo()): Promise<GitDocumentStore> {
@@ -95,6 +113,49 @@ describe('GitDocumentStore', () => {
     expect(await store.initialize(initialDocuments())).toEqual(
       err({ type: 'StoreAlreadyInitialized' })
     );
+  });
+
+  it('2 台が同時に init すると、後の方は取り直した置き場所で確かめ直して拒み、先の中身を上書きしない', async () => {
+    const bare = bareRepo();
+    const early = makeStore(bare);
+    // 後の方が空の置き場所を読んで書き込みを作った後、push の直前に先の方が始める
+    const late = makeStore(
+      bare,
+      codeRepo(),
+      interruptingRunner(() =>
+        early.initialize([
+          ...initialDocuments(),
+          { collection: 'order', id: 'order', data: { a: 1 } },
+        ])
+      )
+    );
+
+    expect(
+      await late.initialize([...initialDocuments(), { collection: 'order', id: 'order', data: {} }])
+    ).toEqual(err({ type: 'StoreAlreadyInitialized' }));
+    expect(git(bare, 'show', 'main:.ai-board/order/order.json')).toBe('{"a":1}\n');
+  });
+
+  it('置き場所の文書でないファイル（UTF-8 でない画像など）は中身を読まず、ほかの文書を読める', async () => {
+    const bare = bareRepo();
+    const repo = codeRepo();
+    const store = makeStore(bare, repo);
+    await store.initialize(initialDocuments());
+    // 置き場所のブランチに、UTF-8 でないファイルを足す（人が画像を置いた）
+    git(repo, 'fetch', '--quiet', bare, '+refs/heads/main:refs/heads/store');
+    git(repo, 'switch', '--quiet', 'store');
+    fs.mkdirSync(path.join(repo, '.ai-board', 'cards'), { recursive: true });
+    fs.writeFileSync(
+      path.join(repo, '.ai-board', 'cards', 'shot.png'),
+      Buffer.from([0x89, 0x50, 0xff, 0xfe, 0x00])
+    );
+    git(repo, 'add', '.ai-board/cards/shot.png');
+    git(repo, 'commit', '--quiet', '-m', '画像を置く');
+    git(repo, 'push', '--quiet', bare, 'store:main');
+
+    const reopened = makeStore(bare, repo);
+    expect(await reopened.check()).toEqual(ok(undefined));
+    expect(reopened.get('board', 'meta')).toEqual({ version: 3 });
   });
 
   it('書き込みは置き場所のブランチへのコミットになり、作業ツリー・index・今のブランチを変えない', async () => {

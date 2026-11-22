@@ -56,6 +56,7 @@ export function isStoreFilePath(filePath: string): boolean {
 
 export const cardFileCodec: DocumentFileCodec = {
   roots: [META_PATH, ORDER_PATH, CARDS_PATH],
+  isDocumentFile: isStoreFilePath,
 
   toDocument(filePath, content) {
     if (filePath === META_PATH) {

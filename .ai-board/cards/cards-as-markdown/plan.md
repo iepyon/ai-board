@@ -494,9 +494,9 @@ AI ループの次の一手に、止まっているカードを選んでは SHAL
 
 ## AI レビュー
 
-- [ ] `src/infrastructure/git-document-store.ts:278` の `readTree()` は `.ai-board/cards/` の下の blob を全部（`plan.md` も、カードのディレクトリに置いた画像なども）`cat-file --batch` で読み、`parseCatFileBatch()` が文字列を UTF-8 に戻して切り出すので、UTF-8 でないファイルが 1 つあるとバイト数がずれて `StoreGitFailed`（「読んだ中身の数がファイルの数と合いません」）になり、`card list` も `status` も動かなくなる（試しの置き場所の `cards/trial/shot.png` で再現）。`DocumentFileCodec` に置き場所のファイルかを返す口（`isStoreFilePath` と同じ判定）を足し、`ls-tree` の結果をそれで絞ってから `cat-file` に渡す（計画を毎回読み込む無駄も消える）。バイナリのファイルを置いても読めるテストを足す
-- [ ] `src/infrastructure/git-document-store.ts:197` の `initialize()` は `board/meta` があるかを `transact` の外で 1 度だけ確かめ、`op` は無条件に `board.yaml` と空の `order.yaml` を書く。2 台が同時に `store init` すると、後の方は push を拒まれて取り直した後も `op` が検査せずに書き、先に入った置き場所の `order.yaml`（seed 後なら rank と区切り線）を空で上書きする。`board/meta` の検査を `op` の中へ移して `StoreAlreadyInitialized` の Err を返し、やり直しで拒むテストを足す
-- [ ] `src/board/services/stage-resolver.ts:162` の plan-review の理由が `.ai-board/plans/${plan.cardId}.md が人の承認を待っている` のままで、`status` の出力（`status-cli.ts:226`）に今は無いパスを出す。GitHub が未設定のボードのブランチの計画なので、`.ai-board/cards/${plan.cardId}/plan.md（ブランチ）` を示す文に直し、テストで固める
+- [x] `src/infrastructure/git-document-store.ts:278` の `readTree()` は `.ai-board/cards/` の下の blob を全部（`plan.md` も、カードのディレクトリに置いた画像なども）`cat-file --batch` で読み、`parseCatFileBatch()` が文字列を UTF-8 に戻して切り出すので、UTF-8 でないファイルが 1 つあるとバイト数がずれて `StoreGitFailed`（「読んだ中身の数がファイルの数と合いません」）になり、`card list` も `status` も動かなくなる（試しの置き場所の `cards/trial/shot.png` で再現）。`DocumentFileCodec` に置き場所のファイルかを返す口（`isStoreFilePath` と同じ判定）を足し、`ls-tree` の結果をそれで絞ってから `cat-file` に渡す（計画を毎回読み込む無駄も消える）。バイナリのファイルを置いても読めるテストを足す
+- [x] `src/infrastructure/git-document-store.ts:197` の `initialize()` は `board/meta` があるかを `transact` の外で 1 度だけ確かめ、`op` は無条件に `board.yaml` と空の `order.yaml` を書く。2 台が同時に `store init` すると、後の方は push を拒まれて取り直した後も `op` が検査せずに書き、先に入った置き場所の `order.yaml`（seed 後なら rank と区切り線）を空で上書きする。`board/meta` の検査を `op` の中へ移して `StoreAlreadyInitialized` の Err を返し、やり直しで拒むテストを足す
+- [x] `src/board/services/stage-resolver.ts:162` の plan-review の理由が `.ai-board/plans/${plan.cardId}.md が人の承認を待っている` のままで、`status` の出力（`status-cli.ts:226`）に今は無いパスを出す。GitHub が未設定のボードのブランチの計画なので、`.ai-board/cards/${plan.cardId}/plan.md（ブランチ）` を示す文に直し、テストで固める
 
 ### 見送った指摘
 
