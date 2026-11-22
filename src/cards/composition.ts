@@ -128,7 +128,7 @@ export function createTransactionalPrWriter(
         const repository = new DocCardRepository(store);
         const latest = await repository.findById(cardId);
 
-        // 番号が既に入っていれば、何も書かない（transact は送る箱に積まない）
+        // 番号が既に入っていれば、何も書かない（transact は置き場所にコミットしない）
         if (latest === null || latest.pr === number) return ok(undefined);
 
         try {

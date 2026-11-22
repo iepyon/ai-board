@@ -21,7 +21,7 @@ import { err, ok, type Result } from '../shared/result.js';
  * - 書き込み（`set` / `delete`）は `transact` の中でだけ行える。外で呼ぶと例外を投げる（呼び出し側の誤り）
  * - `transact` の `op` が Err を返すか例外を投げたら、その中の書き込みは無かったことになる（全部か無し）
  * - 失敗は `StoreError` で返す
- * - `pendingWrites()` は、置き場所にまだ届いていない書き込みの束の数を返す（届くまでの段が無い実装は常に 0）
+ * - `pendingWrites()` は、置き場所にまだ届いていない書き込みの束の数を返す（その場で届く実装は常に 0）
  */
 export interface DocumentStore extends DocumentReader {
   /**
@@ -49,7 +49,7 @@ export interface DocumentStore extends DocumentReader {
   pendingWrites(): number;
 }
 
-/** 書き込みの束の名前（送る箱に残す）。結果から決めるときは関数で渡す。ID・ゲート・種別だけを入れ、ブランチ名や理由は入れない */
+/** 書き込みの 1 操作の名前（git の置き場所ではコミットの題）。結果から決めるときは関数で渡す。ID・ゲート・種別だけを入れ、ブランチ名や理由は入れない */
 export type TransactLabel<T> = string | ((value: T) => string);
 
 export function labelOf<T>(label: TransactLabel<T>, value: T): string {
@@ -85,7 +85,7 @@ export const META_COLLECTION: Collection = 'board';
 export const META_ID = 'meta';
 
 /**
- * 文書の ID に使える文字。`ArtifactData` の `doc_id` に使える文字から、改訂の区切りに使う `~` を除く。
+ * 文書の ID に使える文字。git の置き場所ではファイル名にもなるので、パスの区切りや空白を含めない。
  * `.` と `..` だけの ID は使えない
  */
 const DOCUMENT_ID_PATTERN = /^(?!\.\.?$)[A-Za-z0-9_\-.:@+]{1,180}$/;

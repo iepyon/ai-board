@@ -70,7 +70,7 @@ export function mergedSnapshotData(snapshot: PrSnapshot): Record<string, unknown
  *   クラウドでは毎回空から始まる
  *
  * 控えはステージの導出の入力ではなく、gh の問い合わせを省くためのものである。
- * 置き場所への書き込みに失敗しても（ロックの待ち切れ、写しが無い）、警告するだけで例外を投げない。
+ * 置き場所への書き込みに失敗しても（ロックの待ち切れ、置き場所を読めない）、警告するだけで例外を投げない。
  * 投げると `PrFetcher` の接続の状態が error になり、ループが止まる。書けなかった控えは、次のプロセスが引き直して書き直す。
  */
 export class DocPrSnapshotRepository implements PrSnapshotRepository {
