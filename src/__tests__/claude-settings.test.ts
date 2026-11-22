@@ -171,19 +171,20 @@ describe('.claude/settings.json の許可ルール', () => {
     expect(perms.allow.filter((rule) => perms.deny.includes(rule))).toEqual([]);
   });
 
-  it('置き場所の写しと送る箱（.ai-board/store/）の直接の編集を deny する', () => {
-    for (const rule of ['Edit(/.ai-board/store/**)', 'Edit(**/.ai-board/store/**)']) {
+  it('置き場所のファイル（card.md・log/・order.yaml・board.yaml）の直接の編集を deny し、計画は deny しない', () => {
+    for (const rule of [
+      'Edit(**/.ai-board/cards/*/card.md)',
+      'Edit(**/.ai-board/cards/*/log/**)',
+      'Edit(**/.ai-board/order.yaml)',
+      'Edit(**/.ai-board/board.yaml)',
+    ]) {
       expect(perms.deny).toContain(rule);
     }
+    expect(perms.deny.filter((rule) => rule.includes('plan.md'))).toEqual([]);
   });
 
-  it('ArtifactData の PreToolUse に、置き場所への書き込みを送る箱だけに限る hook を置く', () => {
-    const parsed = JSON.parse(readFileSync(SETTINGS_PATH, 'utf-8')) as {
-      hooks?: { PreToolUse?: { matcher: string; hooks: { type: string; command: string }[] }[] };
-    };
-    const entry = parsed.hooks?.PreToolUse?.find((hook) => hook.matcher === 'ArtifactData');
-    expect(entry?.hooks).toEqual([
-      { type: 'command', command: 'node "$CLAUDE_PROJECT_DIR/scripts/artifact-data-guard.mjs"' },
-    ]);
+  it('Artifact の置き場所のための hook を持たない', () => {
+    const parsed = JSON.parse(readFileSync(SETTINGS_PATH, 'utf-8')) as { hooks?: unknown };
+    expect(parsed.hooks).toBeUndefined();
   });
 });

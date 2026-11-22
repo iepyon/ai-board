@@ -454,7 +454,7 @@ AI ループの次の一手に、止まっているカードを選んでは SHAL
       計画の場所を `cards/<id>/plan.md` に、締めの段を `## 締め` の節に、「動かして確かめるとき」を bare のリポジトリの手順に直す。push の前に `store check-branch` を走らせる手順を足す
 - [x] `board-view` のスキルを、Artifact で公開する代わりに `.ai-board/local/board.html` に書き出してパスを伝える形にする
 - [x] `.claude/skills/adr/SKILL.md` の計画の archive の参照を今の形に直す
-- [ ] `.claude/settings.json` から `ArtifactData` の hook を外し、`Edit` の deny を置き場所のファイルに合わせる。`src/__tests__/artifact-data-guard.test.ts` を消し、`claude-settings.test.ts` を直す
+- [x] `.claude/settings.json` から `ArtifactData` の hook を外し、`Edit` の deny を置き場所のファイルに合わせる。`src/__tests__/artifact-data-guard.test.ts` を消し、`claude-settings.test.ts` を直す
 
 ### 6. ドキュメント
 
