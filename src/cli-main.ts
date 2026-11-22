@@ -75,8 +75,8 @@ function remindOutbox(store: ArtifactMirrorStore, io: CardCliIo): void {
 }
 
 /** 写しを確かめる。読めなければ理由を出して false */
-function checkStore(store: ArtifactMirrorStore, io: CardCliIo): boolean {
-  const checked = store.check();
+async function checkStore(store: ArtifactMirrorStore, io: CardCliIo): Promise<boolean> {
+  const checked = await store.check();
   if (checked.ok) return true;
   io.stderr(`${describeStoreError(checked.error)}\n`);
   return false;
@@ -154,7 +154,7 @@ async function runStatus(argv: readonly string[]): Promise<number> {
   const paths = resolvePaths(root);
   const runner = createCliRunner();
   const store = createBoardStore(paths);
-  if (!checkStore(store, io)) return 1;
+  if (!(await checkStore(store, io))) return 1;
 
   const board = await assembleBoard(root, store, runner);
 
@@ -185,7 +185,7 @@ async function runDecide(argv: readonly string[]): Promise<number> {
   const paths = resolvePaths(root);
   const runner = createCliRunner();
   const store = createBoardStore(paths);
-  if (!checkStore(store, io)) return 1;
+  if (!(await checkStore(store, io))) return 1;
 
   const board = await assembleBoard(root, store, runner);
 
@@ -204,6 +204,9 @@ async function runLoop(argv: readonly string[]): Promise<number> {
   const io = createProcessIo();
   const paths = resolvePaths(root);
   const store = createBoardStore(paths);
+  // 使い方の誤りや --help のほかは、カードを読む前に置き場所を確かめる（読み込む実装はここで読む）
+  const help = rest.length === 0 || rest.includes('--help') || rest.includes('-h');
+  if (!help && !(await checkStore(store, io))) return 1;
 
   const code = await runLoopCli(
     rest,

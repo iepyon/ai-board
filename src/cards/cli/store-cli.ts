@@ -195,7 +195,7 @@ async function runImport(
     return fail(io, '--from にデータ用ブランチ（ai-board/data）の clone を指定してください');
   }
 
-  const checked = deps.store.check();
+  const checked = await deps.store.check();
   if (isErr(checked)) return fail(io, describeStoreError(checked.error));
 
   const docs = deps.readDataBranch(from);

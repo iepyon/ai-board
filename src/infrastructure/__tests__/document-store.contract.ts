@@ -10,18 +10,28 @@ import { STORE_VERSION, type DocumentStore } from '../document-store.js';
  * `DocumentStore` の実装が口の約束を守るかを確かめる。
  *
  * `make` は `board/meta`（今の形の版）だけが入った、読み書きできる置き場所を返す。
+ * 各テストは CLI と同じく、読む前に `check()` を 1 回 `await` してから使う。
  * SQLite の実装を足すときも、このテストを当てる。
  */
-export function describeDocumentStoreContract(name: string, make: () => DocumentStore): void {
+export function describeDocumentStoreContract(
+  name: string,
+  make: () => DocumentStore | Promise<DocumentStore>
+): void {
+  /** 置き場所を作り、CLI と同じく check を通してから返す */
+  async function open(): Promise<DocumentStore> {
+    const store = await make();
+    expect(await store.check()).toEqual(ok(undefined));
+    return store;
+  }
+
   describe(`DocumentStore の約束: ${name}`, () => {
-    it('初めの状態で check が通り、形の版が読める', () => {
-      const store = make();
-      expect(store.check()).toEqual(ok(undefined));
+    it('初めの状態で check が通り、形の版が読める', async () => {
+      const store = await open();
       expect(store.get('board', 'meta')).toEqual({ version: STORE_VERSION });
     });
 
     it('transact で書いたものが、その中でもその後でも読める', async () => {
-      const store = make();
+      const store = await open();
       const result = await store.transact('書く', () => {
         store.set('cards', 'a', { title: 'A' });
         expect(store.get('cards', 'a')).toEqual({ title: 'A' });
@@ -32,7 +42,7 @@ export function describeDocumentStoreContract(name: string, make: () => Document
     });
 
     it('同じ文書を書き直すと最新の中身になる', async () => {
-      const store = make();
+      const store = await open();
       await store.transact('1', () => {
         store.set('cards', 'a', { title: 'A' });
         return Promise.resolve(ok(undefined));
@@ -47,7 +57,7 @@ export function describeDocumentStoreContract(name: string, make: () => Document
     });
 
     it('list は ID の昇順で返す', async () => {
-      const store = make();
+      const store = await open();
       await store.transact('書く', () => {
         store.set('log', 'b', { n: 2 });
         store.set('log', 'a', { n: 1 });
@@ -58,7 +68,7 @@ export function describeDocumentStoreContract(name: string, make: () => Document
     });
 
     it('消した文書は get でも list でも見えない', async () => {
-      const store = make();
+      const store = await open();
       await store.transact('書く', () => {
         store.set('cards', 'a', { title: 'A' });
         store.set('cards', 'b', { title: 'B' });
@@ -74,7 +84,7 @@ export function describeDocumentStoreContract(name: string, make: () => Document
     });
 
     it('op が Err を返したら、その中の書き込みは無かったことになる', async () => {
-      const store = make();
+      const store = await open();
       const result = await store.transact('拒む', () => {
         store.set('cards', 'a', { title: 'A' });
         return Promise.resolve(err({ type: 'Refused' as const }));
@@ -84,7 +94,7 @@ export function describeDocumentStoreContract(name: string, make: () => Document
     });
 
     it('op が例外を投げたら、その中の書き込みは無かったことになり、例外はそのまま届く', async () => {
-      const store = make();
+      const store = await open();
       await expect(
         store.transact('壊れる', () => {
           store.set('cards', 'a', { title: 'A' });
@@ -97,14 +107,14 @@ export function describeDocumentStoreContract(name: string, make: () => Document
       expect(isErr(next)).toBe(false);
     });
 
-    it('transact の外での書き込みは呼び出し側の誤りとして例外を投げる', () => {
-      const store = make();
+    it('transact の外での書き込みは呼び出し側の誤りとして例外を投げる', async () => {
+      const store = await open();
       expect(() => store.set('cards', 'a', { title: 'A' })).toThrow();
       expect(() => store.delete('cards', 'a')).toThrow();
     });
 
     it('ID に使えない文字は呼び出し側の誤りとして例外を投げる', async () => {
-      const store = make();
+      const store = await open();
       await expect(
         store.transact('誤り', () => {
           store.set('cards', 'a~1', { title: 'A' });
@@ -120,7 +130,7 @@ export function describeDocumentStoreContract(name: string, make: () => Document
     });
 
     it('同じプロセスの transact は 1 列に並ぶ', async () => {
-      const store = make();
+      const store = await open();
       const order: string[] = [];
       const slow = store.transact('遅い', async () => {
         order.push('slow:start');
@@ -141,8 +151,8 @@ export function describeDocumentStoreContract(name: string, make: () => Document
       expect(store.get('cards', 'a')).toEqual({ n: 11 });
     });
 
-    it('pendingWrites は数を返す', () => {
-      const store = make();
+    it('pendingWrites は数を返す', async () => {
+      const store = await open();
       expect(store.pendingWrites()).toBeGreaterThanOrEqual(0);
     });
   });

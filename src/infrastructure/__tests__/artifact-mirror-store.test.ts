@@ -66,7 +66,7 @@ describe('ArtifactMirrorStore', () => {
     expect(store.pendingWrites()).toBe(0);
 
     expect(await store.initialize()).toEqual(ok(true));
-    expect(store.check()).toEqual(ok(undefined));
+    expect(await store.check()).toEqual(ok(undefined));
     expect(store.outbox().map((batch) => batch.writes.map((w) => w.doc_id))).toEqual([
       ['meta~000001'],
     ]);
@@ -87,7 +87,7 @@ describe('ArtifactMirrorStore', () => {
     fs.writeFileSync(broken, '{ "title": ');
     const reopened = new ArtifactMirrorStore(store.storeDir);
 
-    const checked = reopened.check();
+    const checked = await reopened.check();
     expect(isErr(checked) && checked.error).toMatchObject({
       type: 'StoreInvalidDocument',
       path: broken,
@@ -116,9 +116,11 @@ describe('ArtifactMirrorStore', () => {
     expect(fs.readdirSync(path.join(store.outboxDir, 'docs'))).toEqual(['000003-1.json']);
   });
 
-  it('写しが無ければ check が取り込みを促す', () => {
+  it('写しが無ければ check が取り込みを促す', async () => {
     const store = new ArtifactMirrorStore(path.join(tempDir(), 'store'));
-    expect(store.check()).toEqual(err({ type: 'StoreNotPulled', mirrorDir: store.mirrorDir }));
+    expect(await store.check()).toEqual(
+      err({ type: 'StoreNotPulled', mirrorDir: store.mirrorDir })
+    );
   });
 
   it('pull で out_dir の書き出しを写しに入れ、論理 ID ごとに最新の改訂を読む', async () => {
@@ -135,7 +137,7 @@ describe('ArtifactMirrorStore', () => {
     const result = await store.pull(exportDir);
 
     expect(result).toEqual(ok({ count: 5 }));
-    expect(store.check()).toEqual(ok(undefined));
+    expect(await store.check()).toEqual(ok(undefined));
     expect(store.get('cards', 'a')).toEqual({ title: '新しい' });
     expect(store.get('cards', 'b')).toBeNull();
     expect(store.list('cards').map((doc) => doc.id)).toEqual(['a']);
@@ -154,7 +156,7 @@ describe('ArtifactMirrorStore', () => {
     const result = await store.pull(exportDir);
 
     expect(result).toEqual(ok({ count: 4 }));
-    expect(store.check()).toEqual(ok(undefined));
+    expect(await store.check()).toEqual(ok(undefined));
     expect(store.get('cards', 'a')).toEqual({ title: '新しい' });
     expect(store.list('log').map((doc) => doc.id)).toEqual([
       'a.2026-11-18T07:00:00.000Z.plan.submit',

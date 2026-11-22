@@ -423,8 +423,8 @@ AI ループの次の一手に、止まっているカードを選んでは SHAL
 
 ### 1. 置き場所の口を非同期の読み込みにする
 
-- [ ] `DocumentStore.check()` を `Promise<Result<void, StoreError>>` にし、`MemoryDocumentStore`・`ArtifactMirrorStore`・`document-store.contract.ts` を合わせる
-- [ ] 呼び出し元（`cli-main.ts`・`card-cli.ts`・`store-cli.ts`）を `await` に直し、`runLoop` も読む前に `check()` を呼ぶ。テストを合わせる
+- [x] `DocumentStore.check()` を `Promise<Result<void, StoreError>>` にし、`MemoryDocumentStore`・`ArtifactMirrorStore`・`document-store.contract.ts` を合わせる
+- [x] 呼び出し元（`cli-main.ts`・`card-cli.ts`・`store-cli.ts`）を `await` に直し、`runLoop` も読む前に `check()` を呼ぶ。テストを合わせる
 
 ### 2. git の置き場所
 
@@ -476,11 +476,17 @@ AI ループの次の一手に、止まっているカードを選んでは SHAL
 ## 人に判断してほしいこと
 
 - main に直接 push できること（ブランチ保護で PR 必須になっていない、3 人とも push 権限がある）を前提にしてよいか。既定: 前提にする
+  - → 回答（2026-11-22、plan 承認）: 承認。すすめて（既定のまま進む）
 - ループの記録を各 PC の `.ai-board/local/` に置き、共有しない。ほかの人のループが今どのカードを触っているかは見えなくなる。既定: 共有しない
+  - → 回答（2026-11-22、plan 承認）: 承認。すすめて（既定のまま進む）
 - ブラウザで見る出口は、`board-view` のスキルが `.ai-board/local/board.html` に書き出す形までにし、`ai-board view` の CLI は別のカードにする。既定: 別のカード
+  - → 回答（2026-11-22、plan 承認）: 承認。すすめて（既定のまま進む）
 - pre-push の hook やブランチ保護は入れず、置き場所のファイルを守るのは Claude の `Edit` の deny と `store check-branch` までにする。既定: 入れない
+  - → 回答（2026-11-22、plan 承認）: 承認。すすめて（既定のまま進む）
 - `.ai-board/plans/archive/` の過去の計画は移さずに残す。既定: 残す
+  - → 回答（2026-11-22、plan 承認）: 承認。すすめて（既定のまま進む）
 - `## レビュー` は `log/` の判断のファイルから組み立て、並び順は `order.yaml` の 1 ファイルにする（`### 仮定` の 1 つ目）。既定: 今のファイルの形を使う
+  - → 回答（2026-11-22、plan 承認）: 承認。すすめて（既定のまま進む）
 - ADR 0001 の「計画ファイルがあるだけで計画レビュー」の保険が、GitHub が未設定のボードのブランチの計画だけに縮むことを受け入れるか。既定: 受け入れ、ADR 0001 と `CLAUDE.md` の不変条件を書き直す
   - → 回答（2026-11-22、チャット）: 既定でいい、直して再提出して
 - 今の置き方（`plans/<id>.md`・`plans/archive/<id>.md`）の計画を互換として読むか。Artifact の置き場所のボードのために残すと決めていたが、その置き場所を外すので互換も外す。既定: 外す

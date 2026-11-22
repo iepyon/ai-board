@@ -154,7 +154,7 @@ describe('runStoreCli', () => {
 
       expect(await run(['pull', '--from', dir])).toBe(1);
       expect(stderr).toContain('取り込もうとした文書が読めません');
-      expect(store.check()).toEqual(ok(undefined));
+      expect(await store.check()).toEqual(ok(undefined));
     });
   });
 
@@ -253,7 +253,7 @@ describe('runStoreCli', () => {
       expect(
         store.outbox()[0]?.writes.map((write) => `${write.collection}/${write.doc_id}`)
       ).toEqual(['board/meta~000001']);
-      expect(store.check()).toEqual(ok(undefined));
+      expect(await store.check()).toEqual(ok(undefined));
     });
 
     it('既に始まっていれば 1 で、何も積まない', async () => {

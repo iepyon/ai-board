@@ -24,8 +24,11 @@ import { err, ok, type Result } from '../shared/result.js';
  * - `pendingWrites()` は、置き場所にまだ届いていない書き込みの束の数を返す（届くまでの段が無い実装は常に 0）
  */
 export interface DocumentStore extends DocumentReader {
-  /** 読み書きできる状態か（写しがある、形の版が合う、など）。CLI は読む前に 1 回呼ぶ */
-  check(): Result<void, StoreError>;
+  /**
+   * 読み書きできる状態か（置き場所を読める、形の版が合う、など）。CLI は読む前に必ず 1 回 `await` する。
+   * 置き場所を手元へ読み込む実装（git の fetch など）は、ここで読み込む
+   */
+  check(): Promise<Result<void, StoreError>>;
 
   /**
    * 書き込みの 1 操作。ロックを取り、`op` を走らせ、Ok なら書き込みを確定する。
@@ -196,8 +199,8 @@ export class MemoryDocumentStore implements DocumentStore {
     for (const doc of initial) this.table(this.docs, doc.collection).set(doc.id, doc.data);
   }
 
-  check(): Result<void, StoreError> {
-    return checkMeta(this);
+  check(): Promise<Result<void, StoreError>> {
+    return Promise.resolve(checkMeta(this));
   }
 
   get(collection: Collection, id: string): DocumentData | null {

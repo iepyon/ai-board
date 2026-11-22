@@ -65,7 +65,11 @@ export class ArtifactMirrorStore implements DocumentStore, MirrorSync {
    * 読めない改訂（書きかけで壊れたなど）があれば、取り込み直すまで読み書きしない
    * （古い改訂を読んで書くと、送るときに原因の分からないぶつかりになるため）
    */
-  check(): Result<void, StoreError> {
+  check(): Promise<Result<void, StoreError>> {
+    return Promise.resolve(this.checkSync());
+  }
+
+  private checkSync(): Result<void, StoreError> {
     if (!fs.existsSync(this.mirrorDir)) {
       return err({ type: 'StoreNotPulled', mirrorDir: this.mirrorDir });
     }
@@ -116,7 +120,7 @@ export class ArtifactMirrorStore implements DocumentStore, MirrorSync {
     label: TransactLabel<T>,
     op: () => Promise<Result<T, E>>
   ): Promise<Result<T, E | StoreError>> {
-    const checked = this.check();
+    const checked = this.checkSync();
     if (isErr(checked)) return checked;
     const locked = await this.locked(async () => {
       // ほかのプロセスが書いたかもしれないので、写しを読み直してから始める
