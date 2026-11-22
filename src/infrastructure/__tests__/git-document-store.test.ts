@@ -10,6 +10,7 @@ import {
   GitDocumentStore,
   STORE_REF,
   isRemoteName,
+  isUpToDate,
   jsonFileCodec,
   parseCatFileBatch,
 } from '../git-document-store.js';
@@ -200,6 +201,13 @@ describe('GitDocumentStore', () => {
     const checked = await store.check();
     expect(checked.ok).toBe(false);
     if (!checked.ok) expect(checked.error.type).toBe('StoreGitFailed');
+  });
+});
+
+describe('isUpToDate', () => {
+  it('push の ref の行が = なら既に最新', () => {
+    expect(isUpToDate('To /x/store.git\n=\tabc:refs/heads/main\t[up to date]\nDone\n')).toBe(true);
+    expect(isUpToDate('To /x/store.git\n \tabc:refs/heads/main\t1..2\nDone\n')).toBe(false);
   });
 });
 

@@ -11,29 +11,33 @@ import { locateWorktree } from './git-worktree.js';
 export const BOARD_DIR = '.ai-board';
 export const CONFIG_FILE = 'config.yaml';
 export const PLANS_DIR = 'plans';
-/** 置き場所の写し・送る箱・ロック・使い捨ての控えを置くディレクトリ（`sharedBoardDir` の下） */
-export const STORE_DIR = 'store';
+/** git に載せない各自のファイル（PR の控え・ループの記録・ロック・ボードの HTML）を置くディレクトリ（`sharedBoardDir` の下） */
+export const LOCAL_DIR = 'local';
 /**
- * 置き場所のディレクトリの代わりに使うディレクトリを明示する環境変数。
- * ワークツリーで共有のカードを汚さずに試すときに使う（送る箱は送らなければ置き場所に届かない）
+ * 置き場所のリモートの代わりに使う git のリポジトリ（`git init --bare` したもの）のパスを明示する環境変数。
+ * 共有のカードを汚さずに試すときに使う。手元のファイルもそのパスの隣の `<パス>.local/` に置く
  */
 export const STORE_ENV = 'AI_BOARD_STORE';
+/** 置き場所のリモートとブランチの既定 */
+export const DEFAULT_STORE_REMOTE = 'origin';
+export const DEFAULT_STORE_BRANCH = 'main';
 
 /** GitHub は API パスが owner/repo 固定なので数値 id を受ける意味が無い */
 const GitHubConfigSchema = z.object({
   repository: z.string().regex(/^[^/\s]+\/[^/\s]+$/, 'repository は owner/repo の形式で書く'),
 });
 
-/** 置き場所。今は Artifact の DB だけで、URL はボードのページの Artifact */
-const StoreConfigSchema = z.object({
-  url: z
+/** git の引数として読まれないよう、`-` で始まる値を拒む */
+const GitValueSchema = (name: string) =>
+  z
     .string()
-    .regex(
-      /^https:\/\/claude\.ai\/(?:code\/)?artifact\/[A-Za-z0-9-]+$/,
-      'store.url には claude.ai の Artifact の URL を書く'
-    )
-    .nullable()
-    .optional(),
+    .min(1)
+    .regex(/^[^-\s][^\s]*$/, `${name} は空白を含まず、- で始まらない値にする`);
+
+/** 置き場所。git のリポジトリの 1 つのブランチの `.ai-board/` */
+const StoreConfigSchema = z.object({
+  remote: GitValueSchema('store.remote').nullable().optional(),
+  branch: GitValueSchema('store.branch').nullable().optional(),
 });
 
 const ConfigFileSchema = z.object({
@@ -58,14 +62,18 @@ export interface BoardPaths {
   /** .ai-board/ */
   readonly boardDir: string;
   /**
-   * git に載らない各自のファイル（置き場所の写しと送る箱）を置く .ai-board/。
+   * git に載らない各自のファイルを置く .ai-board/。
    * リンクされたワークツリーではメインのチェックアウトのもの、それ以外は `boardDir` と同じ
    */
   readonly sharedBoardDir: string;
-  /** 置き場所の写し・送る箱のディレクトリ。既定は `sharedBoardDir` の下の store/ */
-  readonly storeDir: string;
-  /** 置き場所のディレクトリをどう決めたか */
+  /** git を走らせるリポジトリ（メインのチェックアウト。`sharedBoardDir` の親） */
+  readonly repoDir: string;
+  /** git に載せない各自のファイルのディレクトリ。既定は `sharedBoardDir` の下の local/ */
+  readonly localDir: string;
+  /** 置き場所のリモートをどう決めたか（`env` なら `AI_BOARD_STORE` のリポジトリ） */
   readonly storeSource: 'local' | 'main-checkout' | 'env';
+  /** `AI_BOARD_STORE` で指した置き場所のリポジトリ。指していなければ null */
+  readonly storeOverride: string | null;
   /** .ai-board/plans/（git でブランチに乗るので、常に `root` の下） */
   readonly plansDir: string;
 }
@@ -74,8 +82,14 @@ export interface AppConfig {
   readonly paths: BoardPaths;
   /** 取得先が未設定なら null（ボードはカードと計画ファイルだけで動く） */
   readonly forge: ForgeConfig | null;
-  /** 置き場所の Artifact の URL。未設定なら null */
-  readonly storeUrl: string | null;
+  /** カードの置き場所（git のリモートとブランチ） */
+  readonly store: StoreConfig;
+}
+
+export interface StoreConfig {
+  /** リモートの名前か、リポジトリのパス・URL（`AI_BOARD_STORE` を指せばそのパス） */
+  readonly remote: string;
+  readonly branch: string;
 }
 
 /**
@@ -92,15 +106,17 @@ export function resolvePaths(root: string, env: NodeJS.ProcessEnv = process.env)
   const storeFromEnv = env[STORE_ENV] ?? '';
   const sharedSource = sharedBoardDir !== boardDir ? 'main-checkout' : 'local';
 
-  const storeDir =
-    storeFromEnv !== '' ? path.resolve(storeFromEnv) : path.join(sharedBoardDir, STORE_DIR);
+  const storeOverride = storeFromEnv !== '' ? path.resolve(storeFromEnv) : null;
 
   return {
     root: absoluteRoot,
     boardDir,
     sharedBoardDir,
-    storeDir,
-    storeSource: storeFromEnv !== '' ? 'env' : sharedSource,
+    repoDir: path.dirname(sharedBoardDir),
+    localDir:
+      storeOverride !== null ? `${storeOverride}.local` : path.join(sharedBoardDir, LOCAL_DIR),
+    storeSource: storeOverride !== null ? 'env' : sharedSource,
+    storeOverride,
     plansDir: path.join(boardDir, PLANS_DIR),
   };
 }
@@ -116,7 +132,7 @@ function resolveSharedBoardDir(root: string, boardDir: string): string {
     case 'unresolved':
       // ボードが開かないより、ワークツリーの下のデータで開く方が良い
       console.warn(
-        `[ai-board] メインのチェックアウトを求められないため、${boardDir} の下の写しを使います: ${location.reason}`
+        `[ai-board] メインのチェックアウトを求められないため、${boardDir} の下の手元のファイルを使います: ${location.reason}`
       );
       return boardDir;
   }
@@ -126,7 +142,7 @@ function resolveSharedBoardDir(root: string, boardDir: string): string {
  * 設定を読み込む。
  *
  * config.yaml は git に載せた `.ai-board/config.yaml`（`boardDir`）から読む。clone した時点で揃い、
- * fork では `github.repository` と `store.url` の 2 行を書き換える。
+ * fork では `github.repository` を書き換える。置き場所は書かなければ `origin` の `main`。
  *
  * 設定ファイルが無い、取得先のセクションが無いのいずれの場合も
  * 連携は無効になるだけでエラーにはしない。
@@ -147,7 +163,14 @@ export function loadConfig(root: string, env: NodeJS.ProcessEnv = process.env): 
     );
   }
 
-  return { paths, forge: toForgeConfig(parsed.data), storeUrl: parsed.data.store?.url ?? null };
+  return {
+    paths,
+    forge: toForgeConfig(parsed.data),
+    store: {
+      remote: paths.storeOverride ?? parsed.data.store?.remote ?? DEFAULT_STORE_REMOTE,
+      branch: parsed.data.store?.branch ?? DEFAULT_STORE_BRANCH,
+    },
+  };
 }
 
 function toForgeConfig(data: z.infer<typeof ConfigFileSchema>): ForgeConfig | null {

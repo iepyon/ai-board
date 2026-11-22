@@ -434,11 +434,11 @@ AI ループの次の一手に、止まっているカードを選んでは SHAL
 
 ### 3. 置き場所の組み替え
 
-- [ ] `config.ts`: `store.url` を消し、`store.remote` / `store.branch` を足す。`AI_BOARD_STORE` を git リポジトリのパスとして読み、手元の場所を `<パス>.local/` にする。`.ai-board/config.yaml` の説明を直す
-- [ ] `src/board/composition.ts`・`src/cards/composition.ts`・`cli-main.ts` を `GitDocumentStore` で組む。PR の控えのキャッシュとロックを手元の場所に置く
-- [ ] `store-cli.ts` を `init` / `seed` / `check-branch` にし、`artifact-mirror-store.ts`・`data-branch-import.ts`・`pull` / `outbox` / `ack` / `discard` / `import` とそのテストを消す。`store-messages.ts` のエラー種と変換を今の置き場所に合わせる（リモートが無い・fetch や push に失敗した・やり直しが尽きた・ブランチが置き場所のファイルを変えた）
-- [ ] `.gitignore` の `/.ai-board/store/` を `/.ai-board/local/` に替える
-- [ ] 仕様の差分を `docs/specs/board-store/spec.md` と `docs/specs/loop-activity/spec.md` に写す
+- [x] `config.ts`: `store.url` を消し、`store.remote` / `store.branch` を足す。`AI_BOARD_STORE` を git リポジトリのパスとして読み、手元の場所を `<パス>.local/` にする。`.ai-board/config.yaml` の説明を直す
+- [x] `src/board/composition.ts`・`src/cards/composition.ts`・`cli-main.ts` を `GitDocumentStore` で組む。PR の控えのキャッシュとロックを手元の場所に置く
+- [x] `store-cli.ts` を `init` / `seed` / `check-branch` にし、`artifact-mirror-store.ts`・`data-branch-import.ts`・`pull` / `outbox` / `ack` / `discard` / `import` とそのテストを消す。`store-messages.ts` のエラー種と変換を今の置き場所に合わせる（リモートが無い・fetch や push に失敗した・やり直しが尽きた・ブランチが置き場所のファイルを変えた）
+- [x] `.gitignore` の `/.ai-board/store/` を `/.ai-board/local/` に替える
+- [x] 仕様の差分を `docs/specs/board-store/spec.md` と `docs/specs/loop-activity/spec.md` に写す
 
 ### 4. 計画の置き場所
 

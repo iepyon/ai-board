@@ -362,11 +362,20 @@ export class GitDocumentStore implements DocumentStore {
 
       const pushed = await this.git([
         'push',
-        '--quiet',
+        '--porcelain',
         this.options.remote,
         `${sha}:refs/heads/${this.options.branch}`,
       ]);
       if (isErr(pushed)) return err(gitFailed('push', pushed.error));
+      // 「既に最新」は、同じ親・同じ中身・同じ時刻のコミットを、ほかのプロセスが先に push したということ。
+      // 自分の書き込みが通ったとは読まず、先を越されたものとして取り直す
+      if (isUpToDate(pushed.value)) {
+        return err({
+          type: 'StoreGitFailed',
+          operation: 'push',
+          message: '既に同じコミットがあります',
+        });
+      }
 
       await this.git(['update-ref', STORE_REF, sha]);
       return ok(sha);
@@ -475,6 +484,11 @@ function keyOf(collection: Collection, id: string): string {
 function parseKey(key: string): { collection: Collection; id: string } {
   const at = key.indexOf('/');
   return { collection: key.slice(0, at) as Collection, id: key.slice(at + 1) };
+}
+
+/** `git push --porcelain` の出力で、ref が「既に最新」（`=`）だったか */
+export function isUpToDate(porcelain: string): boolean {
+  return porcelain.split('\n').some((line) => line.startsWith('=\t'));
 }
 
 /** リモートの名前か（パスや URL でないか）。名前なら、リポジトリに設定があるかを先に確かめる */

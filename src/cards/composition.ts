@@ -1,7 +1,9 @@
-import type { BoardPaths } from '../infrastructure/config.js';
+import type { AppConfig } from '../infrastructure/config.js';
 import { err, isErr, ok } from '../shared/result.js';
-import { ArtifactMirrorStore } from '../infrastructure/artifact-mirror-store.js';
+import { createCliRunner } from '../infrastructure/cli-runner.js';
 import type { DocumentStore } from '../infrastructure/document-store.js';
+import { GitDocumentStore } from '../infrastructure/git-document-store.js';
+import { cardFileCodec } from './repositories/card-file-codec.js';
 import type { PrNumberWriter } from '../infrastructure/pr-fetcher.js';
 import type { CardRepository } from './repositories/card.repository.js';
 import type { IdeaDividerRepository } from './repositories/idea-divider.repository.js';
@@ -94,7 +96,7 @@ export interface CardCliParts {
 }
 
 /**
- * `ai-board card` の依存を組む。書き込みは `store` の書き込みの 1 操作として送る箱に積む。
+ * `ai-board card` の依存を組む。書き込みは `store` の書き込みの 1 操作として置き場所へ push する。
  * 人の判断を書く usecase（`appendReviewCommand`・`updateCardMetaCommand`）は渡さない。
  */
 export function createCardCliParts(store: DocumentStore): CardCliParts {
@@ -146,9 +148,25 @@ export function createTransactionalPrWriter(
   };
 }
 
-/** 設定の置き場所から、Artifact の DB の写しと送る箱（`DocumentStore`）を組む */
-export function createBoardStore(paths: BoardPaths): ArtifactMirrorStore {
-  return new ArtifactMirrorStore(paths.storeDir);
+/** fetch と push は既定の上限（10 秒）では足りないことがある */
+const STORE_TIMEOUT_MS = 60_000;
+/** `cat-file --batch` で置き場所のファイルを全部読むので、上限を大きくする */
+const STORE_MAX_BUFFER = 64 * 1024 * 1024;
+
+/**
+ * 設定の置き場所から、git の置き場所（`DocumentStore`）を組む。
+ * カード・判断・並び順・形の版は置き場所のブランチのファイルに、PR の控えとループの記録は手元（`localDir`）に置く
+ */
+export function createBoardStore(config: AppConfig): GitDocumentStore {
+  return new GitDocumentStore({
+    repoDir: config.paths.repoDir,
+    remote: config.store.remote,
+    branch: config.store.branch,
+    localDir: config.paths.localDir,
+    localCollections: ['snapshots', 'loop'],
+    codec: cardFileCodec,
+    runner: createCliRunner({ timeoutMs: STORE_TIMEOUT_MS, maxBuffer: STORE_MAX_BUFFER }),
+  });
 }
 
 function assemble(

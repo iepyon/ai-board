@@ -141,7 +141,7 @@ describe('ワークツリーでの置き場所', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     try {
-      expect(resolvePaths(root, {}).storeDir).toBe(path.join(root, '.ai-board', 'store'));
+      expect(resolvePaths(root, {}).localDir).toBe(path.join(root, '.ai-board', 'local'));
       expect(warn).toHaveBeenCalledWith(
         expect.stringContaining('メインのチェックアウトを求められない')
       );
@@ -152,32 +152,36 @@ describe('ワークツリーでの置き場所', () => {
 });
 
 // ============================================================
-// 置き場所の写しのディレクトリと、store.url
+// 手元のディレクトリと、置き場所のリモート・ブランチ
 // ============================================================
 
-describe('置き場所の写しのディレクトリ', () => {
-  it('メインのチェックアウトでは .ai-board/store/', () => {
+describe('手元のディレクトリ', () => {
+  it('メインのチェックアウトでは .ai-board/local/ で、git はメインのチェックアウトで走らせる', () => {
     const paths = resolvePaths(root, {});
 
-    expect(paths.storeDir).toBe(path.join(root, '.ai-board', 'store'));
+    expect(paths.localDir).toBe(path.join(root, '.ai-board', 'local'));
+    expect(paths.repoDir).toBe(root);
     expect(paths.storeSource).toBe('local');
+    expect(paths.storeOverride).toBeNull();
   });
 
-  it('リンクされたワークツリーではメインのチェックアウトの .ai-board/store/', async () => {
+  it('リンクされたワークツリーではメインのチェックアウトの .ai-board/local/', async () => {
     const tree = await makeLinkedWorktree('feature');
 
     const paths = resolvePaths(tree, {});
 
-    expect(paths.storeDir).toBe(path.join(root, '.ai-board', 'store'));
+    expect(paths.localDir).toBe(path.join(root, '.ai-board', 'local'));
+    expect(paths.repoDir).toBe(root);
     expect(paths.storeSource).toBe('main-checkout');
   });
 
-  it('AI_BOARD_STORE があれば、それを写しのディレクトリにする（相対パスはカレントディレクトリから）', async () => {
+  it('AI_BOARD_STORE があれば、それを置き場所のリポジトリにし、手元のファイルはその隣に置く（相対パスはカレントディレクトリから）', async () => {
     const tree = await makeLinkedWorktree('feature');
 
-    const paths = resolvePaths(tree, { AI_BOARD_STORE: 'dev-store' });
+    const paths = resolvePaths(tree, { AI_BOARD_STORE: 'dev-store.git' });
 
-    expect(paths.storeDir).toBe(path.resolve('dev-store'));
+    expect(paths.storeOverride).toBe(path.resolve('dev-store.git'));
+    expect(paths.localDir).toBe(`${path.resolve('dev-store.git')}.local`);
     expect(paths.storeSource).toBe('env');
   });
 
@@ -185,40 +189,37 @@ describe('置き場所の写しのディレクトリ', () => {
     expect(resolvePaths(root, { AI_BOARD_STORE: '' }).storeSource).toBe('local');
   });
 
-  it('AI_BOARD_STORE があっても、共有の置き場所は .ai-board/ を指す', () => {
-    const paths = resolvePaths(root, { AI_BOARD_STORE: 'dev-store' });
+  it('AI_BOARD_STORE があっても、共有の .ai-board/ はメインのチェックアウトを指す', () => {
+    const paths = resolvePaths(root, { AI_BOARD_STORE: 'dev-store.git' });
 
     expect(paths.sharedBoardDir).toBe(path.join(root, '.ai-board'));
   });
 });
 
-describe('store.url', () => {
-  it('書かれていなければ null', async () => {
+describe('store', () => {
+  it('書かれていなければ origin の main', async () => {
     await writeConfig(githubYaml);
 
-    expect(loadConfig(root, {}).storeUrl).toBeNull();
+    expect(loadConfig(root, {}).store).toEqual({ remote: 'origin', branch: 'main' });
   });
 
-  it('claude.ai の Artifact の URL を読む', async () => {
-    await writeConfig(`${githubYaml}store:\n  url: https://claude.ai/artifact/AbC123\n`);
+  it('store.remote と store.branch を読む', async () => {
+    await writeConfig(`${githubYaml}store:\n  remote: upstream\n  branch: board\n`);
 
-    expect(loadConfig(root, {}).storeUrl).toBe('https://claude.ai/artifact/AbC123');
+    expect(loadConfig(root, {}).store).toEqual({ remote: 'upstream', branch: 'board' });
   });
 
-  it('claude.ai/code/artifact の URL も読む', async () => {
-    await writeConfig('store:\n  url: https://claude.ai/code/artifact/1a2b-3c\n');
+  it('AI_BOARD_STORE があれば、そのリポジトリをリモートにする', async () => {
+    await writeConfig(`${githubYaml}store:\n  remote: upstream\n`);
 
-    expect(loadConfig(root, {}).storeUrl).toBe('https://claude.ai/code/artifact/1a2b-3c');
+    expect(loadConfig(root, { AI_BOARD_STORE: '/tmp/x.git' }).store).toEqual({
+      remote: '/tmp/x.git',
+      branch: 'main',
+    });
   });
 
-  it('url: null は未設定として読む', async () => {
-    await writeConfig('store:\n  url: null\n');
-
-    expect(loadConfig(root, {}).storeUrl).toBeNull();
-  });
-
-  it('Artifact の URL でなければ、ファイルの名前を出してエラーにする', async () => {
-    await writeConfig('store:\n  url: https://example.com/x\n');
+  it('- で始まる値は、ファイルの名前を出してエラーにする', async () => {
+    await writeConfig('store:\n  branch: --force\n');
 
     expect(() => loadConfig(root, {})).toThrow(path.join(root, '.ai-board', 'config.yaml'));
   });

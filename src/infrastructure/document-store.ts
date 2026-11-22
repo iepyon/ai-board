@@ -10,8 +10,8 @@ import { err, ok, type Result } from '../shared/result.js';
  *
  * 実装は置き場所ごとに 1 つ置く。
  *
- * - `ArtifactMirrorStore`（`artifact-mirror-store.ts`）: Claude の Artifact の DB。CLI は DB に届かないので、
- *   手元の写しを読み、書き込みは送る箱に積む。DB との行き来は Claude が `ArtifactData` で行う
+ * - `GitDocumentStore`（`git-document-store.ts`）: git の置き場所のブランチの `.ai-board/` のファイル。
+ *   fetch して読み、書き込みはコミットとして push する
  * - `MemoryDocumentStore`（このファイル）: メモリ。テストで使う
  * - SQLite に切り替えるときは、書き込み系を含む実装を新たに足す。口とその上（リポジトリ・usecase・CLI）は変えない
  *
@@ -95,20 +95,12 @@ export function isValidDocumentId(id: string): boolean {
 }
 
 export type StoreError =
-  /** 写し（手元に取り込んだ置き場所の中身）が無い */
-  | { readonly type: 'StoreNotPulled'; readonly mirrorDir: string }
-  /** 置き場所に `board/meta` が無い（`ai-board store init` を送っていない） */
+  /** 置き場所に `board/meta` が無い（`ai-board store init` を走らせていない） */
   | { readonly type: 'StoreUninitialized' }
   /** 置き場所の形の版が、この CLI と違う */
   | { readonly type: 'StoreVersionMismatch'; readonly found: unknown; readonly expected: number }
-  /** 送る箱に送っていない書き込みが残っている */
-  | { readonly type: 'StorePendingWrites'; readonly count: number }
   /** ほかのプロセスが書いている */
   | { readonly type: 'StoreLockTimeout'; readonly lockPath: string }
-  /** 取り込もうとした文書が読めない */
-  | { readonly type: 'StoreInvalidDocument'; readonly path: string; readonly reason: string }
-  /** 置き場所が設定されていない */
-  | { readonly type: 'StoreNotConfigured' }
   /** 置き場所のリモートがリポジトリに無い（git の置き場所） */
   | { readonly type: 'StoreRemoteMissing'; readonly remote: string }
   /** git の操作が失敗した（git の置き場所。届かない・権限が無い など） */

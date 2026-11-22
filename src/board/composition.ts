@@ -86,12 +86,12 @@ export interface PrStateSource {
   readonly fetcher: PrFetcher | null;
 }
 
-/** マージ済みの控えは置き場所に、それ以外は `<storeDir>/cache/` に置く */
+/** マージ済みの控えは置き場所の `snapshots`（git の置き場所では手元）に、それ以外は `<localDir>/cache/` に置く */
 export function createPrSnapshotRepository(
   store: DocumentStore,
-  storeDir: string
+  localDir: string
 ): PrSnapshotRepository {
-  return new DocPrSnapshotRepository(store, path.join(storeDir, PR_SNAPSHOT_CACHE_FILE));
+  return new DocPrSnapshotRepository(store, path.join(localDir, PR_SNAPSHOT_CACHE_FILE));
 }
 
 /**
@@ -171,7 +171,7 @@ export interface AssembledBoard {
 }
 
 /**
- * `status` と `decide` が使うボードの組み立て。置き場所の写しは呼び出し側が確かめておく（`check`）。
+ * `status` と `decide` が使うボードの組み立て。置き場所は呼び出し側が読み込んでおく（`check`）。
  *
  * PR の状態は`refresh()` を 1 回だけ待ってから読む。
  * `branch` から解決した PR 番号の書き戻しも、この `refresh()` の中で起きる。
@@ -186,9 +186,9 @@ export async function assembleBoard(
   const { provider, fetcher } = await createPrStateSource(
     config.forge,
     cards.cardRepository,
-    createPrSnapshotRepository(store, config.paths.storeDir),
+    createPrSnapshotRepository(store, config.paths.localDir),
     runner,
-    // ブランチから解決した PR 番号は、書き込みの 1 操作として送る箱に積む
+    // ブランチから解決した PR 番号は、書き込みの 1 操作として置き場所へ push する
     { writePr: createTransactionalPrWriter(store) }
   );
   await fetcher?.refresh();

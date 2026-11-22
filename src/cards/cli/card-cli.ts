@@ -1,4 +1,3 @@
-import * as path from 'node:path';
 import { isErr, type Result } from '../../shared/result.js';
 import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
 import type { DocumentStore } from '../../infrastructure/document-store.js';
@@ -33,9 +32,9 @@ import {
  * この CLI には承認 / 差し戻し / 中止を書く口が型の上でも無い（`CardCliDependencies.writes` に人の判断を書く口が無い）。
  * 提出 / 保留の判断は値のままリポジトリに渡すので、理由にどんな行を書いても判断は 1 件しか増えない。
  *
- * カードの正本は置き場所（Artifact の DB）にあり、CLI は手元の写しを読む。読むコマンドは頭で写しを確かめてから読み、
+ * カードの正本は置き場所（git の置き場所のブランチの `.ai-board/`）にある。読むコマンドは頭で置き場所を読み込んで（`check`）から読み、
  * 書くコマンドは書き込みの usecase（`writes`）を呼ぶ。usecase が検査から書き込みまでを `DocumentStore.transact` の中で走らせ、
- * 束の名前も決める。書いたものは送る箱に積まれ、Claude が置き場所へ送り出す（board-store のスキル）。
+ * コミットの題も決める。書いたものは置き場所のブランチへ push される。
  */
 export const CARD_USAGE = `使い方: ai-board card <command> [--root <path>]
 
@@ -101,10 +100,8 @@ interface ParsedArgs {
 
 /** 読む口（`cards`）と AI に許す書き込みの口（`writes`）は `createCardCliParts` が組む */
 export interface CardCliDependencies extends CardCliParts {
-  /** 置き場所。読む前に写しを確かめる */
+  /** 置き場所。読む前に読み込んで確かめる */
   readonly store: Pick<DocumentStore, 'check'>;
-  /** 写しと送る箱を置くディレクトリ。`export` はこの中へ書き出さない */
-  readonly storeDir: string;
 }
 
 type Handler = (args: ParsedArgs, deps: CardCliDependencies, io: CardCliIo) => Promise<number>;
@@ -326,7 +323,6 @@ async function runSeed(
  *
  * 別のリポジトリへボードを移すときに、元のリポジトリで書き出し、移した先で `seed --from` で起票する。
  * 置き場所をそのまま移さないのは、カードの `pr` が元のリポジトリを指すため。
- * 写しと送る箱のディレクトリの中へは書かない。
  */
 async function runExport(
   args: ParsedArgs,
@@ -336,15 +332,6 @@ async function runExport(
   const to = args.flags.get('--to');
   if (typeof to !== 'string') {
     io.stderr('--to に書き出す先のディレクトリを指定してください\n');
-    return 1;
-  }
-
-  const storeDir = path.resolve(deps.storeDir);
-  const target = path.resolve(to);
-  if (target === storeDir || target.startsWith(`${storeDir}${path.sep}`)) {
-    io.stderr(
-      `置き場所の写しのディレクトリ（${storeDir}）の中へは書き出せません。外のディレクトリを指定してください\n`
-    );
     return 1;
   }
 
@@ -472,10 +459,10 @@ async function runHold(
   return report(await deps.writes.hold({ id, gate, reason: reason.trim(), at: io.now() }), io);
 }
 // ============================================================
-// 置き場所の写し
+// 置き場所の読み込み
 // ============================================================
 
-/** 読む前に写しを確かめる。読めなければ理由を出して false */
+/** 読む前に置き場所を読み込んで確かめる。読めなければ理由を出して false */
 async function checkForRead(deps: CardCliDependencies, io: CardCliIo): Promise<boolean> {
   const checked = await deps.store.check();
   if (isErr(checked)) io.stderr(`${describeStoreError(checked.error)}\n`);

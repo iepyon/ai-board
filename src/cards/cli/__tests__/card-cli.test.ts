@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
-import { ArtifactMirrorStore } from '../../../infrastructure/artifact-mirror-store.js';
+import type { GitDocumentStore } from '../../../infrastructure/git-document-store.js';
+import {
+  createGitStoreFixture,
+  initializedStore,
+  type GitStoreFixture,
+} from '../../../__tests__/git-store-fixture.js';
 import { createCardDependencies, type CardDependencies } from '../../composition.js';
 import { createCardWriteCommands } from '../../usecases/commands/card-write.commands.js';
 import {
@@ -20,13 +23,15 @@ import { demoteHeadings } from '../../repositories/card-files.js';
 import { compareCards } from '../../services/card-order.js';
 
 // ============================================================
-// 一時ディレクトリの写しと送る箱（ArtifactMirrorStore）を通して確かめる
+// 一時の git の置き場所（GitDocumentStore）を通して確かめる
 // ============================================================
 
-let tmp: string;
+let fixture: GitStoreFixture;
+/** 準備（`prepare`）までに置き場所に入ったコミットの数。`originLog` はこれより後だけを数える */
+let prepared: number;
 /** CLI に渡す依存。準備（`prepare`）では、CLI に渡さない人の判断の usecase も使うので、カードの依存は全部持つ */
 let deps: CardCliDependencies & {
-  readonly store: ArtifactMirrorStore;
+  readonly store: GitDocumentStore;
   readonly cards: CardDependencies;
 };
 let stdout: string;
@@ -41,33 +46,23 @@ let writeResult: Result<void, string>;
 
 const NOW = new Date('2026-09-26T00:00:00.000Z');
 
-/** board/meta だけを取り込んだ写しを `storeDir` に作る */
-function pulledStoreDir(storeDir: string, version = 3): string {
-  const meta = path.join(storeDir, 'mirror', 'board');
-  fs.mkdirSync(meta, { recursive: true });
-  fs.writeFileSync(path.join(meta, 'meta~000001.json'), JSON.stringify({ version }));
-  return storeDir;
-}
+const LOCK = { timeoutMs: 20_000, pollMs: 5, isAlive: () => true };
 
-function cliDeps(storeDir: string): typeof deps {
-  const store = new ArtifactMirrorStore(storeDir, {
-    timeoutMs: 5_000,
-    pollMs: 5,
-    isAlive: () => true,
-  });
+function cliDeps(store: GitDocumentStore): typeof deps {
   const cards = createCardDependencies(store);
-  return { store, storeDir, cards, writes: createCardWriteCommands(store, cards) };
+  return { store, cards, writes: createCardWriteCommands(store, cards) };
 }
 
-/** 送る箱の束の名前を、新しいものから並べる（前の git のログと同じ向き） */
+/** 準備の後に置き場所に入ったコミットの題を、新しいものから並べる */
 function originLog(): string[] {
-  return deps.store
-    .outbox()
-    .map((batch) => batch.label)
+  return fixture
+    .commitSubjects()
+    .slice(prepared)
+    .map((subject) => subject.replace(/^chore\(board\): /, ''))
     .reverse();
 }
 
-/** 写しにある、そのカードの判断の文書の ID */
+/** 置き場所にある、そのカードの判断の文書の ID */
 function logIds(id: string): string[] {
   return deps.store
     .list('log')
@@ -75,9 +70,10 @@ function logIds(id: string): string[] {
     .filter((docId) => docId.startsWith(`${id}.`));
 }
 
-beforeEach(() => {
-  tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-board-card-cli-'));
-  deps = cliDeps(pulledStoreDir(path.join(tmp, 'store')));
+beforeEach(async () => {
+  fixture = createGitStoreFixture();
+  deps = cliDeps(await initializedStore(fixture));
+  prepared = fixture.commitSubjects().length;
   stdout = '';
   stderr = '';
   seedFiles = ok([]);
@@ -88,7 +84,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  fs.rmSync(tmp, { recursive: true, force: true });
+  fixture.remove();
 });
 
 function io(stdin: string | null = null, now: Date = NOW): CardCliIo {
@@ -114,13 +110,13 @@ async function run(argv: readonly string[], stdin: string | null = null): Promis
   return runCardCli(argv, deps, io(stdin));
 }
 
-/** 準備の書き込みも、CLI と同じく transact を通す。準備の束は送る箱から外し、テストの書き込みだけを数える */
+/** 準備の書き込みも、CLI と同じく transact を通す。準備のコミットは数えず、テストの書き込みだけを数える */
 async function prepare(
   op: (cards: CardDependencies) => Promise<Result<unknown, unknown>>
 ): Promise<void> {
   const result = await deps.store.transact('テストの準備', () => op(deps.cards));
   if (isErr(result)) throw new Error(`準備に失敗しました: ${JSON.stringify(result.error)}`);
-  await deps.store.ack('999999');
+  prepared = fixture.commitSubjects().length;
 }
 
 /**
@@ -506,7 +502,7 @@ describe('runCardCli', () => {
 });
 
 describe('runCardCli と置き場所', () => {
-  it('書き込みは 1 コマンド 1 束で送る箱に積み、束の名前に理由やブランチ名を入れない', async () => {
+  it('書き込みは 1 コマンド 1 コミットで置き場所に入れ、題に理由やブランチ名を入れない', async () => {
     await seed('a');
     await start('a');
 
@@ -522,7 +518,7 @@ describe('runCardCli と置き場所', () => {
     expect(originLog()[0]).toBe('audit-log を作る');
   });
 
-  it('検査で拒んだ書き込みは送る箱に積まない', async () => {
+  it('検査で拒んだ書き込みは置き場所にコミットしない', async () => {
     await seed('a');
     const before = originLog();
 
@@ -533,8 +529,8 @@ describe('runCardCli と置き場所', () => {
     expect(originLog()).toEqual(before);
   });
 
-  it('読むコマンドは、同じ写しを使うほかのプロセスが書いた最新のカードを読む', async () => {
-    const other = cliDeps(deps.storeDir);
+  it('読むコマンドは、同じ置き場所にほかのプロセスが書いた最新のカードを読む', async () => {
+    const other = cliDeps(fixture.open({ lockOptions: LOCK }));
     expect(await runCardCli(['create', '--title', 'x', '--id', 'from-b'], other, io())).toBe(0);
 
     stdout = '';
@@ -542,23 +538,23 @@ describe('runCardCli と置き場所', () => {
     expect(stdout).toContain('id: from-b');
   });
 
-  it('書くコマンドは、ほかのプロセスが写しに書いた最新のカードに対して検査する', async () => {
+  it('書くコマンドは、ほかのプロセスが置き場所に書いた最新のカードに対して検査する', async () => {
     await seed('a');
     await start('a');
 
-    const other = cliDeps(deps.storeDir);
+    const other = cliDeps(fixture.open({ lockOptions: LOCK }));
     expect(await runCardCli(['submit', 'a'], other, io())).toBe(0);
 
-    // 手元のプロセスはまだ未提出の状態を読んでいるが、transact が写しを読み直してから検査するので拒む
+    // 手元のプロセスはまだ未提出の状態を読んでいるが、push が先を越されて取り直し、検査し直すので拒む
     expect(await run(['submit', 'a'])).toBe(1);
     expect(stderr).toContain('未提出か差し戻されたとき');
   });
 
-  it('同じ写しから同じカードに同時に submit すると、1 つだけが通る（ルーティンの重複起動）', async () => {
+  it('同じ置き場所の同じカードに同時に submit すると、1 つだけが通る（ルーティンの重複起動）', async () => {
     await seed('a');
     await start('a');
 
-    const other = cliDeps(deps.storeDir);
+    const other = cliDeps(fixture.open({ lockOptions: LOCK }));
     let otherStderr = '';
     const otherIo: CardCliIo = {
       ...io(null, new Date(NOW.getTime() + 1000)),
@@ -578,15 +574,24 @@ describe('runCardCli と置き場所', () => {
     expect(logIds('a').filter((id) => id.endsWith('.plan.submit'))).toHaveLength(1);
   });
 
-  it('写しが無ければ、読むコマンドは取り込みを促して 1 にする', async () => {
-    deps = cliDeps(path.join(tmp, 'none'));
+  it('置き場所が始まっていなければ、読むコマンドは init を促して 1 にする', async () => {
+    const empty = createGitStoreFixture();
+    try {
+      deps = cliDeps(empty.open());
 
-    expect(await run(['list'])).toBe(1);
-    expect(stderr).toContain('置き場所の写しがありません');
+      expect(await run(['list'])).toBe(1);
+      expect(stderr).toContain('ai-board store init');
+    } finally {
+      empty.remove();
+    }
   });
 
-  it('写しの形の版がこの CLI と違えば、list は読まずに 1 にする', async () => {
-    deps = cliDeps(pulledStoreDir(path.join(tmp, 'newer'), 4));
+  it('置き場所の形の版がこの CLI と違えば、list は読まずに 1 にする', async () => {
+    await deps.store.transact('版を上げる', () => {
+      deps.store.set('board', 'meta', { version: 4 });
+      return Promise.resolve(ok(undefined));
+    });
+    deps = cliDeps(fixture.open());
 
     expect(await run(['list'])).toBe(1);
     expect(stdout).toBe('');
@@ -594,12 +599,18 @@ describe('runCardCli と置き場所', () => {
   });
 
   it('引数の誤りでは、置き場所に触らない', async () => {
-    deps = cliDeps(path.join(tmp, 'none'));
+    const empty = createGitStoreFixture();
+    try {
+      deps = cliDeps(empty.open());
 
-    expect(await run(['show'])).toBe(1);
-    expect(await run(['submit', 'a', '--gate', 'pr'])).toBe(1);
-    expect(stderr).not.toContain('置き場所');
-    expect(fs.existsSync(path.join(tmp, 'none'))).toBe(false);
+      expect(await run(['show'])).toBe(1);
+      expect(await run(['submit', 'a', '--gate', 'pr'])).toBe(1);
+      expect(stderr).not.toContain('置き場所');
+      expect(fs.existsSync(empty.localDir)).toBe(false);
+      expect(empty.commitSubjects()).toEqual([]);
+    } finally {
+      empty.remove();
+    }
   });
 });
 
@@ -632,7 +643,7 @@ describe('runCardCli seed', () => {
     expect(parseReviewLog(a?.body ?? '')).toEqual([]);
   });
 
-  it('既にある ID は飛ばし、2 回目は送る箱に積まない', async () => {
+  it('既にある ID は飛ばし、2 回目は置き場所にコミットしない', async () => {
     await seed('a', '## アイデア\n前からある');
     seedFiles = ok([A, B]);
 
@@ -775,13 +786,9 @@ describe('runCardCli export', () => {
     expect(stderr).toContain('1 枚も書き出しませんでした');
   });
 
-  it('--to が無い、写しのディレクトリの中を指す、書き出すカードが無いときは 1', async () => {
+  it('--to が無い、書き出すカードが無いときは 1', async () => {
     expect(await run(['export'])).toBe(1);
     expect(stderr).toContain('--to');
-
-    stderr = '';
-    expect(await run(['export', '--to', path.join(deps.storeDir, 'mirror')])).toBe(1);
-    expect(stderr).toContain('置き場所の写しのディレクトリ');
 
     stderr = '';
     expect(await run(['export', '--to', 'out'])).toBe(1);
