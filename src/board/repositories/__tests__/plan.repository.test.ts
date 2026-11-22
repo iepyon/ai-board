@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { RefPlanRepository, countTasks } from '../plan.repository.js';
-import { readPlanFilesAtRef } from '../../../infrastructure/git-plan-tree.js';
+import { readPlanFilesAtCommit } from '../../../infrastructure/git-plan-tree.js';
 import { createCliRunner } from '../../../infrastructure/cli-runner.js';
 import { err, ok } from '../../../shared/result.js';
 import type { CardId } from '../../../shared/schemas/common.js';
@@ -44,9 +44,12 @@ function execCommit(at: string): void {
   });
 }
 
-function repository(ref = 'HEAD'): RefPlanRepository {
+/** コードのリポジトリの HEAD のコミット（置き場所の先頭にあたる）から読む。`commit` に null を渡せば置き場所が無い */
+function repository(
+  commit: string | null = git(fixture.repo, 'rev-parse', 'HEAD').trim()
+): RefPlanRepository {
   return new RefPlanRepository(() =>
-    readPlanFilesAtRef({ runner: createCliRunner(), repoDir: fixture.repo, ref })
+    readPlanFilesAtCommit({ runner: createCliRunner(), repoDir: fixture.repo, commit })
   );
 }
 
@@ -118,8 +121,8 @@ describe('countTasks', () => {
 // ============================================================
 
 describe('RefPlanRepository.load', () => {
-  it('参照が無ければ空を返す（例外にしない）', async () => {
-    expect((await repository('refs/ai-board/store').load()).size).toBe(0);
+  it('置き場所のコミットが無ければ空を返す（例外にしない）', async () => {
+    expect((await repository(null).load()).size).toBe(0);
   });
 
   it('参照の cards/<id>/plan.md を、main に入った計画（マージ済み）として読み、進捗を集計する', async () => {

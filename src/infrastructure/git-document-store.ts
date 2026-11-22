@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { err, isErr, ok, type Result } from '../shared/result.js';
 import { compareStrings } from '../shared/compare.js';
-import type { CliRunner } from './cli-runner.js';
+import type { CliError, CliRunner } from './cli-runner.js';
 import {
   assertWritable,
   checkMeta,
@@ -16,6 +16,7 @@ import {
   type TransactLabel,
 } from './document-store.js';
 import { defaultLockOptions, withFileLock, type LockOptions } from './file-lock.js';
+import { gitIn, gitReadError, readBlobs, type Git, type GitReadError } from './git-objects.js';
 
 // ============================================================
 // git の置き場所 — 置き場所のブランチのファイルを読み、書き込みはコミットとして push する
@@ -29,9 +30,11 @@ import { defaultLockOptions, withFileLock, type LockOptions } from './file-lock.
  * - `roots`: `ls-tree` で並べる範囲（リポジトリのルートからの相対）。ここに無いファイルは読まない
  * - `isDocumentFile`: 置き場所の文書になるファイルか。偽のファイル（計画・画像など）は中身を読まない
  *   （置き場所のファイルは UTF-8 のテキストだが、同じディレクトリにほかのファイルが置かれることがある）
+ * - `localCollections`: 置き場所のブランチに載せず、手元（`localDir`）に JSON で置くコレクション。`toFile` には渡らない
  */
 export interface DocumentFileCodec {
   readonly roots: readonly string[];
+  readonly localCollections: readonly Collection[];
   isDocumentFile(filePath: string): boolean;
   toDocument(
     filePath: string,
@@ -51,10 +54,8 @@ export interface GitDocumentStoreOptions {
   readonly remote: string;
   /** 置き場所のブランチ */
   readonly branch: string;
-  /** git に載せないもの（`localCollections` の文書・ロック・一時の index）を置くディレクトリ */
+  /** git に載せないもの（`codec.localCollections` の文書・ロック・一時の index）を置くディレクトリ */
   readonly localDir: string;
-  /** 置き場所のブランチに載せず、`localDir` に JSON で置くコレクション */
-  readonly localCollections: readonly Collection[];
   readonly codec: DocumentFileCodec;
   /** fetch と push に使うので、上限を長くしたものを渡す */
   readonly runner: CliRunner;
@@ -65,7 +66,7 @@ export interface GitDocumentStoreOptions {
 export const STORE_REF = 'refs/ai-board/store';
 
 /** push が先を越されたときに、取り直して走らせ直す回数 */
-export const MAX_PUSH_ATTEMPTS = 3;
+const MAX_PUSH_ATTEMPTS = 3;
 
 const LOCK_FILE = 'store.lock';
 const DELETED = Symbol('deleted');
@@ -78,8 +79,9 @@ type Written = DocumentData | typeof DELETED;
  *   `get` / `list` はこのメモリから返す
  * - `transact` は、`op` の書き込みのうち置き場所のファイルになるものを、一時の index で先頭の上のコミットにして push する。
  *   メインのチェックアウトの作業ツリー・index・今のブランチには触らない。
- *   push が拒まれたら取り直し、`op` を最初から走らせ直す（`MAX_PUSH_ATTEMPTS` 回まで）
- * - 置き場所のファイルへの書き込みが無ければ（`localCollections` だけ・何も書かない）、fetch・コミット・push をしない
+ *   push が通らなかったときは取り直し、先頭が動いていれば（先を越された）`op` を最初から走らせ直す（`MAX_PUSH_ATTEMPTS` 回まで）。
+ *   先頭が動いていなければ（権限が無い・保護されている・届かない）、やり直さずに push の失敗を返す
+ * - 置き場所のファイルへの書き込みが無ければ（`codec.localCollections` だけ・何も書かない）、fetch・コミット・push をしない
  * - 外部コマンドは `CliRunner` に閉じ、引数は配列で渡す（shell を介さない）
  */
 export class GitDocumentStore implements DocumentStore {
@@ -89,10 +91,12 @@ export class GitDocumentStore implements DocumentStore {
   private head: string | null | undefined = undefined;
   private docs = new Map<string, DocumentData>();
   private written: Map<string, Written> | null = null;
+  private readonly git: Git;
 
   constructor(private readonly options: GitDocumentStoreOptions) {
     this.lockPath = path.join(options.localDir, LOCK_FILE);
     this.lockOptions = options.lockOptions ?? defaultLockOptions;
+    this.git = gitIn(options.runner, options.repoDir);
   }
 
   async check(): Promise<Result<void, StoreError>> {
@@ -135,10 +139,6 @@ export class GitDocumentStore implements DocumentStore {
     written.set(keyOf(collection, id), DELETED);
   }
 
-  pendingWrites(): number {
-    return 0;
-  }
-
   async transact<T, E>(
     label: TransactLabel<T>,
     op: () => Promise<Result<T, E>>
@@ -150,42 +150,53 @@ export class GitDocumentStore implements DocumentStore {
       }
 
       for (let attempt = 1; ; attempt++) {
-        this.written = new Map();
-        let result: Result<T, E>;
-        try {
-          result = await op();
-        } catch (error) {
-          this.written = null;
-          throw error;
-        }
-        const written = this.written;
-        this.written = null;
-        if (!result.ok) return result;
+        const ran = await this.runOp(op);
+        if (!ran.result.ok) return ran.result;
 
-        const { remote, local } = this.split(written);
-        if (remote.size > 0) {
-          const pushed = await this.commitAndPush(labelOf(label, result.value), remote);
-          if (isErr(pushed)) {
-            if (attempt >= MAX_PUSH_ATTEMPTS) {
-              return err({ type: 'StorePushConflict', attempts: attempt });
-            }
-            // 先を越された（か、届かなかった）。取り直して、最新のカードに対して検査からやり直す
-            const reloaded = await this.load();
-            if (isErr(reloaded)) return reloaded;
-            continue;
-          }
-          this.head = pushed.value;
-        }
-        await this.writeLocal(local);
-        for (const [key, value] of written) {
-          if (value === DELETED) this.docs.delete(key);
-          else this.docs.set(key, value);
-        }
-        return result;
+        const settled = await this.settle(labelOf(label, ran.result.value), ran.written);
+        if (settled.ok) return ran.result;
+        if (settled.error.type !== 'Rejected') return err(settled.error);
+        if (attempt >= MAX_PUSH_ATTEMPTS)
+          return err({ type: 'StorePushConflict', attempts: attempt });
+        // 先を越された。取り直した先頭で読み直し、最新のカードに対して検査からやり直す
+        const reloaded = await this.loadAt(settled.error.head);
+        if (isErr(reloaded)) return reloaded;
       }
     });
     if (isErr(locked)) return locked;
     return locked.value;
+  }
+
+  /** `op` を走らせ、その中の書き込みを集める。例外なら書き込みを捨ててそのまま投げる */
+  private async runOp<T, E>(
+    op: () => Promise<Result<T, E>>
+  ): Promise<{ result: Result<T, E>; written: Map<string, Written> }> {
+    const written = new Map<string, Written>();
+    this.written = written;
+    try {
+      return { result: await op(), written };
+    } finally {
+      this.written = null;
+    }
+  }
+
+  /** 書き込みを確定する。置き場所のファイルになるものはコミットして push し、手元のものは手元に書く */
+  private async settle(
+    message: string,
+    written: Map<string, Written>
+  ): Promise<Result<void, StoreError | PushRejected>> {
+    const { remote, local } = this.split(written);
+    if (remote.size > 0) {
+      const pushed = await this.commitAndPush(message, remote);
+      if (isErr(pushed)) return pushed;
+      this.head = pushed.value;
+    }
+    await this.writeLocal(local);
+    for (const [key, value] of written) {
+      if (value === DELETED) this.docs.delete(key);
+      else this.docs.set(key, value);
+    }
+    return ok(undefined);
   }
 
   /**
@@ -218,38 +229,36 @@ export class GitDocumentStore implements DocumentStore {
   private async load(): Promise<Result<void, StoreError>> {
     const fetched = await this.fetchHead();
     if (isErr(fetched)) return fetched;
+    return this.loadAt(fetched.value);
+  }
 
+  /** fetch 済みの先頭（無ければ null）の置き場所のファイルと、手元の文書を読み直す */
+  private async loadAt(head: string | null): Promise<Result<void, StoreError>> {
     const docs = new Map<string, DocumentData>();
-    if (fetched.value !== null) {
-      const files = await this.readTree(fetched.value);
-      if (isErr(files)) return files;
+    if (head !== null) {
+      const { codec } = this.options;
+      const files = await readBlobs(this.git, head, codec.roots, (filePath) =>
+        codec.isDocumentFile(filePath)
+      );
+      if (isErr(files)) return err(storeGitFailed(files.error));
       for (const file of files.value) {
-        const doc = this.options.codec.toDocument(file.path, file.content);
+        const doc = codec.toDocument(file.path, file.content);
         if (doc !== null) docs.set(keyOf(doc.collection, doc.id), doc.data);
       }
     }
     for (const doc of this.readLocal()) docs.set(keyOf(doc.collection, doc.id), doc.data);
 
-    this.head = fetched.value;
+    this.head = head;
     this.docs = docs;
     return ok(undefined);
   }
 
-  /** 置き場所のブランチの先頭を `STORE_REF` に取る。ブランチがまだ無ければ null */
+  /**
+   * 置き場所のブランチの先頭を `STORE_REF` に取る。ブランチがまだ無ければ null。
+   * まず fetch だけを走らせ、失敗したときだけ、リモートが無いのか・ブランチが無いのか・届かないのかを見分ける
+   */
   private async fetchHead(): Promise<Result<string | null, StoreError>> {
     const { remote, branch } = this.options;
-    if (isRemoteName(remote)) {
-      const known = await this.git(['remote', 'get-url', remote]);
-      if (isErr(known)) return err({ type: 'StoreRemoteMissing', remote });
-    }
-
-    const listed = await this.git(['ls-remote', '--heads', remote, `refs/heads/${branch}`]);
-    if (isErr(listed)) return err(gitFailed('ls-remote', listed.error));
-    if (listed.value.trim() === '') {
-      await this.git(['update-ref', '-d', STORE_REF]);
-      return ok(null);
-    }
-
     const fetched = await this.git([
       'fetch',
       '--quiet',
@@ -258,56 +267,24 @@ export class GitDocumentStore implements DocumentStore {
       remote,
       `+refs/heads/${branch}:${STORE_REF}`,
     ]);
-    if (isErr(fetched)) return err(gitFailed('fetch', fetched.error));
+    if (isErr(fetched)) return this.diagnoseFetch(fetched.error);
 
     const head = await this.git(['rev-parse', '--verify', `${STORE_REF}^{commit}`]);
     if (isErr(head)) return err(gitFailed('rev-parse', head.error));
     return ok(head.value.trim());
   }
 
-  /** コミットの `codec.roots` の下のファイルを全部読む */
-  private async readTree(
-    commit: string
-  ): Promise<Result<readonly { path: string; content: string }[], StoreError>> {
-    const listed = await this.git([
-      'ls-tree',
-      '-r',
-      '-z',
-      commit,
-      '--',
-      ...this.options.codec.roots,
-    ]);
-    if (isErr(listed)) return err(gitFailed('ls-tree', listed.error));
-
-    const entries = listed.value
-      .split('\0')
-      .filter((line) => line !== '')
-      .flatMap((line) => {
-        const tab = line.indexOf('\t');
-        const [, type, object] = line.slice(0, tab).split(' ');
-        const filePath = line.slice(tab + 1);
-        return type === 'blob' &&
-          object !== undefined &&
-          this.options.codec.isDocumentFile(filePath)
-          ? [{ object, path: filePath }]
-          : [];
-      });
-    if (entries.length === 0) return ok([]);
-
-    const read = await this.git(['cat-file', '--batch'], {
-      input: entries.map((entry) => `${entry.object}\n`).join(''),
-    });
-    if (isErr(read)) return err(gitFailed('cat-file', read.error));
-
-    const contents = parseCatFileBatch(read.value);
-    if (contents.length !== entries.length) {
-      return err({
-        type: 'StoreGitFailed',
-        operation: 'cat-file',
-        message: '読んだ中身の数がファイルの数と合いません',
-      });
+  private async diagnoseFetch(error: CliError): Promise<Result<null, StoreError>> {
+    const { remote, branch } = this.options;
+    if (isRemoteName(remote) && isErr(await this.git(['remote', 'get-url', remote]))) {
+      return err({ type: 'StoreRemoteMissing', remote });
     }
-    return ok(entries.map((entry, i) => ({ path: entry.path, content: contents[i] ?? '' })));
+    const listed = await this.git(['ls-remote', '--heads', remote, `refs/heads/${branch}`]);
+    if (listed.ok && listed.value.trim() === '') {
+      await this.git(['update-ref', '-d', STORE_REF]);
+      return ok(null);
+    }
+    return err(gitFailed('fetch', error));
   }
 
   // ------------------------------------------------------------
@@ -322,15 +299,52 @@ export class GitDocumentStore implements DocumentStore {
     const local = new Map<string, Written>();
     for (const [key, value] of written) {
       const { collection } = parseKey(key);
-      (this.options.localCollections.includes(collection) ? local : remote).set(key, value);
+      (this.options.codec.localCollections.includes(collection) ? local : remote).set(key, value);
     }
     return { remote, local };
   }
 
-  /** 書き込みを先頭の上のコミットにして push する。成功すれば新しい先頭 */
+  /**
+   * 書き込みを先頭の上のコミットにして push する。成功すれば新しい先頭。
+   * push が通らなかったら取り直し、先頭が動いていれば `Rejected`（先を越された）、動いていなければ push の失敗を返す
+   */
   private async commitAndPush(
     message: string,
     writes: Map<string, Written>
+  ): Promise<Result<string, StoreError | PushRejected>> {
+    const parent = this.head ?? null;
+    const commit = await this.buildCommit(message, writes, parent);
+    if (isErr(commit)) return commit;
+    const sha = commit.value;
+
+    const pushed = await this.git([
+      'push',
+      '--porcelain',
+      this.options.remote,
+      `${sha}:refs/heads/${this.options.branch}`,
+    ]);
+    // 「既に最新」は、同じ親・同じ中身・同じ時刻のコミットを、ほかのプロセスが先に push したということ。
+    // 自分の書き込みが通ったとは読まず、通らなかったときと同じく取り直して見分ける
+    if (isErr(pushed) || isUpToDate(pushed.value)) {
+      const latest = await this.fetchHead();
+      if (isErr(latest)) return latest;
+      if (latest.value !== parent) return err({ type: 'Rejected', head: latest.value });
+      return err(
+        isErr(pushed)
+          ? gitFailed('push', pushed.error)
+          : { type: 'StoreGitFailed', operation: 'push', message: '置き場所の先頭が動いていません' }
+      );
+    }
+
+    await this.git(['update-ref', STORE_REF, sha]);
+    return ok(sha);
+  }
+
+  /** 一時の index で、`parent`（無ければ空）の上に書き込みを足したコミットを作る */
+  private async buildCommit(
+    message: string,
+    writes: Map<string, Written>,
+    parent: string | null
   ): Promise<Result<string, StoreError>> {
     const indexFile = path.join(
       this.options.localDir,
@@ -339,7 +353,6 @@ export class GitDocumentStore implements DocumentStore {
     const env = { GIT_INDEX_FILE: indexFile };
     try {
       fs.mkdirSync(this.options.localDir, { recursive: true });
-      const parent = this.head ?? null;
       const readTree = await this.git(
         parent === null ? ['read-tree', '--empty'] : ['read-tree', parent],
         { env }
@@ -365,27 +378,7 @@ export class GitDocumentStore implements DocumentStore {
         `chore(board): ${message}`,
       ]);
       if (isErr(commit)) return err(gitFailed('commit-tree', commit.error));
-      const sha = commit.value.trim();
-
-      const pushed = await this.git([
-        'push',
-        '--porcelain',
-        this.options.remote,
-        `${sha}:refs/heads/${this.options.branch}`,
-      ]);
-      if (isErr(pushed)) return err(gitFailed('push', pushed.error));
-      // 「既に最新」は、同じ親・同じ中身・同じ時刻のコミットを、ほかのプロセスが先に push したということ。
-      // 自分の書き込みが通ったとは読まず、先を越されたものとして取り直す
-      if (isUpToDate(pushed.value)) {
-        return err({
-          type: 'StoreGitFailed',
-          operation: 'push',
-          message: '既に同じコミットがあります',
-        });
-      }
-
-      await this.git(['update-ref', STORE_REF, sha]);
-      return ok(sha);
+      return ok(commit.value.trim());
     } finally {
       fs.rmSync(indexFile, { force: true });
     }
@@ -417,7 +410,7 @@ export class GitDocumentStore implements DocumentStore {
 
   private readLocal(): { collection: Collection; id: string; data: DocumentData }[] {
     const docs: { collection: Collection; id: string; data: DocumentData }[] = [];
-    for (const collection of this.options.localCollections) {
+    for (const collection of this.options.codec.localCollections) {
       const dir = path.join(this.options.localDir, collection);
       let names: string[];
       try {
@@ -469,13 +462,6 @@ export class GitDocumentStore implements DocumentStore {
     return result;
   }
 
-  private git(
-    args: readonly string[],
-    options: { env?: Record<string, string>; input?: string } = {}
-  ): ReturnType<CliRunner['run']> {
-    return this.options.runner.run('git', ['-C', this.options.repoDir, ...args], options);
-  }
-
   private requireWritten(): Map<string, Written> {
     if (this.written === null) throw new Error('書き込みは transact の中でだけ行えます');
     return this.written;
@@ -483,6 +469,12 @@ export class GitDocumentStore implements DocumentStore {
 }
 
 const ZERO_OBJECT = '0000000000000000000000000000000000000000';
+
+/** push が先を越された。`head` は取り直した置き場所の先頭 */
+interface PushRejected {
+  readonly type: 'Rejected';
+  readonly head: string | null;
+}
 
 function keyOf(collection: Collection, id: string): string {
   return `${collection}/${id}`;
@@ -498,66 +490,15 @@ export function isUpToDate(porcelain: string): boolean {
   return porcelain.split('\n').some((line) => line.startsWith('=\t'));
 }
 
-/** リモートの名前か（パスや URL でないか）。名前なら、リポジトリに設定があるかを先に確かめる */
+/** リモートの名前か（パスや URL でないか）。fetch に失敗したとき、名前ならリポジトリに設定があるかを確かめる */
 export function isRemoteName(remote: string): boolean {
   return /^[A-Za-z0-9._-]+$/.test(remote) && !remote.startsWith('.');
 }
 
-function gitFailed(operation: string, error: { readonly type: string }): StoreError {
-  const message =
-    'message' in error && typeof error.message === 'string' ? error.message : error.type;
-  return { type: 'StoreGitFailed', operation, message };
+function gitFailed(operation: string, error: CliError): StoreError {
+  return storeGitFailed(gitReadError(operation, error));
 }
 
-/**
- * `git cat-file --batch` の出力を、blob ごとの中身に分ける。
- * 見出しの大きさはバイト数なので、UTF-8 のバイト列に戻してから切り出す（置き場所のファイルは UTF-8 のテキスト）
- */
-export function parseCatFileBatch(output: string): string[] {
-  const bytes = Buffer.from(output, 'utf-8');
-  const contents: string[] = [];
-  let at = 0;
-  while (at < bytes.length) {
-    const newline = bytes.indexOf(0x0a, at);
-    if (newline < 0) break;
-    const header = bytes.subarray(at, newline).toString('utf-8').split(' ');
-    const size = Number(header[2]);
-    if (header[1] === 'missing' || !Number.isInteger(size)) {
-      contents.push('');
-      at = newline + 1;
-      continue;
-    }
-    contents.push(bytes.subarray(newline + 1, newline + 1 + size).toString('utf-8'));
-    at = newline + 1 + size + 1;
-  }
-  return contents;
-}
-
-/**
- * 文書を `<root>/<collection>/<id>.json` に置くコーデック。契約テストと、文書の形を問わない試しに使う
- */
-export function jsonFileCodec(root: string): DocumentFileCodec {
-  const prefix = `${root}/`;
-  return {
-    roots: [root],
-    isDocumentFile: (filePath) => filePath.startsWith(prefix) && filePath.endsWith('.json'),
-    toDocument(filePath, content) {
-      if (!filePath.startsWith(prefix) || !filePath.endsWith('.json')) return null;
-      const [collection, name, ...rest] = filePath.slice(prefix.length).split('/');
-      if (collection === undefined || name === undefined || rest.length > 0) return null;
-      const id = name.slice(0, -'.json'.length);
-      try {
-        return {
-          collection: collection as Collection,
-          id,
-          data: JSON.parse(content) as DocumentData,
-        };
-      } catch {
-        return null;
-      }
-    },
-    toFile(collection, id, data) {
-      return { path: `${prefix}${collection}/${id}.json`, content: `${JSON.stringify(data)}\n` };
-    },
-  };
+function storeGitFailed(error: GitReadError): StoreError {
+  return { type: 'StoreGitFailed', operation: error.operation, message: error.message };
 }

@@ -27,7 +27,6 @@ describe('resolvePaths', () => {
     const paths = resolvePaths(root);
 
     expect(paths.boardDir).toBe(path.join(root, '.ai-board'));
-    expect(paths.plansDir).toBe(path.join(root, '.ai-board', 'plans'));
   });
 
   it('相対パスを絶対パスにする', () => {
@@ -115,7 +114,6 @@ describe('ワークツリーでの置き場所', () => {
     const paths = resolvePaths(root, {});
 
     expect(paths.sharedBoardDir).toBe(path.join(root, '.ai-board'));
-    expect(paths.plansDir).toBe(path.join(root, '.ai-board', 'plans'));
   });
 
   it('リンクされたワークツリーでは、共有の置き場所をメインのチェックアウトに、計画をワークツリーに置く', async () => {
@@ -124,7 +122,6 @@ describe('ワークツリーでの置き場所', () => {
     const paths = resolvePaths(tree, {});
 
     expect(paths.sharedBoardDir).toBe(path.join(root, '.ai-board'));
-    expect(paths.plansDir).toBe(path.join(tree, '.ai-board', 'plans'));
   });
 
   it('リンクされたワークツリーでは、git に載せたワークツリー自身の config.yaml を読む', async () => {
@@ -161,7 +158,6 @@ describe('手元のディレクトリ', () => {
 
     expect(paths.localDir).toBe(path.join(root, '.ai-board', 'local'));
     expect(paths.repoDir).toBe(root);
-    expect(paths.storeSource).toBe('local');
     expect(paths.storeOverride).toBeNull();
   });
 
@@ -172,7 +168,6 @@ describe('手元のディレクトリ', () => {
 
     expect(paths.localDir).toBe(path.join(root, '.ai-board', 'local'));
     expect(paths.repoDir).toBe(root);
-    expect(paths.storeSource).toBe('main-checkout');
   });
 
   it('AI_BOARD_STORE があれば、それを置き場所のリポジトリにし、手元のファイルはその隣に置く（相対パスはカレントディレクトリから）', async () => {
@@ -182,11 +177,10 @@ describe('手元のディレクトリ', () => {
 
     expect(paths.storeOverride).toBe(path.resolve('dev-store.git'));
     expect(paths.localDir).toBe(`${path.resolve('dev-store.git')}.local`);
-    expect(paths.storeSource).toBe('env');
   });
 
   it('AI_BOARD_STORE が空なら無いものとして扱う', () => {
-    expect(resolvePaths(root, { AI_BOARD_STORE: '' }).storeSource).toBe('local');
+    expect(resolvePaths(root, { AI_BOARD_STORE: '' }).storeOverride).toBeNull();
   });
 
   it('AI_BOARD_STORE があっても、共有の .ai-board/ はメインのチェックアウトを指す', () => {

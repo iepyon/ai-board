@@ -3,16 +3,10 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { createCliRunner } from '../infrastructure/cli-runner.js';
-import { initialDocuments } from '../infrastructure/document-store.js';
 import type { LockOptions } from '../infrastructure/file-lock.js';
 import { GitDocumentStore } from '../infrastructure/git-document-store.js';
 import { cardFileCodec } from '../cards/repositories/card-file-codec.js';
-import {
-  EMPTY_ORDER,
-  ORDER_COLLECTION,
-  ORDER_ID,
-  orderDocumentData,
-} from '../cards/repositories/card-files.js';
+import { initialBoardDocuments } from '../cards/composition.js';
 
 // ============================================================
 // テストの置き場所 — 一時の bare リポジトリを置き場所のリモートにした GitDocumentStore
@@ -68,7 +62,6 @@ export function createGitStoreFixture(): GitStoreFixture {
         remote: bare,
         branch: 'main',
         localDir: options.localDir ?? localDir,
-        localCollections: ['snapshots', 'loop'],
         codec: cardFileCodec,
         runner,
         ...(options.lockOptions === undefined ? {} : { lockOptions: options.lockOptions }),
@@ -90,10 +83,7 @@ export function createGitStoreFixture(): GitStoreFixture {
 /** `ai-board store init` と同じ最初の文書（形の版と空の並び順）を書いた置き場所を開く */
 export async function initializedStore(fixture: GitStoreFixture): Promise<GitDocumentStore> {
   const store = fixture.open();
-  const result = await store.initialize([
-    ...initialDocuments(),
-    { collection: ORDER_COLLECTION, id: ORDER_ID, data: orderDocumentData(EMPTY_ORDER) },
-  ]);
+  const result = await store.initialize(initialBoardDocuments());
   if (!result.ok) throw new Error(`置き場所を始められません: ${result.error.type}`);
   const checked = await store.check();
   if (!checked.ok) throw new Error(`置き場所を読めません: ${checked.error.type}`);

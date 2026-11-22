@@ -4,6 +4,7 @@ import type { CardId } from '../../shared/schemas/common.js';
 import { hasCloseSection, type ImplStepPlan } from '../services/impl-step.js';
 import type { PlanDoc } from '../models/plan-state.js';
 import { countTasks } from './plan.repository.js';
+import { planFilePath } from '../../infrastructure/git-plan-tree.js';
 
 // ============================================================
 // カードのブランチの計画の読み取り（git show）
@@ -44,10 +45,6 @@ export interface BranchClosed {
   readonly closedAt: string;
 }
 
-function planPath(cardId: CardId): string {
-  return `.ai-board/cards/${cardId}/plan.md`;
-}
-
 /** 何も読まない読み手。ブランチの計画を読まない組み立て（テストなど）の既定 */
 export const emptyBranchPlanRepository: BranchPlanRepository = {
   find: () => Promise.resolve(null),
@@ -79,7 +76,7 @@ export class GitBranchPlanRepository implements BranchPlanRepository {
     const ref = await this.ref(branch);
     if (ref === null) return null;
 
-    const text = await this.show(ref, planPath(cardId));
+    const text = await this.show(ref, planFilePath(cardId));
     if (text === null) return null;
     return hasCloseSection(text) ? { location: 'closed' } : { location: 'active', text };
   }
@@ -88,7 +85,7 @@ export class GitBranchPlanRepository implements BranchPlanRepository {
     const ref = await this.ref(branch);
     if (ref === null) return null;
 
-    const file = planPath(cardId);
+    const file = planFilePath(cardId);
     const [text, log] = await Promise.all([
       this.show(ref, file),
       this.git(['log', '-1', '--format=%cI', ref, '--', file]),
@@ -108,7 +105,7 @@ export class GitBranchPlanRepository implements BranchPlanRepository {
     const ref = await this.ref(branch);
     if (ref === null) return null;
 
-    const file = planPath(cardId);
+    const file = planFilePath(cardId);
     const [text, log] = await Promise.all([
       this.show(ref, file),
       this.git(['log', '-1', '--format=%cI', ref, '--', file]),

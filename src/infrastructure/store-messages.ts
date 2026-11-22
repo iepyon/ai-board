@@ -27,7 +27,7 @@ export function describeStoreError(error: StoreError): string {
       return `置き場所の git の操作（${error.operation}）に失敗しました: ${error.message}`;
     case 'StorePushConflict':
       return (
-        `置き場所への push が ${error.attempts} 回とも通りませんでした（ほかの人が続けて書いているか、届かないか、権限がありません）。` +
+        `置き場所への push が ${error.attempts} 回とも先を越されました（ほかの人が続けて書いています）。` +
         'しばらくしてからやり直してください'
       );
     case 'StoreAlreadyInitialized':

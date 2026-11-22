@@ -150,10 +150,5 @@ export function describeDocumentStoreContract(
       expect(order).toEqual(['slow:start', 'slow:end', 'fast']);
       expect(store.get('cards', 'a')).toEqual({ n: 11 });
     });
-
-    it('pendingWrites は数を返す', async () => {
-      const store = await open();
-      expect(store.pendingWrites()).toBeGreaterThanOrEqual(0);
-    });
   });
 }

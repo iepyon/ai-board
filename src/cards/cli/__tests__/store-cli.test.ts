@@ -53,6 +53,7 @@ function deps(): StoreCliDependencies {
       return changedStoreFiles({
         runner: createCliRunner(),
         repoDir: fixture.repo,
+        storeHead: store.headCommit(),
         branch,
         isStoreFile: isStoreFilePath,
       });

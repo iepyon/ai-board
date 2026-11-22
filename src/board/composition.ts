@@ -7,8 +7,7 @@ import { PrFetcher, type PrFetcherOptions } from '../infrastructure/pr-fetcher.j
 import type { ForgeClient } from './services/forge-client.js';
 import { GhForgeClient } from './services/github-client.js';
 import { RefPlanRepository, type PlanRepository } from './repositories/plan.repository.js';
-import { readPlanFilesAtRef } from '../infrastructure/git-plan-tree.js';
-import { STORE_REF } from '../infrastructure/git-document-store.js';
+import { readPlanFilesAtCommit } from '../infrastructure/git-plan-tree.js';
 import type { PrSnapshotRepository } from './repositories/pr-snapshot.repository.js';
 import type { PrState } from './models/pr-state.js';
 import {
@@ -21,6 +20,7 @@ import {
   type BranchPlanRepository,
 } from './repositories/branch-plan.repository.js';
 import type { DocumentStore } from '../infrastructure/document-store.js';
+import type { GitDocumentStore } from '../infrastructure/git-document-store.js';
 import * as path from 'node:path';
 import {
   disabledPrStateProvider,
@@ -173,13 +173,14 @@ export interface AssembledBoard {
 
 /**
  * `status` と `decide` が使うボードの組み立て。置き場所は呼び出し側が読み込んでおく（`check`）。
+ * main の計画は、読み込んだ置き場所の先頭のコミット（`headCommit()`）から読む。
  *
  * PR の状態は`refresh()` を 1 回だけ待ってから読む。
  * `branch` から解決した PR 番号の書き戻しも、この `refresh()` の中で起きる。
  */
 export async function assembleBoard(
   root: string,
-  store: DocumentStore,
+  store: DocumentStore & Pick<GitDocumentStore, 'headCommit'>,
   runner: CliRunner
 ): Promise<AssembledBoard> {
   const config = loadConfig(root);
@@ -199,9 +200,9 @@ export async function assembleBoard(
     config.paths.root,
     config.store.branchRemote
   );
-  // main の計画は、check() が fetch した置き場所の参照から読む（作業ツリーは読まない）
+  // main の計画は、check() が fetch した置き場所の先頭のコミットから読む（作業ツリーは読まない）
   const mainPlans = new RefPlanRepository(() =>
-    readPlanFilesAtRef({ runner, repoDir: config.paths.repoDir, ref: STORE_REF })
+    readPlanFilesAtCommit({ runner, repoDir: config.paths.repoDir, commit: store.headCommit() })
   );
   const board = createBoardDependencies(
     mainPlans,

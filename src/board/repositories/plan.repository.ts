@@ -1,6 +1,6 @@
 import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
 import { isErr, type Result } from '../../shared/result.js';
-import { PLAN_FILE_PATTERN, type PlanFileAtRef } from '../../infrastructure/git-plan-tree.js';
+import { PLAN_FILE_PATTERN, type PlanFileAtCommit } from '../../infrastructure/git-plan-tree.js';
 import type { PlanDoc, PlanState, TaskProgress } from '../models/plan-state.js';
 import {
   COMPLETED_TASK_PATTERN,
@@ -29,7 +29,7 @@ export interface PlanRepository {
 }
 
 /** main の計画ファイルを読む口。読めなければ理由の文 */
-export type PlanFileSource = () => Promise<Result<readonly PlanFileAtRef[], string>>;
+export type PlanFileSource = () => Promise<Result<readonly PlanFileAtCommit[], string>>;
 
 export class RefPlanRepository implements PlanRepository {
   constructor(private readonly source: PlanFileSource) {}
@@ -55,7 +55,7 @@ export class RefPlanRepository implements PlanRepository {
  * 計画ファイル 1 つを読む。ディレクトリ名がカード ID として不正なら警告して読み飛ばす。
  * ここで例外を投げるとボード全体が読めなくなり、置き場所を間違えたファイル 1 つで `status` も `decide` も動かなくなる。
  */
-function toPlanDoc(file: PlanFileAtRef): PlanDoc | null {
+function toPlanDoc(file: PlanFileAtCommit): PlanDoc | null {
   const rawId = PLAN_FILE_PATTERN.exec(file.path)?.[1];
   const parsed = CardIdSchema.safeParse(rawId);
   if (!parsed.success) {

@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
 import { locateWorktree } from './git-worktree.js';
+import { isRemoteName } from './git-document-store.js';
 
 // ============================================================
 // ai-board の設定
@@ -10,7 +11,6 @@ import { locateWorktree } from './git-worktree.js';
 
 export const BOARD_DIR = '.ai-board';
 export const CONFIG_FILE = 'config.yaml';
-export const PLANS_DIR = 'plans';
 /** git に載せない各自のファイル（PR の控え・ループの記録・ロック・ボードの HTML）を置くディレクトリ（`sharedBoardDir` の下） */
 export const LOCAL_DIR = 'local';
 /**
@@ -70,12 +70,8 @@ export interface BoardPaths {
   readonly repoDir: string;
   /** git に載せない各自のファイルのディレクトリ。既定は `sharedBoardDir` の下の local/ */
   readonly localDir: string;
-  /** 置き場所のリモートをどう決めたか（`env` なら `AI_BOARD_STORE` のリポジトリ） */
-  readonly storeSource: 'local' | 'main-checkout' | 'env';
   /** `AI_BOARD_STORE` で指した置き場所のリポジトリ。指していなければ null */
   readonly storeOverride: string | null;
-  /** .ai-board/plans/（git でブランチに乗るので、常に `root` の下） */
-  readonly plansDir: string;
 }
 
 export interface AppConfig {
@@ -109,7 +105,6 @@ export function resolvePaths(root: string, env: NodeJS.ProcessEnv = process.env)
   const boardDir = path.join(absoluteRoot, BOARD_DIR);
   const sharedBoardDir = resolveSharedBoardDir(absoluteRoot, boardDir);
   const storeFromEnv = env[STORE_ENV] ?? '';
-  const sharedSource = sharedBoardDir !== boardDir ? 'main-checkout' : 'local';
 
   const storeOverride = storeFromEnv !== '' ? path.resolve(storeFromEnv) : null;
 
@@ -120,9 +115,7 @@ export function resolvePaths(root: string, env: NodeJS.ProcessEnv = process.env)
     repoDir: path.dirname(sharedBoardDir),
     localDir:
       storeOverride !== null ? `${storeOverride}.local` : path.join(sharedBoardDir, LOCAL_DIR),
-    storeSource: storeOverride !== null ? 'env' : sharedSource,
     storeOverride,
-    plansDir: path.join(boardDir, PLANS_DIR),
   };
 }
 
@@ -174,9 +167,19 @@ export function loadConfig(root: string, env: NodeJS.ProcessEnv = process.env): 
     store: {
       remote: paths.storeOverride ?? parsed.data.store?.remote ?? DEFAULT_STORE_REMOTE,
       branch: parsed.data.store?.branch ?? DEFAULT_STORE_BRANCH,
-      branchRemote: parsed.data.store?.remote ?? DEFAULT_STORE_REMOTE,
+      branchRemote: branchRemoteOf(parsed.data.store?.remote),
     },
   };
+}
+
+/**
+ * カードのブランチを追うリモートの名前。`store.remote` がリモートの名前ならそれ、パスや URL なら既定（`origin`）。
+ * `refs/remotes/<名前>/` に埋め込むので、名前でない値は使わない
+ */
+function branchRemoteOf(remote: string | null | undefined): string {
+  return remote !== null && remote !== undefined && isRemoteName(remote)
+    ? remote
+    : DEFAULT_STORE_REMOTE;
 }
 
 function toForgeConfig(data: z.infer<typeof ConfigFileSchema>): ForgeConfig | null {

@@ -1,9 +1,22 @@
 import type { AppConfig } from '../infrastructure/config.js';
-import { err, isErr, ok } from '../shared/result.js';
+import { err, isErr, ok, type Result } from '../shared/result.js';
 import { createCliRunner } from '../infrastructure/cli-runner.js';
-import type { DocumentStore } from '../infrastructure/document-store.js';
+import {
+  initialDocuments,
+  type Collection,
+  type DocumentData,
+  type DocumentStore,
+  type StoreError,
+} from '../infrastructure/document-store.js';
 import { GitDocumentStore } from '../infrastructure/git-document-store.js';
-import { cardFileCodec } from './repositories/card-file-codec.js';
+import { changedStoreFiles, type BranchCheckError } from '../infrastructure/git-branch-check.js';
+import { cardFileCodec, isStoreFilePath } from './repositories/card-file-codec.js';
+import {
+  EMPTY_ORDER,
+  ORDER_COLLECTION,
+  ORDER_ID,
+  orderDocumentData,
+} from './repositories/card-files.js';
 import type { PrNumberWriter } from '../infrastructure/pr-fetcher.js';
 import type { CardRepository } from './repositories/card.repository.js';
 import type { IdeaDividerRepository } from './repositories/idea-divider.repository.js';
@@ -163,10 +176,51 @@ export function createBoardStore(config: AppConfig): GitDocumentStore {
     remote: config.store.remote,
     branch: config.store.branch,
     localDir: config.paths.localDir,
-    localCollections: ['snapshots', 'loop'],
     codec: cardFileCodec,
-    runner: createCliRunner({ timeoutMs: STORE_TIMEOUT_MS, maxBuffer: STORE_MAX_BUFFER }),
+    runner: createStoreRunner(),
   });
+}
+
+function createStoreRunner(): ReturnType<typeof createCliRunner> {
+  return createCliRunner({ timeoutMs: STORE_TIMEOUT_MS, maxBuffer: STORE_MAX_BUFFER });
+}
+
+/** 空の置き場所に書く最初の文書（形の版と、空の並び順）。`ai-board store init` が書く */
+export function initialBoardDocuments(): readonly {
+  collection: Collection;
+  id: string;
+  data: DocumentData;
+}[] {
+  return [
+    ...initialDocuments(),
+    { collection: ORDER_COLLECTION, id: ORDER_ID, data: orderDocumentData(EMPTY_ORDER) },
+  ];
+}
+
+/** `ai-board store` の `init` と `check-branch` の口 */
+export interface StoreCliParts {
+  readonly initialize: () => Promise<Result<void, StoreError>>;
+  readonly checkBranch: (
+    branch: string
+  ) => Promise<Result<readonly string[], StoreError | BranchCheckError>>;
+}
+
+/** `ai-board store` の口を組む。`check-branch` は置き場所を読み込んでから、その先頭とブランチの差分を見る */
+export function createStoreCliParts(config: AppConfig, store: GitDocumentStore): StoreCliParts {
+  return {
+    initialize: () => store.initialize(initialBoardDocuments()),
+    checkBranch: async (branch) => {
+      const checked = await store.check();
+      if (isErr(checked)) return checked;
+      return changedStoreFiles({
+        runner: createStoreRunner(),
+        repoDir: config.paths.repoDir,
+        storeHead: store.headCommit(),
+        branch,
+        isStoreFile: isStoreFilePath,
+      });
+    },
+  };
 }
 
 function assemble(

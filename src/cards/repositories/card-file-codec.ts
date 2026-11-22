@@ -1,11 +1,12 @@
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import type { DocumentFileCodec } from '../../infrastructure/git-document-store.js';
 import { META_COLLECTION, META_ID } from '../../infrastructure/document-store.js';
+import { BOARD_DIR } from '../../infrastructure/config.js';
+import { CARDS_ROOT } from '../../infrastructure/git-plan-tree.js';
 import { CardIdSchema } from '../../shared/schemas/common.js';
 import {
   CARD_COLLECTION,
   CARD_FILE,
-  CARDS_DIR,
   LOG_COLLECTION,
   LOG_DIR,
   ORDER_COLLECTION,
@@ -39,12 +40,10 @@ import {
  * 計画（`cards/<id>/plan.md`）は置き場所の文書ではないので読まない（カードのブランチから PR でマージされる）。
  * 読めないファイルは警告して読み飛ばす（1 枚でボード全体を止めない）。
  */
-export const BOARD_ROOT = '.ai-board';
-export const BOARD_META_FILE = 'board.yaml';
-
-const META_PATH = `${BOARD_ROOT}/${BOARD_META_FILE}`;
-const ORDER_PATH = `${BOARD_ROOT}/${ORDER_FILE}`;
-const CARDS_PATH = `${BOARD_ROOT}/${CARDS_DIR}`;
+const META_PATH = `${BOARD_DIR}/board.yaml`;
+const ORDER_PATH = `${BOARD_DIR}/${ORDER_FILE}`;
+/** `card-files.ts` の `CARDS_DIR` と、計画の読み取りの `CARDS_ROOT` は同じディレクトリを指す */
+const CARDS_PATH = CARDS_ROOT;
 
 /** 置き場所のファイルか（`board.yaml`・`order.yaml`・`card.md`・`log/` の下）。カードのブランチの検査に使う */
 export function isStoreFilePath(filePath: string): boolean {
@@ -56,6 +55,7 @@ export function isStoreFilePath(filePath: string): boolean {
 
 export const cardFileCodec: DocumentFileCodec = {
   roots: [META_PATH, ORDER_PATH, CARDS_PATH],
+  localCollections: ['snapshots', 'loop'],
   isDocumentFile: isStoreFilePath,
 
   toDocument(filePath, content) {

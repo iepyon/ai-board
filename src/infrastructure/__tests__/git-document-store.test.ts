@@ -6,14 +6,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { err, ok } from '../../shared/result.js';
 import { createCliRunner, type CliRunner } from '../cli-runner.js';
 import { initialDocuments } from '../document-store.js';
-import {
-  GitDocumentStore,
-  STORE_REF,
-  isRemoteName,
-  isUpToDate,
-  jsonFileCodec,
-  parseCatFileBatch,
-} from '../git-document-store.js';
+import { GitDocumentStore, STORE_REF, isRemoteName, isUpToDate } from '../git-document-store.js';
+import { parseCatFileBatch } from '../git-objects.js';
+import { jsonFileCodec } from './json-file-codec.js';
 import { describeDocumentStoreContract } from './document-store.contract.js';
 
 const dirs: string[] = [];
@@ -66,7 +61,6 @@ function makeStore(
     remote,
     branch: 'main',
     localDir: path.join(path.dirname(repoDir), `local-${path.basename(repoDir)}`),
-    localCollections: ['snapshots', 'loop'],
     codec: jsonFileCodec('.ai-board'),
     runner: storeRunner,
   });
@@ -211,6 +205,27 @@ describe('GitDocumentStore', () => {
     expect(result).toEqual(ok(2));
     expect(git(bare, 'show', 'main:.ai-board/order/order.json')).toBe('{"ranks":{"a":1}}\n');
     expect(git(bare, 'show', 'main:.ai-board/cards/b.json')).toBe('{"sawOrder":true}\n');
+  });
+
+  it('置き場所が push を断ったら（権限・保護など。先頭は動いていない）、やり直さずに push の失敗を返す', async () => {
+    const bare = bareRepo();
+    const store = await initializedStore(bare);
+    await store.check();
+    const hook = path.join(bare, 'hooks', 'pre-receive');
+    fs.writeFileSync(hook, '#!/bin/sh\necho 保護されています >&2\nexit 1\n');
+    fs.chmodSync(hook, 0o755);
+
+    let calls = 0;
+    const result = await store.transact('書く', () => {
+      calls++;
+      store.set('cards', 'a', { title: 'A' });
+      return Promise.resolve(ok(undefined));
+    });
+
+    expect(calls).toBe(1);
+    expect(result.ok).toBe(false);
+    if (!result.ok)
+      expect(result.error).toMatchObject({ type: 'StoreGitFailed', operation: 'push' });
   });
 
   it('git に載せないコレクションだけの書き込みでは push せず、手元のファイルに書く', async () => {

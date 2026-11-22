@@ -2,20 +2,12 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { BOARD_DIR, loadConfig } from './infrastructure/config.js';
 import { createCliRunner } from './infrastructure/cli-runner.js';
-import { createBoardStore, createCardCliParts } from './cards/composition.js';
-import {
-  CARD_COLLECTION,
-  EMPTY_ORDER,
-  ORDER_COLLECTION,
-  ORDER_ID,
-  orderDocumentData,
-} from './cards/repositories/card-files.js';
-import { isStoreFilePath } from './cards/repositories/card-file-codec.js';
+import { createBoardStore, createCardCliParts, createStoreCliParts } from './cards/composition.js';
+import { CARD_COLLECTION } from './cards/repositories/card-files.js';
 import { runCardCli, type CardCliIo } from './cards/cli/card-cli.js';
 import { SEED_ORDER_FILE, type SeedFile } from './cards/cli/seed-cards.js';
 import { runStoreCli } from './cards/cli/store-cli.js';
-import { initialDocuments, type DocumentStore } from './infrastructure/document-store.js';
-import { changedStoreFiles } from './infrastructure/git-branch-check.js';
+import type { DocumentStore } from './infrastructure/document-store.js';
 import { describeStoreError } from './infrastructure/store-messages.js';
 import { assembleBoard } from './board/composition.js';
 import { parseStatusArgs, runStatusCli, STATUS_USAGE } from './board/cli/status-cli.js';
@@ -23,7 +15,7 @@ import { isPrCommand, runPrCli } from './board/cli/pr-cli.js';
 import { runLoopCli } from './board/cli/loop-cli.js';
 import { DECIDE_USAGE, isDecideCommand, runDecideCli } from './board/cli/decide-cli.js';
 import { readMtimeMs, runDistCheckCli } from './infrastructure/dist-check-cli.js';
-import { err, isErr, ok, type Result } from './shared/result.js';
+import { err, ok, type Result } from './shared/result.js';
 import { CardIdSchema } from './shared/schemas/common.js';
 
 // ============================================================
@@ -91,23 +83,9 @@ async function runStore(argv: readonly string[]): Promise<number> {
   return runStoreCli(
     rest,
     {
-      initialize: () =>
-        store.initialize([
-          ...initialDocuments(),
-          { collection: ORDER_COLLECTION, id: ORDER_ID, data: orderDocumentData(EMPTY_ORDER) },
-        ]),
+      ...createStoreCliParts(config, store),
       runSeed: (dir) => runCard(['seed', '--from', dir, '--root', root]),
       seedDir: path.join(root, BOARD_DIR, SEED_DIR),
-      checkBranch: async (branch) => {
-        const checked = await store.check();
-        if (isErr(checked)) return checked;
-        return changedStoreFiles({
-          runner: createCliRunner(),
-          repoDir: config.paths.repoDir,
-          branch,
-          isStoreFile: isStoreFilePath,
-        });
-      },
     },
     io
   );
