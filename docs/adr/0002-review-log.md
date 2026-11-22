@@ -22,7 +22,7 @@
 - CLI・AI・人が同じ場所を読み書きし、差し戻しの理由が AI の次の手の入力になる。
 - 判断を増やせる口は `appendReview` だけになり、理由に何を書いても判断は 1 件しか増えない。
 - `status --json` のカードは判断を `reviews` として本文と分けて持つ。
-- 置き場所はファイル → SQLite → データ用ブランチの `log/` → Artifact の DB の `log`（[20](0020-cards-in-artifact-db.md)）と移ったが、読み方は変わっていない。
+- 置き場所はファイル → SQLite → データ用ブランチの `log/` → Artifact の DB の `log` → main の `.ai-board/cards/<id>/log/`（[21](0021-cards-as-markdown-on-main.md)）と移ったが、読み方は変わっていない。
 
 ## 退けた案
 

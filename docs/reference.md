@@ -12,7 +12,7 @@ npm install
 npm run build
 ```
 
-サブコマンドは `card`（カードの読み書き）・`status`・`store`（置き場所の写しと送る箱）・`pr`（`gh api` の REST での PR の読み書き）・`decide`（人の判断）・`loop`（ループの 1 手の記録）・`dist-check`（`dist/` が HEAD より古ければ 1）。
+サブコマンドは `card`（カードの読み書き）・`status`・`store`（置き場所を始める・seed を入れる・カードのブランチを検査する）・`pr`（`gh api` の REST での PR の読み書き）・`decide`（人の判断）・`loop`（ループの 1 手の記録）・`dist-check`（`dist/` が HEAD より古ければ 1）。
 細部は `ai-board --help` と `ai-board <command> --help` で見る。常駐するサーバは無い（[ADR 0017](adr/0017-remove-web-and-server.md)）。
 `--root` で別のプロジェクトを指せるのは CLI だけで、チャットのスキル（`board-loop` / `board-decide` / `board-view`）は ai-board のリポジトリのメインのチェックアウトの `dist/cli.js` を動かす。
 
@@ -21,7 +21,7 @@ npm run build
 `ai-board status` は人向けの数行を、`status --json [--active] [--only <項目,...>]` はループや手順書が読む JSON を出す。
 人向けの形は「GitHub:」「ループ:」の行・判断待ち・AI 作業中・次の一手を出し、JSON はそれに全カード（`cards`）とアイデアの表（`ideas`）を足す。
 `--active` を付けると、`cards` からマージ済みと中止のカードを外す。
-チャットで「ボードを見せて」と頼むと、`board-view` のスキルが判断待ち・AI 作業中・アイデアを 1 枚のページにして Artifact で公開する（中身は `status --json --active`。頼んだ時点の写し）。
+チャットで「ボードを見せて」と頼むと、`board-view` のスキルが判断待ち・AI 作業中・アイデアを 1 枚のページにして `.ai-board/local/board.html` に書き出す（中身は `status --json --active`。頼んだ時点の写し）。ブラウザで開いて見る。
 
 - **判断待ち（`waiting`）:** 計画レビュー / PR中 と、止まっているカード。待ち始めの古い順で、止まった理由と出せる判断（`decisions`）が付く
 - **AI 作業中（`working`）:** 計画提案中 / 実装中（止まっているものを除く）と、人の指摘に AI が応える番の PR中（先頭）。`rank` の順。
@@ -32,17 +32,17 @@ npm run build
 
 上から評価し、最初に真になったもの（＝最も進んだステージ）を採る。手動で上書きする仕組みは無い（`src/board/services/stage-resolver.ts`）。
 
-| #   | stage         | 条件                                                                 |
-| --- | ------------- | -------------------------------------------------------------------- |
-| 1   | `merged`      | 計画が `.ai-board/plans/archive/` にある、**または** PR が merged    |
-| 2   | `pr`          | PR が存在し opened、かつ Draft でない                                |
-| 3   | `impling`     | plan ゲート通過済み                                                  |
-| 4   | `plan-review` | `.ai-board/plans/<id>.md` か Draft の PR があり、plan ゲートが未判断 |
-| 5   | `planning`    | `startedAt` が非 null                                                |
-| 6   | `idea`        | 既定                                                                 |
+| #   | stage         | 条件                                                                       |
+| --- | ------------- | -------------------------------------------------------------------------- |
+| 1   | `merged`      | main に `.ai-board/cards/<id>/plan.md` がある、**または** PR が merged     |
+| 2   | `pr`          | PR が存在し opened、かつ Draft でない                                      |
+| 3   | `impling`     | plan ゲート通過済み                                                        |
+| 4   | `plan-review` | Draft の PR（未設定のボードではブランチの計画）があり、plan ゲートが未判断 |
+| 5   | `planning`    | `startedAt` が非 null                                                      |
+| 6   | `idea`        | 既定                                                                       |
 
 計画と実装は 1 本の PR に載る。AI は計画をコミットした時点で Draft の PR を出し、人はそれを読んで承認か差し戻しをする。
-実装と AI レビューを終えた AI は、CI が通るのを確かめ（PR で走るチェックが無ければそのまま進む）、動かした手順と結果を PR の本文の `## 動作確認の結果` に書き、計画を archive して Ready にする。
+実装と AI レビューを終えた AI は、CI が通るのを確かめ（PR で走るチェックが無ければそのまま進む）、動かした手順と結果を PR の本文の `## 動作確認の結果` に書き、計画の末尾に `## 締め` の節を足して Ready にする。
 実装中の PR も Draft だが、plan が承認済みなので 3 で決まり、計画レビューへは巻き戻らない。
 **差し戻しに専用のルールは無い。** ゲートが差し戻し中ならレビュー行と承認行が両方外れ、手前の列へ自然に落ちる。
 
@@ -101,15 +101,22 @@ frontmatter の `skipGates` に `plan` を入れると、AI の 提出 / 再提�
 
 ## カード
 
-カードの正本は、ボードのページの Artifact の DB にある（URL は `.ai-board/config.yaml` の `store.url`。[ADR 0020](adr/0020-cards-in-artifact-db.md)）。
-文書は `cards/<id>`（カード）・`log/<id>.<時刻>.<gate>.<種別>`（判断 1 件）・`order/order`（並び順と区切り線）・`snapshots/<id>`（マージ済みの PR の控え）・`loop/<時刻>.<ループ>`（1 手の記録）・`board/meta`（形の版）。
-置き場所の文書は書き換えず、変えるたびに `<ID>~<6 桁の連番>` の改訂を足し、読むときは最新を使う。
+カードの正本は、置き場所のブランチ（既定は `origin` の `main`。`.ai-board/config.yaml` の `store.remote` / `store.branch`）の `.ai-board/` のファイルにある（[ADR 0021](adr/0021-cards-as-markdown-on-main.md)）。
 
-CLI（node）は DB に届かないので、手元の写し（メインのチェックアウトの `.ai-board/store/mirror/`）を読み、書き込みは「ロック → 写しを読み直す → 検査する → 写しに改訂を足す → 送る箱に積む」を 1 操作で行う。
-DB との行き来は Claude が `board-store` のスキルで行う。`ArtifactData` の `list` の `out_dir` を `ai-board store pull` で写しに取り込み（`out_dir` がファイル名の `~` を `@` にした名前もそのまま読む）、`ai-board store outbox --json` を `ArtifactData` の `batch` で送る。
-2 つの端末が同じ改訂を作ると、後から送った `batch` が丸ごと拒まれる。そのときは `store discard` → 取り込み直し → 元のコマンドのやり直し、で最新に対して検査し直す。
-DB への書き込みは人がいる会話のセッションで行い、セッションの最初の 1 回は人が承認する（ヘッドレスや人のいない定期実行からは送れない）。
-リンクされたワークツリーから動かしても、写しと送る箱は共有する。`ai-board card show <id>` は次の形で出す。
+```
+.ai-board/board.yaml                              形の版
+.ai-board/order.yaml                              並び順とアイデアの区切り線
+.ai-board/cards/<id>/card.md                      カード（frontmatter と本文。`## レビュー` は持たない）
+.ai-board/cards/<id>/log/<時刻>.<gate>.<種別>.md  判断・着手 1 件（中身は理由）
+.ai-board/cards/<id>/plan.md                      計画（カードのブランチ → PR でマージ）
+.ai-board/local/                                  git に載せない。マージ済みの PR の控え・ループの記録・ロック・ボードの HTML
+```
+
+CLI は読むたびに置き場所を専用の参照（`refs/ai-board/store`）へ fetch し、`board.yaml`・`order.yaml`・`cards/` を読む。
+書き込みは「ロック → 検査する → 一時の index でその参照の上にコミットを作る → push する」を 1 操作で行い、メインのチェックアウトの作業ツリー・index・今のブランチには触らない。
+2 つの PC が続けて書いて push が先を越されたら、取り直した置き場所の上で検査からやり直す（3 回まで）。判断は 1 件 1 ファイルなので、同じカードへの判断が重なっても両方残る。
+置き場所のファイルを変えない書き込み（ループの記録・マージ済みの PR の控えだけ）は push しない。それらは各 PC の手元に置き、共有しない（控えが無ければ GitHub から引き直す）。
+リンクされたワークツリーから動かしても、手元のファイルはメインのチェックアウトのものを共有する。`ai-board card show <id>` は次の形で出す。
 
 ```markdown
 ---
@@ -128,8 +135,8 @@ rank: 1500 # 並び順。小さいほど上。並べ替えたときだけ書か�
 ## レビュー
 ```
 
-エージェントは `ai-board card`（本文・ブランチ・提出・保留だけ。コマンドは `CLAUDE.md`）で、人は `ai-board decide` で書く。写し・送る箱のファイルを直接書き換えない。
-ボードの置き場所へ `ArtifactData` で書けるのは、送る箱を指す版なしの `set` だけの `batch` に限る（`.claude/settings.json` の hook `scripts/artifact-data-guard.mjs`）。
+エージェントは `ai-board card`（本文・ブランチ・提出・保留だけ。コマンドは `CLAUDE.md`）で、人は `ai-board decide` で書く。置き場所のファイルを直接書き換えない。
+カードのブランチは置き場所のファイルを変えない。ループは push の前に `ai-board store check-branch <branch>` で確かめる（分岐点からの差分で見る）。
 
 ### 人の判断
 
@@ -153,7 +160,8 @@ ai-board decide move-divider --after <ref> --before <ref>   # 区切り線を動
 
 ## 計画ファイル
 
-`.ai-board/plans/<card-id>.md` がそのカードの計画で、**ファイル名がカード ID と一致することで紐付く。** 書くのは AI で、CLI は read-only に扱う。
+`.ai-board/cards/<card-id>/plan.md` がそのカードの計画で、**ディレクトリ名がカード ID と一致することで紐付く。** 書くのは AI で、CLI は read-only に扱う。
+計画はカードのブランチに載り、PR のマージでだけ main に入る。**main（置き場所の参照）に計画があればマージ済み**で、CLI は作業ツリーではなくその参照から読む。
 
 ```markdown
 # リフレッシュトークン対応
@@ -172,19 +180,19 @@ ai-board decide move-divider --after <ref> --before <ref>   # 区切り線を動
 ```
 
 チェックボックスはタスクの進み（`plan.tasks`）になるが、**ステージは立てない。** コードブロックの中のチェックボックスは数えない。
-**計画ファイルが存在するだけで計画レビューの列が立つ**（人待ちを取りこぼさないための保険）。
-`config.yaml` に `github:` が無い（未設定）ボードでは、Draft の PR の代わりにカードのブランチの計画を読んで計画レビューを立てる。ループの計画の手は push と PR を飛ばすので、人は `git show <branch>:.ai-board/plans/<id>.md` で計画を読む。
-承認の後も、実装の手と AI レビューは push と PR を飛ばしてブランチにコミットするだけで進む。締めの段は CI を確かめず、動作確認の結果などを PR の本文の代わりに計画の末尾に書いて archive する。
-締めの後のカードは 実装中 のままマージ待ちの止まりとして判断待ちに出る。人がメインのチェックアウト（`main`）で次を打つとマージ済みになる（AI はマージしない）。
+**計画の成果物（Draft の PR、未設定のボードではカードのブランチの計画）が存在するだけで計画レビューの列が立つ**（人待ちを取りこぼさないための保険）。
+`config.yaml` に `github:` が無い（未設定）ボードでは、Draft の PR の代わりにカードのブランチの計画を読んで計画レビューを立てる。ループの計画の手は push と PR を飛ばすので、人は `git show <branch>:.ai-board/cards/<id>/plan.md` で計画を読む。
+承認の後も、実装の手と AI レビューは push と PR を飛ばしてブランチにコミットするだけで進む。締めの段は CI を確かめず、動作確認の結果などを PR の本文の代わりに計画の末尾の `## 締め` の節の下に書く。
+締めの後のカードは 実装中 のままマージ待ちの止まりとして判断待ちに出る。人が `main` で次を打つとマージ済みになる（AI はマージしない）。
 
 ```bash
-git show <branch>:.ai-board/plans/archive/<id>.md   # 動作確認の結果を読む
-git diff main...<branch>                             # 差分を読む
-git merge --no-ff <branch>                           # マージする
+git show <branch>:.ai-board/cards/<id>/plan.md   # 動作確認の結果を読む
+git diff main...<branch>                         # 差分を読む
+git merge --no-ff <branch> && git push           # マージして置き場所のブランチに入れる
 ```
 
 締めの段の AI は `## 動作確認の手順` をもとに動かし、「確かめたこと / コマンド / 結果」の表を PR の本文に書く。
-`ai-board pr checks <n> --wait` で CI を確かめ（赤なら 2 回まで直す。チェックが 1 つも無ければ `none` でそのまま進み、表の CI の行は `走らせていない` にする）、同じ PR の中で計画を `plans/archive/` へ移して Ready にする。マージで archive も main に入る。
+`ai-board pr checks <n> --wait` で CI を確かめ（赤なら 2 回まで直す。チェックが 1 つも無ければ `none` でそのまま進み、表の CI の行は `走らせていない` にする）、同じ PR の中で計画に `## 締め` の節を足して Ready にする。マージで計画が main に入り、マージ済みになる。
 
 ## AI ループ
 
@@ -198,17 +206,17 @@ git merge --no-ff <branch>                           # マージする
 | `implement`   | 実装中で、止まっていない         | `next.step` の段を進める（下の表）                                                |
 | `fix-pr`      | PR中 で、人の指摘に応える番      | Ready のまま修正を push するか、直すものが無い理由を `ai-board pr comment` で返信 |
 
-| 計画の状態                             | `next.step` | すること                                                                      |
-| -------------------------------------- | ----------- | ----------------------------------------------------------------------------- |
-| 未チェックのタスクがある               | `task`      | 残りの節を上から倒し、節ごとにコミットする                                    |
-| 全部倒れていて `## AI レビュー` が無い | `review`    | `board-reviewer` のサブエージェントが指摘を計画の末尾に書く。コードは直さない |
-| `## AI レビュー` がある / archive 済み | `close`     | 動かして確かめ、PR の本文に結果を書き、計画を archive して Ready にする       |
-| 読めなかった                           | `null`      | ワークツリーで計画を読んで判断する。レビューの段なら止まる                    |
+| 計画の状態                                 | `next.step` | すること                                                                          |
+| ------------------------------------------ | ----------- | --------------------------------------------------------------------------------- |
+| 未チェックのタスクがある                   | `task`      | 残りの節を上から倒し、節ごとにコミットする                                        |
+| 全部倒れていて `## AI レビュー` が無い     | `review`    | `board-reviewer` のサブエージェントが指摘を計画の末尾に書く。コードは直さない     |
+| `## AI レビュー` がある / `## 締め` がある | `close`     | 動かして確かめ、PR の本文に結果を書き、計画に `## 締め` の節を足して Ready にする |
+| 読めなかった                               | `null`      | ワークツリーで計画を読んで判断する。レビューの段なら止まる                        |
 
 - 実装を書いたセッションが自分の差分を審査しないよう、AI レビューだけを別の文脈に切り分ける（[ADR 0011](adr/0011-loop-single-session.md)）
 - 止まっているカード・計画レビューのカードには触らない。GitHub に接続できないときは何もせずに止まる（`github:` が無い未設定のボードは止まらず、push と PR を飛ばし、締めの後のマージ待ちまで進む）
 - 手を終えたら同じ手番で次の手へ進み、`止まった`・失敗・`next` が null で終える。同じ手で止まり続けるカードには `止まった ×N` の印が付く
-- 1 手ごとに `ai-board loop start` / `finish` で置き場所の `loop` に記録を残す。記録は表示にだけ使う（[ADR 0014](adr/0014-loop-step-record.md)）
+- 1 手ごとに `ai-board loop start` / `finish` で手元の `.ai-board/local/` に記録を残す。記録は表示にだけ使い、ほかの PC とは共有しない（[ADR 0014](adr/0014-loop-step-record.md)）
 
 ### ループの許可ルール
 
@@ -216,66 +224,42 @@ git merge --no-ff <branch>                           # マージする
 
 - **`allow`:** `main` 以外への `git push --force-with-lease origin <branch>`、カードのワークツリーの中の取り消し（`checkout -- .` / `clean -fd`）
 - **`ask`:** `git reset --hard`、`git branch -D` / `-d`、`git worktree remove`
-- **`deny`:** 置き場所の写しと送る箱（`.ai-board/store/`）の編集、データ用ブランチ（消すまで）の編集と push、`main` への push、`--force` / `-f` / `+` の force push、`--mirror` の push、
+- **`deny`:** 置き場所のファイル（`.ai-board/cards/*/card.md`・`log/`・`order.yaml`・`board.yaml`）の編集、データ用ブランチ（消すまで）の編集と push、
+  Bash からの `main` への push（main へのコミットは `ai-board` の CLI の書き込みだけが作る）、`--force` / `-f` / `+` の force push、`--mirror` の push、
   メインのチェックアウトの `.claude/settings*.json` の編集
-- **hook:** `ArtifactData` の `PreToolUse` で、ボードの置き場所への書き込みを送る箱の `batch` だけに限る
 
 許可ルールは前方一致で迂回できる**事故よけの保険で、境界そのものではない。** 境界は `ai-board card` の構造と手順書の決まりに置く。
-`main` にはブランチ保護（直接の push と force push の禁止）を入れることを勧める。
+`main` には force push の禁止を入れることを勧める。カードの書き込みは CLI が `main` へ直接 push するので、PR 必須の保護は入れない（ADR 0021）。
 
 ### クラウドのセッション・Windows
 
-- クラウド: clone して `board-store` で取り込めばカードが見える。まず `npm ci && npm run build` で `dist/` を作り、会話で `/loop 5m /board-loop` を回し、判断は会話で頼む。
+- クラウド: clone すればカードが見える（CLI が置き場所を fetch する）。カードの書き込みには、そのセッションから `main` へ push できる必要がある。まず `npm ci && npm run build` で `dist/` を作り、会話で `/loop 5m /board-loop` を回し、判断は会話で頼む。
   GraphQL が 403 になる（`gh pr` が動かない）ので、手順書は `ai-board pr ...` を使う。ブランチを消せないので「Automatically delete head branches」を有効にしておく
 - Windows: Git Bash で回せる（PowerShell / cmd は想定しない）。`jq` の代わりに `status --json --only` を使い、改行は `.gitattributes` で LF に揃える。テストは Windows を対象にしていない
 
 ## GitHub との接続
 
-設定は git に載せた `.ai-board/config.yaml`（`github.repository` と `store.url`）から読む。fork したら 2 行を自分のものに書き換える（`store.url` は元のリポジトリの持ち主にしか開けないので、`null` に戻してから `board-store` の「最初の用意」で作る）。
+設定は git に載せた `.ai-board/config.yaml`（`github.repository` と `store`）から読む。fork したら `github.repository` を自分のものに書き換える。カードの置き場所は既定で `origin` の `main` なので、fork の中に作られる。
 アクセストークンは受け取らず、問い合わせは `gh api` で行う（認証は `gh auth login` に委ねる）。
-使えないときは連携が無効になり、理由が `status` の「GitHub:」の行に出る。使えないあいだも、マージ済みの PR は置き場所の控えで出る（リンクと Ready・マージの時刻、区間の時間）。マージ前の PR は出さず、次の一手と判断も止まる。問い合わせるのは `branch` か `pr` のあるカードだけで、中止のカードの PR は一度控えを取った後は引き直さない。
+使えないときは連携が無効になり、理由が `status` の「GitHub:」の行に出る。使えないあいだも、マージ済みの PR は手元の控えで出る（リンクと Ready・マージの時刻、区間の時間）。マージ前の PR は出さず、次の一手と判断も止まる。問い合わせるのは `branch` か `pr` のあるカードだけで、中止のカードの PR は一度控えを取った後は引き直さない。
 
 ## 別のリポジトリへカードを移す
 
-カードは Artifact の DB にあるので、GitHub で fork しても付いてこない。
-移す先では `board-store` のスキルの「最初の用意」で置き場所を作り、元のカードは `card export` でファイルにして、移す先で `card seed` で起票し直す。
+カードは `main` の `.ai-board/` にあるので fork には付いてくるが、`pr` が元のリポジトリを指し、判断の履歴も元のリポジトリのものである。
+新しく始めるときは、元のカードを `card export` でファイルにして、移す先で `store init` の後に `card seed` で起票し直す。
 
 ```bash
-# 元のリポジトリの clone で（写しを取り込んだ後）
+# 元のリポジトリの clone で
 node dist/cli.js card export --to ~/backlog            # 着手していない・中止していないカード（ブランチか PR があれば着手済みとみなす）
 node dist/cli.js card export --to ~/backlog --started  # 着手済みのカードも足す
 
-# 移す先のリポジトリの clone で（store init を送った後）
-node dist/cli.js card seed --from ~/backlog            # 続けて board-store で送り出す
+# 移す先のリポジトリの clone で
+node dist/cli.js store init
+node dist/cli.js card seed --from ~/backlog
 ```
 
 - 書き出すファイルは `<id>.md` で、frontmatter の `id` と `title` と本文だけを持つ。本文の `## レビュー` は除く
 - 着手・ブランチ・PR 番号・判断・並び順（`rank`）は移らない。移した先ではどれもアイデアの末尾に、`order.txt`（1 行 1 ID。書き出しには含まれないので、要れば手で書く）の順、無い分はファイル名の順で付く。並び順は `order.txt` か `decide move` で付け直す
-- 書き出す先に同じ名前のファイルが 1 つでもあれば 1 枚も書かない。写しのディレクトリ（`.ai-board/store/`）の中へは書かない
+- 書き出す先に同じ名前のファイルが 1 つでもあれば 1 枚も書かない
 - `seed` は既にある ID を飛ばすので、何度走らせても重複しない
-- 移す先の `main` の `.ai-board/plans/archive/` に同じ ID の計画があると、そのカードは起票した時点でマージ済みに見える（規則 1）
-
-## データ用ブランチから移して消す
-
-前の置き場所（`origin` の `ai-board/data` ブランチ）を使っていたリポジトリは、1 度だけ次のように移す。人が頼んだときだけ行う。
-
-1. 置き場所の Artifact を用意し（`board-store` の「最初の用意」の 1〜3）、取り込む
-2. データ用ブランチだけを clone し、カード・判断・並び順を送る箱に積んで、送り出す
-
-   ```bash
-   git clone --single-branch -b ai-board/data https://github.com/<owner>/<repo>.git /tmp/src-data
-   node dist/cli.js store import --from /tmp/src-data
-   ```
-
-   マージ済みの PR の控えは次の `status` で GitHub から引き直す。ループの記録は移さない
-
-3. 取り込み直し、`status` の判断待ち・AI 作業中・アイデアの件数が、移す前と同じかを確かめる
-4. 人がデータ用ブランチと手元のデータのワークツリーを消す（AI は消さない。`.claude/settings.json` の deny が止める）
-
-   ```bash
-   git worktree remove .ai-board/data
-   git push origin --delete ai-board/data
-   rm -rf /tmp/src-data .ai-board/cache .ai-board/data.lock .ai-board/data-mode.yaml
-   ```
-
-   消した後、`.claude/settings.json` のデータ用ブランチの deny と、`.gitignore` の前の置き場所の行を外してよい
+- 移す先の `main` に同じ ID の計画（`.ai-board/cards/<id>/plan.md`）があると、そのカードは起票した時点でマージ済みに見える（規則 1）

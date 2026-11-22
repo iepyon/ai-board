@@ -36,13 +36,14 @@ npm run typecheck && npm run lint && npm run format:check && npm test
 
 整形は `npm run format`。単体は `npx vitest run <path>` / `-t '<name>'`。
 
-## タスクはボードの置き場所（Artifact の DB）にある
+## タスクはボードの置き場所（git の main の Markdown）にある
 
-**このリポジトリ自身のバックログはボードのカードとして、ボードのページの Artifact の DB にある**（URL は `.ai-board/config.yaml` の `store.url`）。何に着手するかはまずここを見る。
-CLI（node）は DB に届かないので、手元の写し（メインのチェックアウトの `.ai-board/store/`。どのワークツリーからも共有する）を読み、書き込みは送る箱に積む。
-DB との行き来（取り込み・送り出し）は Claude が `ArtifactData` で行う（`board-store` のスキル）。DB への書き込みは人がいる会話のセッションで行い、セッションの最初の 1 回は人が承認する。
-**読み書きは `ai-board card` の CLI で行い、写し・送る箱のファイルを直接書き換えない。ボードの置き場所へ `ArtifactData` で直接書かない**（送る箱の `batch` だけを通す hook が `.claude/settings.json` にある）。
-置き場所の文書は書き換えず、変えるたびに改訂（`<ID>~<連番>`）を足す。置き場所は `DocumentStore` の口に閉じてあり、SQLite に切り替えるときは書き込み系を含む実装を新たに作る（ADR 0020）。
+**このリポジトリ自身のバックログはボードのカードとして、置き場所のブランチ（既定は `origin` の `main`）の `.ai-board/` にある**
+（`board.yaml`・`order.yaml`・`cards/<id>/card.md`・`cards/<id>/log/`。ADR 0021）。何に着手するかはまずここを見る。
+CLI は読むたびに置き場所を専用の参照（`refs/ai-board/store`）へ fetch して読み、書き込みはその上のコミットとして自分で push する。メインのチェックアウトの作業ツリーには触らない。
+PR の控えとループの記録は各 PC の `.ai-board/local/`（git に載せない）に置き、共有しない。
+**読み書きは `ai-board card` / `decide` の CLI で行い、置き場所のファイルをエディタや `git` で直接書き換えない。カードのブランチでも変えない**
+（push の前に `ai-board store check-branch <branch>` で確かめる）。置き場所は `DocumentStore` の口に閉じてある。
 開発中は `node dist/cli.js ...`（先に `npm run build`）。ほかのサブコマンドは `--help` と `docs/reference.md`。
 
 ```bash
@@ -54,22 +55,22 @@ ai-board card branch <id> <name>                       # ブランチの紐付�
 ai-board card submit <id> [--resubmit] [--reason <text>]   # plan 提出 / 再提出
 ai-board card hold <id> --gate plan --reason <text>    # 保留（plan の最新が差し戻しのときだけ）
 ai-board status [--json [--only <項目,...>]]           # ステージ・判断待ち・次の一手
-ai-board store pull --from <dir> | outbox --json | ack | discard   # 写しへの取り込みと送る箱（board-store のスキルが使う）
+ai-board store init | seed | check-branch <branch>     # 置き場所を始める・seed を入れる・ブランチを検査する
 ```
 
-- 計画は `.ai-board/plans/<id>.md`。ファイル名がカード ID と一致することで紐付く。
+- 計画は `.ai-board/cards/<id>/plan.md`。ディレクトリ名がカード ID と一致することで紐付く。カードのブランチに載せ、PR のマージで main に入る（main にあればマージ済み）。
 - 本文の `## レビュー` は判断の追記専用ログで導出の入力。`## 探索メモ` は自由記述で、ループに伝えたい補足はここに書く。
 - 最初のアイデアカードは `.ai-board/seed/*.md`（`ai-board store seed` で起票する。並ぶ順は `.ai-board/seed/order.txt`）。
-- **カードに書くコードや、置き場所の形を変えるコードを動かすときは、`AI_BOARD_STORE` で別のディレクトリを指す。**
-  指さなければ試しの書き込みが本物の送る箱に積まれ、次の送り出しで本物の置き場所に届く。形の版（`board/meta`）を上げればメインの古い CLI がカードを読めなくなる。
+- **カードに書くコードや、置き場所の形を変えるコードを動かすときは、`AI_BOARD_STORE` で試しの置き場所（`git init --bare` したリポジトリ）を指す。**
+  指さなければ試しの書き込みが本物の置き場所のブランチ（main）へそのまま push される。形の版（`board.yaml`）を上げれば古い CLI がカードを読めなくなる。
   手順は `.claude/skills/board-loop/rules.md` の「動かして確かめるとき」。
 
 ## 書き込み境界
 
-| 主体                         | `.ai-board/plans/`                           | カード（置き場所）                                                                             |
-| ---------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `ai-board status` / `decide` | **read-only**                                | PR 番号とマージ済みの PR の控えを書き戻す。`decide` は人の判断も書く                           |
-| AI エージェント・ループ      | 書く（計画・タスクの更新・archive への移動） | `ai-board card` で本文・ブランチ・提出・保留のみ。ループは `ai-board loop` で 1 手の記録も書く |
+| 主体                         | 計画（`.ai-board/cards/<id>/plan.md`）                  | カード（置き場所）                                                                                     |
+| ---------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `ai-board status` / `decide` | **read-only**                                           | PR 番号を書き戻す（マージ済みの PR の控えは手元）。`decide` は人の判断も書く                           |
+| AI エージェント・ループ      | カードのブランチで書く（計画・タスクの更新・`## 締め`） | `ai-board card` で本文・ブランチ・提出・保留のみ。ループは `ai-board loop` で 1 手の記録（手元）も書く |
 
 **人がこの会話で自分の言葉で頼んだ判断は、Claude が `board-decide` のスキル（`ai-board decide`）で代わりに書いてよい。**
 書いた後に AI の番ができたら、同じセッションで `board-loop` の 1 周を続ける（ADR 0013）。
@@ -101,8 +102,9 @@ ai-board store pull --from <dir> | outbox --json | ack | discard   # 写しへ�
 - ステージを保存する・直接指定する入力口は作らない。列を動かすなら、その列を成立させる実態を作る。
 - 差し戻しに専用ルールは無く、手前の AI 列へ自然に落ちる。**ここに `if` を足したくなったら設計を疑う。**
   アイデアの区切り線（`DIVIDER_ID`）だけの分岐も足さない。
-- **計画ファイルが存在するだけで計画レビューの列が立つ**（取りこぼさないための保険）。「空ファイルは無視する」条件を足さない。
-- 計画ファイルの名前が ID として不正なら、警告して読み飛ばす（例外を投げるとボード全体が読めなくなる）。
+- **計画の成果物（Draft の PR、GitHub が未設定のボードではカードのブランチの計画ファイル）が存在するだけで計画レビューの列が立つ**（取りこぼさないための保険）。「空ファイルは無視する」条件を足さない。
+  main の計画（`cards/<id>/plan.md`）はマージ済みの印で、作業ツリーではなく置き場所の参照から読む（ADR 0001・0021）。
+- 計画ファイルのディレクトリ名が ID として不正なら、警告して読み飛ばす（例外を投げるとボード全体が読めなくなる）。
 - **外部コマンドは `src/infrastructure/cli-runner.ts` に閉じ、shell を介さず引数は配列で渡す。**
   カードの `branch` は誰でも書けるので、文字列連結でコマンドを組むと任意のコマンドを実行できてしまう。
 - **GitHub のアクセストークンは扱わない。** 問い合わせは `gh api` で行い、認証はログイン済みの CLI に委ねる。

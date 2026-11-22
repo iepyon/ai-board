@@ -14,14 +14,14 @@ README などほかの文書は読まず、この文書だけで進めてほし�
 ## 実行前提
 
 次の 4 つがそろっていれば始められる。
-カードの置き場所が claude.ai の Artifact の DB なので、Claude Code は claude.ai のアカウントでログインしている必要がある。
+カードの置き場所は fork の `main` の `.ai-board/` なので、fork の `main` に直接 push できる必要がある（PR 必須のブランチ保護を入れない）。
 
-| 要るもの             | 条件                                                                                                | 確かめるコマンド         |
-| -------------------- | --------------------------------------------------------------------------------------------------- | ------------------------ |
-| Node.js              | 24 以上（`package.json` の `engines`）                                                              | `node -v`                |
-| git                  | 版の指定なし                                                                                        | `git --version`          |
-| GitHub CLI（`gh`）   | `gh auth login` でログイン済み。ai-board はトークンを受け取らず、PR の問い合わせを `gh api` に任せる | `gh auth status`         |
-| Claude Code          | claude.ai のアカウントでログイン済み。Artifact の公開と DB（`ArtifactData`）が使えること            | `claude` を起動して `/status` |
+| 要るもの           | 条件                                                                                                 | 確かめるコマンド              |
+| ------------------ | ---------------------------------------------------------------------------------------------------- | ----------------------------- |
+| Node.js            | 24 以上（`package.json` の `engines`）                                                               | `node -v`                     |
+| git                | 版の指定なし                                                                                         | `git --version`               |
+| GitHub CLI（`gh`） | `gh auth login` でログイン済み。ai-board はトークンを受け取らず、PR の問い合わせを `gh api` に任せる | `gh auth status`              |
+| Claude Code        | チャットで頼むときに使う。ログインの種類は問わない                                                   | `claude` を起動して `/status` |
 
 ほかに、GitHub でこのリポジトリを fork できるアカウントが要る。
 Windows は Git Bash で動かす（PowerShell / cmd は想定外で、テストも Windows を対象にしていない）。
@@ -29,7 +29,7 @@ Windows は Git Bash で動かす（PowerShell / cmd は想定外で、テスト
 
 ## セットアップ
 
-fork してビルドし、自分用の置き場所（ボードのページの Artifact）を作れば準備は終わる。
+fork してビルドし、置き場所を始めれば準備は終わる。
 手順は「チャットで頼む」か「コマンドを打つ」のどちらでも進められる。チャットは clone の根で `claude` を起動し、「」の文を送る。
 
 1. GitHub でこのリポジトリを fork し、clone する。「Copy the `main` branch only」は入れたままでよい
@@ -46,20 +46,22 @@ fork してビルドし、自分用の置き場所（ボードのページの Ar
    npm run build
    ```
 
-3. `.ai-board/config.yaml` を自分用にして main にコミットする
-   - `github.repository` を `<you>/ai-board` にする。PR を問い合わせる先になる
-   - `store.url` に URL が入っていたら `null` に戻す。元のリポジトリの置き場所で、持ち主にしか開けない
-   - チャットなら「.ai-board/config.yaml の repository を <you>/ai-board にして、store.url が入っていれば null にして、main にコミットして」
-4. チャットで「置き場所を用意して」と頼む。Claude が次を進める
-   1. 空のボードのページを Artifact として公開し（DB を使う宣言付き）、URL を伝える
-   2. その URL を `.ai-board/config.yaml` の `store.url` に書いて main に入れる（人の手順。Claude に頼んでもよい）
-   3. `store init` で最初の文書を送る箱に積み、DB へ送り出し、取り込む
-5. DB への最初の書き込みで Claude Code が承認を求めるので承認する。セッションの残りの書き込みはまとめて通る
+3. `.ai-board/config.yaml` の `github.repository` を `<you>/ai-board` にして、main にコミットして push する。PR を問い合わせる先になる
+   - チャットなら「.ai-board/config.yaml の repository を <you>/ai-board にして、main にコミットして push して」
+   - カードの置き場所（`store.remote` / `store.branch`）は既定の `origin` の `main` のままにする
+4. 置き場所を始める（チャットなら「置き場所を用意して」）
+
+   ```bash
+   node dist/cli.js store init
+   ```
+
+   `置き場所を始めました（.ai-board/board.yaml と order.yaml を push しました）` と出れば成功である。fork の `main` に `chore(board): 置き場所を始める` のコミットが増える
 
 用意はカードが 0 枚のボードで終わる。アイデアは後の節で入れる。
 
-カードの正本は Artifact の DB にあり、CLI は手元の写し（`.ai-board/store/`）を読む。
-DB との行き来は Claude が `board-store` のスキルで行うので、`.ai-board/store/` のファイルを手で触らないでほしい。
+カードは `main` の `.ai-board/`（`board.yaml`・`order.yaml`・`cards/<id>/card.md`・`cards/<id>/log/`）にファイルで置く。
+CLI は読むたびに `origin` の `main` を fetch し、書き込みはそのコミットとして push する。これらのファイルを手で触らないでほしい。
+手元の `main` は `git pull` すれば追いつく。
 
 ## 空のボードを表示する
 
@@ -68,7 +70,6 @@ DB との行き来は Claude が `board-store` のスキルで行うので、`.a
 ### ターミナルで見る
 
 チャットで「ボードの状態を見せて」と頼むか、次を打つ。
-コマンドで打つときは、先に Claude に「ボードを取り込んで」と頼んで写しを新しくする。
 
 ```bash
 node dist/cli.js status
@@ -88,21 +89,20 @@ AI 作業中 (0)
 ```
 
 「GitHub:」の行が「接続済み」でなければ、その行に理由が出る（トラブルシュートを参照）。
-末尾に「[ai-board] 送る箱に N 束の書き込みがあります」が出たら、送り出しが済んでいない。Claude に「送り出して」と頼む。
 
 ### ページで見る
 
-チャットで「ボードを見せて」と頼むと、`board-view` のスキルが置き場所の Artifact（`store.url`）を出し直して開く。
+チャットで「ボードを見せて」と頼むと、`board-view` のスキルがページを `.ai-board/local/board.html` に書き出し、そのパスを伝える。ブラウザで開いて見る。
 ページは頼んだ時点の写しなので、新しくするには頼み直す。
 
-| 場所           | 空のボードでの表示                                                         |
-| -------------- | -------------------------------------------------------------------------- |
-| 見出し         | ai-board ボード                                                            |
-| 上の帯         | 「GitHub: 接続済み」「ループ: 記録なし」「次の一手: なし…」と作った時刻     |
-| 判断待ち（0）  | 人の判断を待っているカードはありません。                                   |
-| AI 作業中（0） | AI が進めているカードはありません。                                        |
-| アイデア（0）  | アイデアはありません。                                                     |
-| 下の注記       | 判断はこのページからは書けません。チャットで頼んでください。               |
+| 場所           | 空のボードでの表示                                                      |
+| -------------- | ----------------------------------------------------------------------- |
+| 見出し         | ai-board ボード                                                         |
+| 上の帯         | 「GitHub: 接続済み」「ループ: 記録なし」「次の一手: なし…」と作った時刻 |
+| 判断待ち（0）  | 人の判断を待っているカードはありません。                                |
+| AI 作業中（0） | AI が進めているカードはありません。                                     |
+| アイデア（0）  | アイデアはありません。                                                  |
+| 下の注記       | 判断はこのページからは書けません。チャットで頼んでください。            |
 
 ## 初期のアイデアを入れて表示する
 
@@ -112,8 +112,7 @@ AI 作業中 (0)
 
 ### 入れる
 
-チャットで「最初のアイデアカードを入れて」と頼むと、Claude が起票から送り出し、取り込み、ボードのページの出し直しまで続けて行う。
-コマンドで打つときは次のとおりで、続けて Claude に「送り出して」と頼む。
+チャットで「最初のアイデアカードを入れて」と頼むか、次を打つ。起票は 1 枚ずつ `main` へのコミットとして push される。
 
 ```bash
 node dist/cli.js store seed
@@ -130,7 +129,6 @@ decision-notify: 起票しました
 refactor-cli-usecase-entry: 起票しました
 retro-decisions: 起票しました
 status-stage-counts: 起票しました
-[ai-board] 送る箱に 10 束の書き込みがあります。置き場所へ送り出してください（board-store のスキル。ai-board store outbox --json）
 ```
 
 もう一度走らせると、どのカードも「<ID>: 既にあるので飛ばしました」と出て、重複しない。
@@ -140,11 +138,11 @@ status-stage-counts: 起票しました
 **ターミナルの `status` は、空のボードと同じ出力のままである。** 人向けの `status` は判断待ちと AI 作業中だけを出し、アイデアは出さない。
 アイデアは次のどれかで確かめる。
 
-| 確かめ方                                          | 期待する結果                                                                                                      |
-| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `node dist/cli.js card list`                      | JSON の配列に 10 件。どれも `startedAt` / `branch` / `pr` は `null`                                               |
-| `node dist/cli.js card show status-stage-counts`  | frontmatter と、本文の `## アイデア` / `## 背景`                                                                  |
-| チャットで「ボードを見せて」                      | ページの「アイデア（10）」に、上の起票の順でタイトルと ID（先頭は `board-view-idea-cards`）。その下に点線の区切り「ここから下はあとで考える」。判断待ちと AI 作業中は 0 のまま |
+| 確かめ方                                         | 期待する結果                                                                                                                                                                   |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `node dist/cli.js card list`                     | JSON の配列に 10 件。どれも `startedAt` / `branch` / `pr` は `null`                                                                                                            |
+| `node dist/cli.js card show status-stage-counts` | frontmatter と、本文の `## アイデア` / `## 背景`                                                                                                                               |
+| チャットで「ボードを見せて」                     | ページの「アイデア（10）」に、上の起票の順でタイトルと ID（先頭は `board-view-idea-cards`）。その下に点線の区切り「ここから下はあとで考える」。判断待ちと AI 作業中は 0 のまま |
 
 ### 自分で 1 枚書く（任意）
 
@@ -156,48 +154,43 @@ status-stage-counts: 起票しました
 
 - [ ] `node -v` が 24 以上、`gh auth status` がログイン済み
 - [ ] `npm ci` と `npm run build` がエラーなく終わる
-- [ ] 「置き場所を用意して」で Artifact の URL が返り、`store.url` に書ける
-- [ ] DB への最初の書き込みで承認を求められ、承認後に送り出しが通る
+- [ ] 「置き場所を用意して」（`store init`）で、fork の `main` に `.ai-board/board.yaml` と `order.yaml` が入る
 - [ ] `status` が「GitHub: 接続済み」と判断待ち (0)・AI 作業中 (0) を出す
 - [ ] 「ボードを見せて」で空のページが開く
 - [ ] 「最初のアイデアカードを入れて」の後、`card list` が `status-stage-counts` を含む 10 件を返す
 - [ ] 「ボードを見せて」を頼み直すと、アイデア（10）に 10 枚が出る
 - [ ] （任意）自分で起票したカードがアイデアの末尾に付く
-- [ ] （任意）別の端末やクラウドのセッションから「ボードを取り込んで」で、同じカードが見える
+- [ ] （任意）別の PC で clone してビルドすると、`card list` で同じカードが見える
+- [ ] （任意）2 台から同じカードに判断を書くと、どちらの判断も `card show` の `## レビュー` に残る
 
 ## トラブルシュート
 
 CLI は失敗すると、次にすることを 1 行で出す。下の表の「症状」は実際に出る文面である（パスなどは環境で変わる）。
 
-| 症状（出る文面）                                                                  | 原因                                                                         | 対処                                                                                   |
-| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `npm ci` で `EBADENGINE` の警告                                                   | Node が 24 より古い                                                          | Node 24 以上を入れて `npm ci` からやり直す                                             |
-| `…/dist/cli.js は HEAD のコミットより古い。ビルドし直してください`                 | `git pull` の後にビルドしていない                                            | `npm run build`                                                                        |
-| `置き場所が設定されていません。.ai-board/config.yaml の store.url に…`             | `store.url` が `null` のまま                                                 | 「置き場所を用意して」と頼み、返った URL を書く                                        |
-| `置き場所の写しがありません（…/.ai-board/store/mirror）`                           | まだ取り込んでいない（別の端末・clone し直した直後など）                     | 「ボードを取り込んで」と頼む                                                           |
-| `置き場所が空です（board/meta がありません）`                                      | `store init` を送り出していない                                              | `node dist/cli.js store init` の後、「送り出して」と頼む                               |
-| `[ai-board] 送る箱に N 束の書き込みがあります`                                     | 書き込みがまだ DB に届いていない                                             | 「送り出して」と頼む                                                                   |
-| `送る箱に送っていない書き込みが N 件あります。先に送り出す…`                       | 送る箱が空でないまま取り込もうとした                                         | 先に「送り出して」。不要な書き込みなら `node dist/cli.js store discard`                |
-| `GitHub: 使えません（gh の終了コード 4 で失敗した）`                               | `gh` にログインしていない                                                    | `gh auth login`                                                                        |
-| `GitHub: 使えません（gh の終了コード 1 で失敗した）`                               | `github.repository` が存在しない・見られないリポジトリ                       | fork の `<you>/ai-board` に書き換える。`gh repo view <you>/ai-board` で見られるか確かめる |
-| `…/config.yaml の内容が不正です: …`                                                | `config.yaml` の書き方の誤り（例: `repository: null`）                       | 連携しないなら `github:` の節ごと消す。値は `'owner/repo'` の文字列で書く               |
-| `ほかの ai-board が置き場所に書いています（…）`                                    | 別の CLI が同時に書いている                                                  | 少し待ってやり直す                                                                     |
-| `置き場所の形の版（…）が、この CLI の版（…）と違うため読みません`                  | 手元の CLI が古い                                                            | `git pull` して `npm run build`                                                        |
-| 送り出しが `version_mismatch` で拒まれる                                          | 別の端末が先に同じカードを書いた                                             | Claude に任せる。`store discard` → 取り込み → 元のコマンドのやり直しを行う             |
-| 「ボードを見せて」や取り込みで、`store.url` の Artifact を開けない・書けない       | fork で元のリポジトリの `store.url` を受け継いでいる（持ち主にしか開けない） | `store.url` を `null` に戻してコミットし、「置き場所を用意して」と頼む                 |
-| Claude が `ArtifactData` で直接書こうとして hook に止められる                     | 送る箱の `batch` 以外の書き込みは `.claude/settings.json` の hook が止める   | 「送り出して」と頼み直す                                                               |
-| ヘッドレス（`claude -p`）や定期実行から送り出せない                               | DB への書き込みには人の承認が要る                                            | 人がいる会話のセッションで「送り出して」と頼む                                         |
-| アイデアを入れたのに `status` が変わらない                                        | 人向けの `status` はアイデアを出さない（仕様）                               | `card list` か「ボードを見せて」で確かめる                                             |
-| ページが古いまま・アイデアが 0 件のまま                                           | ページは頼んだ時点の写し                                                     | 「ボードを見せて」と頼み直す                                                           |
+| 症状（出る文面）                                                   | 原因                                                                        | 対処                                                                                      |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `npm ci` で `EBADENGINE` の警告                                    | Node が 24 より古い                                                         | Node 24 以上を入れて `npm ci` からやり直す                                                |
+| `…/dist/cli.js は HEAD のコミットより古い。ビルドし直してください` | `git pull` の後にビルドしていない                                           | `npm run build`                                                                           |
+| `置き場所が空です（.ai-board/board.yaml がありません）…`           | `store init` を走らせていない                                               | `node dist/cli.js store init`                                                             |
+| `置き場所のリモート origin がこのリポジトリにありません…`          | clone ではなく `git init` したリポジトリなど                                | `git remote add origin <URL>` か、`config.yaml` の `store.remote` を直す                  |
+| `置き場所の git の操作（fetch）に失敗しました: …`                  | ネットワークに出られない・`origin` を読めない                               | `git fetch origin` が通るか確かめる                                                       |
+| `置き場所への push が 3 回とも通りませんでした…`                   | `main` に push できない（ブランチ保護・権限）か、ほかの人が続けて書いている | `git push origin main` が通るか確かめる。PR 必須の保護を外す                              |
+| `GitHub: 使えません（gh の終了コード 4 で失敗した）`               | `gh` にログインしていない                                                   | `gh auth login`                                                                           |
+| `GitHub: 使えません（gh の終了コード 1 で失敗した）`               | `github.repository` が存在しない・見られないリポジトリ                      | fork の `<you>/ai-board` に書き換える。`gh repo view <you>/ai-board` で見られるか確かめる |
+| `…/config.yaml の内容が不正です: …`                                | `config.yaml` の書き方の誤り（例: `repository: null`）                      | 連携しないなら `github:` の節ごと消す。値は `'owner/repo'` の文字列で書く                 |
+| `ほかの ai-board が置き場所に書いています（…）`                    | 別の CLI が同時に書いている                                                 | 少し待ってやり直す                                                                        |
+| `置き場所の形の版（…）が、この CLI の版（…）と違うため読みません`  | 手元の CLI が古い                                                           | `git pull` して `npm run build`                                                           |
+| アイデアを入れたのに `status` が変わらない                         | 人向けの `status` はアイデアを出さない（仕様）                              | `card list` か「ボードを見せて」で確かめる                                                |
+| ページが古いまま・アイデアが 0 件のまま                            | ページは頼んだ時点の写し                                                    | 「ボードを見せて」と頼み直す                                                              |
 
-Artifact が使えないときも、CLI だけは試しの置き場所で動かせる。本物の置き場所には届かない。
+fork の `main` を汚さずに試したいときは、試しの置き場所（手元の bare のリポジトリ）を `AI_BOARD_STORE` で指す。本物の置き場所には届かない。
 
 ```bash
-export AI_BOARD_STORE="$(mktemp -d)/store"
+STORE="$(mktemp -d)/store.git"
+git init --quiet --bare --initial-branch=main "$STORE"
+export AI_BOARD_STORE="$STORE"
 node dist/cli.js store init
-node dist/cli.js store ack --through 999999   # 送ったことにする
 node dist/cli.js store seed
-node dist/cli.js store ack --through 999999
 node dist/cli.js status && node dist/cli.js card list
 ```
 

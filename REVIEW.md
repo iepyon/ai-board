@@ -12,7 +12,8 @@
   引数配列以外の形でコマンドへ渡すものはすべて Important。
 - **書き込み境界の崩れ。** `src/cards/cli/card-cli.ts` に `startedAt` / `rank` / `skipGates` を書く入口や、
   承認 / 差し戻し / 中止を追記する入口を足すもの。`body` の差し替えで `## レビュー` の既存エントリを
-  変えられるようにするもの。`ai-board` の CLI が `.ai-board/plans/` に書き込むもの。
+  変えられるようにするもの。`ai-board` の CLI が計画（`.ai-board/cards/<id>/plan.md`）に書き込むもの。
+  カードのブランチの差分が置き場所のファイル（`.ai-board/board.yaml`・`order.yaml`・`cards/<id>/card.md`・`cards/<id>/log/`）を変えるもの。
 - **ステージ導出の迂回。** ステージを保存する・直接指定する入力口を作るもの。
   `src/board/services/stage-resolver.ts` の `RULES` 配列の外でステージを決める分岐を足すもの。
   差し戻しや区切り線（`DIVIDER_ID`）のための専用の `if` もここに含める。
@@ -41,8 +42,8 @@
 - 型エラー、ESLint、Prettier の整形（コミット前に手元の品質ゲートで通している。`CLAUDE.md` の「品質ゲート」）と、カバレッジ閾値（`test:coverage` が検査する）。
   CI は一旦 PR で走らせていない（`.github/workflows/ci.yml`）が、これらは報告しない。
 - `package-lock.json` の差分。
-- `.ai-board/plans/archive/` への移動だけの差分。
-- 計画ファイル（`.ai-board/plans/*.md`）の文章の言い回し。計画の中身は人が Draft の PR で判断する。
+- 計画の末尾に `## 締め` の節を足すだけの差分。
+- 計画ファイル（`.ai-board/cards/*/plan.md`）の文章の言い回し。計画の中身は人が Draft の PR で判断する。
 
 ## 指摘の出し方
 
