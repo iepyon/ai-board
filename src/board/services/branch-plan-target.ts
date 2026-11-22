@@ -8,10 +8,10 @@ import { planReviewable } from './stage-resolver.js';
 // ============================================================
 
 /**
- * GitHub が未設定のボードで、カードのブランチの計画（`plans/<id>.md`）を読むなら、そのブランチ名。読まないなら null。
+ * GitHub が未設定のボードで、カードのブランチの計画（`cards/<id>/plan.md`）を読むなら、そのブランチ名。読まないなら null。
  *
  * 読むのはステージの規則 4（`planReviewable`）に効くカードだけにし、git を走らせる回数を抑える。
- * 中止していない・着手済み・`branch` がある・メインのチェックアウトに計画（`plan`。archive を含む）が無いカード。
+ * 中止していない・着手済み・`branch` がある・main に計画（`plan`）が無いカード。
  * GitHub が未設定かは呼び出し側が見る。
  */
 export function branchPlanTarget(card: Card, plan: PlanDoc | null): string | null {
@@ -24,11 +24,11 @@ export function branchPlanTarget(card: Card, plan: PlanDoc | null): string | nul
 }
 
 /**
- * GitHub が未設定のボードで、締めが済んだか（ブランチで計画が archive 済みか。`findClosed`）を読むなら、そのブランチ名。読まないなら null。
+ * GitHub が未設定のボードで、締めが済んだか（ブランチの計画に `## 締め` の節があるか。`findClosed`）を読むなら、そのブランチ名。読まないなら null。
  *
  * 読むのは実装中の列に効くカード（plan ゲートが `approved`）だけにし、git を走らせる回数を抑える。
- * 中止していない・着手済み・`branch` がある・メインのチェックアウトに計画（`plan`。archive を含む）が無いカード。
- * メインに archive があれば、人がもうマージしている（ステージの規則 1 でマージ済み）。
+ * 中止していない・着手済み・`branch` がある・main に計画（`plan`）が無いカード。
+ * main に計画があれば、人がもうマージしている（ステージの規則 1 でマージ済み）。
  * GitHub が未設定かは呼び出し側が見る。
  */
 export function branchCloseTarget(card: Card, plan: PlanDoc | null): string | null {

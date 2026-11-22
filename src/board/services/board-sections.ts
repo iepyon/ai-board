@@ -123,8 +123,8 @@ export function waitingSince(card: SectionCard): string | null {
 }
 
 /**
- * マージされた時刻。PR の `merged_at`、無ければ archive された計画ファイルの更新時刻。
- * PR を経ずに archive だけでマージ済みになったカードもあるため。
+ * マージされた時刻。PR の `merged_at`、無ければ main の計画を最後に変えたコミットの時刻。
+ * PR を経ずに（GitHub が未設定のボードで）ブランチのマージだけでマージ済みになったカードもあるため。
  */
 export function mergedAt(card: SectionCard): string | null {
   return card.prState?.mergedAt ?? card.plan?.updatedAt ?? null;
@@ -141,7 +141,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * 実装中は計画ファイルの更新時刻、計画提案中は（計画がまだ無いので）着手の時刻を見る。
  */
 export function isStale(card: SectionCard, now: Date, days: number = STALE_DAYS): boolean {
-  // PR の指摘に応えるカードの計画は archive 済みで更新されない。指摘を受けたばかりなので、動きなしと読まない
+  // PR の指摘に応えるカードの計画は締め済みで更新されない。指摘を受けたばかりなので、動きなしと読まない
   if (isAwaitingPrFix(card)) return false;
 
   const since = card.plan?.updatedAt ?? card.startedAt;

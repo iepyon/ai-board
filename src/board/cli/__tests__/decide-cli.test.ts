@@ -7,6 +7,7 @@ import { parseCard } from '../../../cards/repositories/card-markdown.js';
 import { REVIEW_HEADING, parseReviewLog } from '../../../cards/services/review-log.js';
 import { isErr, ok, type Result } from '../../../shared/result.js';
 import type { CardId } from '../../../shared/schemas/common.js';
+import { MemoryPlanRepository } from '../../__tests__/memory-plan-repository.js';
 import { createBoardDependencies } from '../../composition.js';
 import type { PrStateProvider } from '../../services/pr-state-provider.js';
 import {
@@ -38,7 +39,10 @@ let commits: string[];
 
 const NOW = new Date('2026-11-04T00:00:00.000Z');
 
+const plans = new MemoryPlanRepository();
+
 beforeEach(async () => {
+  plans.clear();
   root = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-board-decide-'));
   store = new MemoryDocumentStore(initialDocuments());
   stdout = '';
@@ -78,10 +82,10 @@ async function writeCard(id: string, frontmatter: string, body = ''): Promise<vo
   });
 }
 
-async function writePlan(id: string): Promise<void> {
-  const target = path.join(root, '.ai-board', 'plans', `${id}.md`);
-  await fs.mkdir(path.dirname(target), { recursive: true });
-  await fs.writeFile(target, '# 計画\n\n- [ ] タスク\n', 'utf-8');
+/** 計画の成果物を置く */
+function writePlan(id: string): Promise<void> {
+  plans.set(id, '# 計画\n\n- [ ] タスク\n');
+  return Promise.resolve();
 }
 
 const STARTED = "created: '2026-11-01T00:00:00.000Z'\nstartedAt: '2026-11-02T00:00:00.000Z'\n";
@@ -142,7 +146,7 @@ async function run(
 ): Promise<number> {
   const cards = createCardDependencies(store);
   const board = createBoardDependencies(
-    path.join(root, '.ai-board', 'plans'),
+    plans,
     cards.cardRepository,
     cards.ideaDividerRepository,
     provider,
@@ -432,7 +436,7 @@ describe('ai-board decide', () => {
     const unset = stubProvider({ status: 'disabled', kind: null, reason: null });
     const branchPlans: BranchPlanRepository = {
       ...emptyBranchPlanRepository,
-      findClosed: () => Promise.resolve({ archivedAt: '2026-11-04T00:00:00.000Z' }),
+      findClosed: () => Promise.resolve({ closedAt: '2026-11-04T00:00:00.000Z' }),
     };
 
     expect(await run(['approve', 'm'], unset, stubStore(), branchPlans)).toBe(1);

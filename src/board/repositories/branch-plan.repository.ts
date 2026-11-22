@@ -1,7 +1,7 @@
 import type { CliRunner } from '../../infrastructure/cli-runner.js';
 import { isErr } from '../../shared/result.js';
 import type { CardId } from '../../shared/schemas/common.js';
-import type { ImplStepPlan } from '../services/impl-step.js';
+import { hasCloseSection, type ImplStepPlan } from '../services/impl-step.js';
 import type { PlanDoc } from '../models/plan-state.js';
 import { countTasks } from './plan.repository.js';
 
@@ -13,46 +13,39 @@ import { countTasks } from './plan.repository.js';
  * カードのブランチにコミットされた計画を読む。
  *
  * - `find`: `status` の CLI が、`next` に選ばれた `implement` の 1 枚の段（`next.step`）を決める
- * - `findActive`: GitHub が未設定のボードで、メインのチェックアウトに無い計画を補い、計画レビューの列を立てる
- *   （`branchPlanTarget` が選んだカードだけ。`archive/` は読まない）
- * - `findClosed`: GitHub が未設定のボードで、実装中のカードの締めが済んだ（ブランチで計画が archive 済み）かを読み、
+ * - `findActive`: GitHub が未設定のボードで、main に無い計画を補い、計画レビューの列を立てる
+ *   （`branchPlanTarget` が選んだカードだけ）
+ * - `findClosed`: GitHub が未設定のボードで、実装中のカードの締めが済んだ（ブランチの計画に `## 締め` の節がある）かを読み、
  *   マージ待ちの止まりを立てる（`branchCloseTarget` が選んだカードだけ。ステージの導出には渡さない）
+ *
+ * 計画はどれも `.ai-board/cards/<id>/plan.md` にある。
  *
  * 読めない（ブランチが無い、`git` が失敗した、計画が無い）ときは例外を投げず null を返す。
  * 段が読めなくても、次の一手そのものは読めているので `status` は失敗させない。
  * `git fetch` はしない。ネットワークに出るのは PR の問い合わせだけにする。
  */
 export interface BranchPlanRepository {
-  /** `branch` の計画を、`plans/` → `plans/archive/` の順に読む。どちらも無ければ null */
+  /** `branch` の計画を読む。`## 締め` の節があれば締め済み。無ければ null */
   find(cardId: CardId, branch: string): Promise<ImplStepPlan | null>;
   /**
-   * `branch` の `plans/<id>.md` を、メインの計画と同じ形（`PlanDoc`）で読む。無ければ null。
-   * `archive/` は読まない。読むと、締めで archive して Ready にした PR中 のカードがマージ前にマージ済みに見えるため。
+   * `branch` の計画を、計画の成果物（`archived` が偽の `PlanDoc`）として読む。無ければ null。
    * `updatedAt` は、その計画ファイルを最後に変えたコミットの時刻
    */
   findActive(cardId: CardId, branch: string): Promise<PlanDoc | null>;
   /**
-   * `branch` に `plans/<id>.md` が無く `plans/archive/<id>.md` があるとき（締めの段が計画を archive した）、
-   * archive のファイルを最後に変えたコミットの時刻を返す。それ以外は null。
+   * `branch` の計画に `## 締め` の節があるとき（締めの段が足した）、計画を最後に変えたコミットの時刻を返す。それ以外は null。
    * 止まりの判定にだけ使い、ステージの導出には渡さない（渡すとマージ前にマージ済みに見える）
    */
   findClosed(cardId: CardId, branch: string): Promise<BranchClosed | null>;
 }
 
-/** カードのブランチで締めが済んだこと。`archivedAt` は計画を archive したコミットの時刻 */
+/** カードのブランチで締めが済んだこと。`closedAt` は `## 締め` の節を足した（計画を最後に変えた）コミットの時刻 */
 export interface BranchClosed {
-  readonly archivedAt: string;
+  readonly closedAt: string;
 }
 
-const PLANS_DIR = '.ai-board/plans';
-const ARCHIVE_DIR = `${PLANS_DIR}/archive`;
-
-function activePath(cardId: CardId): string {
-  return `${PLANS_DIR}/${cardId}.md`;
-}
-
-function archivePath(cardId: CardId): string {
-  return `${ARCHIVE_DIR}/${cardId}.md`;
+function planPath(cardId: CardId): string {
+  return `.ai-board/cards/${cardId}/plan.md`;
 }
 
 /** 何も読まない読み手。ブランチの計画を読まない組み立て（テストなど）の既定 */
@@ -68,37 +61,34 @@ export const emptyBranchPlanRepository: BranchPlanRepository = {
  * カードの `branch` は誰でも書けるので、次の 2 つで守る。
  * - `git check-ref-format --branch` を通らない名前なら、`git show` を呼ばずに null を返す。
  *   `-` で始まる名前は、オプションとして読まれないよう `git` に渡す前に弾く
- * - `refs/heads/` / `refs/remotes/origin/` を前に付けた完全な名前で参照する
+ * - `refs/heads/` / `refs/remotes/<remote>/` を前に付けた完全な名前で参照する
  *
- * ローカルのブランチがあればそれを、無ければ `origin` の追跡ブランチを読む。
+ * ローカルのブランチがあればそれを、無ければリモート（既定は `origin`）の追跡ブランチを読む。
  * ループは同じリポジトリのワークツリーでコミットするので、
  * ローカルのブランチが最も新しい。クラウドの新しいセッションのように
- * ローカルのブランチが無いときだけ、`origin` の追跡ブランチに頼る。
+ * ローカルのブランチが無いときだけ、リモートの追跡ブランチに頼る。
  */
 export class GitBranchPlanRepository implements BranchPlanRepository {
   constructor(
     private readonly runner: CliRunner,
-    private readonly repoRoot: string
+    private readonly repoRoot: string,
+    private readonly remote = 'origin'
   ) {}
 
   async find(cardId: CardId, branch: string): Promise<ImplStepPlan | null> {
     const ref = await this.ref(branch);
     if (ref === null) return null;
 
-    const active = await this.show(ref, activePath(cardId));
-    if (active !== null) return { location: 'active', text: active };
-
-    const archived = await this.show(ref, archivePath(cardId));
-    if (archived !== null) return { location: 'archived' };
-
-    return null;
+    const text = await this.show(ref, planPath(cardId));
+    if (text === null) return null;
+    return hasCloseSection(text) ? { location: 'closed' } : { location: 'active', text };
   }
 
   async findActive(cardId: CardId, branch: string): Promise<PlanDoc | null> {
     const ref = await this.ref(branch);
     if (ref === null) return null;
 
-    const file = activePath(cardId);
+    const file = planPath(cardId);
     const [text, log] = await Promise.all([
       this.show(ref, file),
       this.git(['log', '-1', '--format=%cI', ref, '--', file]),
@@ -118,19 +108,18 @@ export class GitBranchPlanRepository implements BranchPlanRepository {
     const ref = await this.ref(branch);
     if (ref === null) return null;
 
-    const file = archivePath(cardId);
-    const [active, archived, log] = await Promise.all([
-      this.show(ref, activePath(cardId)),
+    const file = planPath(cardId);
+    const [text, log] = await Promise.all([
       this.show(ref, file),
       this.git(['log', '-1', '--format=%cI', ref, '--', file]),
     ]);
     const committedAt = log?.trim();
-    if (active !== null || archived === null || !committedAt) return null;
+    if (text === null || !hasCloseSection(text) || !committedAt) return null;
 
-    return { archivedAt: new Date(committedAt).toISOString() };
+    return { closedAt: new Date(committedAt).toISOString() };
   }
 
-  /** 検査を通ったブランチの完全な参照（`refs/heads/…` か `refs/remotes/origin/…`）。通らない・無ければ null */
+  /** 検査を通ったブランチの完全な参照（`refs/heads/…` か `refs/remotes/<remote>/…`）。通らない・無ければ null */
   private async ref(branch: string): Promise<string | null> {
     return (await this.isValidBranchName(branch)) ? this.resolveRef(branch) : null;
   }
@@ -151,7 +140,7 @@ export class GitBranchPlanRepository implements BranchPlanRepository {
   }
 
   private async resolveRef(branch: string): Promise<string | null> {
-    for (const ref of [`refs/heads/${branch}`, `refs/remotes/origin/${branch}`]) {
+    for (const ref of [`refs/heads/${branch}`, `refs/remotes/${this.remote}/${branch}`]) {
       if ((await this.git(['rev-parse', '--verify', '--quiet', ref])) !== null) return ref;
     }
     return null;

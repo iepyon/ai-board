@@ -49,7 +49,7 @@ export type GetBoardQuery = () => Promise<Result<Board, GetBoardError>>;
  * ステージ導出そのものは `resolveStage`（純関数）に委譲し、
  * ここは I/O と組み立てだけを担当する。
  * GitHub が未設定のボードでは、メインに計画の無いカードのブランチの計画を `branchPlanRepository` で補う（`branchPlanTarget`）。
- * 同じく、実装中のカードの締めが済んだか（ブランチで計画が archive 済みか）を読み、マージ待ちの止まりにだけ使う（`branchCloseTarget`）。
+ * 同じく、実装中のカードの締めが済んだか（ブランチの計画に `## 締め` の節があるか）を読み、マージ待ちの止まりにだけ使う（`branchCloseTarget`）。
  * ループの 1 手の記録は、ループの様子（`Board.loop`）とカードの手の一覧にだけ使い、
  * ステージの導出と止まりには渡さない。
  */
@@ -158,7 +158,7 @@ async function withBranchPlans(
 type BranchClosedHold = NonNullable<HoldInput['branchClosed']>;
 
 /**
- * `branchCloseTarget` が選んだカードについて、締めが済んだ（ブランチで計画が archive 済み）ものを、カード ID ごとにまとめて読む。
+ * `branchCloseTarget` が選んだカードについて、締めが済んだ（ブランチの計画に `## 締め` の節がある）ものを、カード ID ごとにまとめて読む。
  * メインの計画だけで選ぶので、ブランチの計画で補う前の `planState` を渡す
  */
 async function closedBranches(
@@ -171,7 +171,7 @@ async function closedBranches(
       const branch = branchCloseTarget(card, planState.get(card.id) ?? null);
       if (branch === null) return null;
       const closed = await reader.findClosed(card.id, branch);
-      return closed === null ? null : [card.id, { branch, since: closed.archivedAt }];
+      return closed === null ? null : [card.id, { branch, since: closed.closedAt }];
     })
   );
   return new Map(found.filter((entry) => entry !== null));

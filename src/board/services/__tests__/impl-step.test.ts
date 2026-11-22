@@ -7,8 +7,8 @@ function active(...lines: string[]) {
 
 describe('resolveImplStep', () => {
   describe('段の表', () => {
-    it('plans/archive/ にあれば close', () => {
-      expect(resolveImplStep({ location: 'archived' })).toBe('close');
+    it('締め済み（## 締め の節がある）なら close', () => {
+      expect(resolveImplStep({ location: 'closed' })).toBe('close');
     });
 
     it('未チェックのタスクがあれば task', () => {

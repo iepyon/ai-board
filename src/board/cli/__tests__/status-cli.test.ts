@@ -7,6 +7,7 @@ import { initialDocuments, MemoryDocumentStore } from '../../../infrastructure/d
 import { parseCard } from '../../../cards/repositories/card-markdown.js';
 import { REVIEW_HEADING, parseReviewLog } from '../../../cards/services/review-log.js';
 import { isErr, ok } from '../../../shared/result.js';
+import { MemoryPlanRepository } from '../../__tests__/memory-plan-repository.js';
 import { createBoardDependencies, createLoopHistoryRepository } from '../../composition.js';
 import {
   writeLoopFinish,
@@ -39,7 +40,10 @@ let stderr: string;
 
 const NOW = new Date('2026-10-23T00:00:00.000Z');
 
+const plans = new MemoryPlanRepository();
+
 beforeEach(async () => {
+  plans.clear();
   root = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-board-status-'));
   store = new MemoryDocumentStore(initialDocuments());
   stdout = '';
@@ -101,10 +105,10 @@ async function loopFinish(input: LoopFinishInput): Promise<void> {
   });
 }
 
-async function writePlan(id: string, content: string): Promise<void> {
-  const target = path.join(root, '.ai-board', 'plans', `${id}.md`);
-  await fs.mkdir(path.dirname(target), { recursive: true });
-  await fs.writeFile(target, content, 'utf-8');
+/** 計画の成果物を置く（`archive/<id>` なら main に入った計画） */
+function writePlan(id: string, content: string): Promise<void> {
+  plans.set(id, content);
+  return Promise.resolve();
 }
 
 function review(kind: string): string {
@@ -129,7 +133,7 @@ async function run(
 ): Promise<number> {
   const cards = createCardDependencies(store);
   const board = createBoardDependencies(
-    path.join(root, '.ai-board', 'plans'),
+    plans,
     cards.cardRepository,
     cards.ideaDividerRepository,
     provider,
@@ -521,14 +525,14 @@ describe('ai-board status --json の next.step', () => {
     expect(reader.calls).toEqual([['impl', 'impl-branch']]);
   });
 
-  it('倒し終えて AI レビュー節が無ければ review、archive 済みなら close を載せる', async () => {
+  it('倒し終えて AI レビュー節が無ければ review、締め済みなら close を載せる', async () => {
     await writeCard('impl', IMPLING, review('承認'));
 
     const toReview = await runJsonWith(stubPlanReader({ location: 'active', text: '- [x] 1\n' }));
     expect(toReview.next?.step).toBe('review');
 
     stdout = '';
-    const closed = await runJsonWith(stubPlanReader({ location: 'archived' }));
+    const closed = await runJsonWith(stubPlanReader({ location: 'closed' }));
     expect(closed.next?.step).toBe('close');
   });
 

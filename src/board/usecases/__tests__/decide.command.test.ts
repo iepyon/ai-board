@@ -9,6 +9,7 @@ import {
   MemoryDocumentStore,
   type TransactLabel,
 } from '../../../infrastructure/document-store.js';
+import { noMainPlans } from '../../__tests__/memory-plan-repository.js';
 import { createBoardDependencies } from '../../composition.js';
 import type { PrStateProvider } from '../../services/pr-state-provider.js';
 import type { GetBoardQuery } from '../queries/get-board.query.js';
@@ -22,7 +23,6 @@ let store: MemoryDocumentStore;
 let labels: string[];
 
 const NOW = new Date('2026-11-06T00:00:00.000Z');
-const PLANS = path.join('/nonexistent-ai-board-root', '.ai-board', 'plans');
 
 beforeEach(() => {
   store = new MemoryDocumentStore(initialDocuments());
@@ -50,7 +50,7 @@ const connected: PrStateProvider = {
 function boardQuery(): GetBoardQuery {
   const cards = createCardDependencies(store);
   return createBoardDependencies(
-    PLANS,
+    noMainPlans,
     cards.cardRepository,
     cards.ideaDividerRepository,
     connected

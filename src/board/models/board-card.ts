@@ -16,6 +16,7 @@ import type { ForgeConnection, ForgeKind, PrLifecycleState } from './pr-state.js
 export interface BoardCardPlan {
   /** ステージ判定には使わず、カード上のプログレスバーとして表示するだけ */
   readonly tasks: TaskProgress;
+  /** main に計画が入っているか（マージ済み）。名前は `status --json` の形のために残す */
   readonly archived: boolean;
   /** 計画ファイルの最終更新時刻。「しばらく動きが無い」ことの目安 */
   readonly updatedAt: string;

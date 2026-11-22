@@ -1,33 +1,53 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { execFileSync } from 'node:child_process';
 import { promises as fs } from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
-import { FsPlanRepository, countTasks } from '../plan.repository.js';
+import { RefPlanRepository, countTasks } from '../plan.repository.js';
+import { readPlanFilesAtRef } from '../../../infrastructure/git-plan-tree.js';
+import { createCliRunner } from '../../../infrastructure/cli-runner.js';
+import { err, ok } from '../../../shared/result.js';
 import type { CardId } from '../../../shared/schemas/common.js';
+import {
+  createGitStoreFixture,
+  git,
+  type GitStoreFixture,
+} from '../../../__tests__/git-store-fixture.js';
 
 // ============================================================
-// fixture ヘルパー
+// fixture ヘルパー — コードのリポジトリの main に計画をコミットし、その参照から読む
 // ============================================================
 
-let root: string;
+let fixture: GitStoreFixture;
 
-beforeEach(async () => {
-  root = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-board-plans-'));
+beforeEach(() => {
+  fixture = createGitStoreFixture();
 });
 
-afterEach(async () => {
+afterEach(() => {
   vi.restoreAllMocks();
-  await fs.rm(root, { recursive: true, force: true });
+  fixture.remove();
 });
 
-async function writeFile(relativePath: string, content: string): Promise<void> {
-  const target = path.join(root, relativePath);
+/** コードのリポジトリにファイルを書き、指定の時刻でコミットする */
+async function commitFile(relativePath: string, content: string, at: string): Promise<void> {
+  const target = path.join(fixture.repo, relativePath);
   await fs.mkdir(path.dirname(target), { recursive: true });
   await fs.writeFile(target, content, 'utf-8');
+  git(fixture.repo, 'add', relativePath);
+  execCommit(at);
 }
 
-function repository(): FsPlanRepository {
-  return new FsPlanRepository(path.join(root, '.ai-board', 'plans'));
+function execCommit(at: string): void {
+  execFileSync('git', ['commit', '--quiet', '-m', 'x'], {
+    cwd: fixture.repo,
+    env: { ...process.env, GIT_AUTHOR_DATE: at, GIT_COMMITTER_DATE: at },
+  });
+}
+
+function repository(ref = 'HEAD'): RefPlanRepository {
+  return new RefPlanRepository(() =>
+    readPlanFilesAtRef({ runner: createCliRunner(), repoDir: fixture.repo, ref })
+  );
 }
 
 // ============================================================
@@ -97,59 +117,84 @@ describe('countTasks', () => {
 // load()
 // ============================================================
 
-describe('FsPlanRepository.load', () => {
-  it('ディレクトリが無ければ空を返す（例外にしない）', async () => {
-    expect((await repository().load()).size).toBe(0);
+describe('RefPlanRepository.load', () => {
+  it('参照が無ければ空を返す（例外にしない）', async () => {
+    expect((await repository('refs/ai-board/store').load()).size).toBe(0);
   });
 
-  it('計画ファイルを読んで進捗を集計する', async () => {
-    await writeFile('.ai-board/plans/refresh-token.md', '# 計画\n\n- [x] 1\n- [ ] 2');
-
-    const state = await repository().load();
-    const doc = state.get('refresh-token' as CardId);
-
-    expect(doc?.tasks).toEqual({ completed: 1, total: 2 });
-    expect(doc?.archived).toBe(false);
-  });
-
-  it('ファイルの mtime を updatedAt として返す', async () => {
-    await writeFile('.ai-board/plans/refresh-token.md', '- [ ] 1');
-    const mtime = new Date('2026-09-20T01:02:03.000Z');
-    await fs.utimes(path.join(root, '.ai-board/plans/refresh-token.md'), mtime, mtime);
+  it('参照の cards/<id>/plan.md を、main に入った計画（マージ済み）として読み、進捗を集計する', async () => {
+    await commitFile(
+      '.ai-board/cards/refresh-token/plan.md',
+      '# 計画\n\n- [x] 1\n- [ ] 2',
+      '2026-09-20T01:02:03Z'
+    );
 
     const doc = (await repository().load()).get('refresh-token' as CardId);
 
-    expect(doc?.updatedAt).toBe('2026-09-20T01:02:03.000Z');
+    expect(doc?.tasks).toEqual({ completed: 1, total: 2 });
+    expect(doc?.archived).toBe(true);
   });
 
-  it('.md 以外とディレクトリは無視する', async () => {
-    await writeFile('.ai-board/plans/notes.txt', 'x');
-    await writeFile('.ai-board/plans/subdir/inner.md', 'x');
+  it('計画を最後に変えたコミットの時刻を updatedAt として返す', async () => {
+    await commitFile('.ai-board/cards/refresh-token/plan.md', '- [ ] 1', '2026-09-20T01:02:03Z');
+    await commitFile('.ai-board/cards/other/plan.md', '- [ ] 1', '2026-09-21T00:00:00Z');
+    await commitFile('src/a.ts', '', '2026-09-22T00:00:00Z');
+
+    const state = await repository().load();
+
+    expect(state.get('refresh-token' as CardId)?.updatedAt).toBe('2026-09-20T01:02:03.000Z');
+    expect(state.get('other' as CardId)?.updatedAt).toBe('2026-09-21T00:00:00.000Z');
+  });
+
+  it('作業ツリーの計画は読まない（チェックアウトがほかのブランチにいても main と取り違えない）', async () => {
+    await commitFile('README.md', 'x', '2026-09-20T00:00:00Z');
+    await fs.mkdir(path.join(fixture.repo, '.ai-board/cards/work'), { recursive: true });
+    await fs.writeFile(path.join(fixture.repo, '.ai-board/cards/work/plan.md'), '- [ ] 1');
 
     expect((await repository().load()).size).toBe(0);
   });
 
-  it('ファイル名がカード ID として不正なら警告して読み飛ばす', async () => {
+  it('カードの計画のほかのファイル（card.md・log/・今の置き方の plans/）は読まない', async () => {
+    await commitFile('.ai-board/cards/a/card.md', '---\nid: a\n---\n', '2026-09-20T00:00:00Z');
+    await commitFile('.ai-board/plans/archive/b.md', '- [x] 1', '2026-09-20T00:00:00Z');
+
+    expect((await repository().load()).size).toBe(0);
+  });
+
+  it('ディレクトリ名がカード ID として不正なら警告して読み飛ばす', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    await writeFile('.ai-board/plans/Not A Card.md', '- [ ] 1');
+    await commitFile('.ai-board/cards/Not_A_Card/plan.md', '- [ ] 1', '2026-09-20T00:00:00Z');
 
     expect((await repository().load()).size).toBe(0);
     expect(warn).toHaveBeenCalled();
   });
 
-  it('archive 配下は archived として読む', async () => {
-    await writeFile('.ai-board/plans/archive/board-lanes.md', '- [x] 1');
+  it('読めなければ警告して空を返す（ボードは開く）', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const failing = new RefPlanRepository(() => Promise.resolve(err('壊れている')));
 
-    expect((await repository().load()).get('board-lanes' as CardId)?.archived).toBe(true);
+    expect((await failing.load()).size).toBe(0);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('壊れている'));
   });
 
-  it('同じカードが archive と直下の両方にあれば直下を採る', async () => {
-    await writeFile('.ai-board/plans/archive/board-lanes.md', '- [x] 1');
-    await writeFile('.ai-board/plans/board-lanes.md', '- [ ] 1\n- [ ] 2');
+  it('読み手の結果をそのまま計画にする', async () => {
+    const repo = new RefPlanRepository(() =>
+      Promise.resolve(
+        ok([
+          {
+            path: '.ai-board/cards/x/plan.md',
+            content: '- [ ] 1',
+            committedAt: '2026-01-01T00:00:00.000Z',
+          },
+        ])
+      )
+    );
 
-    const doc = (await repository().load()).get('board-lanes' as CardId);
-
-    expect(doc?.archived).toBe(false);
-    expect(doc?.tasks).toEqual({ completed: 0, total: 2 });
+    expect((await repo.load()).get('x' as CardId)).toEqual({
+      cardId: 'x',
+      tasks: { completed: 0, total: 1 },
+      archived: true,
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
   });
 });

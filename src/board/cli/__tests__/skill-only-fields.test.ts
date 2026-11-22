@@ -8,6 +8,7 @@ import { initialDocuments, MemoryDocumentStore } from '../../../infrastructure/d
 import { parseCard } from '../../../cards/repositories/card-markdown.js';
 import { REVIEW_HEADING, parseReviewLog } from '../../../cards/services/review-log.js';
 import { isErr, ok } from '../../../shared/result.js';
+import { MemoryPlanRepository } from '../../__tests__/memory-plan-repository.js';
 import { createBoardDependencies, createLoopHistoryRepository } from '../../composition.js';
 import { runStatusCli } from '../status-cli.js';
 import type { PrStateProvider } from '../../services/pr-state-provider.js';
@@ -60,7 +61,10 @@ function collectOnlyUsages(): OnlyUsage[] {
 let root: string;
 let store: MemoryDocumentStore;
 
+const plans = new MemoryPlanRepository();
+
 beforeEach(async () => {
+  plans.clear();
   root = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-board-skill-only-'));
   store = new MemoryDocumentStore(initialDocuments());
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -108,10 +112,10 @@ async function writeCard(id: string, frontmatter: string, body = ''): Promise<vo
   });
 }
 
-async function writePlan(id: string, content: string): Promise<void> {
-  const target = path.join(root, '.ai-board', 'plans', `${id}.md`);
-  await fs.mkdir(path.dirname(target), { recursive: true });
-  await fs.writeFile(target, content, 'utf-8');
+/** 計画の成果物を置く（`archive/<id>` なら main に入った計画） */
+function writePlan(id: string, content: string): Promise<void> {
+  plans.set(id, content);
+  return Promise.resolve();
 }
 
 const connected: PrStateProvider = {
@@ -126,7 +130,7 @@ async function runStatus(
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   const cards = createCardDependencies(store);
   const board = createBoardDependencies(
-    path.join(root, '.ai-board', 'plans'),
+    plans,
     cards.cardRepository,
     cards.ideaDividerRepository,
     connected,

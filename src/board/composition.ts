@@ -6,7 +6,9 @@ import type { CliRunner } from '../infrastructure/cli-runner.js';
 import { PrFetcher, type PrFetcherOptions } from '../infrastructure/pr-fetcher.js';
 import type { ForgeClient } from './services/forge-client.js';
 import { GhForgeClient } from './services/github-client.js';
-import { FsPlanRepository, type PlanRepository } from './repositories/plan.repository.js';
+import { RefPlanRepository, type PlanRepository } from './repositories/plan.repository.js';
+import { readPlanFilesAtRef } from '../infrastructure/git-plan-tree.js';
+import { STORE_REF } from '../infrastructure/git-document-store.js';
 import type { PrSnapshotRepository } from './repositories/pr-snapshot.repository.js';
 import type { PrState } from './models/pr-state.js';
 import {
@@ -49,15 +51,13 @@ export const emptyLoopHistoryRepository: LoopHistoryRepository = {
 };
 
 export function createBoardDependencies(
-  plansDir: string,
+  planRepository: PlanRepository,
   cardRepository: CardRepository,
   ideaDividerRepository: IdeaDividerRepository,
   prProvider: PrStateProvider = disabledPrStateProvider,
   loopHistoryRepository: LoopHistoryRepository = emptyLoopHistoryRepository,
   branchPlanRepository: BranchPlanRepository = emptyBranchPlanRepository
 ): BoardDependencies {
-  const planRepository = new FsPlanRepository(plansDir);
-
   return {
     planRepository,
     getBoardQuery: createGetBoardQuery(
@@ -100,9 +100,10 @@ export function createPrSnapshotRepository(
  */
 export function createBranchPlanRepository(
   runner: CliRunner,
-  repoRoot: string
+  repoRoot: string,
+  remote = 'origin'
 ): BranchPlanRepository {
-  return new GitBranchPlanRepository(runner, repoRoot);
+  return new GitBranchPlanRepository(runner, repoRoot, remote);
 }
 
 /**
@@ -193,9 +194,17 @@ export async function assembleBoard(
   );
   await fetcher?.refresh();
 
-  const branchPlans = createBranchPlanRepository(runner, config.paths.root);
+  const branchPlans = createBranchPlanRepository(
+    runner,
+    config.paths.root,
+    config.store.branchRemote
+  );
+  // main の計画は、check() が fetch した置き場所の参照から読む（作業ツリーは読まない）
+  const mainPlans = new RefPlanRepository(() =>
+    readPlanFilesAtRef({ runner, repoDir: config.paths.repoDir, ref: STORE_REF })
+  );
   const board = createBoardDependencies(
-    config.paths.plansDir,
+    mainPlans,
     cards.cardRepository,
     cards.ideaDividerRepository,
     provider,

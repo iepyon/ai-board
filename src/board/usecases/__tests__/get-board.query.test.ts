@@ -213,7 +213,7 @@ describe('GetBoardQuery のブランチのマージ待ち', () => {
     branch: 'closed',
     body: '## レビュー\n\n### 2026-11-03T00:00:00.000Z plan 提出\n\n理由\n\n### 2026-11-03T01:00:00.000Z plan 承認\n\n',
   });
-  const archivedAt = '2026-11-04T00:00:00.000Z';
+  const closedAt = '2026-11-04T00:00:00.000Z';
 
   function reader(): BranchPlanRepository & { readonly calls: string[] } {
     const calls: string[] = [];
@@ -222,7 +222,7 @@ describe('GetBoardQuery のブランチのマージ待ち', () => {
       calls,
       findClosed: (cardId) => {
         calls.push(cardId);
-        return Promise.resolve(cardId === 'closed' ? { archivedAt } : null);
+        return Promise.resolve(cardId === 'closed' ? { closedAt } : null);
       },
     };
   }
@@ -237,12 +237,12 @@ describe('GetBoardQuery のブランチのマージ待ち', () => {
     expect(closed?.hold).toEqual({
       kind: 'decision',
       reason: expect.stringContaining('git merge --no-ff closed') as string,
-      since: archivedAt,
+      since: closedAt,
     });
     expect(branchPlans.calls).toEqual(['closed']);
   });
 
-  it('github: があるボードではブランチの archive を読まない', async () => {
+  it('github: があるボードではブランチの締めを読まない', async () => {
     const branchPlans = reader();
     const unavailable = unavailablePrStateProvider('github', 'gh が無い');
     const result = await query([approved], [], unavailable, branchPlans)();
@@ -252,13 +252,13 @@ describe('GetBoardQuery のブランチのマージ待ち', () => {
     expect(branchPlans.calls).toEqual([]);
   });
 
-  it('メインに計画（archive）があれば、ブランチを読まずにマージ済みにする', async () => {
+  it('main に計画があれば、ブランチを読まずにマージ済みにする', async () => {
     const branchPlans = reader();
     const merged: PlanDoc = {
       cardId: createCardId('closed'),
       tasks: { completed: 1, total: 1 },
       archived: true,
-      updatedAt: archivedAt,
+      updatedAt: closedAt,
     };
     const result = await query(
       [approved],

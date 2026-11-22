@@ -90,6 +90,11 @@ export interface StoreConfig {
   /** リモートの名前か、リポジトリのパス・URL（`AI_BOARD_STORE` を指せばそのパス） */
   readonly remote: string;
   readonly branch: string;
+  /**
+   * カードのブランチを追う、コードのリポジトリのリモートの名前（`store.remote`、既定 `origin`）。
+   * `AI_BOARD_STORE` で置き場所を差し替えても、カードのブランチはこのリモートにある
+   */
+  readonly branchRemote: string;
 }
 
 /**
@@ -169,6 +174,7 @@ export function loadConfig(root: string, env: NodeJS.ProcessEnv = process.env): 
     store: {
       remote: paths.storeOverride ?? parsed.data.store?.remote ?? DEFAULT_STORE_REMOTE,
       branch: parsed.data.store?.branch ?? DEFAULT_STORE_BRANCH,
+      branchRemote: parsed.data.store?.remote ?? DEFAULT_STORE_REMOTE,
     },
   };
 }

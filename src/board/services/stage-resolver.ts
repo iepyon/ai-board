@@ -37,18 +37,18 @@ export interface StageResolution {
  *
  * | # | stage       | 条件                                                 |
  * |---|-------------|------------------------------------------------------|
- * | 1 | merged      | 計画が archive 済み、または PR が merged               |
+ * | 1 | merged      | main に計画がある、または PR が merged                |
  * | 2 | pr          | PR が opened かつ Draft でない                         |
  * | 3 | impling     | plan 承認済み                                         |
- * | 4 | plan-review | 計画ファイルか Draft の PR があり plan ゲートが none / submitted |
+ * | 4 | plan-review | 計画の成果物（Draft の PR、未設定のボードではブランチの計画）があり plan ゲートが none / submitted |
  * | 5 | planning    | startedAt が非 null                                   |
  * | 6 | idea        | 既定                                                  |
  *
  * 計画と実装は同じ 1 本の PR に載る。AI は計画をコミットした時点で Draft の PR を出し、
  * 人はその PR で計画を読んで、`ai-board decide` で承認するか差し戻す。実装と AI レビューを終えた AI が、
  * 動かした証拠を PR の本文に書いて Ready にした時点で PR中 へ進み、人は証拠を見て動かし、差分を読む。
- * 計画ファイルはブランチにあり、ボードを動かすチェックアウトからは見えないことが多いので、
- * Draft の PR も計画の成果物として扱う。
+ * 計画ファイルはブランチにあり、main にはマージでだけ入るので、Draft の PR を計画の成果物として扱い、
+ * main に計画があればマージ済みとする（GitHub が未設定のボードでは、カードのブランチの計画も計画の成果物にする）。
  *
  * 差し戻しは専用ルールを持たない。`gate = rejected` のとき
  * その工程のレビュー行と承認行が両方外れ、1 つ手前の列へ自然に落ちる。
@@ -118,12 +118,12 @@ function toFacts(card: Card, plan: PlanDoc | null, pr: PrState | null): Facts {
  * 制御構造ではなく配列の順序で表す。
  */
 const RULES: ReadonlyArray<(facts: Facts) => Derivation | null> = [
-  // 1. merged — 計画が archive されたか、PR がマージされたか
+  // 1. merged — 計画が main に入ったか（計画はマージでだけ main に入る）、PR がマージされたか
   ({ plan }) =>
     plan?.archived === true
       ? {
           stage: 'merged',
-          reason: `.ai-board/plans/archive/${plan.cardId}.md に移動済み`,
+          reason: `main に .ai-board/cards/${plan.cardId}/plan.md がある`,
         }
       : null,
 

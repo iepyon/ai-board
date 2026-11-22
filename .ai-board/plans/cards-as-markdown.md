@@ -442,11 +442,11 @@ AI ループの次の一手に、止まっているカードを選んでは SHAL
 
 ### 4. 計画の置き場所
 
-- [ ] `src/infrastructure/git-plan-tree.ts` に、置き場所の参照から `cards/*/plan.md` を読み、時刻をコミットから取る読み取りを作る
-- [ ] `plan.repository.ts` をその読み取りの上に替え、`composition.ts` で組む。`get-board.query.ts`（`archivedAt` など）・`next-action.ts`・`board-sections.ts`・`src/cards/models/card.ts` の計画の場所と archive の扱いを合わせる
-- [ ] `branch-plan.repository.ts`・`impl-step.ts`・`branch-plan-target.ts` を `cards/<id>/plan.md` と `## 締め` の節で読むものに替える。決め打ちの `origin` を `store.remote` にする
-- [ ] `stage-resolver.ts`・`plan-state.ts`・`board-card.ts` などの docstring の「archive」を今の形に直す（規則は変えない）
-- [ ] 仕様の差分を `docs/specs/board-stages/spec.md` と `docs/specs/board-hold/spec.md` に写す
+- [x] `src/infrastructure/git-plan-tree.ts` に、置き場所の参照から `cards/*/plan.md` を読み、時刻をコミットから取る読み取りを作る
+- [x] `plan.repository.ts` をその読み取りの上に替え、`composition.ts` で組む。`get-board.query.ts`（`archivedAt` など）・`next-action.ts`・`board-sections.ts`・`src/cards/models/card.ts` の計画の場所と archive の扱いを合わせる
+- [x] `branch-plan.repository.ts`・`impl-step.ts`・`branch-plan-target.ts` を `cards/<id>/plan.md` と `## 締め` の節で読むものに替える。決め打ちの `origin` を `store.remote` にする
+- [x] `stage-resolver.ts`・`plan-state.ts`・`board-card.ts` などの docstring の「archive」を今の形に直す（規則は変えない）
+- [x] 仕様の差分を `docs/specs/board-stages/spec.md` と `docs/specs/board-hold/spec.md` に写す
 
 ### 5. 手順書
 

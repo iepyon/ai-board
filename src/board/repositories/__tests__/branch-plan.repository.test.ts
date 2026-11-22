@@ -65,15 +65,14 @@ function respond(fake: FakeGit, sub: string, last: string): Result<string, CliEr
 
 const localRef = 'refs/heads/feat/x';
 const remoteRef = 'refs/remotes/origin/feat/x';
-const activePath = '.ai-board/plans/some-card.md';
-const archivePath = '.ai-board/plans/archive/some-card.md';
+const activePath = '.ai-board/cards/some-card/plan.md';
 
 // ============================================================
 // GitBranchPlanRepository
 // ============================================================
 
 describe('GitBranchPlanRepository', () => {
-  it('ローカルのブランチの plans/ の計画を本文ごと返す', async () => {
+  it('ローカルのブランチの cards/<id>/plan.md を本文ごと返す', async () => {
     const { runner, calls } = fakeGit({
       refs: [localRef, remoteRef],
       blobs: { [`${localRef}:${activePath}`]: 'local', [`${remoteRef}:${activePath}`]: 'remote' },
@@ -114,26 +113,39 @@ describe('GitBranchPlanRepository', () => {
     expect(plan).toBeNull();
   });
 
-  it('plans/ に無く plans/archive/ にあれば archived を返す', async () => {
+  it('計画に ## 締め の節があれば closed を返す', async () => {
     const { runner } = fakeGit({
       refs: [localRef],
-      blobs: { [`${localRef}:${archivePath}`]: 'archived' },
+      blobs: { [`${localRef}:${activePath}`]: '# 計画\n\n- [x] 1\n\n## 締め\n\n2026-11-22\n' },
     });
 
     const plan = await new GitBranchPlanRepository(runner, ROOT).find(cardId, 'feat/x');
 
-    expect(plan).toEqual({ location: 'archived' });
+    expect(plan).toEqual({ location: 'closed' });
   });
 
-  it('plans/ と plans/archive/ の両方にあれば plans/ を採る', async () => {
+  it('コードブロックの中の ## 締め は締め済みと読まない', async () => {
+    const text = '# 計画\n\n```markdown\n## 締め\n```\n';
     const { runner } = fakeGit({
       refs: [localRef],
-      blobs: { [`${localRef}:${activePath}`]: 'active', [`${localRef}:${archivePath}`]: 'old' },
+      blobs: { [`${localRef}:${activePath}`]: text },
     });
 
     const plan = await new GitBranchPlanRepository(runner, ROOT).find(cardId, 'feat/x');
 
-    expect(plan).toEqual({ location: 'active', text: 'active' });
+    expect(plan).toEqual({ location: 'active', text });
+  });
+
+  it('リモートを渡せば、そのリモートの追跡ブランチを読む', async () => {
+    const upstream = 'refs/remotes/upstream/feat/x';
+    const { runner } = fakeGit({
+      refs: [upstream],
+      blobs: { [`${upstream}:${activePath}`]: 'up' },
+    });
+
+    const plan = await new GitBranchPlanRepository(runner, ROOT, 'upstream').find(cardId, 'feat/x');
+
+    expect(plan).toEqual({ location: 'active', text: 'up' });
   });
 
   it('ブランチがどこにも無ければ null を返し、git show を呼ばない', async () => {
@@ -226,14 +238,14 @@ describe('GitBranchPlanRepository.findActive', () => {
 
     git('switch', '-q', '-c', 'active-card');
     await commitFile(
-      '.ai-board/plans/active-card.md',
+      '.ai-board/cards/active-card/plan.md',
       '# 計画\n\n- [x] 1\n- [ ] 2\n',
       '計画を立てる'
     );
 
     git('switch', '-q', 'main');
-    git('switch', '-q', '-c', 'archived-card');
-    await commitFile('.ai-board/plans/archive/archived-card.md', '# 計画\n', 'archive');
+    git('switch', '-q', '-c', 'old-layout');
+    await commitFile('.ai-board/plans/old-layout.md', '# 計画\n', '今の置き方の計画');
     git('switch', '-q', 'main');
   });
 
@@ -243,7 +255,7 @@ describe('GitBranchPlanRepository.findActive', () => {
 
   const reader = () => new GitBranchPlanRepository(createCliRunner(), repo);
 
-  it('ブランチの plans/<id>.md を、タスクの数とコミットの時刻を付けて返す', async () => {
+  it('ブランチの cards/<id>/plan.md を、タスクの数とコミットの時刻を付けて返す', async () => {
     const doc = await reader().findActive(createCardId('active-card'), 'active-card');
     const committedAt = git('log', '-1', '--format=%cI', 'active-card').trim();
 
@@ -255,8 +267,8 @@ describe('GitBranchPlanRepository.findActive', () => {
     });
   });
 
-  it('ブランチの archive/ にしか計画が無ければ null（マージ済みに見せない）', async () => {
-    expect(await reader().findActive(createCardId('archived-card'), 'archived-card')).toBeNull();
+  it('今の置き方（plans/<id>.md）の計画は読まない', async () => {
+    expect(await reader().findActive(createCardId('old-layout'), 'old-layout')).toBeNull();
   });
 
   it('ブランチが無い・名前が不正なら null', async () => {
@@ -284,21 +296,18 @@ describe('GitBranchPlanRepository.findClosed', () => {
     git('config', 'user.name', 'test');
     await commitFile('README.md', '# repo\n', 'init');
 
-    // 締めが済んだブランチ: 計画を立て、archive へ移し、その後にコード（計画以外）のコミットは無い
+    // 締めが済んだブランチ: 計画を立て、締めの段が ## 締め の節を足した
     git('switch', '-q', '-c', 'closed-card');
-    await commitFile('.ai-board/plans/closed-card.md', '# 計画\n- [x] 1\n', '計画を立てる');
-    await fs.mkdir(path.join(repo, '.ai-board/plans/archive'), { recursive: true });
-    git('mv', '.ai-board/plans/closed-card.md', '.ai-board/plans/archive/closed-card.md');
-    git('commit', '-q', '-m', 'archive');
+    await commitFile('.ai-board/cards/closed-card/plan.md', '# 計画\n- [x] 1\n', '計画を立てる');
+    await commitFile(
+      '.ai-board/cards/closed-card/plan.md',
+      '# 計画\n- [x] 1\n\n## 締め\n\n2026-11-22\n',
+      '締める'
+    );
     git('switch', '-q', 'main');
 
     git('switch', '-q', '-c', 'active-card');
-    await commitFile('.ai-board/plans/active-card.md', '# 計画\n- [ ] 1\n', '計画を立てる');
-    git('switch', '-q', 'main');
-
-    git('switch', '-q', '-c', 'both-card');
-    await commitFile('.ai-board/plans/archive/both-card.md', '# 計画\n', 'archive');
-    await commitFile('.ai-board/plans/both-card.md', '# 計画\n', 'active');
+    await commitFile('.ai-board/cards/active-card/plan.md', '# 計画\n- [ ] 1\n', '計画を立てる');
     git('switch', '-q', 'main');
   });
 
@@ -308,16 +317,15 @@ describe('GitBranchPlanRepository.findClosed', () => {
 
   const reader = () => new GitBranchPlanRepository(createCliRunner(), repo);
 
-  it('ブランチで計画が archive 済みなら、archive のコミットの時刻を返す', async () => {
+  it('ブランチの計画に ## 締め の節があれば、計画を最後に変えたコミットの時刻を返す', async () => {
     const closed = await reader().findClosed(createCardId('closed-card'), 'closed-card');
     const committedAt = git('log', '-1', '--format=%cI', 'closed-card').trim();
 
-    expect(closed).toEqual({ archivedAt: new Date(committedAt).toISOString() });
+    expect(closed).toEqual({ closedAt: new Date(committedAt).toISOString() });
   });
 
-  it('ブランチに plans/<id>.md があれば（締めの前、archive から戻した）null', async () => {
+  it('ブランチの計画に ## 締め の節が無ければ（締めの前）null', async () => {
     expect(await reader().findClosed(createCardId('active-card'), 'active-card')).toBeNull();
-    expect(await reader().findClosed(createCardId('both-card'), 'both-card')).toBeNull();
   });
 
   it('ブランチが無い・名前が不正・計画がどこにも無ければ null', async () => {
