@@ -504,3 +504,7 @@ AI ループの次の一手に、止まっているカードを選んでは SHAL
 - `src/board/composition.ts:204` の `readPlanFilesAtRef()` は既定の `createCliRunner()`（出力 8MB）で main の計画を全部 `cat-file` するので、計画が 1 枚 50KB 前後なら 160 枚ほどで読めなくなり、警告を出して main の計画が無いもの（未設定のボードではマージ済みが落ちる）として扱う。今の枚数では起きないので見送る（置き場所の runner と同じ上限を渡すか、`plan.md` を数えるだけにする余地がある）
 - `src/infrastructure/git-branch-check.ts:47` の `changedStoreFiles()` は、`AI_BOARD_STORE` で試しの置き場所（`store init` が作る親の無い履歴）を指したまま走らせると `merge-base` が共通の祖先を見つけられず、「ブランチの差分を読めませんでした: 終了コード 1 で失敗した」で止まる（試しの置き場所で再現）。止まる側に倒れて気づけるので見送る（`rules.md` の「動かして確かめるとき」に、`check-branch` は `AI_BOARD_STORE` を外して走らせると書く余地がある）
 - `src/infrastructure/config.ts:13,78,125` の `PLANS_DIR` と `BoardPaths.plansDir` は、`.ai-board/plans/` を読まなくなった後もどこからも使われずに残っている。振る舞いを変えない整理なので見送る
+
+## 締め
+
+2026-11-22。動作確認の結果と判断してほしいことは PR #116 の本文にある。
