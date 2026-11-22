@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import * as path from 'node:path';
 import { createCardDependencies } from '../../../cards/composition.js';
 import { parseCard } from '../../../cards/repositories/card-markdown.js';
 import { err, isErr, ok, type Result } from '../../../shared/result.js';

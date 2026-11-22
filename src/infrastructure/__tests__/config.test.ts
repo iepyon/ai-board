@@ -200,21 +200,30 @@ describe('store', () => {
   it('書かれていなければ origin の main', async () => {
     await writeConfig(githubYaml);
 
-    expect(loadConfig(root, {}).store).toEqual({ remote: 'origin', branch: 'main' });
+    expect(loadConfig(root, {}).store).toEqual({
+      remote: 'origin',
+      branch: 'main',
+      branchRemote: 'origin',
+    });
   });
 
   it('store.remote と store.branch を読む', async () => {
     await writeConfig(`${githubYaml}store:\n  remote: upstream\n  branch: board\n`);
 
-    expect(loadConfig(root, {}).store).toEqual({ remote: 'upstream', branch: 'board' });
+    expect(loadConfig(root, {}).store).toEqual({
+      remote: 'upstream',
+      branch: 'board',
+      branchRemote: 'upstream',
+    });
   });
 
-  it('AI_BOARD_STORE があれば、そのリポジトリをリモートにする', async () => {
+  it('AI_BOARD_STORE があれば、そのリポジトリを置き場所のリモートにし、カードのブランチは設定のリモートで追う', async () => {
     await writeConfig(`${githubYaml}store:\n  remote: upstream\n`);
 
     expect(loadConfig(root, { AI_BOARD_STORE: '/tmp/x.git' }).store).toEqual({
       remote: '/tmp/x.git',
       branch: 'main',
+      branchRemote: 'upstream',
     });
   });
 
