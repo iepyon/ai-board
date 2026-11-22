@@ -1,4 +1,4 @@
-# カードを main の Markdown に置き、計画を同じディレクトリに並べる
+# 置き場所に git の main の Markdown を足して既定にし、計画をカードのディレクトリに置く
 
 ## 提案
 
@@ -7,10 +7,12 @@
 カードの正本は Artifact の DB にある（ADR 0020）。しかし使う場では claude.ai が使えず、DB に届かない。
 使うのは 3 人で、1 つのボードを共有し、各自のローカル PC で動かす。GitHub は使える。ボードはブラウザで見るだけで、判断はチャットで頼む。
 git の main の普通のファイルに置けば、共有・楽観ロック・判断の履歴を git が兼ね、写し・送る箱・Claude による送り出しが要らなくなる（ADR 0021、提案）。
+一方で、claude.ai を使える場で Artifact の置き場所を使う人もいるので、置き場所の種類を設定で選べるようにし、既定を git にする。
 
 ### What Changes
 
-- **置き場所を git の main のファイルにする。** `DocumentStore` の新しい実装 `GitDocumentStore` を作り、Artifact の実装 `ArtifactMirrorStore` と置き換える。
+- **置き場所の種類を `.ai-board/config.yaml` の `store.kind`（`git` / `artifact`）で選び、既定を `git` にする。** 種類で変わるのは `DocumentStore` の実装と、Claude が CLI の前後に取り込み・送り出しをするかだけで、その上の usecase・検査・ステージの導出・計画の置き場所は共通にする
+- **git の置き場所: main のファイル。** `DocumentStore` の新しい実装 `GitDocumentStore` を作り、Artifact の実装 `ArtifactMirrorStore` と並べる。
   読み出しは `git fetch` した `<remote>/<branch>` のツリーから、書き込みはそのツリーの上にコミットを作って push する。メインのチェックアウトの作業ツリーには触らない
 - ファイルの形は、今の `card-files.ts`（以前のデータ用ブランチの形）をそのまま使う
 
@@ -26,18 +28,19 @@ git の main の普通のファイルに置けば、共有・楽観ロック・�
 - **計画を `.ai-board/cards/<id>/plan.md` に置き、main にあればマージ済みとする。** `.ai-board/plans/` と `archive/` へ移す手順をなくす。
   締めの段は、移す代わりに計画の末尾に `## 締め` の節を足す。ブランチの「締め済み」はこの節で読む
 - **カードのブランチは置き場所のファイルを変えない。** `ai-board store check-branch <branch>` で検査し、ループは push の前に走らせる
-- 写し・送る箱とその CLI（`store pull` / `outbox` / `ack` / `discard` / `import` / `seed`）、`board-store` のスキル、`ArtifactData` の hook を消す。人のいない `/loop` からも書けるようになる
-- マージ済みの PR の控えとループの記録は、各 PC の `.ai-board/local/` に置き、共有しない
-- `.ai-board/seed/` のカードを `.ai-board/cards/` に移し、`seed/order.txt` を `order.yaml` にする
-- `board-view` のスキルは、Artifact で公開する代わりに `.ai-board/local/board.html` に書き出し、パスを伝える
-- `config.yaml` の `store.url` を `store.remote`（既定 `origin`）と `store.branch`（既定 `main`）に替える。`AI_BOARD_STORE` は試しに使う git リポジトリ（bare）のパスを指す
+- **artifact の置き場所は今のまま残す。** 写し・送る箱とその CLI（`store pull` / `outbox` / `ack` / `discard` / `import`）、`board-store` のスキル、`ArtifactData` の hook は、`store.kind: artifact` のときに使う。git のときは写しと送る箱を使わず、人のいない `/loop` からも書ける
+- 手順書は `ai-board store kind`（`git` か `artifact` を 1 行で出す）を見て、`artifact` のときだけ `board-store` の取り込み・送り出しを挟む
+- マージ済みの PR の控えとループの記録は、artifact では今どおり置き場所に置き、git では各 PC の `.ai-board/local/` に置いて共有しない
+- `.ai-board/seed/` は配る seed として残す。`store init` と `store seed` はどちらの置き場所でも使え、git ではこの 2 つで main に最初のカードを入れる
+- `board-view` のスキルは、artifact では今どおり Artifact で公開し、git では `.ai-board/local/board.html` に書き出してパスを伝える
+- `config.yaml` の `store` に `kind`（既定 `git`）・`remote`（既定 `origin`）・`branch`（既定 `main`）を足す。`url` は artifact のときだけ使う。`AI_BOARD_STORE` は、git では試しに使う git リポジトリ（bare）のパスを、artifact では今どおり写しのディレクトリを指す
 
 ### Impact
 
 - コード: `src/infrastructure/`（置き場所・設定・cli-runner）、`src/cards/`（CLI・composition・repositories）、`src/board/`（計画のリポジトリ・段・止まり・composition）
-- 手順書: `.claude/skills/board-loop/`・`board-decide`・`board-view`・`board-store`（消す）・`.claude/agents/board-reviewer.md`・`.claude/settings.json`
+- 手順書: `.claude/skills/board-loop/`・`board-decide`・`board-view`・`board-store`（artifact のときだけ使う）・`.claude/agents/board-reviewer.md`・`.claude/settings.json`
 - ドキュメント: `CLAUDE.md`・`README.md`・`docs/reference.md`・`REVIEW.md`・ADR（0004・0014・0019・0020・0021）・`docs/specs/`
-- 互換: 置き場所の形の版を 4 に上げる。Artifact の DB の置き場所はまだ用意されていない（`store.url` が null）ので、移すデータは無い
+- 互換: 形の版は 3 のまま変えない（文書の形はどちらの置き場所でも同じ）。`store.kind` を書いていない今の `config.yaml` は git として読む。このリポジトリの Artifact の置き場所はまだ用意されていない（`store.url` が null）ので、移すデータは無い
 
 ## 仕様の差分
 
@@ -47,7 +50,7 @@ git の main の普通のファイルに置けば、共有・楽観ロック・�
 
 ##### Requirement: 書き込みは置き場所のブランチへのコミットとして push する
 
-システムは CLI の書き込みを、`git fetch` で取った置き場所のブランチ（既定は `origin` の `main`）の先頭の上に、置き場所のファイルだけを変えるコミットを 1 つ作り、push しなければならない (MUST)。
+システムは git の置き場所では、CLI の書き込みを、`git fetch` で取った置き場所のブランチ（既定は `origin` の `main`）の先頭の上に、置き場所のファイルだけを変えるコミットを 1 つ作り、push しなければならない (MUST)。
 メインのチェックアウトの作業ツリー・index・今のブランチを変えては SHALL NOT。
 push が先を越されて拒まれたら、取り直した先頭の上で書く前の検査からやり直さなければならない (MUST)。3 回やり直しても通らなければ、書かずに 0 以外で終わらなければならない (MUST)。
 書く前の検査（判断を書けるか、ゲートの状態など）は、取り直した最新のカードに対して行わなければならない (MUST)。
@@ -74,60 +77,72 @@ push が先を越されて拒まれたら、取り直した先頭の上で書く
 
 ##### Requirement: 共有しない控えと記録は手元に置く
 
-システムは マージ済みの PR の控えとループの記録を、置き場所のブランチに書いては SHALL NOT。メインのチェックアウトの `.ai-board/local/`（git に載せない）に置かなければならない (MUST)。
+システムは git の置き場所では、マージ済みの PR の控えとループの記録を、置き場所のブランチに書いては SHALL NOT。メインのチェックアウトの `.ai-board/local/`（git に載せない）に置かなければならない (MUST)。
 控えが無ければ GitHub から引き直さなければならない (MUST)。
 
 ###### Scenario: 別の PC で初めて status を走らせる
 
-- **WHEN** `.ai-board/local/` が空の PC で `ai-board status` を走らせる
+- **WHEN** git の置き場所で、`.ai-board/local/` が空の PC で `ai-board status` を走らせる
 - **THEN** マージ済みの PR を GitHub から引き直し、置き場所のブランチにはコミットを足さない
 
 #### MODIFIED Requirements
 
 ##### Requirement: 正本の置き場所
 
-システムは カード・判断・並び順の正本を、設定で指す git のリポジトリの 1 つのブランチ（既定は `origin` の `main`）の `.ai-board/` の下に、ファイルとして置かなければならない (MUST)。
-リモートとブランチは `main` の `.ai-board/config.yaml` の `store.remote` と `store.branch` で指し、書かなければ `origin` と `main` を使わなければならない (MUST)。
-`AI_BOARD_STORE` があれば、そのパスの git リポジトリを置き場所のリモートとして使わなければならない (MUST)。
-リポジトリ（カード・区切り線・PR の控え・ループの記録）は、置き場所の口（`DocumentStore`）だけを通して読み書きしなければならない (MUST)。
+システムは カード・判断・並び順の正本を、`main` の `.ai-board/config.yaml` の `store.kind` で選んだ 1 つの置き場所に置かなければならない (MUST)。`store.kind` を書かなければ `git` としなければならない (MUST)。
 
-###### Scenario: 置き場所のリモートが無い
+- `git`: 設定で指す git のリポジトリの 1 つのブランチの `.ai-board/` の下に、ファイルとして置く。リモートとブランチは `store.remote` と `store.branch` で指し、書かなければ `origin` と `main` を使う。`AI_BOARD_STORE` があれば、そのパスの git リポジトリを置き場所のリモートとして使う
+- `artifact`: Artifact の DB に、文書（コレクションと ID で指す JSON）として置く。URL は `store.url` で指す。マージ済みの PR の控えとループの記録もここに置く。手元の写し・送る箱の要件（「手元の写しを読む」「書き込みを送る箱に積む」「データ用ブランチから移す」）はこの置き場所にだけ当てはまる
 
-- **WHEN** `store.remote` の指すリモートがリポジトリに無い状態で `ai-board status` を走らせる
+`ai-board store kind` は、選んだ置き場所の種類（`git` か `artifact`）を 1 行で出さなければならない (MUST)。
+リポジトリ（カード・区切り線・PR の控え・ループの記録）は、置き場所の口（`DocumentStore`）だけを通して読み書きしなければならない (MUST)。置き場所の種類で、その上の usecase・検査・ステージの導出を変えては SHALL NOT。
+
+###### Scenario: 既定は git
+
+- **WHEN** `.ai-board/config.yaml` に `store.kind` が無い状態で `ai-board store kind` を走らせる
+- **THEN** `git` を出す
+
+###### Scenario: artifact で URL が無い
+
+- **WHEN** `store.kind: artifact` で `store.url` が無い状態で `ai-board status` を走らせる
+- **THEN** 置き場所が未設定であることと、設定の仕方を 1 行で伝えて 0 以外で終わる
+
+###### Scenario: git で置き場所のリモートが無い
+
+- **WHEN** `store.kind: git` で、`store.remote` の指すリモートがリポジトリに無い状態で `ai-board status` を走らせる
 - **THEN** リモートが無いことと、設定の仕方を 1 行で伝えて 0 以外で終わる
 
-###### Scenario: 置き場所がまだ始まっていない
+###### Scenario: git で置き場所がまだ始まっていない
 
-- **WHEN** 置き場所のブランチに `.ai-board/board.yaml` が無い状態で `ai-board card list` を走らせる
+- **WHEN** `store.kind: git` で、置き場所のブランチに `.ai-board/board.yaml` が無い状態で `ai-board card list` を走らせる
 - **THEN** `ai-board store init` を促して 0 以外で終わる
 
 ##### Requirement: 形の版
 
-システムは 置き場所の `.ai-board/board.yaml` に形の版を持ち、自分と違う版の置き場所を読まずに止まらなければならない (MUST)。
-この計画で版を 4 とする。
+システムは 置き場所の `board/meta`（git の置き場所では `.ai-board/board.yaml`）に形の版を持ち、自分と違う版の置き場所を読まずに止まらなければならない (MUST)。
+版は 3 とし、置き場所の種類で変えては SHALL NOT（文書の形はどちらの置き場所でも同じため）。
 
 ###### Scenario: 版が違う
 
-- **WHEN** 置き場所の `board.yaml` の版が 4 でない
+- **WHEN** 置き場所の `board/meta` の版が 3 でない
 - **THEN** 読まずに、版が違うことを伝えて 0 以外で終わる
-
-#### REMOVED Requirements
-
-##### Requirement: 手元の写しを読む
-
-写しをやめ、置き場所のブランチを直接読むため。
-
-##### Requirement: 書き込みを送る箱に積む
-
-送る箱をやめ、CLI が直接 push するため（「書き込みは置き場所のブランチへのコミットとして push する」に置き換える）。
 
 ##### Requirement: 固定の seed ファイルから起票する
 
-`.ai-board/seed/` のカードは置き場所のファイルとして `.ai-board/cards/` に移すため。
+システムは `main` の `.ai-board/seed/*.md`（`card seed --from` が読む形）を、`ai-board store seed` で起票の書き込みとして書かなければならない (MUST)。artifact の置き場所では送る箱に積み、git の置き場所では置き場所のブランチへ push する。
+既にある ID は飛ばし、`rank`・着手・`## レビュー` は書いては SHALL NOT。
+起票は `.ai-board/seed/order.txt`（1 行 1 ID）に書いた順に、書いていない題材はその後にファイル名の順に行い、起票の時刻を前のカードより必ず後にしなければならない (MUST)（アイデアは `rank` が無ければ起票の時刻の順に並ぶので、`rank` を書かずにこの順で並べる）。
+`order.txt` に題材の無い ID や同じ ID が 2 度あれば、1 枚も起票してはならない (SHALL NOT)。
 
-##### Requirement: データ用ブランチから移す
+###### Scenario: 空の置き場所に seed を入れる
 
-データ用ブランチはもう無く、移す相手がいないため。
+- **WHEN** 空の DB を取り込んだ写しで `ai-board store seed` を走らせ、送る箱を送って取り込み直す
+- **THEN** seed のカードが `order.txt` の順にアイデアの列に並ぶ
+
+###### Scenario: 空の git の置き場所に seed を入れる
+
+- **WHEN** `store.kind: git` で `ai-board store init` の後に `ai-board store seed` を走らせる
+- **THEN** 置き場所のブランチに seed のカードの `card.md` を足すコミットが push され、`order.txt` の順にアイデアの列に並ぶ
 
 ### board-stages（`docs/specs/board-stages/spec.md`）
 
@@ -166,7 +181,8 @@ plan ゲートのレビュー記録が 1 件も無い場合も `plan-review` を
 
 ##### Requirement: PR 中とマージ済みは PR と main の計画で決まる
 
-システムは PR が open で Draft でない（Ready の）とき `pr`、PR がマージされたか置き場所のブランチ（main）に `.ai-board/cards/<id>/plan.md` があるとき `merged` を返さなければならない (MUST)。
+システムは PR が open で Draft でない（Ready の）とき `pr`、PR がマージされたか main に `.ai-board/cards/<id>/plan.md` があるとき `merged` を返さなければならない (MUST)。
+main の計画は、git の置き場所では fetch した置き場所のブランチで、artifact の置き場所ではメインのチェックアウトで読まなければならない (MUST)。
 open でも Draft の PR は `pr` を立てない。計画の成果物か、実装中の PR だからである。
 計画はカードのブランチに載り、main にはマージでだけ入るので、main の計画をマージ済みの印に使う。
 AI は実装と AI レビューを終えたら、動かした証拠を PR の本文に書き、計画の末尾に `## 締め` の節を足して PR を Ready にする。
@@ -188,7 +204,7 @@ AI は実装と AI レビューを終えたら、動かした証拠を PR の本
 
 ###### Scenario: 計画が main に入った
 
-- **WHEN** 置き場所のブランチに `.ai-board/cards/<id>/plan.md` がある
+- **WHEN** main に `.ai-board/cards/<id>/plan.md` がある
 - **THEN** ステージは `merged` になる
 
 #### REMOVED Requirements
@@ -275,8 +291,9 @@ AI ループの次の一手に、止まっているカードを選んでは SHAL
 
 システムは ループ（`/board-loop` を動かした本筋のセッション）が進めた 1 手ごとに、どのループが・どのカードに・どの手（と段）を・どの作業者（レビューの段で立てたサブエージェント。本筋のセッションが自分で進めた手は無し）で進め、
 いつ始めていつ終えたか、結果を、1 件の記録として残さなければならない (MUST)。
-記録はメインのチェックアウトの `.ai-board/local/`（git に載せない）に置き、置き場所のブランチに書いては SHALL NOT。1 手ごとに main へコミットが 2 つ増えるのを避けるためである。
-記録はその PC のボードからだけ見え、ほかの PC のループは見えない。
+artifact の置き場所では、記録はカードと同じ置き場所に置き、書くたびに送らなければならない (MUST)。クラウドのセッションが片付けられても残り、別の端末のボードからも見えるようにするためである。
+git の置き場所では、記録はメインのチェックアウトの `.ai-board/local/`（git に載せない）に置き、置き場所のブランチに書いては SHALL NOT。1 手ごとに main へコミットが 2 つ増えるのを避けるためである。記録はその PC のボードからだけ見え、ほかの PC のループは見えない。
+置き場所の形の版を上げては SHALL NOT（古い版の CLI がカードを読めなくなり、ループ自身が止まるため）。
 
 記録はカードの属性として持っては SHALL NOT、ステージの導出・止まり・次の一手に使っては SHALL NOT。
 
@@ -292,7 +309,7 @@ AI ループの次の一手に、止まっているカードを選んでは SHAL
 ###### Scenario: 1 手を進めて終える
 
 - **WHEN** ループが手の始まりに開始を書き、手を終えて終了を書いた
-- **THEN** 記録が 1 件でき、`.ai-board/local/` の記録だけが変わり、置き場所のブランチにはコミットが足されない
+- **THEN** 記録が 1 件でき、カードの文書は変わらない。artifact の置き場所では開始と終了の 2 回の書き込みが送る箱を通って置き場所に届き、git の置き場所では `.ai-board/local/` の記録だけが変わって置き場所のブランチにはコミットが足されない
 
 ###### Scenario: 終了を書き損ねた
 
@@ -318,15 +335,16 @@ AI ループの次の一手に、止まっているカードを選んでは SHAL
   - 置き場所のファイル以外（`plan.md` など）には書かない。`plan.md` を書こうとする口は無い
   - 外部コマンドは `cli-runner.ts` に閉じ、引数は配列で渡す。blob の中身を渡すため、`RunOptions` に標準入力（`input`）を足す
   - `pendingWrites()` は常に 0
-- **設定:** `store.url` を消し、`store.remote`（既定 `origin`）・`store.branch`（既定 `main`）を足す。`AI_BOARD_STORE` は、試しに使う git リポジトリのパス（`git init --bare` したもの）を置き場所のリモートとして指す
-- **`ai-board store`** は `init`（`board.yaml` と空の `order.yaml` を書く。既にあれば拒む）と `check-branch <branch>` だけにする。`pull` / `outbox` / `ack` / `discard` / `import` / `seed` を消す
-- **計画のリポジトリ:** `FsPlanRepository` を、置き場所のツリーの `cards/<id>/plan.md` を読むものに替え、あればマージ済み（今の `archived` の印）とする。`stage-resolver.ts` の規則は変えない（入力の作り方だけが変わる）
+- **設定:** `store` に `kind`（`git` / `artifact`、既定 `git`）・`remote`（既定 `origin`）・`branch`（既定 `main`）を足し、`url` は artifact のときだけ読む。`AI_BOARD_STORE` は、git では試しに使う git リポジトリのパス（`git init --bare` したもの）を置き場所のリモートとして、artifact では今どおり写しのディレクトリとして指す
+- **組み立て:** `composition.ts` が `kind` を見て `GitDocumentStore` か `ArtifactMirrorStore` を組む。PR の控え・ループの記録のリポジトリは同じ口を使い、git の実装だけがそれを `.ai-board/local/` へ振り分ける
+- **`ai-board store`** に `kind` と `check-branch <branch>` を足す。`init`（git では `board.yaml` と空の `order.yaml` を書く）と `seed` はどちらの置き場所でも動く。`pull` / `outbox` / `ack` / `discard` / `import` は artifact のときだけ動き、git では「git の置き場所では使わない」と伝えて 0 以外で終わる
+- **手順書の分岐:** `board-loop`・`board-decide`・`board-view` は最初に `ai-board store kind` を見て、`artifact` のときだけ `board-store` の取り込み・送り出しを挟む。分岐は手順書ごとに 1 か所にまとめる
+- **計画のリポジトリ:** `cards/<id>/plan.md` を読み、あればマージ済み（今の `archived` の印）とする。git では置き場所のツリーから、artifact ではメインのチェックアウトから読む。`stage-resolver.ts` の規則は変えない（入力の作り方だけが変わる）
 - **ブランチの計画:** `branch-plan.repository.ts` は `git show <branch>:.ai-board/cards/<id>/plan.md` を読む。締め済み（今の `findClosed`）は、その計画に `## 締め` の節（コードブロックの外）があるかで読む。`impl-step.ts` の「archive 済み」の段も同じ印で読む
 - **締めの段:** `git mv` で archive へ移す代わりに、計画の末尾に `## 締め` の節（日付と、PR の本文の証拠への 1 行。GitHub が未設定のボードでは今の `## 動作確認の結果` などをこの節の下に書く）を足してコミットし、Ready にする
 - **AI の push の決まり:** Bash からの `git push * main` の deny（`.claude/settings.json`）は残す。main へのコミットは `ai-board` の CLI の書き込みだけが作る。
   Claude が置き場所のファイルを直接書き換えないよう、`Edit` の deny に `.ai-board/cards/*/card.md`・`.ai-board/cards/*/log/**`・`.ai-board/order.yaml`・`.ai-board/board.yaml` を足す
-- **移す:** `.ai-board/seed/*.md` を `.ai-board/cards/<id>/card.md` に、`seed/order.txt` の順を `order.yaml` の `rank` にする。この移動はこの PR に入れる（カードのブランチで置き場所のファイルを変える、ただ 1 度の例外）。
-  `created` は今の `store seed` と同じく `order.txt` の順に 1 秒ずつずらす
+- **始め方:** このリポジトリの置き場所のファイルは PR に入れない（カードのブランチは置き場所のファイルを変えない）。マージ後に人が `ai-board store init` と `ai-board store seed` を走らせ、main に最初のカードを入れる
 - この計画自身も、最後の節で `.ai-board/plans/cards-as-markdown.md` から `.ai-board/cards/cards-as-markdown/plan.md` へ移す。マージで main に入り、このカードはマージ済みになる
 
 ### 仮定
@@ -336,11 +354,13 @@ AI ループの次の一手に、止まっているカードを選んでは SHAL
 - 読み出しにも fetch を使う（毎回ネットワークに出る）。ADR 0017 の「1 回の実行で問い合わせは 1 回」に合わせ、`check()` の 1 回にまとめる
 - メインのチェックアウトが main 以外のブランチにいても、未コミットの変更があっても動く。作業ツリーに触らないため。手元の `main` は人が普段どおり pull して追いつく
 - マージ済みの PR の控えは手元に置き、無ければ引き直す。`data-branch-import.ts` の頃から、控えは GitHub から引き直せるものとして扱ってきた
-- Artifact の DB の置き場所は用意されていない（`store.url` が null）ので、Artifact から移す手順は作らない
-- 形の版を 4 にする。版 3 の置き場所（Artifact）とは別の置き場所なので、上げても困る CLI は無い
+- 置き場所の種類をまたいで、使っている最中のボードを移す手順は作らない。アイデアのカードだけなら、今の `card export --to` と `card seed --from` で移せる
+- 形の版は 3 のままにする。文書の形はどちらの置き場所でも同じで、上げると artifact の置き場所を使う古い CLI がカードを読めなくなる
 
 ### 退けた代案
 
+- **artifact の置き場所を消して git に一本化する** — claude.ai を使える場で artifact の置き場所を使う人がいる（plan 差し戻し、2026-11-22）
+- **置き場所の種類で計画の置き場所も分ける（artifact では今の `plans/` と `archive/`）** — 計画はどちらでも git のブランチに載るので、分けると段・止まり・手順書の分岐が倍になる
 - **メインのチェックアウトで `.ai-board/` だけを commit・pull・push する** — メインのチェックアウトが main 以外のブランチにいたり、未コミットの変更があったりすると動けない。人の作業ツリーを CLI が書き換えることになる
 - **置き場所専用のワークツリーを置く** — ADR 0020 でやめたデータのワークツリーと同じ手間が戻る
 - **`log/` をやめて `## レビュー` を `card.md` の本文に書く（ADR 0021 の文言どおり）** — 2 人が同じカードに同時に判断すると、同じファイルの書き換えになって衝突する。検査を作り直すことになる
@@ -356,6 +376,7 @@ AI ループの次の一手に、止まっているカードを選んでは SHAL
 
 ### Non-Goals
 
+- 置き場所の種類をまたいで、判断のログや PR のあるカードまで含めて移す手順（人に判断してほしいこと）
 - `ai-board view` の CLI（人に判断してほしいこと）
 - pre-push の hook やブランチ保護など、git や GitHub の側で置き場所のファイルを守る仕組み（人に判断してほしいこと）
 - `.ai-board/plans/archive/` の過去の計画を `cards/<id>/plan.md` へ移すこと。読まれなくなるが、履歴の文書としてそのまま残す（人に判断してほしいこと）
@@ -372,7 +393,9 @@ AI ループの次の一手に、止まっているカードを選んでは SHAL
 5. bare のリポジトリに、計画だけを足すコミット（`.ai-board/cards/trial/plan.md`）を push し、`status --json` で `trial` のステージが `merged` になることを見る
 6. `card.md` を書き換えたコミットを持つブランチで `store check-branch <branch>` を走らせ、0 以外で終わって `card.md` が並ぶことを見る。`plan.md` だけを変えたブランチでは 0 で終わることを見る
 7. `.ai-board/local/` を消した状態で `status` を走らせ、置き場所のブランチにコミットが増えないことを見る（GitHub に届く環境でだけ。届かなければ `走らせていない`）
-8. 人の手順: 3 人のうち 2 人が、それぞれの PC から同じカードに判断を書き、どちらの判断も `card show` の `## レビュー` に出ることを見る（AI は動かせない）
+8. `.ai-board/config.yaml` に `store: { kind: artifact }` を書いた一時のチェックアウトで、`AI_BOARD_STORE` を写しのディレクトリに向けて `store init` → `store ack --through 999999` → `store seed` → `status --json` を走らせ、今と同じく seed のカードがアイデアに並ぶことを見る。`store kind` が `artifact` を出し、`store check-branch` も動くことを見る
+9. `store.kind` を書かない設定で `store kind` が `git` を出し、`store outbox --json` が「git の置き場所では使わない」で 0 以外で終わることを見る
+10. 人の手順: 3 人のうち 2 人が、それぞれの PC から同じカードに判断を書き、どちらの判断も `card show` の `## レビュー` に出ることを見る（AI は動かせない）
 
 ## タスク
 
@@ -384,11 +407,10 @@ AI ループの次の一手に、止まっているカードを選んでは SHAL
 
 ### 2. 置き場所の組み替え
 
-- [ ] `config.ts`: `store.url` を消し、`store.remote` / `store.branch` を足す。`AI_BOARD_STORE` を git リポジトリのパスとして読む。`.ai-board/config.yaml` の説明を直す
-- [ ] `src/board/composition.ts`・`src/cards/composition.ts`・`cli-main.ts` を `GitDocumentStore` で組む。PR の控えのキャッシュとロックを `.ai-board/local/` へ移す
-- [ ] `store-cli.ts` を `init` と `check-branch` だけにし、`artifact-mirror-store.ts`・`data-branch-import.ts`・`store seed` とそのテストを消す。`store-messages.ts` のエラー種と変換を今の置き場所に合わせる（リモートが無い・fetch や push に失敗した・やり直しが尽きた）
-- [ ] `STORE_VERSION` を 4 にする
-- [ ] `.gitignore` の `/.ai-board/store/` を `/.ai-board/local/` に替える
+- [ ] `config.ts`: `store.kind`（既定 `git`）・`store.remote`・`store.branch` を足し、`store.url` は artifact のときだけ読む。`AI_BOARD_STORE` を種類ごとに読む。`.ai-board/config.yaml` の説明を直す
+- [ ] `src/board/composition.ts`・`src/cards/composition.ts`・`cli-main.ts` を `kind` で `GitDocumentStore` か `ArtifactMirrorStore` に組み分ける。git のときは PR の控えのキャッシュとロックを `.ai-board/local/` に置く
+- [ ] `store-cli.ts` に `kind` と `check-branch` を足し、`init` / `seed` を両方の置き場所で動かす。`pull` / `outbox` / `ack` / `discard` / `import` は git のとき断る。`store-messages.ts` にエラー種と変換を足す（リモートが無い・fetch や push に失敗した・やり直しが尽きた・git の置き場所では使わない）
+- [ ] `.gitignore` に `/.ai-board/local/` を足す（`/.ai-board/store/` は artifact の写しのため残す）
 - [ ] 仕様の差分を `docs/specs/board-store/spec.md` と `docs/specs/loop-activity/spec.md` に写す
 
 ### 3. 計画の置き場所
@@ -400,15 +422,14 @@ AI ループの次の一手に、止まっているカードを選んでは SHAL
 
 ### 4. 手順書
 
-- [ ] `.claude/skills/board-store/` を消し、`board-loop`（`SKILL.md`・`plan.md`・`implement.md`・`fix-pr.md`・`rules.md`）・`board-decide`・`.claude/agents/board-reviewer.md` から取り込み・送り出しの手順を外す。計画の場所を `cards/<id>/plan.md` に、締めの段を `## 締め` の節に、「動かして確かめるとき」を bare のリポジトリの手順に直す。push の前に `store check-branch` を走らせる手順を足す
-- [ ] `board-view` のスキルを、Artifact で公開する代わりに `.ai-board/local/board.html` に書き出してパスを伝える形にする
-- [ ] `.claude/settings.json` から `ArtifactData` の hook を外し、`Edit` の deny を置き場所のファイルに合わせる。`src/__tests__/artifact-data-guard.test.ts` を消し、`claude-settings.test.ts` を直す
+- [ ] `board-loop`（`SKILL.md`・`plan.md`・`implement.md`・`fix-pr.md`・`rules.md`）・`board-decide`・`.claude/agents/board-reviewer.md` の取り込み・送り出しを、`store kind` が `artifact` のときだけ行う分岐にまとめる。`board-store` のスキルに「artifact の置き場所のときだけ使う」と書く。計画の場所を `cards/<id>/plan.md` に、締めの段を `## 締め` の節に、「動かして確かめるとき」に git（bare のリポジトリ）と artifact（写しのディレクトリ）の両方の手順を書く。push の前に `store check-branch` を走らせる手順を足す
+- [ ] `board-view` のスキルを、artifact では今どおり Artifact で公開し、git では `.ai-board/local/board.html` に書き出してパスを伝える形にする
+- [ ] `.claude/settings.json` の `ArtifactData` の hook は残し、`Edit` の deny に git の置き場所のファイルを足す。`claude-settings.test.ts` を直す
 
-### 5. ドキュメントと移す
+### 5. ドキュメント
 
-- [ ] `.ai-board/seed/*.md` を `.ai-board/cards/<id>/card.md` に移し、`seed/order.txt` の順を `.ai-board/order.yaml` に書き、`.ai-board/board.yaml`（版 4）を置く。`.ai-board/seed/` を消す
-- [ ] `CLAUDE.md`・`README.md`・`docs/reference.md`・`REVIEW.md` を今の置き場所に合わせる（タスクの置き場所の節、書き込み境界の表、計画ファイルの場所、不変条件の「計画ファイルが存在するだけで計画レビュー」の言い方）
-- [ ] ADR: 0021 を「採用」にして仮定の形（`log/`・`order.yaml`）に直し、0020 を 0021 に吸収して消す。0004・0014・0019 を今の形に書き直し、一覧を直す
+- [ ] `CLAUDE.md`・`README.md`・`docs/reference.md`・`REVIEW.md` を 2 つの置き場所に合わせる（タスクの置き場所の節、置き場所の選び方と始め方、書き込み境界の表、計画ファイルの場所、不変条件の「計画ファイルが存在するだけで計画レビュー」の言い方）
+- [ ] ADR: 0021 を「採用」にして今の形（`store.kind` で選び既定は git、`log/`・`order.yaml`）に直す。0020 を artifact の置き場所の判断として今の形に書き直す。0004・0014・0019 を今の形に書き直し、一覧を直す
 - [ ] この計画を `.ai-board/cards/cards-as-markdown/plan.md` へ移し、`.ai-board/plans/` に残る過去の計画（`archive/`）は触らない
 
 ## 探索メモとの対応
@@ -418,13 +439,15 @@ AI ループの次の一手に、止まっているカードを選んでは SHAL
 | 1   | 「GitHub Issues・SQLite・ローカルの MCP サーバが HTML を返す案と比べて、この案に決めた」 | 提案 / Why、ADR 0021 の退けた案（タスク 5） |                    |
 | 2   | 「前提: main に直接 push できる」                                                | 人に判断してほしいこと                     |                    |
 | 3   | 人と決めた（2026-11-22）: 計画は同じディレクトリの `plan.md`、main にあればマージ済み、仕様は差分を書き `docs/specs/` を書き続ける | What Changes、仕様の差分、Decisions        |                    |
-| 4   | 人と決めた（2026-11-22）: ボードの置き場所が未用意なので、カードは seed のファイルとして起票し、着手はチャットの指示で代える | Decisions の「移す」、タスク 5             |                    |
+| 4   | 人と決めた（2026-11-22）: ボードの置き場所が未用意なので、カードは seed のファイルとして起票し、着手はチャットの指示で代える | Decisions の「始め方」                      |                    |
+| 5   | plan 差し戻し（2026-11-22）: 「モード使う人はいる。デフォルトは git」         | Why、What Changes、仕様の差分（board-store・board-stages・loop-activity）、Decisions、退けた代案、タスク 2・4・5 |                    |
 
 ## 人に判断してほしいこと
 
 - main に直接 push できること（ブランチ保護で PR 必須になっていない、3 人とも push 権限がある）を前提にしてよいか。既定: 前提にする
-- ループの記録を各 PC の `.ai-board/local/` に置き、共有しない。ほかの人のループが今どのカードを触っているかは見えなくなる。既定: 共有しない
-- ブラウザで見る出口は、`board-view` のスキルが `.ai-board/local/board.html` に書き出す形までにし、`ai-board view` の CLI は別のカードにする。既定: 別のカード
+- git の置き場所では、ループの記録を各 PC の `.ai-board/local/` に置き、共有しない。ほかの人のループが今どのカードを触っているかは見えなくなる（artifact では今どおり共有される）。既定: 共有しない
+- git の置き場所でブラウザで見る出口は、`board-view` のスキルが `.ai-board/local/board.html` に書き出す形までにし、`ai-board view` の CLI は別のカードにする。既定: 別のカード
+- 置き場所の種類をまたいで、使っている最中のボード（判断のログ・PR のあるカード）を移す手順は作らない。アイデアのカードだけを `card export` / `card seed` で移せる。既定: 作らない
 - pre-push の hook やブランチ保護は入れず、置き場所のファイルを守るのは Claude の `Edit` の deny と `store check-branch` までにする。既定: 入れない
 - `.ai-board/plans/archive/` の過去の計画は移さずに残す。既定: 残す
 - ADR 0021 と違い、`## レビュー` は `log/` の判断のファイルから組み立て、並び順は `order.yaml` の 1 ファイルにする（`### 仮定` の 1 つ目）。既定: 今のファイルの形を使う
