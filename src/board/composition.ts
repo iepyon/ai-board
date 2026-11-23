@@ -6,7 +6,8 @@ import type { CliRunner } from '../infrastructure/cli-runner.js';
 import { PrFetcher, type PrFetcherOptions } from '../infrastructure/pr-fetcher.js';
 import type { ForgeClient } from './services/forge-client.js';
 import { GhForgeClient } from './services/github-client.js';
-import { FsPlanRepository, type PlanRepository } from './repositories/plan.repository.js';
+import { RefPlanRepository, type PlanRepository } from './repositories/plan.repository.js';
+import { readPlanFilesAtCommit } from '../infrastructure/git-plan-tree.js';
 import type { PrSnapshotRepository } from './repositories/pr-snapshot.repository.js';
 import type { PrState } from './models/pr-state.js';
 import {
@@ -19,6 +20,7 @@ import {
   type BranchPlanRepository,
 } from './repositories/branch-plan.repository.js';
 import type { DocumentStore } from '../infrastructure/document-store.js';
+import type { GitDocumentStore } from '../infrastructure/git-document-store.js';
 import * as path from 'node:path';
 import {
   disabledPrStateProvider,
@@ -49,15 +51,13 @@ export const emptyLoopHistoryRepository: LoopHistoryRepository = {
 };
 
 export function createBoardDependencies(
-  plansDir: string,
+  planRepository: PlanRepository,
   cardRepository: CardRepository,
   ideaDividerRepository: IdeaDividerRepository,
   prProvider: PrStateProvider = disabledPrStateProvider,
   loopHistoryRepository: LoopHistoryRepository = emptyLoopHistoryRepository,
   branchPlanRepository: BranchPlanRepository = emptyBranchPlanRepository
 ): BoardDependencies {
-  const planRepository = new FsPlanRepository(plansDir);
-
   return {
     planRepository,
     getBoardQuery: createGetBoardQuery(
@@ -86,12 +86,12 @@ export interface PrStateSource {
   readonly fetcher: PrFetcher | null;
 }
 
-/** マージ済みの控えは置き場所に、それ以外は `<storeDir>/cache/` に置く */
+/** マージ済みの控えは置き場所の `snapshots`（git の置き場所では手元）に、それ以外は `<localDir>/cache/` に置く */
 export function createPrSnapshotRepository(
   store: DocumentStore,
-  storeDir: string
+  localDir: string
 ): PrSnapshotRepository {
-  return new DocPrSnapshotRepository(store, path.join(storeDir, PR_SNAPSHOT_CACHE_FILE));
+  return new DocPrSnapshotRepository(store, path.join(localDir, PR_SNAPSHOT_CACHE_FILE));
 }
 
 /**
@@ -100,9 +100,10 @@ export function createPrSnapshotRepository(
  */
 export function createBranchPlanRepository(
   runner: CliRunner,
-  repoRoot: string
+  repoRoot: string,
+  remote = 'origin'
 ): BranchPlanRepository {
-  return new GitBranchPlanRepository(runner, repoRoot);
+  return new GitBranchPlanRepository(runner, repoRoot, remote);
 }
 
 /**
@@ -171,14 +172,15 @@ export interface AssembledBoard {
 }
 
 /**
- * `status` と `decide` が使うボードの組み立て。置き場所の写しは呼び出し側が確かめておく（`check`）。
+ * `status` と `decide` が使うボードの組み立て。置き場所は呼び出し側が読み込んでおく（`check`）。
+ * main の計画は、読み込んだ置き場所の先頭のコミット（`headCommit()`）から読む。
  *
  * PR の状態は`refresh()` を 1 回だけ待ってから読む。
  * `branch` から解決した PR 番号の書き戻しも、この `refresh()` の中で起きる。
  */
 export async function assembleBoard(
   root: string,
-  store: DocumentStore,
+  store: DocumentStore & Pick<GitDocumentStore, 'headCommit'>,
   runner: CliRunner
 ): Promise<AssembledBoard> {
   const config = loadConfig(root);
@@ -186,16 +188,24 @@ export async function assembleBoard(
   const { provider, fetcher } = await createPrStateSource(
     config.forge,
     cards.cardRepository,
-    createPrSnapshotRepository(store, config.paths.storeDir),
+    createPrSnapshotRepository(store, config.paths.localDir),
     runner,
-    // ブランチから解決した PR 番号は、書き込みの 1 操作として送る箱に積む
+    // ブランチから解決した PR 番号は、書き込みの 1 操作として置き場所へ push する
     { writePr: createTransactionalPrWriter(store) }
   );
   await fetcher?.refresh();
 
-  const branchPlans = createBranchPlanRepository(runner, config.paths.root);
+  const branchPlans = createBranchPlanRepository(
+    runner,
+    config.paths.root,
+    config.store.branchRemote
+  );
+  // main の計画は、check() が fetch した置き場所の先頭のコミットから読む（作業ツリーは読まない）
+  const mainPlans = new RefPlanRepository(() =>
+    readPlanFilesAtCommit({ runner, repoDir: config.paths.repoDir, commit: store.headCommit() })
+  );
   const board = createBoardDependencies(
-    config.paths.plansDir,
+    mainPlans,
     cards.cardRepository,
     cards.ideaDividerRepository,
     provider,

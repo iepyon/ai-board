@@ -13,10 +13,10 @@ import type { ForgeCardFailure } from '../models/pr-state.js';
  *
  * - `implement`   実装中。計画の状態から決まる段を進める
  *                 （タスクを倒す段から、AI レビューの後なら締めの段まで続けて進むことがある。レビューの段の前で手を終える。
- *                 締めの段は、動かした証拠を PR の本文に書き、計画を archive して PR を Ready にする）。
+ *                 締めの段は、動かした証拠を PR の本文に書き、計画に `## 締め` の節を足して PR を Ready にする）。
  *                 段はここでは分けず、`status` の CLI がカードのブランチの計画を読んで `NextAction.step` に載せる
  *                 （未チェックのタスクがあれば `task` / 倒し終えて `## AI レビュー` 節が無ければ `review` /
- *                 節があるか archive 済みなら `close`。ループは段が `review` なら `board-reviewer` を立て、それ以外は自分で進める）
+ *                 節があるか締め済み（`## 締め` の節がある）なら `close`。ループは段が `review` なら `board-reviewer` を立て、それ以外は自分で進める）
  * - `plan`        計画提案中で、まだ何も提出していない。計画を書いて Draft の PR を出し、提出する
  * - `revise-plan` 計画提案中で、最新の判断が 差し戻し。理由を読んで計画を直し、再提出する
  * - `fix-pr`      PR中 で、人の指摘に AI が応える番（`awaitsPrFix`）。PR を Ready のまま修正を push するか、
@@ -103,9 +103,9 @@ export interface HoldInput {
    */
   readonly unsetPr: { readonly number: number; readonly since: string } | null;
   /**
-   * GitHub が未設定（`isForgeUnset`）のボードで、実装中のカードの締めが済んだ（カードのブランチで計画が archive 済み。`findClosed`）ときの、
-   * そのブランチ名と止まりの起点（archive のコミットの時刻）。それ以外は null。
-   * PR が無いので PR中 の列が立たず、人がメインにマージするまで 実装中 に残るため
+   * GitHub が未設定（`isForgeUnset`）のボードで、実装中のカードの締めが済んだ（カードのブランチの計画に `## 締め` の節がある。`findClosed`）ときの、
+   * そのブランチ名と止まりの起点（締めのコミットの時刻）。それ以外は null。
+   * PR が無いので PR中 の列が立たず、人が main にマージするまで 実装中 に残るため
    */
   readonly branchClosed: { readonly branch: string; readonly since: string } | null;
 }
@@ -120,7 +120,7 @@ export const HOLD_REASONS = {
   forgeUnset: (number: number): string =>
     `PR #${number} を持つが、GitHub が未設定なので PR の状態を引けない。config.yaml に github: を戻すか、中止してください`,
   branchMerge: (branch: string): string =>
-    `ブランチ ${branch} の実装と締めが済んだ。メインのチェックアウトで git merge --no-ff ${branch} を打ってマージするか、ai-board decide で差し戻して計画から立て直させるか中止してください`,
+    `ブランチ ${branch} の実装と締めが済んだ。main で git merge --no-ff ${branch} を打ってマージし push するか、ai-board decide で差し戻して計画から立て直させるか中止してください`,
   draftReverted: (number: number): string =>
     `判断の後に PR #${number} が Draft に戻された。GitHub で Ready に戻すか、ai-board decide で差し戻して計画から立て直させるか中止してください`,
 } as const;
@@ -156,12 +156,12 @@ export function pickNextAction(cards: readonly NextActionCard[]): NextAction | n
  * AI の列にいるカードが、人の判断を待って止まっているか。止まっていなければ null。
  *
  * - **PR が Draft に戻された**（実装中）: 人の最新の判断より後に PR が Draft に戻された。
- *   Ready にした PR を人が Draft に戻すとカードは 実装中 に落ち、計画は archive 済みなので、
- *   見ないと `implement` の archive 済みの段が Ready にし直してしまう
+ *   Ready にした PR を人が Draft に戻すとカードは 実装中 に落ち、計画は締め済みなので、
+ *   見ないと `implement` の締め済みの段が Ready にし直してしまう
  * - **plan 保留**: AI が保留を書いて止まった。同じ手を渡しても AI はまた止まる
- * - **ブランチのマージを待っている**（実装中、GitHub が未設定のボード）: 締めの段がカードのブランチで計画を archive した（`branchClosed`）。
- *   PR が無いので PR中 の列が立たず、見ないと `implement` の archive 済みの段が毎周選ばれる。
- *   人がメインのチェックアウトでブランチをマージすれば、計画の archive がメインに入ってマージ済みになり、止まりは外れる
+ * - **ブランチのマージを待っている**（実装中、GitHub が未設定のボード）: 締めの段がカードのブランチの計画に `## 締め` の節を足した（`branchClosed`）。
+ *   PR が無いので PR中 の列が立たず、見ないと `implement` の締め済みの段が毎周選ばれる。
+ *   人が main にブランチをマージして push すれば、計画が main に入ってマージ済みになり、止まりは外れる
  * - **提出済みなのに成果物が見えない**（計画提案中で plan が提出済み）: どちらかがあれば
  *   計画レビュー に上がるはずである。作り直すと PR やブランチを二重に作りかねないので、推測で動かない。
  *   PR の状態を引けていない（`prKnown` が偽）ときは、PR が無いのか分からないので止まりにしない
@@ -268,7 +268,7 @@ function judge(card: NextActionCard): NextAction | null {
  *
  * 計画のタスクの進み具合では分けない。計画ファイルは作業用のブランチにあり、
  * ボードを動かすチェックアウトからは読めないことが多いため。
- * 同じ理由で、タスクを倒す / AI レビュー / 締め（証拠を PR の本文に書き、archive して Ready にする）、の段も手として分けず、
+ * 同じ理由で、タスクを倒す / AI レビュー / 締め（証拠を PR の本文に書き、`## 締め` の節を足して Ready にする）、の段も手として分けず、
  * `step` は null にする。段は `status` の CLI が、`next` に選ばれた 1 枚のブランチの計画だけを `git show` で読み、
  * `resolveImplStep` で決めて `next.step` に載せる。ここ（とステージの導出）では読まないので、
  * この関数は純関数のままで、「計画ファイルがあれば列が立つ」という読み方とも二重にならない。

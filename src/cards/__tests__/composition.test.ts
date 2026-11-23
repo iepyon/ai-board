@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
 import { err, ok, type Result } from '../../shared/result.js';
-import { ArtifactMirrorStore } from '../../infrastructure/artifact-mirror-store.js';
+import type { GitDocumentStore } from '../../infrastructure/git-document-store.js';
+import {
+  createGitStoreFixture,
+  initializedStore,
+  type GitStoreFixture,
+} from '../../__tests__/git-store-fixture.js';
 import {
   initialDocuments,
   MemoryDocumentStore,
@@ -92,28 +94,33 @@ function branchClient(beforeResolve: () => Promise<void> = async () => undefined
 }
 
 describe('createTransactionalPrWriter', () => {
-  let tmp: string;
+  let fixture: GitStoreFixture;
+  /** 準備までのコミットの数 */
+  let prepared: number;
 
-  /** board/meta とカード 1 枚だけを取り込んだ写し。送る箱は空 */
-  async function pulledStore(name: string): Promise<ArtifactMirrorStore> {
-    const store = new ArtifactMirrorStore(path.join(tmp, name));
-    fs.mkdirSync(path.join(store.mirrorDir, 'board'), { recursive: true });
-    fs.writeFileSync(path.join(store.mirrorDir, 'board', 'meta~000001.json'), '{"version":3}');
+  /** 形の版とカード 1 枚だけがある置き場所 */
+  async function preparedStore(): Promise<GitDocumentStore> {
+    const store = await initializedStore(fixture);
     await store.transact('始める', () => new DocCardRepository(store).create(makeCard()).then(ok));
-    await store.ack('999999');
+    prepared = fixture.commitSubjects().length;
     return store;
   }
 
+  /** 準備の後のコミットの題 */
+  function writtenSubjects(): string[] {
+    return fixture.commitSubjects().slice(prepared);
+  }
+
   beforeEach(() => {
-    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-board-pr-writer-'));
+    fixture = createGitStoreFixture();
   });
 
   afterEach(() => {
-    fs.rmSync(tmp, { recursive: true, force: true });
+    fixture.remove();
   });
 
-  it('ブランチから解決した PR 番号を、書き込みの 1 操作として送る箱に積む', async () => {
-    const store = await pulledStore('a');
+  it('ブランチから解決した PR 番号を、書き込みの 1 操作として置き場所にコミットする', async () => {
+    const store = await preparedStore();
     const cards = new DocCardRepository(store);
     const fetcher = new PrFetcher(cards, branchClient(), new InMemoryPrSnapshotRepository(), {
       writePr: createTransactionalPrWriter(store),
@@ -121,27 +128,28 @@ describe('createTransactionalPrWriter', () => {
 
     await fetcher.refresh();
 
-    expect(store.outbox().map((batch) => batch.label)).toEqual([WRITE_BACK_MESSAGE]);
+    expect(writtenSubjects()).toEqual([`chore(board): ${WRITE_BACK_MESSAGE}`]);
     expect((await cards.findById(CARD_ID))?.pr).toBe(42);
     expect(fetcher.connection()).toEqual({ status: 'connected', kind: 'github' });
   });
 
-  it('番号が既に入っていれば、送る箱に積まない', async () => {
-    const store = await pulledStore('a');
+  it('番号が既に入っていれば、置き場所にコミットしない', async () => {
+    const store = await preparedStore();
     const writePr = createTransactionalPrWriter(store);
 
     await writePr(CARD_ID, 42 as PullRequestNumber);
-    const before = store.pendingWrites();
+    const before = writtenSubjects();
     await writePr(CARD_ID, 42 as PullRequestNumber);
 
-    expect(store.pendingWrites()).toBe(before);
+    expect(writtenSubjects()).toEqual(before);
   });
 
-  it('問い合わせ中にほかのプロセスが写しに書いた内容を、書き戻しで消さない', async () => {
-    const store = await pulledStore('a');
-    const other = new ArtifactMirrorStore(store.storeDir);
+  it('問い合わせ中にほかのプロセスが置き場所に書いた内容を、書き戻しで消さない', async () => {
+    const store = await preparedStore();
+    const other = fixture.open();
+    await other.check();
     const client = branchClient(async () => {
-      // gh api の応答を待つ間に、同じ写しを使う別のプロセスが本文を書いた
+      // gh api の応答を待つ間に、同じ置き場所を使う別のプロセスが本文を書いた
       const written = await other.transact('本文を書く', async () => {
         const repository = new DocCardRepository(other);
         const latest = await repository.findById(CARD_ID);
@@ -156,9 +164,9 @@ describe('createTransactionalPrWriter', () => {
       writePr: createTransactionalPrWriter(store),
     }).refresh();
 
-    const card = await new DocCardRepository(new ArtifactMirrorStore(store.storeDir)).findById(
-      CARD_ID
-    );
+    const reopened = fixture.open();
+    await reopened.check();
+    const card = await new DocCardRepository(reopened).findById(CARD_ID);
     expect(card?.pr).toBe(42);
     expect(card?.body).toContain('書き直した');
   });

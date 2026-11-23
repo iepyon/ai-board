@@ -82,32 +82,30 @@ GitHub の PR）から毎回導出しなければならない (MUST)。
 `plan-review` を返さなければならない (MUST)。
 plan ゲートが通過済み・差し戻し中・保留中のときは `plan-review` を返しては SHALL NOT。
 
-計画の成果物とは、計画ファイルか、open で Draft の PR のどちらかである。
-AI は計画をコミットした時点で Draft の PR を出す。計画ファイルはそのブランチにあり、
-ボードを動かすチェックアウトからは見えないことが多いので、Draft の PR も計画の成果物として扱う。
-GitHub が未設定のボードには PR が無いので、カードのブランチの計画ファイル（`archive/` を除く）も計画の成果物として扱う。
+計画の成果物とは、次のどちらかである。
+
+- open で Draft の PR。AI は計画をコミットした時点で Draft の PR を出す。計画ファイル（`.ai-board/cards/<id>/plan.md`）はそのブランチにあり、main にはマージまで入らないので、Draft の PR を計画の成果物として扱う
+- GitHub が未設定のボードでは、カードのブランチの計画ファイル（`cards/<id>/plan.md`）。PR が無いためである
+
+GitHub があるボードでは、カードのブランチの計画ファイルを読んでは SHALL NOT（Draft の PR を出す前のコミットの時点で計画レビューが立ち、`status` のたびに git を走らせるため）。
+main の計画はマージ済みの印になったので、「計画ファイルがあるだけで計画レビューが立つ」保険は、GitHub が未設定のボードのブランチの計画だけになる。
 
 plan ゲートのレビュー記録が 1 件も無い場合も `plan-review` を返さなければならない (MUST)。
 成果物が存在する事実を正とし、記録の欠落によって人待ちを取りこぼさないためである。
 
-#### Scenario: 計画が出た
-
-- **WHEN** 計画ファイルが存在し、plan ゲートの記録が無い
-- **THEN** ステージは `plan-review` になる
-
 #### Scenario: 計画の Draft の PR が出た
 
-- **WHEN** 計画ファイルは見えないが、カードに open で Draft の PR が紐付き、plan ゲートの記録が提出である
-- **THEN** ステージは `plan-review` になる
+- **WHEN** カードに open で Draft の PR が紐付き、plan ゲートの記録が無い
+- **THEN** ステージは `plan-review` になる（今の仕様の「計画が出た」は、main に計画ファイルが出る場面が無くなったので、この場面に置き換える）
 
 #### Scenario: GitHub が未設定のボードで、計画がカードのブランチにだけある
 
-- **WHEN** `config.yaml` に `github:` が無く、メインのチェックアウトに計画ファイルは無いが、カードのブランチに `.ai-board/plans/<id>.md` があり、plan ゲートの記録が提出である
-- **THEN** ステージは `plan-review` になる。ブランチに `.ai-board/plans/archive/<id>.md` しか無いときは計画の成果物とみなさない
+- **WHEN** `config.yaml` に `github:` が無く、置き場所のブランチに計画ファイルは無いが、カードのブランチに `.ai-board/cards/<id>/plan.md` があり、plan ゲートの記録が提出である
+- **THEN** ステージは `plan-review` になる
 
 #### Scenario: AI が差し戻された計画を直しきれずに止まった
 
-- **WHEN** 計画ファイルが存在し、plan ゲートの最新の記録が保留である
+- **WHEN** カードに Draft の PR があり、plan ゲートの最新の記録が保留である
 - **THEN** ステージは `planning` のままである（止まりは board-hold の仕様で示す）
 
 ### Requirement: 実装中はタスクの進捗で分かれない
@@ -144,12 +142,30 @@ AI レビューの指摘のうち直すものは、計画の末尾の `## AI レ
 
 システムは カードに残る廃止した verify ゲートの記録と、`skipGates` に残る `verify` を、ステージの導出に使っては SHALL NOT（card-review-log）。
 
-### Requirement: PR 中とマージ済みは PR と archive で決まる
+### Requirement: レビュー後の修正は PR 中のバッジで示す
 
-システムは PR が open で Draft でない（Ready の）とき `pr`、PR がマージされたか計画ファイルが archive に
-移動しているとき `merged` を返さなければならない (MUST)。
+システムは `pr` のカードで、PR の最新のコミットが最新のレビューコメントより新しいとき、
+そのカードを再レビュー待ちとして示さなければならない (MUST)。
+これは独立したステージとしては扱わない (MUST NOT)。
+
+#### Scenario: 指摘のあとに修正が push された
+
+- **WHEN** PR が Ready で open であり、最新コミットの時刻がレビューコメントの時刻より新しい
+- **THEN** ステージは `pr` のままで、再レビュー待ちであることが示される
+
+#### Scenario: レビューコメントがまだ無い
+
+- **WHEN** PR が Ready で open であり、レビューコメントが 1 件も無い
+- **THEN** 再レビュー待ちとしては示されない
+
+### Requirement: PR 中とマージ済みは PR と main の計画で決まる
+
+システムは PR が open で Draft でない（Ready の）とき `pr`、PR がマージされたか、main に `.ai-board/cards/<id>/plan.md` があるとき `merged` を返さなければならない (MUST)。
+main の計画は、作業ツリーではなく、fetch した置き場所の参照から読まなければならない (MUST)。メインのチェックアウトがほかのブランチにいても、そのブランチの計画でマージ済みに見えてはならないためである。
+計画の時刻は、その参照で計画ファイルを最後に変えたコミットの時刻としなければならない (MUST)。
 open でも Draft の PR は `pr` を立てない。計画の成果物か、実装中の PR だからである。
-AI は実装と AI レビューを終えたら、動かした証拠を PR の本文に書き、計画を archive して PR を Ready にする。
+計画はカードのブランチに載り、main にはマージでだけ入るので、main の計画をマージ済みの印に使う。
+AI は実装と AI レビューを終えたら、動かした証拠を PR の本文に書き、計画の末尾に `## 締め` の節を足して PR を Ready にする。
 
 #### Scenario: PR が Ready で出ている
 
@@ -166,23 +182,12 @@ AI は実装と AI レビューを終えたら、動かした証拠を PR の本
 - **WHEN** カードに紐付いた PR がマージされている
 - **THEN** ステージは `merged` になる
 
-#### Scenario: 計画が archive された
+#### Scenario: 計画が main に入った
 
-- **WHEN** カードの計画ファイルが archive ディレクトリに移動している
+- **WHEN** 置き場所の参照に `.ai-board/cards/<id>/plan.md` がある
 - **THEN** ステージは `merged` になる
 
-### Requirement: レビュー後の修正は PR 中のバッジで示す
+#### Scenario: メインのチェックアウトがほかのブランチにいる
 
-システムは `pr` のカードで、PR の最新のコミットが最新のレビューコメントより新しいとき、
-そのカードを再レビュー待ちとして示さなければならない (MUST)。
-これは独立したステージとしては扱わない (MUST NOT)。
-
-#### Scenario: 指摘のあとに修正が push された
-
-- **WHEN** PR が Ready で open であり、最新コミットの時刻がレビューコメントの時刻より新しい
-- **THEN** ステージは `pr` のままで、再レビュー待ちであることが示される
-
-#### Scenario: レビューコメントがまだ無い
-
-- **WHEN** PR が Ready で open であり、レビューコメントが 1 件も無い
-- **THEN** 再レビュー待ちとしては示されない
+- **WHEN** メインのチェックアウトがカードのブランチにいて、作業ツリーに `.ai-board/cards/<id>/plan.md` があるが、置き場所の参照には無い
+- **THEN** ステージは `merged` にならない

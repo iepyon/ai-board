@@ -10,8 +10,8 @@ import { err, ok, type Result } from '../shared/result.js';
  *
  * 実装は置き場所ごとに 1 つ置く。
  *
- * - `ArtifactMirrorStore`（`artifact-mirror-store.ts`）: Claude の Artifact の DB。CLI は DB に届かないので、
- *   手元の写しを読み、書き込みは送る箱に積む。DB との行き来は Claude が `ArtifactData` で行う
+ * - `GitDocumentStore`（`git-document-store.ts`）: git の置き場所のブランチの `.ai-board/` のファイル。
+ *   fetch して読み、書き込みはコミットとして push する
  * - `MemoryDocumentStore`（このファイル）: メモリ。テストで使う
  * - SQLite に切り替えるときは、書き込み系を含む実装を新たに足す。口とその上（リポジトリ・usecase・CLI）は変えない
  *
@@ -21,11 +21,13 @@ import { err, ok, type Result } from '../shared/result.js';
  * - 書き込み（`set` / `delete`）は `transact` の中でだけ行える。外で呼ぶと例外を投げる（呼び出し側の誤り）
  * - `transact` の `op` が Err を返すか例外を投げたら、その中の書き込みは無かったことになる（全部か無し）
  * - 失敗は `StoreError` で返す
- * - `pendingWrites()` は、置き場所にまだ届いていない書き込みの束の数を返す（届くまでの段が無い実装は常に 0）
  */
 export interface DocumentStore extends DocumentReader {
-  /** 読み書きできる状態か（写しがある、形の版が合う、など）。CLI は読む前に 1 回呼ぶ */
-  check(): Result<void, StoreError>;
+  /**
+   * 読み書きできる状態か（置き場所を読める、形の版が合う、など）。CLI は読む前に必ず 1 回 `await` する。
+   * 置き場所を手元へ読み込む実装（git の fetch など）は、ここで読み込む
+   */
+  check(): Promise<Result<void, StoreError>>;
 
   /**
    * 書き込みの 1 操作。ロックを取り、`op` を走らせ、Ok なら書き込みを確定する。
@@ -41,12 +43,9 @@ export interface DocumentStore extends DocumentReader {
 
   /** 文書を 1 つ消す。無ければ何もしない。`transact` の中でだけ呼ぶ */
   delete(collection: Collection, id: string): void;
-
-  /** 置き場所にまだ届いていない書き込みの束の数 */
-  pendingWrites(): number;
 }
 
-/** 書き込みの束の名前（送る箱に残す）。結果から決めるときは関数で渡す。ID・ゲート・種別だけを入れ、ブランチ名や理由は入れない */
+/** 書き込みの 1 操作の名前（git の置き場所ではコミットの題）。結果から決めるときは関数で渡す。ID・ゲート・種別だけを入れ、ブランチ名や理由は入れない */
 export type TransactLabel<T> = string | ((value: T) => string);
 
 export function labelOf<T>(label: TransactLabel<T>, value: T): string {
@@ -82,7 +81,7 @@ export const META_COLLECTION: Collection = 'board';
 export const META_ID = 'meta';
 
 /**
- * 文書の ID に使える文字。`ArtifactData` の `doc_id` に使える文字から、改訂の区切りに使う `~` を除く。
+ * 文書の ID に使える文字。git の置き場所ではファイル名にもなるので、パスの区切りや空白を含めない。
  * `.` と `..` だけの ID は使えない
  */
 const DOCUMENT_ID_PATTERN = /^(?!\.\.?$)[A-Za-z0-9_\-.:@+]{1,180}$/;
@@ -92,20 +91,20 @@ export function isValidDocumentId(id: string): boolean {
 }
 
 export type StoreError =
-  /** 写し（手元に取り込んだ置き場所の中身）が無い */
-  | { readonly type: 'StoreNotPulled'; readonly mirrorDir: string }
-  /** 置き場所に `board/meta` が無い（`ai-board store init` を送っていない） */
+  /** 置き場所に `board/meta` が無い（`ai-board store init` を走らせていない） */
   | { readonly type: 'StoreUninitialized' }
   /** 置き場所の形の版が、この CLI と違う */
   | { readonly type: 'StoreVersionMismatch'; readonly found: unknown; readonly expected: number }
-  /** 送る箱に送っていない書き込みが残っている */
-  | { readonly type: 'StorePendingWrites'; readonly count: number }
   /** ほかのプロセスが書いている */
   | { readonly type: 'StoreLockTimeout'; readonly lockPath: string }
-  /** 取り込もうとした文書が読めない */
-  | { readonly type: 'StoreInvalidDocument'; readonly path: string; readonly reason: string }
-  /** 置き場所が設定されていない */
-  | { readonly type: 'StoreNotConfigured' };
+  /** 置き場所のリモートがリポジトリに無い（git の置き場所） */
+  | { readonly type: 'StoreRemoteMissing'; readonly remote: string }
+  /** git の操作が失敗した（git の置き場所。届かない・権限が無い など） */
+  | { readonly type: 'StoreGitFailed'; readonly operation: string; readonly message: string }
+  /** push が先を越され続けた（git の置き場所） */
+  | { readonly type: 'StorePushConflict'; readonly attempts: number }
+  /** 置き場所は既に始まっている（`ai-board store init` を 2 度走らせた） */
+  | { readonly type: 'StoreAlreadyInitialized' };
 
 /** `board/meta` を確かめる。無い・版が違うときは Err */
 export function checkMeta(reader: DocumentReader): Result<void, StoreError> {
@@ -132,56 +131,6 @@ export function assertWritable(collection: string, id: string): void {
   if (!isValidDocumentId(id)) throw new Error(`文書の ID に使えない文字があります: ${id}`);
 }
 
-/** 文書の並びを読み出しだけの口にする（`copyDocuments` の写し元） */
-export function readerOf(
-  docs: readonly { collection: Collection; id: string; data: DocumentData }[]
-): DocumentReader {
-  return {
-    get: (collection, id) =>
-      docs.find((doc) => doc.collection === collection && doc.id === id)?.data ?? null,
-    list: (collection) =>
-      docs
-        .filter((doc) => doc.collection === collection)
-        .map(({ id, data }) => ({ id, data }))
-        .sort((a, b) => compareStrings(a.id, b.id)),
-  };
-}
-
-/** `copyDocuments` の指定 */
-export interface CopyOptions<E> {
-  /** 写すコレクション。既定は全部 */
-  readonly collections?: readonly Collection[];
-  /** 写し先の今の中身を見て、写さずに止める理由を返す（`transact` の中で、写し先を読み直した後に呼ぶ）。写すなら null */
-  readonly refuse?: (to: DocumentReader) => E | null;
-}
-
-/**
- * 置き場所の間で文書を写す（`ai-board store import`、将来 SQLite へ移すとき）。
- *
- * `from` の文書を、`to` の 1 回の `transact` で書く。`to` に既にある ID は上書きする。
- * `refuse` が理由を返したら何も書かない（例: 写し先にカードがあれば二重に移さない）。
- */
-export async function copyDocuments<E = never>(
-  from: DocumentReader,
-  to: DocumentStore,
-  label: string,
-  options: CopyOptions<E> = {}
-): Promise<Result<number, E | StoreError>> {
-  const collections = options.collections ?? COLLECTIONS;
-  return to.transact<number, E>(label, () => {
-    const refused = options.refuse?.(to) ?? null;
-    if (refused !== null) return Promise.resolve(err(refused));
-    let count = 0;
-    for (const collection of collections) {
-      for (const doc of from.list(collection)) {
-        to.set(collection, doc.id, doc.data);
-        count += 1;
-      }
-    }
-    return Promise.resolve(ok(count));
-  });
-}
-
 // ============================================================
 // メモリの実装（テスト用）
 // ============================================================
@@ -196,8 +145,8 @@ export class MemoryDocumentStore implements DocumentStore {
     for (const doc of initial) this.table(this.docs, doc.collection).set(doc.id, doc.data);
   }
 
-  check(): Result<void, StoreError> {
-    return checkMeta(this);
+  check(): Promise<Result<void, StoreError>> {
+    return Promise.resolve(checkMeta(this));
   }
 
   get(collection: Collection, id: string): DocumentData | null {
@@ -218,10 +167,6 @@ export class MemoryDocumentStore implements DocumentStore {
   delete(collection: Collection, id: string): void {
     assertWritable(collection, id);
     this.table(this.requireWorking(), collection).delete(id);
-  }
-
-  pendingWrites(): number {
-    return 0;
   }
 
   transact<T, E>(

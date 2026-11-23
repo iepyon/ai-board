@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
 import { PrFetcher } from '../pr-fetcher.js';
-import { ArtifactMirrorStore } from '../artifact-mirror-store.js';
+import {
+  createGitStoreFixture,
+  initializedStore,
+  type GitStoreFixture,
+} from '../../__tests__/git-store-fixture.js';
 import { DocPrSnapshotRepository } from '../../board/repositories/doc-pr-snapshot.repository.js';
 import type { CardRepository } from '../../cards/repositories/card.repository.js';
 import { ForgeRequestError, type ForgeClient } from '../../board/services/forge-client.js';
@@ -528,26 +530,16 @@ describe('PrFetcher の問い合わせの省略', () => {
 
 describe('PrFetcher と DocPrSnapshotRepository', () => {
   const card = () => makeCard({ pr: 42 as PullRequestNumber });
-  let tmp: string;
+  let fixture: GitStoreFixture;
 
-  /** 端末（セッション）ごとの写しと控え。`from` を渡せば、その写しを置き場所から取り込んだ状態で始める */
-  function session(name: string, from?: ArtifactMirrorStore): DocPrSnapshotRepository {
-    const store = new ArtifactMirrorStore(path.join(tmp, name));
-    if (from === undefined) {
-      fs.mkdirSync(path.join(store.mirrorDir, 'board'), { recursive: true });
-      fs.writeFileSync(path.join(store.mirrorDir, 'board', 'meta~000001.json'), '{"version":3}');
-    } else {
-      // 置き場所へ送り出し、別のセッションが取り込んだのと同じ写しにする
-      fs.cpSync(from.mirrorDir, store.mirrorDir, { recursive: true });
-    }
-    stores.set(name, store);
-    return new DocPrSnapshotRepository(
-      store,
-      path.join(store.storeDir, 'cache', 'pr-snapshots.json')
-    );
+  /** PC ごとの手元のディレクトリで開いた置き場所の控え。同じ名前なら同じ PC */
+  async function session(name: string): Promise<DocPrSnapshotRepository> {
+    const localDir = path.join(fixture.root, `local-${name}`);
+    const store = fixture.open({ localDir });
+    const checked = await store.check();
+    if (!checked.ok) throw new Error(checked.error.type);
+    return new DocPrSnapshotRepository(store, path.join(localDir, 'cache', 'pr-snapshots.json'));
   }
-
-  const stores = new Map<string, ArtifactMirrorStore>();
 
   async function poll(
     repository: DocPrSnapshotRepository,
@@ -558,40 +550,43 @@ describe('PrFetcher と DocPrSnapshotRepository', () => {
     return fetcher;
   }
 
-  beforeEach(() => {
-    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-board-pr-fetcher-'));
-    stores.clear();
+  beforeEach(async () => {
+    fixture = createGitStoreFixture();
+    await initializedStore(fixture);
   });
 
   afterEach(() => {
-    fs.rmSync(tmp, { recursive: true, force: true });
+    fixture.remove();
   });
 
-  it('マージ済みの PR は、別のセッションの新しい `PrFetcher` も問い合わせない', async () => {
-    // クラウドのセッションは毎回まっさらから始まる。マージ済みの PR を毎回引き直さない
+  it('マージ済みの PR は、同じ PC の新しい `PrFetcher` は問い合わせず、別の PC は 1 度だけ引き直す', async () => {
+    // マージ済みの控えは各 PC の手元に置き、共有しない。無ければ GitHub から引き直す
     await poll(
-      session('a'),
+      await session('a'),
       stubClient({ fetchByNumber: vi.fn(async () => snap({ state: 'merged' })) })
     );
 
-    const second = stubClient();
-    const fetcher = await poll(session('b', stores.get('a')), second);
-
-    expect(second.fetchByNumber).not.toHaveBeenCalled();
+    const same = stubClient();
+    const fetcher = await poll(await session('a'), same);
+    expect(same.fetchByNumber).not.toHaveBeenCalled();
     expect(fetcher.get('refresh-token')?.state).toBe('merged');
+
+    const other = stubClient({ fetchByNumber: vi.fn(async () => snap({ state: 'merged' })) });
+    await poll(await session('b'), other);
+    expect(other.fetchByNumber).toHaveBeenCalledTimes(1);
   });
 
-  it('開いている PR は、同じセッションの新しい `PrFetcher` は控えから始め、別のセッションは引き直す', async () => {
+  it('開いている PR は、同じ PC の新しい `PrFetcher` は控えから始め、別の PC は引き直す', async () => {
     const opened = snap();
-    const local = session('a');
+    const local = await session('a');
     await poll(local, stubClient({ fetchByNumber: vi.fn(async () => opened) }));
 
     const same = stubClient({ fetchByNumber: vi.fn(async () => opened) });
-    await poll(local, same);
+    await poll(await session('a'), same);
     expect(same.fetchByNumber).toHaveBeenCalledWith(42, opened);
 
     const other = stubClient({ fetchByNumber: vi.fn(async () => opened) });
-    await poll(session('b', stores.get('a')), other);
+    await poll(await session('b'), other);
     expect(other.fetchByNumber).toHaveBeenCalledWith(42, null);
   });
 });

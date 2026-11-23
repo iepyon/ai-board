@@ -13,24 +13,31 @@ import {
  *
  * - `task`: 未チェックのタスクがある（本筋のセッションが `implement.md` で進める）
  * - `review`: 全部倒れていて、`## AI レビュー` 節が無い（`board-reviewer` のサブエージェントを立てる）
- * - `close`: 全部倒れていて `## AI レビュー` 節がある、または計画が archive 済み（本筋のセッションが `implement.md` で進める）
+ * - `close`: 全部倒れていて `## AI レビュー` 節がある、または計画に `## 締め` の節がある（締め済み。本筋のセッションが `implement.md` で進める）
  *
  * 段はステージではない。列の導出（`stage-resolver.ts`）には使わない。
  */
 export type ImplStep = 'task' | 'review' | 'close';
 
-/** 段の判定の入力。カードのブランチの計画の在りか */
+/** 段の判定の入力。カードのブランチの計画の本文と、締め済み（`## 締め` の節がある）か */
 export type ImplStepPlan =
-  { readonly location: 'active'; readonly text: string } | { readonly location: 'archived' };
+  { readonly location: 'active'; readonly text: string } | { readonly location: 'closed' };
 
 const AI_REVIEW_HEADING = '## AI レビュー';
+/** 締めの段が計画の末尾に足す節。archive へ移す代わりに、締め済みの印にする */
+export const CLOSE_HEADING = '## 締め';
+
+/** 計画に `## 締め` の節（コードブロックの外の、行全体がその見出しの行）があるか */
+export function hasCloseSection(text: string): boolean {
+  return linesOutsideCodeBlocks(text).some((line) => line.trimEnd() === CLOSE_HEADING);
+}
 
 /**
  * 計画から段を決める純関数。判定は `.claude/skills/board-loop/implement.md` の段の表と同じ順にする。
  *
  * | 計画の状態                                | 段       |
  * | ----------------------------------------- | -------- |
- * | `plans/archive/` にある                   | `close`  |
+ * | `## 締め` の節がある（締め済み）          | `close`  |
  * | 未チェックのタスクがある                  | `task`   |
  * | 全部倒れていて、`## AI レビュー` 節が無い | `review` |
  * | 全部倒れていて、`## AI レビュー` 節がある | `close`  |
@@ -42,7 +49,7 @@ const AI_REVIEW_HEADING = '## AI レビュー';
  * `## AI レビュー` 節も、同じくコードブロックの外にある、行全体がその見出しの行で決める。
  */
 export function resolveImplStep(plan: ImplStepPlan): ImplStep {
-  if (plan.location === 'archived') {
+  if (plan.location === 'closed') {
     return 'close';
   }
 

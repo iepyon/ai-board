@@ -1,6 +1,6 @@
-import { promises as fs } from 'node:fs';
-import * as path from 'node:path';
 import { CardIdSchema, type CardId } from '../../shared/schemas/common.js';
+import { isErr, type Result } from '../../shared/result.js';
+import { PLAN_FILE_PATTERN, type PlanFileAtCommit } from '../../infrastructure/git-plan-tree.js';
 import type { PlanDoc, PlanState, TaskProgress } from '../models/plan-state.js';
 import {
   COMPLETED_TASK_PATTERN,
@@ -9,56 +9,68 @@ import {
 } from '../models/plan-task.js';
 
 // ============================================================
-// .ai-board/plans/ の読み取り（read-only）
+// main の計画の読み取り（read-only）
 // ============================================================
 
 /**
- * 計画ファイルを読む。書き手は AI エージェントで、`ai-board` の CLI は読むだけ。
+ * main（置き場所の参照）の計画ファイルを読む。書き手は AI エージェントで、`ai-board` の CLI は読むだけ。
  *
- * `.ai-board/plans/<card-id>.md` が 1 枚のカードの計画にあたり、
- * `archive/` 配下へ移されたものがマージ済みを表す。
- * ファイル名がそのままカード ID なので、紐付けのためのフィールドは要らない。
+ * `.ai-board/cards/<card-id>/plan.md` が 1 枚のカードの計画にあたる。計画はカードのブランチに載り、
+ * main にはマージでだけ入るので、**main に計画があればマージ済み**とする（`archived` が真）。
+ * ディレクトリ名がそのままカード ID なので、紐付けのためのフィールドは要らない。
  *
- * **計画ファイルが存在するだけで計画レビューの列が立つ。** エージェントが
- * 書き始めた時点で列が動くが、本来のゲートは本文の `## レビュー` に書かれる
- * `plan 提出` であり、ファイルの存在は「ログの欠落で人待ちを取りこぼさない」
- * ための保険である。「空ファイルは無視する」といった条件を足さない。
+ * 作業ツリーは読まない。メインのチェックアウトがほかのブランチにいても、そのブランチの計画でマージ済みに見せないため。
+ * 計画の成果物（計画レビューを立てるもの）は、Draft の PR と、GitHub が未設定のボードのカードのブランチの計画
+ * （`branch-plan.repository.ts`）である。「空ファイルは無視する」といった条件を足さない。
  */
 export interface PlanRepository {
   /** 一覧と進捗。本文は返さない。人は計画を PR で読む */
   load(): Promise<PlanState>;
 }
 
-const ARCHIVE_DIR = 'archive';
-const PLAN_EXTENSION = '.md';
+/** main の計画ファイルを読む口。読めなければ理由の文 */
+export type PlanFileSource = () => Promise<Result<readonly PlanFileAtCommit[], string>>;
 
-export class FsPlanRepository implements PlanRepository {
-  constructor(private readonly plansDir: string) {}
+export class RefPlanRepository implements PlanRepository {
+  constructor(private readonly source: PlanFileSource) {}
 
   async load(): Promise<PlanState> {
-    const archiveDir = path.join(this.plansDir, ARCHIVE_DIR);
-
-    const [activeFiles, archivedFiles] = await Promise.all([
-      listPlanFiles(this.plansDir),
-      listPlanFiles(archiveDir),
-    ]);
+    const files = await this.source();
+    if (isErr(files)) {
+      // 計画が読めなくてもボードは開く。マージ済みは PR がマージされたことでも立つ
+      console.warn(`[ai-board] main の計画を読めませんでした: ${files.error}`);
+      return new Map();
+    }
 
     const states = new Map<CardId, PlanDoc>();
-
-    // archive を先に入れる。同じカードの計画が archive と直下の両方に
-    // 存在する場合（archive 後に作業を再開したケース）は直下を採用する。
-    for (const fileName of archivedFiles) {
-      const doc = await readPlanDoc(archiveDir, fileName, true);
+    for (const file of files.value) {
+      const doc = toPlanDoc(file);
       if (doc !== null) states.set(doc.cardId, doc);
     }
-
-    for (const fileName of activeFiles) {
-      const doc = await readPlanDoc(this.plansDir, fileName, false);
-      if (doc !== null) states.set(doc.cardId, doc);
-    }
-
     return states;
   }
+}
+
+/**
+ * 計画ファイル 1 つを読む。ディレクトリ名がカード ID として不正なら警告して読み飛ばす。
+ * ここで例外を投げるとボード全体が読めなくなり、置き場所を間違えたファイル 1 つで `status` も `decide` も動かなくなる。
+ */
+function toPlanDoc(file: PlanFileAtCommit): PlanDoc | null {
+  const rawId = PLAN_FILE_PATTERN.exec(file.path)?.[1];
+  const parsed = CardIdSchema.safeParse(rawId);
+  if (!parsed.success) {
+    console.warn(
+      `[ai-board] 計画ファイルを読み飛ばしました: ${file.path} — ` +
+        `ディレクトリ名がカード ID（kebab-case）ではありません`
+    );
+    return null;
+  }
+  return {
+    cardId: parsed.data as CardId,
+    tasks: countTasks(file.content),
+    archived: true,
+    updatedAt: file.committedAt,
+  };
 }
 
 // ============================================================
@@ -85,68 +97,4 @@ export function countTasks(content: string): TaskProgress {
   }
 
   return { completed, total };
-}
-
-/**
- * ファイル名をカード ID として解釈し、1 件を読む。
- *
- * ID として不正な名前のファイルは警告して読み飛ばす。ここで例外を投げると
- * ボード全体が読めなくなり、置き場所を間違えたファイル 1 つで `status` も `decide` も動かなくなる。
- */
-async function readPlanDoc(
-  dir: string,
-  fileName: string,
-  archived: boolean
-): Promise<PlanDoc | null> {
-  const rawId = fileName.slice(0, -PLAN_EXTENSION.length);
-  const parsed = CardIdSchema.safeParse(rawId);
-
-  if (!parsed.success) {
-    console.warn(
-      `[ai-board] 計画ファイルを読み飛ばしました: ${path.join(dir, fileName)} — ` +
-        `ファイル名がカード ID（kebab-case）ではありません`
-    );
-    return null;
-  }
-
-  const filePath = path.join(dir, fileName);
-  const [content, updatedAt] = await Promise.all([
-    readFileOrNull(filePath),
-    modifiedAtOrNull(filePath),
-  ]);
-  if (content === null || updatedAt === null) return null;
-
-  return { cardId: parsed.data as CardId, tasks: countTasks(content), archived, updatedAt };
-}
-
-// ============================================================
-// fs ヘルパー
-// ============================================================
-
-async function listPlanFiles(dir: string): Promise<string[]> {
-  try {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-    return entries
-      .filter((entry) => entry.isFile() && entry.name.endsWith(PLAN_EXTENSION))
-      .map((entry) => entry.name)
-      .sort();
-  } catch {
-    return [];
-  }
-}
-
-async function modifiedAtOrNull(filePath: string): Promise<string | null> {
-  try {
-    return (await fs.stat(filePath)).mtime.toISOString();
-  } catch {
-    return null;
-  }
-}
-
-async function readFileOrNull(filePath: string): Promise<string | null> {
-  try {
-    return await fs.readFile(filePath, 'utf-8');
-  } catch {
-    return null;
-  }
 }

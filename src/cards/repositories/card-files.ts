@@ -39,7 +39,7 @@ import {
  * `Card` の `startedAt` は着手の判断から、`rank` は並び順から、本文の `## レビュー` は判断から組み立てる。
  * `card.md` はこの 3 つを持たない。
  * 前の置き場所（データ用ブランチ `ai-board/data`、形の版 2）もこのファイルの形だったので、
- * `ai-board store import`（`data-branch-import.ts`）はここの関数で読む。
+ * git の置き場所（`card-file-codec.ts`）も、ここの関数で文書とファイルを行き来する。
  */
 
 export const DATA_VERSION_FILE = 'ai-board-data.yaml';

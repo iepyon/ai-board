@@ -20,7 +20,7 @@ import { transactCardWrite } from './transact-card-write.js';
 // ============================================================
 
 /**
- * `ai-board card` が書き込みに使う口。どれも書き込みの 1 操作（`transactCardWrite`）として、送る箱に積む。
+ * `ai-board card` が書き込みに使う口。どれも書き込みの 1 操作（`transactCardWrite`）として、置き場所にコミットする。
  *
  * AI に許す書き込み（起票・本文・ブランチの紐付け・提出 / 再提出・保留）だけを並べる。
  * 人の判断（承認 / 差し戻し / 中止の追記、`startedAt` / `skipGates` / `rank` の書き換え）を書く口は、ここに置かない。

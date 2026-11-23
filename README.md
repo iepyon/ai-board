@@ -11,7 +11,7 @@
 
 ★ が人の判断を待つ列である。
 人が動かすのはアイデアから計画提案中への「着手」だけで、そこから先は AI が右へ進め、★ で止まる。
-列はカード、`.ai-board/plans/` の計画ファイル、GitHub の PR の実態から導くので、列を直接動かす操作は無い。
+列はカード、計画ファイル（`.ai-board/cards/<id>/plan.md`）、GitHub の PR の実態から導くので、列を直接動かす操作は無い。
 
 この README は、自分の GitHub に ai-board を用意して、最初のチケットを 1 枚マージするまでの手順を書く。
 仕組みの説明（列の決まり方、止まり、人の判断、AI ループ）は [`docs/reference.md`](docs/reference.md) にある。
@@ -33,12 +33,14 @@ AI の手にはコマンドが無く、チャットで頼むだけになる。
 
 - Node 24 以上と git
 - GitHub の CLI（`gh`）。`gh auth login` でログインしておく。ai-board はアクセストークンを受け取らず、PR の問い合わせを `gh api` に任せる
-- Claude Code（claude.ai のアカウントでログインする。カードの置き場所の Artifact を使うため）
+- Claude Code（チャットで頼むときと、AI の手を進めるときに使う）
+- ボードを使う全員が、自分の fork（か共有のリポジトリ）の `main` に直接 push できること。カードは `main` の `.ai-board/` に置き、CLI が書き込みのたびに push する
 
 ### fork して clone する
 
 GitHub でこのリポジトリを fork する。
-fork の画面の「Copy the `main` branch only」は入れたままでよい（カードは GitHub ではなく、Artifact の DB に置く）。
+fork の画面の「Copy the `main` branch only」は入れたままでよい（カードは `main` の `.ai-board/` に置く）。
+`main` に PR 必須のブランチ保護を入れない（CLI がカードの書き込みを直接 push するため）。force push の禁止は入れてよい。
 
 ```bash
 git clone https://github.com/<you>/ai-board.git
@@ -49,14 +51,14 @@ cd ai-board
 
 main は開発の途中の状態で、手順と実装が食い違っていることがある。
 動くと確かめた版にはタグを打ち、[Releases](https://github.com/iepyon/ai-board/releases) にこの版でできることを書いてある。
-今の版は `artifact-store-v1`（カードの置き場所を Artifact の DB に置いて動く最初の版）である。
-決まった版から始めたいときは、clone の直後に自分の main をそのタグに合わせる。
+`artifact-store-v1` はカードを claude.ai の Artifact の DB に置いていた前の版で、この README の手順（カードを `main` に置く）とは違う。
+決まった版から始めたいときは、clone の直後に自分の main をそのタグに合わせる（`<tag>` は Releases の名前）。
 
-> main を元のリポジトリのタグ artifact-store-v1 に合わせて、fork に push して
+> main を元のリポジトリのタグ <tag> に合わせて、fork に push して
 
 ```bash
-git fetch https://github.com/iepyon/ai-board.git tag artifact-store-v1
-git reset --hard artifact-store-v1
+git fetch https://github.com/iepyon/ai-board.git tag <tag>
+git reset --hard <tag>
 git push --force origin main
 ```
 
@@ -73,28 +75,25 @@ npm run build
 
 git に載っている `.ai-board/config.yaml` の `github.repository` を、自分の fork に書き換えて main に入れる。
 PR を問い合わせる先になる。
-`store.url` に URL が入っていたら、元のリポジトリの置き場所なので `null` に戻す（その Artifact は持ち主にしか開けない）。自分の置き場所は次の手順で作る。
+カードの置き場所は `store.remote` / `store.branch`（既定は `origin` の `main`）で、ふつうは書き換えない。
 
-> .ai-board/config.yaml の repository を <you>/ai-board にして、store.url が入っていれば null にして、main にコミットして
+> .ai-board/config.yaml の repository を <you>/ai-board にして、main にコミットして push して
 
 ### カードの置き場所を作る
 
-カードは、ボードのページの Artifact の DB に置く。PC を閉じていても、スマホのクラウドのセッションから同じカードを読み書きできる。
-CLI は DB に直接は届かないので、手元の写し（`.ai-board/store/`）を読み、書き込みは送る箱に積む。
-DB との行き来は Claude が `board-store` のスキルで行う（取り込み・送り出し）。人が `.ai-board/store/` のファイルを書き換えることはない。
-しくみと、なぜこう置くのかは [リファレンス](docs/reference.md#カード) と [ADR 0020](docs/adr/0020-cards-in-artifact-db.md) にある。
+カードは `main` の `.ai-board/` にファイルで置く（`board.yaml`・`order.yaml`・`cards/<id>/card.md`・`cards/<id>/log/`）。
+CLI は読むたびに `origin` の `main` を fetch し、書き込みはそのコミットとして push する。メインのチェックアウトの作業ツリーには触らないので、別のブランチで作業中でもよい。
+人も Claude も、これらのファイルを手で書き換えない。読み書きは `ai-board card` / `decide` で行う。
+しくみと、なぜこう置くのかは [リファレンス](docs/reference.md#カード) と [ADR 0021](docs/adr/0021-cards-as-markdown-on-main.md) にある。
 
 > 置き場所を用意して
 
-Claude は次を行う。
-
-1. 空のボードのページを Artifact として公開し（DB を使う宣言を付ける）、その URL を伝える
-2. 人がその URL を `.ai-board/config.yaml` の `store.url` に書いて main に入れる（Claude に頼んでもよい）
-3. `node dist/cli.js store init` で置き場所の最初の文書を積み、DB へ送り出して取り込む
+```bash
+node dist/cli.js store init   # .ai-board/board.yaml と order.yaml を main に push する
+```
 
 用意はカードの無いボードで終わる。カードは次の「2. カードを入れる」で入れる。
-
-セッションで最初に DB へ書くとき、書いてよいかを Claude Code が確かめてくる。承認すると、そのセッションの残りの書き込みはまとめて通る。
+手元の `main` は、人がふだんどおり `git pull` すれば置き場所の書き込みに追いつく。
 
 ### つながったかを確かめる
 
@@ -119,7 +118,7 @@ node dist/cli.js status
 node dist/cli.js store seed   # 既定は .ai-board/seed/。既にある ID は飛ばす
 ```
 
-起票したカードは、`.ai-board/seed/order.txt` の順（書いていない題材はその後にファイル名の順）でアイデアの列の末尾に付く。Claude は続けて DB へ送り出し、ボードのページを出し直す。
+起票したカードは、`.ai-board/seed/order.txt` の順（書いていない題材はその後にファイル名の順）でアイデアの列の末尾に付く。起票は `main` へのコミットとして push される。
 ターミナルの `status` はアイデアを出さないので、入ったことは `node dist/cli.js card list` か「ボードを見せて」で確かめる。
 研修の題材を増やすときは、`.ai-board/seed/` に `<id>.md`（frontmatter に `id` と `title`、本文は自由）を足し、並べたい位置に合わせて `order.txt` に ID を書く。
 
@@ -127,7 +126,6 @@ node dist/cli.js store seed   # 既定は .ai-board/seed/。既にある ID は�
 
 やりたいことと、その理由を伝えて起票する。
 日本語だけのタイトルからは読みやすい ID が作れないので、短い kebab-case の ID を付けておくと後で指しやすい。
-チャットで頼むと、Claude は置き場所を取り込み、`card create` で送る箱に積み、DB へ送り出すまでを続けて行う。
 
 > 「ユーザは、status で中止のカードの枚数も見たい」というアイデアカードを、ID を status-aborted-count にして起票して。
 > やることは、列ごとの枚数の隣に中止のカードの枚数を出すこと。
@@ -165,7 +163,7 @@ node dist/cli.js decide start status-stage-counts
 ```
 
 着手を書くと、カードは計画提案中に移る。
-チャットで頼んだときは、同じセッションで AI の番が続き、AI は計画（`.ai-board/plans/status-stage-counts.md`）を書いてブランチに載せ、Draft の PR を出す。
+チャットで頼んだときは、同じセッションで AI の番が続き、AI は計画（`.ai-board/cards/status-stage-counts/plan.md`）を書いてブランチに載せ、Draft の PR を出す。
 コマンドで着手したときは、チャットで AI の番を始める。
 
 > ボードを進めて
@@ -203,7 +201,7 @@ node dist/cli.js decide reject status-stage-counts --reason '枚数に中止の�
 1. 計画のタスクを上から倒し、節ごとにコミットする
 2. 実装を書いた文脈を持たないサブエージェントが差分を読み、指摘を計画の末尾に書く
 3. 直すと決めた指摘をタスクと同じに倒す
-4. 動作確認の手順どおりに動かして結果を PR の本文に書き、計画を `plans/archive/` へ移して PR を Ready にする
+4. 動作確認の手順どおりに動かして結果を PR の本文に書き、計画の末尾に `## 締め` の節を足して PR を Ready にする
 
 途中で手が止まったら、続きを頼む。
 
@@ -215,7 +213,7 @@ node dist/cli.js decide reject status-stage-counts --reason '枚数に中止の�
 
 PR が Ready になると、カードは PR中 に移る。
 PR の本文の「動作確認の結果」と差分を読み、よければ GitHub でマージする。
-マージすると、カードはマージ済みに移る。
+マージすると計画が `main` に入り、カードはマージ済みに移る。
 
 直してほしいところがあれば、PR にコメントを書いてから続きを頼む。
 AI は Ready のまま修正を push するか、直さない理由を返信する。
@@ -232,13 +230,13 @@ AI は Ready のまま修正を push するか、直さない理由を返信す�
 node dist/cli.js status
 ```
 
-ボード全体を 1 枚のページで見るときは、チャットで頼む（`board-view` のスキルがページにして開く）。
+ボード全体を 1 枚のページで見るときは、チャットで頼む（`board-view` のスキルが `.ai-board/local/board.html` に書き出す。ブラウザで開いて見る）。
 
 > ボードを見せて
 
 ## 次に読むもの
 
-- 列の決まり方、止まり、出せる判断、AI ループの手、許可ルール、クラウドや Windows で回すとき、オフラインの研修: [`docs/reference.md`](docs/reference.md)
+- 列の決まり方、止まり、出せる判断、AI ループの手、許可ルール、クラウドや Windows で回すとき: [`docs/reference.md`](docs/reference.md)
 - 設計判断の理由と捨てた代案: [`docs/adr/`](docs/adr/)
 - 仕様: `docs/specs/`
 - コマンドの一覧: `node dist/cli.js --help` と `node dist/cli.js <command> --help`
@@ -254,7 +252,7 @@ npm run build
 CI（`.github/workflows/ci.yml`）は Actions の画面から手で起動したときだけ走る。PR のレビューだけに効く指示は `REVIEW.md` にある。
 
 動くと確かめた main のコミットには、注釈付きのタグを打って GitHub の Release を作る。
-タグの名前は、その版の置き場所や仕組みが分かるものにする（例: `artifact-store-v1`）。
+タグの名前は、その版の置き場所や仕組みが分かるものにする（例: `artifact-store-v1`、`git-store-v1`）。
 
 ## ライセンス
 

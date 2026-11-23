@@ -1,67 +1,65 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
-import { ArtifactMirrorStore } from '../../../infrastructure/artifact-mirror-store.js';
-import { STORE_VERSION } from '../../../infrastructure/document-store.js';
+import type { GitDocumentStore } from '../../../infrastructure/git-document-store.js';
+import {
+  createGitStoreFixture,
+  initializedStore,
+  type GitStoreFixture,
+} from '../../../__tests__/git-store-fixture.js';
 import { LOOP_COLLECTION, readLoopSteps } from '../../repositories/loop-history.repository.js';
-import { parseFlags, runLoopCli, type LoopCliDependencies } from '../loop-cli.js';
+import type { LoopStep } from '../../models/loop-step.js';
+import { parseFlags, runLoopCli } from '../loop-cli.js';
 
 // ============================================================
-// 一時ディレクトリの写しと送る箱（Artifact の DB の実装）で確かめる
+// 一時の git の置き場所で確かめる。ループの記録は手元（localDir）に置き、置き場所にはコミットしない
 // ============================================================
 
-let tmp: string;
-let storeDir: string;
+let fixture: GitStoreFixture;
+/** 置き場所を始めた後のコミット。ループの記録はこれを増やさない */
+let commits: string[];
 let stdout: string;
 let stderr: string;
 let now: Date;
 
-/** 呼び出しごとに新しく組む（別のプロセスとして走らせるのと同じ） */
-function openStore(): ArtifactMirrorStore {
-  return new ArtifactMirrorStore(storeDir);
+/** 呼び出しごとに新しく組み、読み込む（別のプロセスとして走らせるのと同じ） */
+async function openStore(): Promise<GitDocumentStore> {
+  const store = fixture.open();
+  await store.check();
+  return store;
 }
 
-/** 送る箱の束の名前（古い順） */
-function outboxLabels(): string[] {
-  return openStore()
-    .outbox()
-    .map((batch) => batch.label);
+async function steps(): Promise<LoopStep[]> {
+  return readLoopSteps(await openStore());
 }
 
-/** 送る箱が作る文書の ID（古い順） */
-function outboxDocs(): string[] {
-  return openStore()
-    .outbox()
-    .flatMap((batch) => batch.writes.map((write) => `${write.collection}/${write.doc_id}`));
-}
-
-/** カードは `card-a` だけがあることにする。カードのリポジトリの書き込みの口は渡さない */
-function deps(): LoopCliDependencies {
-  return {
-    store: openStore(),
-    cardExists: (id) => Promise.resolve(id === 'card-a'),
-  };
+/** 手元に書いたループの記録のファイル */
+function localLoopFiles(): string[] {
+  const dir = path.join(fixture.localDir, LOOP_COLLECTION);
+  return fs.existsSync(dir) ? fs.readdirSync(dir).sort() : [];
 }
 
 async function run(...argv: string[]): Promise<number> {
-  return runLoopCli(argv, deps(), {
-    stdout: (text) => {
-      stdout += text;
-    },
-    stderr: (text) => {
-      stderr += text;
-    },
-    now: () => now,
-  });
+  // カードは `card-a` だけがあることにする。カードのリポジトリの書き込みの口は渡さない
+  return runLoopCli(
+    argv,
+    { store: await openStore(), cardExists: (id) => Promise.resolve(id === 'card-a') },
+    {
+      stdout: (text) => {
+        stdout += text;
+      },
+      stderr: (text) => {
+        stderr += text;
+      },
+      now: () => now,
+    }
+  );
 }
 
-beforeEach(() => {
-  tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-board-loop-cli-'));
-  storeDir = path.join(tmp, 'store');
-  const meta = path.join(storeDir, 'mirror', 'board');
-  fs.mkdirSync(meta, { recursive: true });
-  fs.writeFileSync(path.join(meta, 'meta~000001.json'), JSON.stringify({ version: STORE_VERSION }));
+beforeEach(async () => {
+  fixture = createGitStoreFixture();
+  await initializedStore(fixture);
+  commits = fixture.commitSubjects();
 
   stdout = '';
   stderr = '';
@@ -69,7 +67,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  fs.rmSync(tmp, { recursive: true, force: true });
+  fixture.remove();
 });
 
 const START = [
@@ -89,21 +87,14 @@ const START = [
 const FINISH = ['finish', '--loop', 'session-a', '--card', 'card-a', '--result', 'advanced'];
 
 describe('start と finish', () => {
-  it('開始と終了をそれぞれ 1 束にして送る箱に積む。loop だけを書く', async () => {
+  it('開始と終了を手元の 1 つの記録に書き、置き場所にはコミットしない', async () => {
     expect(await run(...START)).toBe(0);
     now = new Date('2026-11-02T11:15:41.000Z');
     expect(await run(...FINISH)).toBe(0);
 
-    expect(outboxLabels()).toEqual([
-      'loop: start card-a implement',
-      'loop: finish card-a implement',
-    ]);
-    // 終了は同じ記録の次の改訂として積む（置き場所の文書は書き換えない）
-    expect(outboxDocs()).toEqual([
-      `${LOOP_COLLECTION}/20261102T111406.000Z.session-a~000001`,
-      `${LOOP_COLLECTION}/20261102T111406.000Z.session-a~000002`,
-    ]);
-    expect(readLoopSteps(openStore())).toEqual([
+    expect(fixture.commitSubjects()).toEqual(commits);
+    expect(localLoopFiles()).toEqual(['20261102T111406.000Z.session-a.json']);
+    expect(await steps()).toEqual([
       {
         loop: 'session-a',
         cardId: 'card-a',
@@ -128,9 +119,10 @@ describe('start と finish', () => {
       await run('start', '--loop', 'session-a', '--card', 'card-a', '--action', 'revise-plan')
     ).toBe(0);
 
-    expect(readLoopSteps(openStore()).map((s) => s.result)).toEqual(['interrupted', null]);
+    expect((await steps()).map((s) => s.result)).toEqual(['interrupted', null]);
     expect(stderr).toContain('途切れた');
-    expect(outboxLabels().at(-1)).toBe('loop: start card-a revise-plan');
+    expect(localLoopFiles()).toHaveLength(2);
+    expect(fixture.commitSubjects()).toEqual(commits);
   });
 
   it.each(['revise-impl', 'ready'])(
@@ -140,19 +132,20 @@ describe('start と finish', () => {
         await run('start', '--loop', 'session-a', '--card', 'card-a', '--action', action)
       ).toBe(1);
       expect(stderr).toContain('--action には plan / revise-plan / implement');
-      expect(readLoopSteps(openStore())).toEqual([]);
+      expect(await steps()).toEqual([]);
     }
   );
 });
 
 describe('拒否（何も書かない）', () => {
   async function expectRefused(argv: string[], message: string): Promise<void> {
-    const before = outboxLabels();
-    const steps = JSON.stringify(readLoopSteps(openStore()));
+    const before = localLoopFiles();
+    const written = JSON.stringify(await steps());
     expect(await run(...argv)).toBe(1);
     expect(stderr).toContain(message);
-    expect(outboxLabels()).toEqual(before);
-    expect(JSON.stringify(readLoopSteps(openStore()))).toBe(steps);
+    expect(localLoopFiles()).toEqual(before);
+    expect(JSON.stringify(await steps())).toBe(written);
+    expect(fixture.commitSubjects()).toEqual(commits);
   }
 
   it('存在しないカード', async () => {

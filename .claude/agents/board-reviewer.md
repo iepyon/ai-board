@@ -44,7 +44,7 @@ description: board-loop を動かした本筋のセッションから、`next.st
 次のどれかが満たされなければ、何も書かずに止まって報告する。
 本筋のセッションが読んだ段は `status` が `git show` で読んだ時点のもので、`git pull` した後の計画と食い違うことがある。食い違いなら、理由にそう書く。
 
-- 計画が `$WT/.ai-board/plans/<cardId>.md` にある（`plans/archive/` にあるなら、レビューの段は済んでいる）
+- 計画が `$WT/.ai-board/cards/<cardId>/plan.md` にあり、`## 締め` の節が無い（あるなら、レビューの段は済んでいる）
 - 計画に未チェックのタスクが無い（残っていれば段の食い違い。タスクを倒す段になっている）
 - 計画に `## AI レビュー` 節がまだ無い。レビューは 1 回だけで、既にあれば書き足さない（あれば段の食い違い。締めの段になっている）
 
@@ -100,11 +100,12 @@ description: board-loop を動かした本筋のセッションから、`next.st
 
 ## 6. コミットする
 
-1. `git -C "$WT" status --porcelain` で、変わったのが `.ai-board/plans/<cardId>.md` だけであることを確かめる。
+1. `git -C "$WT" status --porcelain` で、変わったのが `.ai-board/cards/<cardId>/plan.md` だけであることを確かめる。
    ほかのファイルが変わっていたら（`/code-review` が書いたものも含む）、コミットせずに止まって報告する
 2. 共通の決まりのハードルールにある品質ゲートを通す。計画ファイルだけの変更でも走らせる。
    通らなければコミットせず、止まって報告する
-3. `git -C "$WT" add .ai-board/plans/<cardId>.md` → コミット（`docs: <cardId> の AI レビューの指摘を計画に書く`。末尾の署名は、そのセッションの指示に従う）→ `git -C "$WT" push origin <branch>`。
+3. `git -C "$WT" add .ai-board/cards/<cardId>/plan.md` → コミット（`docs: <cardId> の AI レビューの指摘を計画に書く`。末尾の署名は、そのセッションの指示に従う）→
+   `node "$MAIN/dist/cli.js" store check-branch <branch> --root "$MAIN"`（置き場所のファイルを変えていれば push せずに止まる）→ `git -C "$WT" push origin <branch>`。
    push が失敗したらやり直さずに止まり、コミットが手元にだけあることを報告する
 4. `git -C "$WT" status --porcelain=v2 --branch` で、`# branch.ab +0 -0` の行があり、変更の行が無いことを確かめる（`origin/<branch>` と一致し、未コミットの変更が無い）。
    満たされなければ止まって報告する（次の手は、ワークツリーと `origin` の状態から続きを選ぶ）。
@@ -124,10 +125,10 @@ description: board-loop を動かした本筋のセッションから、`next.st
 
 共通の決まりの「ハードルール」に加えて、次を守る。
 
-- コードを直さない。変えてよいのは `.ai-board/plans/<cardId>.md` の末尾に `## AI レビュー` 節を足すことだけ。
+- コードを直さない。変えてよいのは `.ai-board/cards/<cardId>/plan.md` の末尾に `## AI レビュー` 節を足すことだけ。
   外から確かめる者はいないので、コミットの前の `git status --porcelain` の確かめを省かない
 - カードに書かない（`ai-board card submit` / `hold` / `body` / `branch` と、人の判断を書く `ai-board decide` を呼ばない）
 - サブエージェントを立てない
 - PR にコメントしない。PR の本文も変えない（見送った指摘を本文へ写すのは、締めの段の本筋のセッションがする）。PR を Ready にしない
 - `## AI レビュー` 節が既にある計画に書き足さない。2 回目のレビューはしない
-- 計画の archive への移動、PR の本文の書き換え、Ready にすることはしない（締めの段の本筋のセッションがする）
+- 計画への `## 締め` の節の追加、PR の本文の書き換え、Ready にすることはしない（締めの段の本筋のセッションがする）

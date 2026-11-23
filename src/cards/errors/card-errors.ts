@@ -58,7 +58,7 @@ export type HoldGateNotRejected = {
 /**
  * 置き場所への書き込みの 1 操作（`DocumentStore.transact`）が失敗した。
  *
- * ロック待ちの上限、写しが無い・形の版が違う、などを含む。
+ * ロック待ちの上限、置き場所を読めない・形の版が違う、push が通らない、などを含む。
  * カードの usecase 自身は返さず、usecase を書き込みの 1 操作（`transactCardWrite`）の中で走らせたときに起きる。
  */
 export type CardStoreError = StoreError;

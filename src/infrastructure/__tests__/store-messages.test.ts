@@ -4,13 +4,13 @@ import { describeStoreError } from '../store-messages.js';
 
 describe('describeStoreError', () => {
   const cases: StoreError[] = [
-    { type: 'StoreNotConfigured' },
-    { type: 'StoreNotPulled', mirrorDir: '/x/mirror' },
     { type: 'StoreUninitialized' },
     { type: 'StoreVersionMismatch', found: 2, expected: 3 },
-    { type: 'StorePendingWrites', count: 2 },
     { type: 'StoreLockTimeout', lockPath: '/x/store.lock' },
-    { type: 'StoreInvalidDocument', path: '/x/a.json', reason: '読めない' },
+    { type: 'StoreRemoteMissing', remote: 'origin' },
+    { type: 'StoreGitFailed', operation: 'fetch', message: 'Command failed: git fetch' },
+    { type: 'StorePushConflict', attempts: 3 },
+    { type: 'StoreAlreadyInitialized' },
   ];
 
   it.each(cases)('$type を 1 行にする', (error) => {
@@ -19,10 +19,10 @@ describe('describeStoreError', () => {
     expect(message.length).toBeGreaterThan(0);
   });
 
-  it('送っていない書き込みには件数と捨て方を書く', () => {
-    expect(describeStoreError({ type: 'StorePendingWrites', count: 2 })).toContain(
-      'ai-board store discard'
-    );
+  it('リモートが無ければ足し方と設定の場所を書く', () => {
+    const message = describeStoreError({ type: 'StoreRemoteMissing', remote: 'origin' });
+    expect(message).toContain('origin');
+    expect(message).toContain('store.remote');
   });
 
   it('形の版の食い違いには両方の版を書く', () => {

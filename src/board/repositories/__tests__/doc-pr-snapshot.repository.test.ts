@@ -3,7 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CardId, PullRequestNumber } from '../../../shared/schemas/common.js';
-import { ArtifactMirrorStore } from '../../../infrastructure/artifact-mirror-store.js';
+import { createGitStoreFixture, initializedStore } from '../../../__tests__/git-store-fixture.js';
 import {
   initialDocuments,
   MemoryDocumentStore,
@@ -92,18 +92,24 @@ describe('DocPrSnapshotRepository', () => {
     expect(await repository.findAll()).toEqual(new Map([[id, merged()]]));
   });
 
-  it('同じマージ済みの控えをもう一度書いても、送る箱に積まない', async () => {
-    const root = path.join(tmp, 'store');
-    const store = new ArtifactMirrorStore(root);
-    fs.mkdirSync(path.join(store.mirrorDir, 'board'), { recursive: true });
-    fs.writeFileSync(path.join(store.mirrorDir, 'board', 'meta~000001.json'), '{"version":3}');
-    const { repository } = setup(store);
+  it('git の置き場所では、マージ済みの控えを手元に置き、置き場所にコミットしない', async () => {
+    const fixture = createGitStoreFixture();
+    try {
+      const store = await initializedStore(fixture);
+      const before = fixture.commitSubjects();
+      const { repository } = setup(store);
 
-    await repository.save(id, merged());
-    await store.ack('999999');
-    await repository.save(id, merged());
+      await repository.save(id, merged());
+      await repository.save(id, merged());
 
-    expect(store.pendingWrites()).toBe(0);
+      expect(fixture.commitSubjects()).toEqual(before);
+      expect(fs.readdirSync(path.join(fixture.localDir, SNAPSHOTS_COLLECTION))).toEqual([
+        `${id}.json`,
+      ]);
+      expect(await repository.findMerged()).toEqual(new Map([[id, merged()]]));
+    } finally {
+      fixture.remove();
+    }
   });
 
   it('開いた PR に付け替えたら、前のマージ済みの控えを消す', async () => {

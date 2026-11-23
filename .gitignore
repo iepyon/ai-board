@@ -7,9 +7,8 @@ coverage/
 # ループのサブエージェントがカードごとに作るワークツリー。中身はカードのブランチへコミットする
 /.claude/worktrees/
 
-# 置き場所（Artifact の DB）の手元の写しと送る箱、ロック、使い捨ての PR の控え。
-# ai-board の CLI が書き、置き場所との行き来は Claude が board-store のスキルで行う
-/.ai-board/store/
+# git に載せない各自のファイル（PR の控え・ループの記録・ロック・ボードの HTML）。ai-board の CLI が書く
+/.ai-board/local/
 
 # 前の置き場所（データ用ブランチ ai-board/data）のワークツリーと、その隣のロック・控え・モード。
 # 移して確かめた後に人が消す（README の「データ用ブランチを消す」）。消すまで追跡しない

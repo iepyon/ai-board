@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { err, ok } from '../../shared/result.js';
+import { err } from '../../shared/result.js';
 import {
   checkMeta,
-  copyDocuments,
   initialDocuments,
   isValidDocumentId,
   MemoryDocumentStore,
@@ -34,37 +33,5 @@ describe('isValidDocumentId', () => {
 
   it.each(['', '.', '..', 'a~1', 'a/b', 'あ', 'a b'])('%s は使えない', (id) => {
     expect(isValidDocumentId(id)).toBe(false);
-  });
-});
-
-describe('copyDocuments', () => {
-  it('写し元の全コレクションを 1 回の transact で写す', async () => {
-    const from = new MemoryDocumentStore([
-      ...initialDocuments(),
-      { collection: 'cards', id: 'a', data: { title: 'A' } },
-      { collection: 'log', id: 'a.1', data: { kind: 'submit' } },
-    ]);
-    const to = new MemoryDocumentStore(initialDocuments());
-
-    const result = await copyDocuments(from, to, '写す', { collections: ['cards', 'log'] });
-
-    expect(result).toEqual(ok(2));
-    expect(to.get('cards', 'a')).toEqual({ title: 'A' });
-    expect(to.get('log', 'a.1')).toEqual({ kind: 'submit' });
-  });
-
-  it('refuse が理由を返したら何も写さない', async () => {
-    const from = new MemoryDocumentStore([{ collection: 'cards', id: 'a', data: { title: 'A' } }]);
-    const to = new MemoryDocumentStore([
-      ...initialDocuments(),
-      { collection: 'cards', id: 'x', data: { title: 'X' } },
-    ]);
-
-    const result = await copyDocuments(from, to, '写す', {
-      refuse: (reader) => (reader.list('cards').length > 0 ? ('NotEmpty' as const) : null),
-    });
-
-    expect(result).toEqual(err('NotEmpty'));
-    expect(to.get('cards', 'a')).toBeNull();
   });
 });

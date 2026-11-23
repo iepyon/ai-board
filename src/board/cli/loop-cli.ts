@@ -31,12 +31,12 @@ import {
  *
  * カードについては「その ID のカードがあるか」を読む関数（`cardExists`）だけを受け取り、
  * カードのリポジトリの書き込みの口を持たない。`card-cli.ts` の書き込み境界には入口を足さない。
- * 書き込みは `DocumentStore.transact` の 1 操作として走らせる（手元の最新の写しに対して書き、送る箱に積む）。
+ * 書き込みは `DocumentStore.transact` の 1 操作として走らせる（git の置き場所では手元の `.ai-board/local/` に書き、コミットしない）。
  */
 export const LOOP_USAGE = `使い方: ai-board loop <command> [--root <path>]
 
 ループ（/board-loop を動かした本筋のセッション）が、手の始まりと終わりに 1 手の記録を書く
-（置き場所の loop）。カードには書かない。書いたものは送る箱に積まれる。
+（置き場所の loop。手元の .ai-board/local/ に置き、共有しない）。カードには書かない。
 
 Commands:
   start  --loop <id> --card <cardId> --action <手> [--step <段>] [--agent <name>]
@@ -60,7 +60,7 @@ export interface LoopCliIo {
 export interface LoopCliDependencies {
   /** 置き場所。書き込みは `transact` の中で行う */
   readonly store: Pick<DocumentStore, 'transact' | 'list' | 'set'>;
-  /** その ID のカードがあるか。`transact` の中（写しを読み直した後）で呼ぶ */
+  /** その ID のカードがあるか。`transact` の中で呼ぶ */
   readonly cardExists: (id: string) => Promise<boolean>;
 }
 

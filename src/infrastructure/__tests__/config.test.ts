@@ -27,7 +27,6 @@ describe('resolvePaths', () => {
     const paths = resolvePaths(root);
 
     expect(paths.boardDir).toBe(path.join(root, '.ai-board'));
-    expect(paths.plansDir).toBe(path.join(root, '.ai-board', 'plans'));
   });
 
   it('相対パスを絶対パスにする', () => {
@@ -115,7 +114,6 @@ describe('ワークツリーでの置き場所', () => {
     const paths = resolvePaths(root, {});
 
     expect(paths.sharedBoardDir).toBe(path.join(root, '.ai-board'));
-    expect(paths.plansDir).toBe(path.join(root, '.ai-board', 'plans'));
   });
 
   it('リンクされたワークツリーでは、共有の置き場所をメインのチェックアウトに、計画をワークツリーに置く', async () => {
@@ -124,7 +122,6 @@ describe('ワークツリーでの置き場所', () => {
     const paths = resolvePaths(tree, {});
 
     expect(paths.sharedBoardDir).toBe(path.join(root, '.ai-board'));
-    expect(paths.plansDir).toBe(path.join(tree, '.ai-board', 'plans'));
   });
 
   it('リンクされたワークツリーでは、git に載せたワークツリー自身の config.yaml を読む', async () => {
@@ -141,7 +138,7 @@ describe('ワークツリーでの置き場所', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     try {
-      expect(resolvePaths(root, {}).storeDir).toBe(path.join(root, '.ai-board', 'store'));
+      expect(resolvePaths(root, {}).localDir).toBe(path.join(root, '.ai-board', 'local'));
       expect(warn).toHaveBeenCalledWith(
         expect.stringContaining('メインのチェックアウトを求められない')
       );
@@ -152,74 +149,96 @@ describe('ワークツリーでの置き場所', () => {
 });
 
 // ============================================================
-// 置き場所の写しのディレクトリと、store.url
+// 手元のディレクトリと、置き場所のリモート・ブランチ
 // ============================================================
 
-describe('置き場所の写しのディレクトリ', () => {
-  it('メインのチェックアウトでは .ai-board/store/', () => {
+describe('手元のディレクトリ', () => {
+  it('メインのチェックアウトでは .ai-board/local/ で、git はメインのチェックアウトで走らせる', () => {
     const paths = resolvePaths(root, {});
 
-    expect(paths.storeDir).toBe(path.join(root, '.ai-board', 'store'));
-    expect(paths.storeSource).toBe('local');
+    expect(paths.localDir).toBe(path.join(root, '.ai-board', 'local'));
+    expect(paths.repoDir).toBe(root);
+    expect(paths.storeOverride).toBeNull();
   });
 
-  it('リンクされたワークツリーではメインのチェックアウトの .ai-board/store/', async () => {
+  it('リンクされたワークツリーではメインのチェックアウトの .ai-board/local/', async () => {
     const tree = await makeLinkedWorktree('feature');
 
     const paths = resolvePaths(tree, {});
 
-    expect(paths.storeDir).toBe(path.join(root, '.ai-board', 'store'));
-    expect(paths.storeSource).toBe('main-checkout');
+    expect(paths.localDir).toBe(path.join(root, '.ai-board', 'local'));
+    expect(paths.repoDir).toBe(root);
   });
 
-  it('AI_BOARD_STORE があれば、それを写しのディレクトリにする（相対パスはカレントディレクトリから）', async () => {
+  it('AI_BOARD_STORE があれば、それを置き場所のリポジトリにし、手元のファイルはその隣に置く（相対パスはカレントディレクトリから）', async () => {
     const tree = await makeLinkedWorktree('feature');
 
-    const paths = resolvePaths(tree, { AI_BOARD_STORE: 'dev-store' });
+    const paths = resolvePaths(tree, { AI_BOARD_STORE: 'dev-store.git' });
 
-    expect(paths.storeDir).toBe(path.resolve('dev-store'));
-    expect(paths.storeSource).toBe('env');
+    expect(paths.storeOverride).toBe(path.resolve('dev-store.git'));
+    expect(paths.localDir).toBe(`${path.resolve('dev-store.git')}.local`);
   });
 
   it('AI_BOARD_STORE が空なら無いものとして扱う', () => {
-    expect(resolvePaths(root, { AI_BOARD_STORE: '' }).storeSource).toBe('local');
+    expect(resolvePaths(root, { AI_BOARD_STORE: '' }).storeOverride).toBeNull();
   });
 
-  it('AI_BOARD_STORE があっても、共有の置き場所は .ai-board/ を指す', () => {
-    const paths = resolvePaths(root, { AI_BOARD_STORE: 'dev-store' });
+  it('AI_BOARD_STORE があっても、共有の .ai-board/ はメインのチェックアウトを指す', () => {
+    const paths = resolvePaths(root, { AI_BOARD_STORE: 'dev-store.git' });
 
     expect(paths.sharedBoardDir).toBe(path.join(root, '.ai-board'));
   });
 });
 
-describe('store.url', () => {
-  it('書かれていなければ null', async () => {
+describe('store', () => {
+  it('書かれていなければ origin の main', async () => {
     await writeConfig(githubYaml);
 
-    expect(loadConfig(root, {}).storeUrl).toBeNull();
+    expect(loadConfig(root, {}).store).toEqual({
+      remote: 'origin',
+      branch: 'main',
+      branchRemote: 'origin',
+    });
   });
 
-  it('claude.ai の Artifact の URL を読む', async () => {
-    await writeConfig(`${githubYaml}store:\n  url: https://claude.ai/artifact/AbC123\n`);
+  it('store.remote と store.branch を読む', async () => {
+    await writeConfig(`${githubYaml}store:\n  remote: upstream\n  branch: board\n`);
 
-    expect(loadConfig(root, {}).storeUrl).toBe('https://claude.ai/artifact/AbC123');
+    expect(loadConfig(root, {}).store).toEqual({
+      remote: 'upstream',
+      branch: 'board',
+      branchRemote: 'upstream',
+    });
   });
 
-  it('claude.ai/code/artifact の URL も読む', async () => {
-    await writeConfig('store:\n  url: https://claude.ai/code/artifact/1a2b-3c\n');
+  it('AI_BOARD_STORE があれば、そのリポジトリを置き場所のリモートにし、カードのブランチは設定のリモートで追う', async () => {
+    await writeConfig(`${githubYaml}store:\n  remote: upstream\n`);
 
-    expect(loadConfig(root, {}).storeUrl).toBe('https://claude.ai/code/artifact/1a2b-3c');
+    expect(loadConfig(root, { AI_BOARD_STORE: '/tmp/x.git' }).store).toEqual({
+      remote: '/tmp/x.git',
+      branch: 'main',
+      branchRemote: 'upstream',
+    });
   });
 
-  it('url: null は未設定として読む', async () => {
-    await writeConfig('store:\n  url: null\n');
-
-    expect(loadConfig(root, {}).storeUrl).toBeNull();
-  });
-
-  it('Artifact の URL でなければ、ファイルの名前を出してエラーにする', async () => {
-    await writeConfig('store:\n  url: https://example.com/x\n');
+  it('- で始まる値は、ファイルの名前を出してエラーにする', async () => {
+    await writeConfig('store:\n  branch: --force\n');
 
     expect(() => loadConfig(root, {})).toThrow(path.join(root, '.ai-board', 'config.yaml'));
+  });
+
+  it.each(["'data:x'", 'a..b', 'x.lock', 'feat/', 'a~1', '.hidden', 'a/.b'])(
+    'store.branch に git のブランチの名前でない値（%s）を書けばエラーにする',
+    async (branch) => {
+      await writeConfig(`store:\n  branch: ${branch}\n`);
+
+      expect(() => loadConfig(root, {})).toThrow('store.branch');
+    }
+  );
+
+  it('store.branch に / を含む名前は書ける', async () => {
+    await writeConfig('store:\n  branch: board/data\n');
+
+    expect(loadConfig(root, {}).store.branch).toBe('board/data');
   });
 });

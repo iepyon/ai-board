@@ -8,82 +8,85 @@
 
 ### Requirement: 正本の置き場所
 
-システムは カード・判断・並び順・マージ済みの PR の控え・ループの記録の正本を、設定で指す 1 つの置き場所に、文書（コレクションと ID で指す JSON）として置かなければならない (MUST)。
-置き場所の既定は Artifact の DB とし、URL は `main` の `.ai-board/config.yaml` の `store.url` で指さなければならない (MUST)。
-git のブランチに正本を置いては SHALL NOT。
+システムは カード・判断・並び順の正本を、設定で指す git のリポジトリの 1 つのブランチ（既定は `origin` の `main`）の `.ai-board/` の下に、ファイル（`board.yaml`・`order.yaml`・`cards/<id>/card.md`・`cards/<id>/log/`）として置かなければならない (MUST)。
+リモートとブランチは `main` の `.ai-board/config.yaml` の `store.remote` と `store.branch` で指し、書かなければ `origin` と `main` を使わなければならない (MUST)。
+`AI_BOARD_STORE` があれば、そのパスの git リポジトリを置き場所のリモートとして使わなければならない (MUST)。
 リポジトリ（カード・区切り線・PR の控え・ループの記録）は、置き場所の口（`DocumentStore`）だけを通して読み書きしなければならない (MUST)。
 
-#### Scenario: 設定に置き場所が無い
+#### Scenario: 置き場所のリモートが無い
 
-- **WHEN** `.ai-board/config.yaml` に `store.url` が無い状態で `ai-board status` を走らせる
-- **THEN** 置き場所が未設定であることと、設定の仕方を 1 行で伝えて 0 以外で終わる
+- **WHEN** `store.remote` の指すリモートがリポジトリに無い状態で `ai-board status` を走らせる
+- **THEN** リモートが無いことと、設定の仕方を 1 行で伝えて 0 以外で終わる
 
-### Requirement: 手元の写しを読む
+#### Scenario: 置き場所がまだ始まっていない
 
-システムは CLI の読み出しを、手元の写し（`.ai-board/store/mirror/`）から行わなければならない (MUST)。
-写しは `ai-board store pull --from <dir>` で、`ArtifactData` の `out_dir` が書き出した形（`<collection>/<doc_id>.json`）のディレクトリから丸ごと入れ替えなければならない (MUST)。
-`out_dir` がファイル名の `~` を `@` に置き換えて書いた名前（`<ID>@<連番>.json`）も、名前を書き換えずに読まなければならない (MUST)。
-送る箱に送っていない書き込みが残っているときは、取り込みを拒まなければならない (MUST)（取り込むと、まだ送っていない書き込みの土台が変わるため）。
-写しが無いときは、取り込みを促して 0 以外で終わらなければならない (MUST)。
-
-#### Scenario: 取り込んで読む
-
-- **WHEN** DB の文書を `out_dir` で書き出したディレクトリを `ai-board store pull --from` に渡し、続けて `ai-board card list` を走らせる
-- **THEN** 書き出した文書のカードが並ぶ
-
-#### Scenario: 送っていない書き込みがある
-
-- **WHEN** 送る箱が空でないときに `ai-board store pull` を走らせる
-- **THEN** 送るか捨てるかを促して 0 以外で終わり、写しは変わらない
-
-### Requirement: 書き込みを送る箱に積む
-
-システムは CLI の書き込みを、写しを直したうえで、新しい文書の作成として送る箱に積まなければならない (MUST)。
-置き場所の文書を書き換えては SHALL NOT。文書を変えるときは同じ論理 ID の次の改訂（`<ID>~<6 桁の連番>`）を作り、消すときは消したことを表す改訂を作らなければならない (MUST)。読むときは論理 ID ごとに最新の改訂を使わなければならない (MUST)。
-書く前の検査（判断を書けるか、ゲートの状態など）は、写しの最新のカードに対して行わなければならない (MUST)。
-`ai-board store outbox --json` は、積んだ書き込みを `ArtifactData` の `batch` の `writes` にそのまま渡せる形（1 回 50 件まで）で出さなければならない (MUST)。
-書き込みには `if_version` を付けない。既にある改訂と同じ ID を作る書き込みを含む束は、置き場所が丸ごと拒むので、それを書き込みのぶつかりとして扱わなければならない (MUST)。
-`ai-board store ack --through <連番>` は送り終えた束（連番がそれ以下のもの）だけを送る箱から消し、`outbox` を読んだ後にほかのプロセスが積んだ束を残さなければならない (MUST)。`ai-board store discard` は送る箱を捨てて写しを積む前に戻さなければならない (MUST)。
-
-#### Scenario: 提出を積む
-
-- **WHEN** 写しを取り込んだ後に `ai-board card submit <id>` を走らせる
-- **THEN** 写しのカードは計画レビューを待つ状態になり、送る箱に判断の文書 1 件の新規の書き込みが積まれる
-
-#### Scenario: 改訂がぶつかる
-
-- **WHEN** 送る箱の書き込みを送ったが、その間に別の端末が同じカードの同じ改訂を先に作っていた
-- **THEN** DB には何も書かれず、送る箱を捨てて取り込み直し、元のコマンドを頭から走らせ直すと、最新のカードに対して検査し直される
+- **WHEN** 置き場所のブランチに `.ai-board/board.yaml` が無い状態で `ai-board card list` を走らせる
+- **THEN** `ai-board store init` を促して 0 以外で終わる
 
 ### Requirement: 形の版
 
-システムは 置き場所の `board/meta` の文書に形の版を持ち、自分と違う版の写しを読まずに止まらなければならない (MUST)。
-この計画で版を 3 とする。
+システムは 置き場所の `.ai-board/board.yaml` に形の版を持ち、自分と違う版の置き場所を読まずに止まらなければならない (MUST)。
+版は 3 のままとする（文書の形は変えないため）。
 
 #### Scenario: 版が違う
 
-- **WHEN** 写しの `board/meta` の版が 3 でない
+- **WHEN** 置き場所の `board.yaml` の版が 3 でない
 - **THEN** 読まずに、版が違うことを伝えて 0 以外で終わる
 
 ### Requirement: 固定の seed ファイルから起票する
 
-システムは `main` の `.ai-board/seed/*.md`（`card seed --from` が読む形）を、`ai-board store seed` で起票の書き込みとして送る箱に積まなければならない (MUST)。
+システムは `main` の `.ai-board/seed/*.md`（`card seed --from` が読む形）を、`ai-board store seed` で起票の書き込みとして置き場所のブランチへ push しなければならない (MUST)。
 既にある ID は飛ばし、`rank`・着手・`## レビュー` は書いては SHALL NOT。
 起票は `.ai-board/seed/order.txt`（1 行 1 ID）に書いた順に、書いていない題材はその後にファイル名の順に行い、起票の時刻を前のカードより必ず後にしなければならない (MUST)（アイデアは `rank` が無ければ起票の時刻の順に並ぶので、`rank` を書かずにこの順で並べる）。
 `order.txt` に題材の無い ID や同じ ID が 2 度あれば、1 枚も起票してはならない (SHALL NOT)。
 
 #### Scenario: 空の置き場所に seed を入れる
 
-- **WHEN** 空の DB を取り込んだ写しで `ai-board store seed` を走らせ、送る箱を送って取り込み直す
-- **THEN** seed のカードが `order.txt` の順にアイデアの列に並ぶ
+- **WHEN** `ai-board store init` の後に `ai-board store seed` を走らせる
+- **THEN** 置き場所のブランチに seed のカードの `card.md` を足すコミットが push され、`order.txt` の順にアイデアの列に並ぶ
 
-### Requirement: データ用ブランチから移す
+### Requirement: 書き込みは置き場所のブランチへのコミットとして push する
 
-システムは データ用ブランチの clone を読み、カード・判断・並び順・区切り線を、新しい文書の書き込みとして送る箱に積む `ai-board store import --from <dir>` を提供しなければならない (MUST)。
-マージ済みの PR の控えとループの記録は移しては SHALL NOT（控えは GitHub から引き直し、ループの記録は見るためのものだから）。
-写しにカードが 1 枚でもあれば、拒まなければならない (MUST)（二重に移さないため）。
+システムは CLI の書き込みを、`git fetch` で取った置き場所のブランチ（既定は `origin` の `main`）の先頭の上に、置き場所のファイルだけを変えるコミットを 1 つ作り、push しなければならない (MUST)。
+メインのチェックアウトの作業ツリー・index・今のブランチを変えては SHALL NOT。
+push が先を越されて拒まれたら、取り直した先頭の上で書く前の検査からやり直さなければならない (MUST)。3 回やり直しても通らなければ、書かずに 0 以外で終わらなければならない (MUST)。
+push が通らず、取り直した先頭が動いていなければ（権限が無い・保護されている・届かない）、やり直さずに push の失敗を伝えて 0 以外で終わらなければならない (MUST)。
+書く前の検査（判断を書けるか、ゲートの状態など）は、取り直した最新のカードに対して行わなければならない (MUST)。
+置き場所のファイルを 1 つも変えない書き込み（手元に置く控えと記録だけを書くもの、何も書かないもの）では、fetch・コミット・push をしては SHALL NOT。
 
-#### Scenario: 移す
+#### Scenario: 提出を書く
 
-- **WHEN** 空の DB を取り込んだ写しで、データ用ブランチの clone を `--from` に渡して `ai-board store import` を走らせ、送って取り込み直す
-- **THEN** `ai-board card list` の ID・タイトル・並び順・`## レビュー` が、移す前のデータ用ブランチの CLI の出力と一致する
+- **WHEN** `ai-board card submit <id>` を走らせる
+- **THEN** 置き場所のブランチに判断のファイル 1 件を足すコミットが push され、メインのチェックアウトの作業ツリーは変わらない
+
+#### Scenario: 先を越された
+
+- **WHEN** push の前に、別の PC が同じ置き場所のブランチへ並び順を変えるコミットを push していた
+- **THEN** 取り直した先頭の上で検査と書き込みをやり直し、両方の変更が置き場所に残る
+
+### Requirement: カードのブランチは置き場所のファイルを変えない
+
+システムは `ai-board store check-branch <branch>` で、置き場所のブランチとの分岐点と `<branch>` の差分（`git diff --name-only <分岐点> <branch>`）に置き場所のファイル（`board.yaml`・`order.yaml`・`cards/<id>/card.md`・`cards/<id>/log/`）があれば、そのファイルを並べて 0 以外で終わらなければならない (MUST)。
+コミットごとに見ては SHALL NOT（main を取り込んだマージのコミットで誤って止めないため）。
+`cards/<id>/plan.md` の変更は拒んでは SHALL NOT（計画はカードのブランチに載せるため）。
+
+#### Scenario: ブランチでカードを書き換えた
+
+- **WHEN** カードのブランチで `.ai-board/cards/<id>/card.md` を変えたコミットがあり、`ai-board store check-branch <branch>` を走らせる
+- **THEN** 変えたファイルを並べて 0 以外で終わる
+
+#### Scenario: main を取り込んだブランチ
+
+- **WHEN** カードのブランチが、置き場所のファイルを変えた main をマージで取り込んでいるが、ブランチ自身は置き場所のファイルを変えていない
+- **THEN** 0 で終わる
+
+### Requirement: 共有しない控えと記録は手元に置く
+
+システムは マージ済みの PR の控えとループの記録を、置き場所のブランチに書いては SHALL NOT。メインのチェックアウトの `.ai-board/local/`（git に載せない）に置かなければならない (MUST)。
+`AI_BOARD_STORE` を指したときは、そのパスの隣の別のディレクトリに置かなければならない (MUST)（試しの記録が本物に混ざらないため）。
+控えが無ければ GitHub から引き直さなければならない (MUST)。
+
+#### Scenario: 別の PC で初めて status を走らせる
+
+- **WHEN** `.ai-board/local/` が空の PC で `ai-board status` を走らせる
+- **THEN** マージ済みの PR を GitHub から引き直し、置き場所のブランチにはコミットを足さない

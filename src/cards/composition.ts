@@ -1,7 +1,22 @@
-import type { BoardPaths } from '../infrastructure/config.js';
-import { err, isErr, ok } from '../shared/result.js';
-import { ArtifactMirrorStore } from '../infrastructure/artifact-mirror-store.js';
-import type { DocumentStore } from '../infrastructure/document-store.js';
+import type { AppConfig } from '../infrastructure/config.js';
+import { err, isErr, ok, type Result } from '../shared/result.js';
+import { createCliRunner } from '../infrastructure/cli-runner.js';
+import {
+  initialDocuments,
+  type Collection,
+  type DocumentData,
+  type DocumentStore,
+  type StoreError,
+} from '../infrastructure/document-store.js';
+import { GitDocumentStore } from '../infrastructure/git-document-store.js';
+import { changedStoreFiles, type BranchCheckError } from '../infrastructure/git-branch-check.js';
+import { cardFileCodec, isStoreFilePath } from './repositories/card-file-codec.js';
+import {
+  EMPTY_ORDER,
+  ORDER_COLLECTION,
+  ORDER_ID,
+  orderDocumentData,
+} from './repositories/card-files.js';
 import type { PrNumberWriter } from '../infrastructure/pr-fetcher.js';
 import type { CardRepository } from './repositories/card.repository.js';
 import type { IdeaDividerRepository } from './repositories/idea-divider.repository.js';
@@ -94,7 +109,7 @@ export interface CardCliParts {
 }
 
 /**
- * `ai-board card` の依存を組む。書き込みは `store` の書き込みの 1 操作として送る箱に積む。
+ * `ai-board card` の依存を組む。書き込みは `store` の書き込みの 1 操作として置き場所へ push する。
  * 人の判断を書く usecase（`appendReviewCommand`・`updateCardMetaCommand`）は渡さない。
  */
 export function createCardCliParts(store: DocumentStore): CardCliParts {
@@ -126,7 +141,7 @@ export function createTransactionalPrWriter(
         const repository = new DocCardRepository(store);
         const latest = await repository.findById(cardId);
 
-        // 番号が既に入っていれば、何も書かない（transact は送る箱に積まない）
+        // 番号が既に入っていれば、何も書かない（transact は置き場所にコミットしない）
         if (latest === null || latest.pr === number) return ok(undefined);
 
         try {
@@ -146,9 +161,66 @@ export function createTransactionalPrWriter(
   };
 }
 
-/** 設定の置き場所から、Artifact の DB の写しと送る箱（`DocumentStore`）を組む */
-export function createBoardStore(paths: BoardPaths): ArtifactMirrorStore {
-  return new ArtifactMirrorStore(paths.storeDir);
+/** fetch と push は既定の上限（10 秒）では足りないことがある */
+const STORE_TIMEOUT_MS = 60_000;
+/** `cat-file --batch` で置き場所のファイルを全部読むので、上限を大きくする */
+const STORE_MAX_BUFFER = 64 * 1024 * 1024;
+
+/**
+ * 設定の置き場所から、git の置き場所（`DocumentStore`）を組む。
+ * カード・判断・並び順・形の版は置き場所のブランチのファイルに、PR の控えとループの記録は手元（`localDir`）に置く
+ */
+export function createBoardStore(config: AppConfig): GitDocumentStore {
+  return new GitDocumentStore({
+    repoDir: config.paths.repoDir,
+    remote: config.store.remote,
+    branch: config.store.branch,
+    localDir: config.paths.localDir,
+    codec: cardFileCodec,
+    runner: createStoreRunner(),
+  });
+}
+
+function createStoreRunner(): ReturnType<typeof createCliRunner> {
+  return createCliRunner({ timeoutMs: STORE_TIMEOUT_MS, maxBuffer: STORE_MAX_BUFFER });
+}
+
+/** 空の置き場所に書く最初の文書（形の版と、空の並び順）。`ai-board store init` が書く */
+export function initialBoardDocuments(): readonly {
+  collection: Collection;
+  id: string;
+  data: DocumentData;
+}[] {
+  return [
+    ...initialDocuments(),
+    { collection: ORDER_COLLECTION, id: ORDER_ID, data: orderDocumentData(EMPTY_ORDER) },
+  ];
+}
+
+/** `ai-board store` の `init` と `check-branch` の口 */
+export interface StoreCliParts {
+  readonly initialize: () => Promise<Result<void, StoreError>>;
+  readonly checkBranch: (
+    branch: string
+  ) => Promise<Result<readonly string[], StoreError | BranchCheckError>>;
+}
+
+/** `ai-board store` の口を組む。`check-branch` は置き場所を読み込んでから、その先頭とブランチの差分を見る */
+export function createStoreCliParts(config: AppConfig, store: GitDocumentStore): StoreCliParts {
+  return {
+    initialize: () => store.initialize(initialBoardDocuments()),
+    checkBranch: async (branch) => {
+      const checked = await store.check();
+      if (isErr(checked)) return checked;
+      return changedStoreFiles({
+        runner: createStoreRunner(),
+        repoDir: config.paths.repoDir,
+        storeHead: store.headCommit(),
+        branch,
+        isStoreFile: isStoreFilePath,
+      });
+    },
+  };
 }
 
 function assemble(

@@ -22,9 +22,10 @@
 ## カードの読み書き
 
 カードは `node "$MAIN/dist/cli.js" card ... --root "$MAIN"` で読み書きする（各定義では `ai-board card ...` と書く）。
-カードの正本は置き場所（Artifact の DB）にあり、CLI は手元の写しを読み、書き込みは送る箱に積む。
-CLI が「送る箱に N 束の書き込みがあります」と出したら、`board-store` のスキルの 2 で送り出してから次へ進む（送らなければほかの端末から見えない）。
-置き場所の写しと送る箱（`$MAIN/.ai-board/store/`）のファイルを直接書き換えない。置き場所へ `ArtifactData` で直接書かない。
+カードの正本は git の置き場所のブランチ（既定は `origin` の `main`）の `.ai-board/` のファイル（`board.yaml`・`order.yaml`・`cards/<id>/card.md`・`cards/<id>/log/`）にある。
+CLI は読むたびに fetch し、書き込みはそのブランチへのコミットとして自分で push する（メインのチェックアウトの作業ツリーには触らない）。
+置き場所のファイルをエディタや `git` で直接書き換えない。カードのブランチでも変えない（push の前に `ai-board store check-branch <branch>` で確かめる）。
+main へのコミットは `ai-board` の CLI の書き込みだけが作る。Bash から main へ push しない。
 PR は `node "$MAIN/dist/cli.js" pr ... --root "$MAIN"` で読み書きする（各定義では `ai-board pr ...` と書く）。
 クラウドのセッションでは GraphQL が 403 になり `gh pr` が動かないので、`gh pr` は使わない。
 何を書いてよいかは手順書ごとに違い、各手順書のハードルールに書く。
@@ -60,17 +61,18 @@ push は、各手順書で「push」とだけ書いたところも、`git -C "$W
 
 `ai-board status --json --only forge` の `forge` が `{"status":"disabled","kind":null,…}`（人向けの出力では「GitHub: 未設定」）のボードは、`config.yaml` に `github:` が無い。研修のように GitHub に届かない環境で使う。
 このボードでは `git fetch` / `git pull` / `git push` と `ai-board pr` を使わず、カードのブランチは手元にだけ置く。
-ボードは Draft の PR の代わりに、カードのブランチの `plans/<id>.md` を読んで計画レビューを立てる（`archive/` は読まない）。
+ボードは Draft の PR の代わりに、カードのブランチの `.ai-board/cards/<id>/plan.md` を読んで計画レビューを立てる。
+カードの置き場所の読み書きは、このボードでも CLI が `store.remote` に対して行う（GitHub に届かない環境では、手元の bare のリポジトリを `store.remote` にする）。
 
 手ごとに飛ばすものは次のとおり（詳しくは各手順書）。
 
 - 計画の手（`plan.md`）: push と `ai-board pr create`。コミット → `card branch` → `card submit` だけをする
 - 実装の手（`implement.md`）: 節ごとの push と `# branch.ab +0 -0` の確かめ。締めの段の `ai-board pr checks` / `pr edit` / `pr ready`。
-  締めの段は、PR の本文の代わりに、archive する前の計画の末尾に `## 動作確認の結果`・`## 判断してほしいこと`・`## 見送った AI レビューの指摘` を書く
+  締めの段は、PR の本文の代わりに、計画の末尾の `## 締め` の節の下に `### 動作確認の結果`・`### 判断してほしいこと`・`### 見送った AI レビューの指摘` を書く
 - レビューの段（`board-reviewer`）: PR の差分の代わりに `git -C "$WT" diff main...HEAD` を読む。push と `# branch.ab +0 -0` の確かめはしない
 
-締めの段で計画を archive したカードは、列は 実装中 のまま、ブランチのマージ待ちの止まりになって `waiting` に出る（ループは飛ばす）。
-人がメインのチェックアウト（`main`）で `git merge --no-ff <branch>` を打つと、archive した計画がメインに入り、カードはマージ済みになる。
+締めの段で計画に `## 締め` の節を足したカードは、列は 実装中 のまま、ブランチのマージ待ちの止まりになって `waiting` に出る（ループは飛ばす）。
+人が `main` で `git merge --no-ff <branch>` を打って push すると、計画が main に入り、カードはマージ済みになる。
 ループはマージしない。直したいときは、人が `ai-board decide reject` で計画から立て直させるか、自分で直す。
 `forge` の `kind` が `github` の「使えません」のボードは未設定ではない（`status` は `next` を出さず、ループは止まる）。
 
@@ -124,7 +126,7 @@ push は、各手順書で「push」とだけ書いたところも、`git -C "$W
 
 迷ったときは、直さなかった場合に人が PR中 で証拠を読み、動かして気づけるかで決める。気づきにくい壊れ方なら直す。
 
-`REVIEW.md` の「報告しないこと」に当たるもの（CI が検査するもの、`package-lock.json`、archive への移動、計画の言い回し）は、どこにも書かない。
+`REVIEW.md` の「報告しないこと」に当たるもの（CI が検査するもの、`package-lock.json`、`## 締め` の節、計画の言い回し）は、どこにも書かない。
 
 ## 直しきれないとき — 保留を書いて止まる
 
@@ -144,20 +146,18 @@ ai-board card hold <id> --gate plan --reason "<なぜ止まったか、人に何
 
 ## 動かして確かめるとき
 
-計画の `## 動作確認の手順` や CLI・API を動かすときは、共有のカードを汚さないよう `AI_BOARD_STORE` で別の置き場所のディレクトリを指す。
-指さなければ、カードへの書き込みは本物の写しの送る箱に積まれ、次の送り出しで本物の置き場所に届く。
-`AI_BOARD_STORE` の指すディレクトリの送る箱は、送り出さなければどこにも届かない。
+計画の `## 動作確認の手順` や CLI・API を動かすときは、共有のカードを汚さないよう `AI_BOARD_STORE` で試しの置き場所（`git init --bare` したリポジトリ）を指す。
+指さなければ、カードへの書き込みは本物の置き場所のブランチ（main）へそのまま push される。
+`AI_BOARD_STORE` を指すと、手元のファイル（ループの記録・PR の控え・ロック）もそのパスの隣の `<パス>.local/` に置かれ、本物の `.ai-board/local/` に混ざらない。
 
 ```bash
 S=<スクラッチパッドの下の作業用ディレクトリ>
-export AI_BOARD_STORE="$S/store"
-node "$WT/dist/cli.js" store init --root "$WT"        # board/meta を送る箱に積む
-node "$WT/dist/cli.js" store ack --through 999999 --root "$WT"   # 送ったことにする（写しには board/meta が残る）
+git init --quiet --bare --initial-branch=main "$S/store.git"
+export AI_BOARD_STORE="$S/store.git"
+node "$WT/dist/cli.js" store init --root "$WT"        # 試しの置き場所を始める（board.yaml と order.yaml を push する）
 node "$WT/dist/cli.js" store seed --root "$WT"        # 試すカードを起票する
+git --git-dir "$S/store.git" log --oneline main       # 書き込みが試しの置き場所のコミットになったかを見る
 ```
-
-`AI_BOARD_STORE` を指すと、`.ai-board/config.yaml` に `store.url` が無くても CLI は動く。
-写しは `out_dir` の形（`<collection>/<ID>~<連番>.json`。`out_dir` が書く `<ID>@<連番>.json` も読む）のディレクトリを `store pull --from` で丸ごと入れ替えられるので、手で作った文書から始めてもよい。
 ディレクトリ・一時ファイルは `$WT` の外（スクラッチパッドなど）に置く。`$WT` の中に置くと未コミットの変更として残る。
 自分で起動したプロセスは止めてから終える。
 
