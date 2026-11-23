@@ -68,6 +68,12 @@ export const STORE_REF = 'refs/ai-board/store';
 /** push が先を越されたときに、取り直して走らせ直す回数 */
 const MAX_PUSH_ATTEMPTS = 3;
 
+/**
+ * 手元のロックの既定。ロックは fetch と、`MAX_PUSH_ATTEMPTS` 回までの push と取り直しをまたいで持つので、
+ * ほかのプロセスはネットワークの上限（呼び出し側の runner。既定の組み立てでは 60 秒）より長く待つ
+ */
+export const GIT_STORE_LOCK_OPTIONS: LockOptions = { ...defaultLockOptions, timeoutMs: 600_000 };
+
 const LOCK_FILE = 'store.lock';
 const DELETED = Symbol('deleted');
 type Written = DocumentData | typeof DELETED;
@@ -95,7 +101,7 @@ export class GitDocumentStore implements DocumentStore {
 
   constructor(private readonly options: GitDocumentStoreOptions) {
     this.lockPath = path.join(options.localDir, LOCK_FILE);
-    this.lockOptions = options.lockOptions ?? defaultLockOptions;
+    this.lockOptions = options.lockOptions ?? GIT_STORE_LOCK_OPTIONS;
     this.git = gitIn(options.runner, options.repoDir);
   }
 
@@ -139,15 +145,29 @@ export class GitDocumentStore implements DocumentStore {
     written.set(keyOf(collection, id), DELETED);
   }
 
-  async transact<T, E>(
+  /**
+   * 書き込みの 1 操作。置き場所を読み込んでいなければ読み込み、形の版（`board/meta`）を確かめてから `op` を走らせる。
+   * 置き場所が始まっていない・形の版が違うときは `op` を走らせない（`board.yaml` の無い置き場所や、古い形のカードを push しない）
+   */
+  transact<T, E>(
     label: TransactLabel<T>,
     op: () => Promise<Result<T, E>>
+  ): Promise<Result<T, E | StoreError>> {
+    return this.transactWith(label, op, true);
+  }
+
+  private async transactWith<T, E>(
+    label: TransactLabel<T>,
+    op: () => Promise<Result<T, E>>,
+    requireMeta: boolean
   ): Promise<Result<T, E | StoreError>> {
     const locked = await this.locked(async (): Promise<Result<T, E | StoreError>> => {
       if (this.head === undefined) {
         const loaded = await this.load();
         if (isErr(loaded)) return loaded;
       }
+      const checked = this.checkMetaIf(requireMeta);
+      if (isErr(checked)) return checked;
 
       for (let attempt = 1; ; attempt++) {
         const ran = await this.runOp(op);
@@ -161,10 +181,17 @@ export class GitDocumentStore implements DocumentStore {
         // 先を越された。取り直した先頭で読み直し、最新のカードに対して検査からやり直す
         const reloaded = await this.loadAt(settled.error.head);
         if (isErr(reloaded)) return reloaded;
+        const rechecked = this.checkMetaIf(requireMeta);
+        if (isErr(rechecked)) return rechecked;
       }
     });
     if (isErr(locked)) return locked;
     return locked.value;
+  }
+
+  /** 置き場所の形の版を確かめる（`store init` の書き込みでは確かめない） */
+  private checkMetaIf(requireMeta: boolean): Result<void, StoreError> {
+    return requireMeta ? checkMeta(this) : ok(undefined);
   }
 
   /** `op` を走らせ、その中の書き込みを集める。例外なら書き込みを捨ててそのまま投げる */
@@ -207,13 +234,17 @@ export class GitDocumentStore implements DocumentStore {
   async initialize(
     docs: readonly { collection: Collection; id: string; data: DocumentData }[]
   ): Promise<Result<void, StoreError>> {
-    return this.transact<void, StoreError>('置き場所を始める', () => {
-      if (this.get('board', 'meta') !== null) {
-        return Promise.resolve(err({ type: 'StoreAlreadyInitialized' }));
-      }
-      for (const doc of docs) this.set(doc.collection, doc.id, doc.data);
-      return Promise.resolve(ok(undefined));
-    });
+    return this.transactWith<void, StoreError>(
+      '置き場所を始める',
+      () => {
+        if (this.get('board', 'meta') !== null) {
+          return Promise.resolve(err({ type: 'StoreAlreadyInitialized' }));
+        }
+        for (const doc of docs) this.set(doc.collection, doc.id, doc.data);
+        return Promise.resolve(ok(undefined));
+      },
+      false
+    );
   }
 
   /** 置き場所の先頭のコミット（`check()` の後）。置き場所のブランチがまだ無ければ null */

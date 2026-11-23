@@ -138,6 +138,26 @@ describe('RefPlanRepository.load', () => {
     expect(doc?.archived).toBe(true);
   });
 
+  it('マージのコミットで入った計画は、ブランチの最後のコミットではなく、マージの時刻を updatedAt にする', async () => {
+    await commitFile('README.md', 'x', '2026-09-01T00:00:00Z');
+    git(fixture.repo, 'switch', '--quiet', '-c', 'feat/a');
+    await commitFile('.ai-board/cards/a/plan.md', '- [x] 1', '2026-09-02T00:00:00Z');
+    git(fixture.repo, 'switch', '--quiet', 'work');
+    await commitFile('src/b.ts', '', '2026-09-03T00:00:00Z');
+    execFileSync('git', ['merge', '--quiet', '--no-ff', '-m', 'マージ', 'feat/a'], {
+      cwd: fixture.repo,
+      env: {
+        ...process.env,
+        GIT_AUTHOR_DATE: '2026-09-10T00:00:00Z',
+        GIT_COMMITTER_DATE: '2026-09-10T00:00:00Z',
+      },
+    });
+
+    expect((await repository().load()).get('a' as CardId)?.updatedAt).toBe(
+      '2026-09-10T00:00:00.000Z'
+    );
+  });
+
   it('計画を最後に変えたコミットの時刻を updatedAt として返す', async () => {
     await commitFile('.ai-board/cards/refresh-token/plan.md', '- [ ] 1', '2026-09-20T01:02:03Z');
     await commitFile('.ai-board/cards/other/plan.md', '- [ ] 1', '2026-09-21T00:00:00Z');

@@ -226,4 +226,19 @@ describe('store', () => {
 
     expect(() => loadConfig(root, {})).toThrow(path.join(root, '.ai-board', 'config.yaml'));
   });
+
+  it.each(["'data:x'", 'a..b', 'x.lock', 'feat/', 'a~1', '.hidden', 'a/.b'])(
+    'store.branch に git のブランチの名前でない値（%s）を書けばエラーにする',
+    async (branch) => {
+      await writeConfig(`store:\n  branch: ${branch}\n`);
+
+      expect(() => loadConfig(root, {})).toThrow('store.branch');
+    }
+  );
+
+  it('store.branch に / を含む名前は書ける', async () => {
+    await writeConfig('store:\n  branch: board/data\n');
+
+    expect(loadConfig(root, {}).store.branch).toBe('board/data');
+  });
 });

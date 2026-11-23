@@ -145,6 +145,29 @@ describe('runStoreCli', () => {
       expect(stdout).toContain('変えていません');
     });
 
+    it('置き場所のファイルを外へ移した（名前を変えた）ブランチも、消した側を並べて 1', async () => {
+      await store.transact('カードを書く', () => {
+        store.set('cards', 'a', {
+          id: 'a',
+          title: 'a',
+          created: '2026-11-22T00:00:00.000Z',
+          skipGates: [],
+          branch: null,
+          pr: null,
+          body: '',
+        });
+        return Promise.resolve(ok(undefined));
+      });
+      git(fixture.repo, 'fetch', '--quiet', fixture.bare, '+refs/heads/main:refs/ai-board/store');
+      git(fixture.repo, 'checkout', '--quiet', '-B', 'feat/move', 'refs/ai-board/store');
+      fs.mkdirSync(path.join(fixture.repo, 'docs'), { recursive: true });
+      git(fixture.repo, 'mv', '.ai-board/cards/a/card.md', 'docs/a.md');
+      git(fixture.repo, 'commit', '--quiet', '-m', 'カードを移す');
+
+      expect(await run(['check-branch', 'feat/move'])).toBe(1);
+      expect(stderr).toContain('.ai-board/cards/a/card.md');
+    });
+
     it('置き場所のファイルを変えた main を取り込んだだけのブランチは 0（分岐点からの差分で見る）', async () => {
       branchFrom('feat/merge', { '.ai-board/cards/a/plan.md': '# 計画\n' });
       await store.transact('並び順を変える', () => {

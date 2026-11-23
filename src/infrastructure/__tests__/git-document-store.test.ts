@@ -2,11 +2,17 @@ import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
-import { err, ok } from '../../shared/result.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { err, ok, type Result } from '../../shared/result.js';
 import { createCliRunner, type CliRunner } from '../cli-runner.js';
 import { initialDocuments } from '../document-store.js';
-import { GitDocumentStore, STORE_REF, isRemoteName, isUpToDate } from '../git-document-store.js';
+import {
+  GIT_STORE_LOCK_OPTIONS,
+  GitDocumentStore,
+  STORE_REF,
+  isRemoteName,
+  isUpToDate,
+} from '../git-document-store.js';
 import { parseCatFileBatch } from '../git-objects.js';
 import { jsonFileCodec } from './json-file-codec.js';
 import { describeDocumentStoreContract } from './document-store.contract.js';
@@ -128,6 +134,54 @@ describe('GitDocumentStore', () => {
       await late.initialize([...initialDocuments(), { collection: 'order', id: 'order', data: {} }])
     ).toEqual(err({ type: 'StoreAlreadyInitialized' }));
     expect(git(bare, 'show', 'main:.ai-board/order/order.json')).toBe('{"a":1}\n');
+  });
+
+  it('置き場所が始まっていない・形の版が違うなら、書き込みは op を走らせず、何も push しない', async () => {
+    const bare = bareRepo();
+    const store = makeStore(bare);
+    let calls = 0;
+    const write = (): Promise<Result<undefined, never>> => {
+      calls++;
+      store.set('cards', 'a', { title: 'A' });
+      return Promise.resolve(ok(undefined));
+    };
+
+    expect(await store.transact('書く', write)).toEqual(err({ type: 'StoreUninitialized' }));
+    expect(git(bare, 'branch', '--list', 'main').trim()).toBe('');
+
+    await store.initialize([{ collection: 'board', id: 'meta', data: { version: 99 } }]);
+    const head = remoteHead(bare);
+    expect(await store.transact('書く', write)).toEqual(
+      err({ type: 'StoreVersionMismatch', found: 99, expected: 3 })
+    );
+    expect(remoteHead(bare)).toBe(head);
+    expect(calls).toBe(0);
+  });
+
+  it('置き場所の文書になるファイルが UTF-8 でなくても、それだけを読み飛ばしてほかの文書を読める', async () => {
+    const bare = bareRepo();
+    const repo = codeRepo();
+    const store = makeStore(bare, repo);
+    await store.initialize(initialDocuments());
+    git(repo, 'fetch', '--quiet', bare, '+refs/heads/main:refs/heads/store');
+    git(repo, 'switch', '--quiet', 'store');
+    fs.mkdirSync(path.join(repo, '.ai-board', 'cards'), { recursive: true });
+    // Shift-JIS で保存した文書（「あ」）。名前は置き場所の文書になる .json
+    fs.writeFileSync(
+      path.join(repo, '.ai-board', 'cards', 'a.json'),
+      Buffer.from([0x22, 0x82, 0xa0, 0x22])
+    );
+    git(repo, 'add', '.ai-board/cards/a.json');
+    git(repo, 'commit', '--quiet', '-m', 'Shift-JIS の文書');
+    git(repo, 'push', '--quiet', bare, 'store:main');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const reopened = makeStore(bare, repo);
+    expect(await reopened.check()).toEqual(ok(undefined));
+    expect(reopened.get('board', 'meta')).toEqual({ version: 3 });
+    expect(reopened.get('cards', 'a')).toBeNull();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('.ai-board/cards/a.json'));
+    warn.mockRestore();
   });
 
   it('置き場所の文書でないファイル（UTF-8 でない画像など）は中身を読まず、ほかの文書を読める', async () => {
@@ -297,11 +351,32 @@ describe('isRemoteName', () => {
 });
 
 describe('parseCatFileBatch', () => {
+  /** git の出力のバイト列を、`latin1` で読んだ文字列にする（`readBlobs` が受け取る形） */
+  function batch(...blobs: Buffer[]): string {
+    return Buffer.concat(
+      blobs.flatMap((blob, i) => [
+        Buffer.from(`${i} blob ${blob.length}\n`),
+        blob,
+        Buffer.from('\n'),
+      ])
+    ).toString('latin1');
+  }
+
   it('見出しのバイト数で、マルチバイトの中身を切り出す', () => {
-    const a = 'あい\n';
-    const b = 'x';
-    const output =
-      `aaa blob ${Buffer.byteLength(a)}\n${a}\n` + `bbb blob ${Buffer.byteLength(b)}\n${b}\n`;
-    expect(parseCatFileBatch(output)).toEqual([a, b]);
+    expect(parseCatFileBatch(batch(Buffer.from('あい\n'), Buffer.from('x')))).toEqual([
+      'あい\n',
+      'x',
+    ]);
+  });
+
+  it('UTF-8 として読めない blob は null にし、後ろの blob の切り出しはずれない', () => {
+    const shiftJis = Buffer.from([0x82, 0xa0, 0x82, 0xa2]);
+    expect(parseCatFileBatch(batch(shiftJis, Buffer.from('うえ')))).toEqual([null, 'うえ']);
+  });
+});
+
+describe('GIT_STORE_LOCK_OPTIONS', () => {
+  it('ロックを待つ上限が、fetch と push のやり直しにかかる時間より長い', () => {
+    expect(GIT_STORE_LOCK_OPTIONS.timeoutMs).toBeGreaterThan(3 * 2 * 60_000);
   });
 });

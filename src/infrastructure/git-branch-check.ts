@@ -44,6 +44,8 @@ export async function changedStoreFiles(options: {
   const diff = await git([
     'diff',
     '--name-only',
+    // 名前の変更は移動先だけを出すので、置き場所のファイルを外へ移したのを見逃さないよう、消した側も出させる
+    '--no-renames',
     '-z',
     `${options.storeHead}...${branch.value.trim()}`,
   ]);

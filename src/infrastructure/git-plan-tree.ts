@@ -35,7 +35,8 @@ const COMMIT_MARK = '\u0001';
  * `commit`（置き場所の先頭。`GitDocumentStore.check()` の後の `headCommit()`）の `.ai-board/cards/*\/plan.md` を全部読む。
  *
  * 作業ツリーは読まない。メインのチェックアウトがほかのブランチにいても、そのブランチの計画を main の計画と取り違えないため。
- * 時刻は `git log` を 1 回走らせ、ファイルごとに最初に出た（いちばん新しい）コミットの時刻を使う。
+ * 時刻は `git log --first-parent` を 1 回走らせ、ファイルごとに最初に出た（いちばん新しい）コミットの時刻を使う
+ * （PR をマージのコミットで入れたときは、ブランチの最後のコミットではなく、main に入ったマージの時刻になる）。
  * `commit` が null（置き場所のブランチがまだ無い）なら空を返す。
  */
 export async function readPlanFilesAtCommit(options: {
@@ -48,7 +49,17 @@ export async function readPlanFilesAtCommit(options: {
 
   const [files, log] = await Promise.all([
     readBlobs(git, options.commit, [CARDS_ROOT], (filePath) => PLAN_FILE_PATTERN.test(filePath)),
-    git(['log', `--format=${COMMIT_MARK}%cI`, '--name-only', options.commit, '--', PLAN_GLOB]),
+    // main をたどり、マージのコミットは 1 つ目の親との差分でファイルを出す（計画が main に入った時刻を使う）
+    git([
+      'log',
+      '--first-parent',
+      '--diff-merges=first-parent',
+      `--format=${COMMIT_MARK}%cI`,
+      '--name-only',
+      options.commit,
+      '--',
+      PLAN_GLOB,
+    ]),
   ]);
   if (isErr(files))
     return err(`計画を読めません（${files.error.operation}）: ${files.error.message}`);

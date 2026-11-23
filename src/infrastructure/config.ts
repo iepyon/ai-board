@@ -34,10 +34,41 @@ const GitValueSchema = (name: string) =>
     .min(1)
     .regex(/^[^-\s][^\s]*$/, `${name} は空白を含まず、- で始まらない値にする`);
 
+/**
+ * ブランチの名前（`git check-ref-format --branch` の主な決まり）。fetch の refspec（`+refs/heads/<branch>:…`）に埋め込むので、
+ * `:`・`..`・`~^?*[\\`・空白・制御文字を含むもの、`-`・`/` で始まるもの、`/`・`.`・`.lock` で終わるもの、`@{` を含むものを拒む
+ */
+const BranchNameSchema = z
+  .string()
+  .min(1)
+  .refine((name) => isValidBranchName(name), {
+    message: 'store.branch は git のブランチの名前にする（: や .. や空白を含めない）',
+  });
+
+/** ブランチの名前に使えない文字（空白・制御文字・`:~^?*[\\`） */
+const FORBIDDEN_BRANCH_CHARS = /[\s:~^?*[\\]/;
+
+/** ブランチの名前に使えない並び */
+const FORBIDDEN_BRANCH_PARTS = ['..', '@{', '//'];
+
+function isValidBranchName(name: string): boolean {
+  if (FORBIDDEN_BRANCH_CHARS.test(name) || hasControlChar(name)) return false;
+  if (FORBIDDEN_BRANCH_PARTS.some((part) => name.includes(part))) return false;
+  if (/^[-/]/.test(name) || /(\/|\.|\.lock)$/.test(name)) return false;
+  return !name.split('/').some((part) => part.startsWith('.'));
+}
+
+function hasControlChar(text: string): boolean {
+  return [...text].some((char) => {
+    const code = char.codePointAt(0) ?? 0;
+    return code < 0x20 || code === 0x7f;
+  });
+}
+
 /** 置き場所。git のリポジトリの 1 つのブランチの `.ai-board/` */
 const StoreConfigSchema = z.object({
   remote: GitValueSchema('store.remote').nullable().optional(),
-  branch: GitValueSchema('store.branch').nullable().optional(),
+  branch: BranchNameSchema.nullable().optional(),
 });
 
 const ConfigFileSchema = z.object({

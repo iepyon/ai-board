@@ -42,6 +42,11 @@ export interface RunOptions {
   readonly env?: Readonly<Record<string, string>>;
   /** 標準入力に渡す中身。git に blob の中身を渡すときなどに使う。無ければ標準入力は閉じたまま */
   readonly input?: string;
+  /**
+   * 標準出力の読み方。既定は `utf8`。`latin1` は 1 バイトを 1 文字に写すので、`Buffer.from(stdout, 'latin1')` でバイト列に戻せる
+   * （UTF-8 でないかもしれない中身を、バイト数で切り出すときに使う）
+   */
+  readonly encoding?: 'utf8' | 'latin1';
 }
 
 export interface CliRunner {
@@ -72,6 +77,7 @@ export function createCliRunner(options: CliRunnerOptions = {}): CliRunner {
         const running = execFileAsync(command, [...args], {
           timeout: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
           maxBuffer: options.maxBuffer ?? DEFAULT_MAX_BUFFER,
+          encoding: runOptions.encoding ?? 'utf8',
           // shell は使わない。既定が false であることに依存せず明示する
           shell: false,
           ...(runOptions.env === undefined ? {} : { env: { ...process.env, ...runOptions.env } }),
