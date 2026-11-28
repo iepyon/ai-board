@@ -51,8 +51,10 @@ cd ai-board
 
 main は開発の途中の状態で、手順と実装が食い違っていることがある。
 動くと確かめた版にはタグを打ち、[Releases](https://github.com/iepyon/ai-board/releases) にこの版でできることを書いてある。
-`artifact-store-v1` はカードを claude.ai の Artifact の DB に置いていた前の版で、この README の手順（カードを `main` に置く）とは違う。
-決まった版から始めたいときは、clone の直後に自分の main をそのタグに合わせる（`<tag>` は Releases の名前）。
+今あるタグは `artifact-store-v1` だけで、カードを claude.ai の Artifact の DB に置いていた前の版である。**この README の手順（カードを `main` に置く）とは違うので、合わせない。** この README は、clone したそのままの `main` で進める。
+
+この README の置き場所（`main`）に対応するタグ（例: `git-store-v1`）が Releases に出たら、決まった版から始められる。
+clone の直後に自分の main をそのタグに合わせる（`<tag>` は Releases の名前）。force push するので、fork の `main` に force push の禁止を入れる前に行う。
 
 > main を元のリポジトリのタグ <tag> に合わせて、fork に push して
 
