@@ -13,7 +13,7 @@ CLI の層に残っているロジックを、入口に依存しない場所（u
 画面とサーバは ADR 0017 でいったん外したが、後で戻し、CLI と HTTP の両方から同じ usecase につなぐ予定である。
 `status` と `decide` は、CLI（`status-cli.ts` / `decide-cli.ts`）が usecase を呼ぶだけの形になっている。一方で、次の箇所は CLI の層にロジックがある（2026-11-07 に確かめた）。
 
-- `src/cli-main.ts` の `runStatus` と `runDecide` が、「データ用ブランチの取り直し → オフラインなら警告 → `assembleBoard`」という同じ手順を書いている
+- `src/cli-main.ts` の `runStatus` と `runDecide` が、「置き場所の読み込み → `assembleBoard`」という同じ手順を書いている
 - `src/cards/cli/card-cli.ts` の `runSeed` が、既にある ID を飛ばす判定と、競合したときに飛ばしたとみなす判定を持っている（usecase にすべき中身）
 - `card-cli.ts` の `runHold` と `runCreate` で、理由・タイトルは必須で前後の空白は落とす、という検査を CLI がしている。`hold-review.command.ts` は理由をそのまま渡し、検査していない
 - `src/board/cli/pr-cli.ts` の CI の待ち方の判定（`nextCheckStep` / `isSettled`）が CLI の中にある

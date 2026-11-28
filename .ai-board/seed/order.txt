@@ -7,7 +7,7 @@ board-view-wait-accent
 board-view-title-link
 board-view-relative-time
 
-board-artifact-loop-republish
+board-view-loop-refresh
 board-events
 decision-notify
 refactor-cli-usecase-entry
