@@ -47,7 +47,7 @@ fork してビルドし、置き場所を始めれば準備は終わる。
    ```
 
 3. `.ai-board/config.yaml` の `github.repository` を `<you>/ai-board` にして、main にコミットして push する。PR を問い合わせる先になる
-   - チャットなら「.ai-board/config.yaml の repository を <you>/ai-board にして、main にコミットして push して」
+   - チャットなら「.ai-board/config.yaml の repository を <you>/ai-board にして、main にコミットして」。Claude の許可ルールは Bash からの `main` への push を止めているので、`git push origin main` は自分の端末で打つ
    - カードの置き場所（`store.remote` / `store.branch`）は既定の `origin` の `main` のままにする
 4. 置き場所を始める（チャットなら「置き場所を用意して」）
 

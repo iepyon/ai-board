@@ -53,10 +53,9 @@ main は開発の途中の状態で、手順と実装が食い違っているこ
 動くと確かめた版にはタグを打ち、[Releases](https://github.com/iepyon/ai-board/releases) にこの版でできることを書いてある。
 今あるタグは `artifact-store-v1` だけで、カードを claude.ai の Artifact の DB に置いていた前の版である。**この README の手順（カードを `main` に置く）とは違うので、合わせない。** この README は、clone したそのままの `main` で進める。
 
-この README の置き場所（`main`）に対応するタグ（例: `git-store-v1`）が Releases に出たら、決まった版から始められる。
-clone の直後に自分の main をそのタグに合わせる（`<tag>` は Releases の名前）。force push するので、fork の `main` に force push の禁止を入れる前に行う。
-
-> main を元のリポジトリのタグ <tag> に合わせて、fork に push して
+この README に対応するタグ（例: `git-store-v1`）が Releases に出たら、決まった版から始められる。
+その場合は、次のビルドの前に自分の main をそのタグに合わせる（`<tag>` は Releases の名前）。force push するので、fork の `main` に force push の禁止を入れる前に行う。
+Claude の許可ルールが `main` への push を止めているので、この `git push` は自分の端末で打つ（チャットには頼めない）。
 
 ```bash
 git fetch https://github.com/iepyon/ai-board.git tag <tag>
@@ -64,7 +63,7 @@ git reset --hard <tag>
 git push --force origin main
 ```
 
-まず依存を入れてビルドする。
+### 依存を入れてビルドする
 
 > 依存を入れて CLI をビルドして
 
@@ -79,7 +78,16 @@ git に載っている `.ai-board/config.yaml` の `github.repository` を、自
 PR を問い合わせる先になる。
 カードの置き場所は `store.remote` / `store.branch`（既定は `origin` の `main`）で、ふつうは書き換えない。
 
-> .ai-board/config.yaml の repository を <you>/ai-board にして、main にコミットして push して
+> .ai-board/config.yaml の repository を <you>/ai-board にして、main にコミットして
+
+```bash
+git add .ai-board/config.yaml
+git commit -m 'chore: github.repository を自分の fork にする'
+git push origin main
+```
+
+Claude の許可ルールは Bash からの `main` への push を止めている（`.claude/settings.json`。[リファレンス](docs/reference.md#ループの許可ルール)）。
+書き換えとコミットはチャットで頼めるが、`git push origin main` は自分の端末で打つ。
 
 ### カードの置き場所を作る
 
@@ -96,7 +104,7 @@ node dist/cli.js store init   # .ai-board/board.yaml と order.yaml を main に
 
 用意はカードの無いボードで終わる。カードは次の「2. カードを入れる」で入れる。
 置き場所の書き込みは `origin` の `main` にコミットとして積まれるだけで、手元の `main` は自動では進まない。
-後で自分で `git push` する前などに、`git pull` で追いつく。`git pull` で `src/` が新しくなったら `npm run build` も走らせる（CLI は `dist/` が古いと止まる）。
+手元の `main` を追いつかせるときは `git pull` を打つ。`git pull` で `src/` が新しくなったら `npm run build` も走らせる（CLI は `dist/` が古いと止まる）。
 
 ### つながったかを確かめる
 
