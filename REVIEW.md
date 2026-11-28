@@ -13,7 +13,7 @@
 - **書き込み境界の崩れ。** `src/cards/cli/card-cli.ts` に `startedAt` / `rank` / `skipGates` を書く入口や、
   承認 / 差し戻し / 中止を追記する入口を足すもの。`body` の差し替えで `## レビュー` の既存エントリを
   変えられるようにするもの。`ai-board` の CLI が計画（`.ai-board/cards/<id>/plan.md`）に書き込むもの。
-  カードのブランチの差分が置き場所のファイル（`.ai-board/board.yaml`・`order.yaml`・`cards/<id>/card.md`・`cards/<id>/log/`）を変えるもの。
+  Issue の作者・コメントの作者の信用の検査（`authorAssociation`）を外す・緩めるもの。
 - **ステージ導出の迂回。** ステージを保存する・直接指定する入力口を作るもの。
   `src/board/services/stage-resolver.ts` の `RULES` 配列の外でステージを決める分岐を足すもの。
   差し戻しや区切り線（`DIVIDER_ID`）のための専用の `if` もここに含める。

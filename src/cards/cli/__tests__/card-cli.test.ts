@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'node:fs';
-import type { GitDocumentStore } from '../../../infrastructure/git-document-store.js';
+import type { BackedDocumentStore } from '../../../infrastructure/backed-document-store.js';
+import { STORE_VERSION } from '../../../infrastructure/document-store.js';
 import {
-  createGitStoreFixture,
+  createStoreFixture,
   initializedStore,
-  type GitStoreFixture,
-} from '../../../__tests__/git-store-fixture.js';
+  type StoreFixture,
+} from '../../../__tests__/store-fixture.js';
 import { createCardDependencies, type CardDependencies } from '../../composition.js';
 import { createCardWriteCommands } from '../../usecases/commands/card-write.commands.js';
 import {
@@ -23,15 +24,15 @@ import { demoteHeadings } from '../../repositories/card-files.js';
 import { compareCards } from '../../services/card-order.js';
 
 // ============================================================
-// 一時の git の置き場所（GitDocumentStore）を通して確かめる
+// 一時の置き場所（BackedDocumentStore）を通して確かめる
 // ============================================================
 
-let fixture: GitStoreFixture;
+let fixture: StoreFixture;
 /** 準備（`prepare`）までに置き場所に入ったコミットの数。`originLog` はこれより後だけを数える */
 let prepared: number;
 /** CLI に渡す依存。準備（`prepare`）では、CLI に渡さない人の判断の usecase も使うので、カードの依存は全部持つ */
 let deps: CardCliDependencies & {
-  readonly store: GitDocumentStore;
+  readonly store: BackedDocumentStore;
   readonly cards: CardDependencies;
 };
 let stdout: string;
@@ -48,7 +49,7 @@ const NOW = new Date('2026-09-26T00:00:00.000Z');
 
 const LOCK = { timeoutMs: 20_000, pollMs: 5, isAlive: () => true };
 
-function cliDeps(store: GitDocumentStore): typeof deps {
+function cliDeps(store: BackedDocumentStore): typeof deps {
   const cards = createCardDependencies(store);
   return { store, cards, writes: createCardWriteCommands(store, cards) };
 }
@@ -56,7 +57,7 @@ function cliDeps(store: GitDocumentStore): typeof deps {
 /** 準備の後に置き場所に入ったコミットの題を、新しいものから並べる */
 function originLog(): string[] {
   return fixture
-    .commitSubjects()
+    .writeLabels()
     .slice(prepared)
     .map((subject) => subject.replace(/^chore\(board\): /, ''))
     .reverse();
@@ -71,9 +72,9 @@ function logIds(id: string): string[] {
 }
 
 beforeEach(async () => {
-  fixture = createGitStoreFixture();
+  fixture = createStoreFixture();
   deps = cliDeps(await initializedStore(fixture));
-  prepared = fixture.commitSubjects().length;
+  prepared = fixture.writeLabels().length;
   stdout = '';
   stderr = '';
   seedFiles = ok([]);
@@ -116,7 +117,7 @@ async function prepare(
 ): Promise<void> {
   const result = await deps.store.transact('テストの準備', () => op(deps.cards));
   if (isErr(result)) throw new Error(`準備に失敗しました: ${JSON.stringify(result.error)}`);
-  prepared = fixture.commitSubjects().length;
+  prepared = fixture.writeLabels().length;
 }
 
 /**
@@ -575,7 +576,7 @@ describe('runCardCli と置き場所', () => {
   });
 
   it('置き場所が始まっていなければ、読むコマンドは init を促して 1 にする', async () => {
-    const empty = createGitStoreFixture();
+    const empty = createStoreFixture();
     try {
       deps = cliDeps(empty.open());
 
@@ -588,18 +589,18 @@ describe('runCardCli と置き場所', () => {
 
   it('置き場所の形の版がこの CLI と違えば、list は読まずに 1 にする', async () => {
     await deps.store.transact('版を上げる', () => {
-      deps.store.set('board', 'meta', { version: 4 });
+      deps.store.set('board', 'meta', { version: STORE_VERSION + 1 });
       return Promise.resolve(ok(undefined));
     });
     deps = cliDeps(fixture.open());
 
     expect(await run(['list'])).toBe(1);
     expect(stdout).toBe('');
-    expect(stderr).toContain('形の版（4）');
+    expect(stderr).toContain(`形の版（${STORE_VERSION + 1}）`);
   });
 
   it('引数の誤りでは、置き場所に触らない', async () => {
-    const empty = createGitStoreFixture();
+    const empty = createStoreFixture();
     try {
       deps = cliDeps(empty.open());
 
@@ -607,7 +608,7 @@ describe('runCardCli と置き場所', () => {
       expect(await run(['submit', 'a', '--gate', 'pr'])).toBe(1);
       expect(stderr).not.toContain('置き場所');
       expect(fs.existsSync(empty.localDir)).toBe(false);
-      expect(empty.commitSubjects()).toEqual([]);
+      expect(empty.writeLabels()).toEqual([]);
     } finally {
       empty.remove();
     }

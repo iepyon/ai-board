@@ -32,9 +32,9 @@ import {
  * この CLI には承認 / 差し戻し / 中止を書く口が型の上でも無い（`CardCliDependencies.writes` に人の判断を書く口が無い）。
  * 提出 / 保留の判断は値のままリポジトリに渡すので、理由にどんな行を書いても判断は 1 件しか増えない。
  *
- * カードの正本は置き場所（git の置き場所のブランチの `.ai-board/`）にある。読むコマンドは頭で置き場所を読み込んで（`check`）から読み、
+ * カードの正本は置き場所（GitHub の Issue）にある。読むコマンドは頭で置き場所を読み込んで（`check`）から読み、
  * 書くコマンドは書き込みの usecase（`writes`）を呼ぶ。usecase が検査から書き込みまでを `DocumentStore.transact` の中で走らせ、
- * コミットの題も決める。書いたものは置き場所のブランチへ push される。
+ * 書き込みの名前も決める。書いたものは Issue とコメントに書かれる。
  */
 export const CARD_USAGE = `使い方: ai-board card <command> [--root <path>]
 

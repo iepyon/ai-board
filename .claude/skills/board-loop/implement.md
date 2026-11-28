@@ -171,12 +171,11 @@ cd "$WT" && npm run typecheck && npm run lint && npm run format:check && npm tes
    本文に、倒した節の題と、倒したタスクの書き出しを並べる。3 の 5 で fix の確かめをしたら、その行も書く。
    4 の「タスクの順番を直す」をしたときは、本文に「何をどの節へ移したか（どの節を合わせたか、何を入れ替えたか）と、なぜか」も書く。
    末尾の署名は、そのセッションの指示に従う
-3. `node "$MAIN/dist/cli.js" store check-branch <branch> --root "$MAIN"` で、ブランチが置き場所のファイル（`card.md`・`log/`・`order.yaml`・`board.yaml`）を変えていないことを確かめる。
-   変えていれば push せずに止まって報告する。確かめたら `git -C "$WT" push origin <branch>`。push が失敗したらやり直さずに止まり、コミットが手元にだけあることを報告する
+3. `git -C "$WT" push origin <branch>`。push が失敗したらやり直さずに止まり、コミットが手元にだけあることを報告する
 4. `git -C "$WT" status --porcelain=v2 --branch` で、`# branch.ab +0 -0` の行があり、変更の行が無いことを確かめる（`origin/<branch>` と一致し、未コミットの変更が無い）。
    満たされなければ止まって報告する（次の周は、ワークツリーと `origin` の状態から続きを選ぶ）
 
-**未設定のボード:** 3 の push（`store check-branch` は走らせる）と、4 の `# branch.ab +0 -0` の確かめを飛ばす。4 は変更の行が無いこと（`git -C "$WT" status --porcelain` が空）だけを確かめる。
+**未設定のボード:** 3 の push と、4 の `# branch.ab +0 -0` の確かめを飛ばす。4 は変更の行が無いこと（`git -C "$WT" status --porcelain` が空）だけを確かめる。
 
 #### 6. 次の節へ進むか、止まるか
 
@@ -243,7 +242,7 @@ Ready にした後は、人が PR中 で証拠を読み、必要なら手で動�
    ```
 
 4. 計画の末尾（`## AI レビュー` 節の後ろ）に `## 締め` の節を足し、日付と「動作確認の結果と判断してほしいことは PR #<pr> の本文にある」の 1 行を書く。
-   品質ゲートを通してコミット（`chore: <id> を締める`）→ `store check-branch` → push → `ai-board pr ready <pr>`。
+   品質ゲートを通してコミット（`chore: <id> を締める`）→ push → `ai-board pr ready <pr>`。
    締めのコミット（計画の節の追加だけ）に走る CI は待たない（その前のコミットで 2 を通しており、品質ゲートを手元で通してからコミットする）。
    `ai-board pr ready` だけが失敗したら、そのまま止まって報告する（次の周は締め済みの段として `ai-board pr ready` だけをやり直す）
 

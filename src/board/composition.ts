@@ -1,6 +1,7 @@
 import type { CardRepository } from '../cards/repositories/card.repository.js';
 import { createCardDependencies, createTransactionalPrWriter } from '../cards/composition.js';
 import type { IdeaDividerRepository } from '../cards/repositories/idea-divider.repository.js';
+import { err } from '../shared/result.js';
 import { loadConfig, type ForgeConfig } from '../infrastructure/config.js';
 import type { CliRunner } from '../infrastructure/cli-runner.js';
 import { PrFetcher, type PrFetcherOptions } from '../infrastructure/pr-fetcher.js';
@@ -8,6 +9,8 @@ import type { ForgeClient } from './services/forge-client.js';
 import { GhForgeClient } from './services/github-client.js';
 import { RefPlanRepository, type PlanRepository } from './repositories/plan.repository.js';
 import { readPlanFilesAtCommit } from '../infrastructure/git-plan-tree.js';
+import { fetchMainHead } from '../infrastructure/git-main-head.js';
+import { describeStoreError } from '../infrastructure/store-messages.js';
 import type { PrSnapshotRepository } from './repositories/pr-snapshot.repository.js';
 import type { PrState } from './models/pr-state.js';
 import {
@@ -20,7 +23,6 @@ import {
   type BranchPlanRepository,
 } from './repositories/branch-plan.repository.js';
 import type { DocumentStore } from '../infrastructure/document-store.js';
-import type { GitDocumentStore } from '../infrastructure/git-document-store.js';
 import * as path from 'node:path';
 import {
   disabledPrStateProvider,
@@ -86,7 +88,7 @@ export interface PrStateSource {
   readonly fetcher: PrFetcher | null;
 }
 
-/** マージ済みの控えは置き場所の `snapshots`（git の置き場所では手元）に、それ以外は `<localDir>/cache/` に置く */
+/** マージ済みの控えは置き場所の `snapshots`（手元）に、それ以外は `<localDir>/cache/` に置く */
 export function createPrSnapshotRepository(
   store: DocumentStore,
   localDir: string
@@ -173,14 +175,14 @@ export interface AssembledBoard {
 
 /**
  * `status` と `decide` が使うボードの組み立て。置き場所は呼び出し側が読み込んでおく（`check`）。
- * main の計画は、読み込んだ置き場所の先頭のコミット（`headCommit()`）から読む。
+ * main の計画は、`origin` の `main` を専用の参照へ fetch して、そのコミットから読む（作業ツリーは読まない）。
  *
  * PR の状態は`refresh()` を 1 回だけ待ってから読む。
  * `branch` から解決した PR 番号の書き戻しも、この `refresh()` の中で起きる。
  */
 export async function assembleBoard(
   root: string,
-  store: DocumentStore & Pick<GitDocumentStore, 'headCommit'>,
+  store: DocumentStore,
   runner: CliRunner
 ): Promise<AssembledBoard> {
   const config = loadConfig(root);
@@ -200,10 +202,21 @@ export async function assembleBoard(
     config.paths.root,
     config.store.branchRemote
   );
-  // main の計画は、check() が fetch した置き場所の先頭のコミットから読む（作業ツリーは読まない）
-  const mainPlans = new RefPlanRepository(() =>
-    readPlanFilesAtCommit({ runner, repoDir: config.paths.repoDir, commit: store.headCommit() })
-  );
+  // main の計画は、fetch した main の先頭のコミットから読む（作業ツリーは読まない）
+  const mainPlans = new RefPlanRepository(async () => {
+    const head = await fetchMainHead({
+      runner,
+      repoDir: config.paths.repoDir,
+      remote: config.store.remote,
+      branch: config.store.branch,
+    });
+    if (!head.ok) return err(describeStoreError(head.error));
+    return readPlanFilesAtCommit({
+      runner,
+      repoDir: config.paths.repoDir,
+      commit: head.value,
+    });
+  });
   const board = createBoardDependencies(
     mainPlans,
     cards.cardRepository,

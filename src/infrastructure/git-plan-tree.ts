@@ -4,7 +4,7 @@ import { BOARD_DIR } from './config.js';
 import { gitIn, readBlobs } from './git-objects.js';
 
 // ============================================================
-// main の計画ファイルの読み取り — 作業ツリーではなく、置き場所のコミットから読む
+// main の計画ファイルの読み取り — 作業ツリーではなく、fetch した main のコミットから読む
 // ============================================================
 
 /** コミットの計画ファイル 1 つ */
@@ -16,7 +16,7 @@ export interface PlanFileAtCommit {
   readonly committedAt: string;
 }
 
-/** カードのディレクトリ（`.ai-board/cards`）。カードの置き場所のファイルと計画がここに並ぶ */
+/** カードのディレクトリ（`.ai-board/cards`）。計画（`<id>/plan.md`）がここに並ぶ */
 export const CARDS_ROOT = `${BOARD_DIR}/cards`;
 
 /** カードの計画ファイルのパス（リポジトリのルートからの相対） */
@@ -32,12 +32,12 @@ const PLAN_GLOB = `:(glob)${CARDS_ROOT}/*/plan.md`;
 const COMMIT_MARK = '\u0001';
 
 /**
- * `commit`（置き場所の先頭。`GitDocumentStore.check()` の後の `headCommit()`）の `.ai-board/cards/*\/plan.md` を全部読む。
+ * `commit`（fetch した main の先頭。`fetchMainHead`）の `.ai-board/cards/*\/plan.md` を全部読む。
  *
  * 作業ツリーは読まない。メインのチェックアウトがほかのブランチにいても、そのブランチの計画を main の計画と取り違えないため。
  * 時刻は `git log --first-parent` を 1 回走らせ、ファイルごとに最初に出た（いちばん新しい）コミットの時刻を使う
  * （PR をマージのコミットで入れたときは、ブランチの最後のコミットではなく、main に入ったマージの時刻になる）。
- * `commit` が null（置き場所のブランチがまだ無い）なら空を返す。
+ * `commit` が null（main がまだ無い）なら空を返す。
  */
 export async function readPlanFilesAtCommit(options: {
   readonly runner: CliRunner;

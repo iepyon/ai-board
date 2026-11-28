@@ -8,9 +8,9 @@ import {
   type DocumentStore,
   type StoreError,
 } from '../infrastructure/document-store.js';
-import { GitDocumentStore } from '../infrastructure/git-document-store.js';
-import { changedStoreFiles, type BranchCheckError } from '../infrastructure/git-branch-check.js';
-import { cardFileCodec, isStoreFilePath } from './repositories/card-file-codec.js';
+import { BackedDocumentStore, type StoreBackend } from '../infrastructure/backed-document-store.js';
+import { createDirDocumentStore, LOCAL_COLLECTIONS } from '../infrastructure/dir-store-backend.js';
+import { IssueStoreBackend } from '../infrastructure/issue-store-backend.js';
 import {
   EMPTY_ORDER,
   ORDER_COLLECTION,
@@ -161,29 +161,47 @@ export function createTransactionalPrWriter(
   };
 }
 
-/** fetch と push は既定の上限（10 秒）では足りないことがある */
+/** Issue の読み書きは既定の上限（10 秒）では足りないことがある */
 const STORE_TIMEOUT_MS = 60_000;
-/** `cat-file --batch` で置き場所のファイルを全部読むので、上限を大きくする */
+/** 1 回の GraphQL でカードの Issue とコメントを引くので、上限を大きくする */
 const STORE_MAX_BUFFER = 64 * 1024 * 1024;
 
 /**
- * 設定の置き場所から、git の置き場所（`DocumentStore`）を組む。
- * カード・判断・並び順・形の版は置き場所のブランチのファイルに、PR の控えとループの記録は手元（`localDir`）に置く
+ * 設定の置き場所から、`DocumentStore` を組む（ADR 0021）。
+ *
+ * - `AI_BOARD_STORE` にディレクトリを指していれば、手元のディレクトリの JSON（試しの置き場所。GitHub に何も書かない）
+ * - そうでなければ、`github.repository` の Issue。設定が無ければ、読むときに `StoreNotConfigured` で止まる
+ *
+ * PR の控えとループの記録は、どちらも手元（`localDir`）に置く
  */
-export function createBoardStore(config: AppConfig): GitDocumentStore {
-  return new GitDocumentStore({
-    repoDir: config.paths.repoDir,
-    remote: config.store.remote,
-    branch: config.store.branch,
+export function createBoardStore(config: AppConfig): BackedDocumentStore {
+  if (config.paths.storeOverride !== null) {
+    return createDirDocumentStore({
+      dir: config.paths.storeOverride,
+      localDir: config.paths.localDir,
+    });
+  }
+
+  const backend: StoreBackend =
+    config.forge === null
+      ? notConfiguredBackend
+      : new IssueStoreBackend({
+          owner: config.forge.owner,
+          repo: config.forge.repo,
+          runner: createCliRunner({ timeoutMs: STORE_TIMEOUT_MS, maxBuffer: STORE_MAX_BUFFER }),
+        });
+  return new BackedDocumentStore({
+    backend,
     localDir: config.paths.localDir,
-    codec: cardFileCodec,
-    runner: createStoreRunner(),
+    localCollections: LOCAL_COLLECTIONS,
   });
 }
 
-function createStoreRunner(): ReturnType<typeof createCliRunner> {
-  return createCliRunner({ timeoutMs: STORE_TIMEOUT_MS, maxBuffer: STORE_MAX_BUFFER });
-}
+/** Issue を引くリポジトリが分からないときの置き場所。読むことも書くこともできない */
+const notConfiguredBackend: StoreBackend = {
+  load: () => Promise.resolve(err({ type: 'StoreNotConfigured' })),
+  apply: () => Promise.resolve(err({ type: 'StoreNotConfigured' })),
+};
 
 /** 空の置き場所に書く最初の文書（形の版と、空の並び順）。`ai-board store init` が書く */
 export function initialBoardDocuments(): readonly {
@@ -197,30 +215,14 @@ export function initialBoardDocuments(): readonly {
   ];
 }
 
-/** `ai-board store` の `init` と `check-branch` の口 */
+/** `ai-board store` の `init` の口 */
 export interface StoreCliParts {
   readonly initialize: () => Promise<Result<void, StoreError>>;
-  readonly checkBranch: (
-    branch: string
-  ) => Promise<Result<readonly string[], StoreError | BranchCheckError>>;
 }
 
-/** `ai-board store` の口を組む。`check-branch` は置き場所を読み込んでから、その先頭とブランチの差分を見る */
-export function createStoreCliParts(config: AppConfig, store: GitDocumentStore): StoreCliParts {
-  return {
-    initialize: () => store.initialize(initialBoardDocuments()),
-    checkBranch: async (branch) => {
-      const checked = await store.check();
-      if (isErr(checked)) return checked;
-      return changedStoreFiles({
-        runner: createStoreRunner(),
-        repoDir: config.paths.repoDir,
-        storeHead: store.headCommit(),
-        branch,
-        isStoreFile: isStoreFilePath,
-      });
-    },
-  };
+/** `ai-board store` の口を組む */
+export function createStoreCliParts(store: BackedDocumentStore): StoreCliParts {
+  return { initialize: () => store.initialize(initialBoardDocuments()) };
 }
 
 function assemble(

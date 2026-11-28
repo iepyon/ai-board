@@ -170,7 +170,7 @@ describe('手元のディレクトリ', () => {
     expect(paths.repoDir).toBe(root);
   });
 
-  it('AI_BOARD_STORE があれば、それを置き場所のリポジトリにし、手元のファイルはその隣に置く（相対パスはカレントディレクトリから）', async () => {
+  it('AI_BOARD_STORE があれば、それを試しの置き場所のディレクトリにし、手元のファイルはその隣に置く（相対パスはカレントディレクトリから）', async () => {
     const tree = await makeLinkedWorktree('feature');
 
     const paths = resolvePaths(tree, { AI_BOARD_STORE: 'dev-store.git' });
@@ -211,11 +211,11 @@ describe('store', () => {
     });
   });
 
-  it('AI_BOARD_STORE があれば、そのリポジトリを置き場所のリモートにし、カードのブランチは設定のリモートで追う', async () => {
+  it('AI_BOARD_STORE があっても、main の計画を読むリモートは設定のまま', async () => {
     await writeConfig(`${githubYaml}store:\n  remote: upstream\n`);
 
-    expect(loadConfig(root, { AI_BOARD_STORE: '/tmp/x.git' }).store).toEqual({
-      remote: '/tmp/x.git',
+    expect(loadConfig(root, { AI_BOARD_STORE: '/tmp/x' }).store).toEqual({
+      remote: 'upstream',
       branch: 'main',
       branchRemote: 'upstream',
     });

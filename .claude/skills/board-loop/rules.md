@@ -22,10 +22,10 @@
 ## カードの読み書き
 
 カードは `node "$MAIN/dist/cli.js" card ... --root "$MAIN"` で読み書きする（各定義では `ai-board card ...` と書く）。
-カードの正本は git の置き場所のブランチ（既定は `origin` の `main`）の `.ai-board/` のファイル（`board.yaml`・`order.yaml`・`cards/<id>/card.md`・`cards/<id>/log/`）にある。
-CLI は読むたびに fetch し、書き込みはそのブランチへのコミットとして自分で push する（メインのチェックアウトの作業ツリーには触らない）。
-置き場所のファイルをエディタや `git` で直接書き換えない。カードのブランチでも変えない（push の前に `ai-board store check-branch <branch>` で確かめる）。
-main へのコミットは `ai-board` の CLI の書き込みだけが作る。Bash から main へ push しない。
+カードの正本は `github.repository` の Issue（1 枚 1 Issue。判断はコメント）にある。
+CLI は読むたびに `gh api` で引き、書き込みも `gh api` で Issue とコメントに書く（git には何も書かない）。
+Issue の本文末尾の隠しコメントや判断のコメントをエディタや `gh` で直接書き換えない。カードの読み書きは `ai-board card` / `decide` で行う。
+Bash から main へ push しない（計画は PR のマージで main に入る）。
 PR は `node "$MAIN/dist/cli.js" pr ... --root "$MAIN"` で読み書きする（各定義では `ai-board pr ...` と書く）。
 クラウドのセッションでは GraphQL が 403 になり `gh pr` が動かないので、`gh pr` は使わない。
 何を書いてよいかは手順書ごとに違い、各手順書のハードルールに書く。
@@ -62,7 +62,7 @@ push は、各手順書で「push」とだけ書いたところも、`git -C "$W
 `ai-board status --json --only forge` の `forge` が `{"status":"disabled","kind":null,…}`（人向けの出力では「GitHub: 未設定」）のボードは、`config.yaml` に `github:` が無い。研修のように GitHub に届かない環境で使う。
 このボードでは `git fetch` / `git pull` / `git push` と `ai-board pr` を使わず、カードのブランチは手元にだけ置く。
 ボードは Draft の PR の代わりに、カードのブランチの `.ai-board/cards/<id>/plan.md` を読んで計画レビューを立てる。
-カードの置き場所の読み書きは、このボードでも CLI が `store.remote` に対して行う（GitHub に届かない環境では、手元の bare のリポジトリを `store.remote` にする）。
+GitHub が未設定のボードにはカードの置き場所（Issue）が無いので、カードは `AI_BOARD_STORE` のディレクトリに置く（手元だけで動かす使い方）。
 
 手ごとに飛ばすものは次のとおり（詳しくは各手順書）。
 
@@ -146,17 +146,16 @@ ai-board card hold <id> --gate plan --reason "<なぜ止まったか、人に何
 
 ## 動かして確かめるとき
 
-計画の `## 動作確認の手順` や CLI・API を動かすときは、共有のカードを汚さないよう `AI_BOARD_STORE` で試しの置き場所（`git init --bare` したリポジトリ）を指す。
-指さなければ、カードへの書き込みは本物の置き場所のブランチ（main）へそのまま push される。
-`AI_BOARD_STORE` を指すと、手元のファイル（ループの記録・PR の控え・ロック）もそのパスの隣の `<パス>.local/` に置かれ、本物の `.ai-board/local/` に混ざらない。
+計画の `## 動作確認の手順` や CLI・API を動かすときは、共有のカードを汚さないよう `AI_BOARD_STORE` で試しの置き場所（手元の空のディレクトリ）を指す。
+指さなければ、カードへの書き込みは本物の Issue へそのまま書かれる。
+`AI_BOARD_STORE` を指すと、GitHub には何も書かれず、手元のファイル（ループの記録・PR の控え・ロック）もそのパスの隣の `<パス>.local/` に置かれ、本物の `.ai-board/local/` に混ざらない。
 
 ```bash
 S=<スクラッチパッドの下の作業用ディレクトリ>
-git init --quiet --bare --initial-branch=main "$S/store.git"
-export AI_BOARD_STORE="$S/store.git"
-node "$WT/dist/cli.js" store init --root "$WT"        # 試しの置き場所を始める（board.yaml と order.yaml を push する）
+export AI_BOARD_STORE="$S/store"
+node "$WT/dist/cli.js" store init --root "$WT"        # 試しの置き場所を始める（形の版と空の並び順を書く）
 node "$WT/dist/cli.js" store seed --root "$WT"        # 試すカードを起票する
-git --git-dir "$S/store.git" log --oneline main       # 書き込みが試しの置き場所のコミットになったかを見る
+node "$WT/dist/cli.js" card list --root "$WT"         # 書き込みが試しの置き場所に入ったかを見る（GitHub には何も書かれない）
 ```
 ディレクトリ・一時ファイルは `$WT` の外（スクラッチパッドなど）に置く。`$WT` の中に置くと未コミットの変更として残る。
 自分で起動したプロセスは止めてから終える。

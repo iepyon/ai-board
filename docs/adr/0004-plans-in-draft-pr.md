@@ -8,7 +8,7 @@
 当初は OpenSpec の change を計画にしていた。archive が `openspec/specs/` を書き換える操作で、遅れた sync が後続の変更を黙って巻き戻す危険があり、
 OpenSpec の内部の定数にも追従する義務があった。
 計画ファイルに移した後も、計画はブランチに乗るので、メインのチェックアウトで動くボードからは本文が見えないことが多かった。
-その後、カードを main の `.ai-board/cards/<id>/` に置くことにし（[21](0021-cards-as-markdown-on-main.md)）、計画も同じディレクトリに並べた。
+その後、カードの置き場所を Issue にし、計画だけを main の `.ai-board/cards/<id>/plan.md` に置くことにした（[21](0021-cards-as-github-issues.md)）。
 
 ## 決定
 

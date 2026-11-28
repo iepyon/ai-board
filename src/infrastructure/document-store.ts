@@ -10,10 +10,12 @@ import { err, ok, type Result } from '../shared/result.js';
  *
  * 実装は置き場所ごとに 1 つ置く。
  *
- * - `GitDocumentStore`（`git-document-store.ts`）: git の置き場所のブランチの `.ai-board/` のファイル。
- *   fetch して読み、書き込みはコミットとして push する
+ * - Issue の置き場所（`issue-store-backend.ts`）: リポジトリの GitHub Issue。カード 1 枚が Issue 1 件（ADR 0021）
+ * - 試しの置き場所（`dir-store-backend.ts`）: 手元のディレクトリの JSON。`AI_BOARD_STORE` で指す
  * - `MemoryDocumentStore`（このファイル）: メモリ。テストで使う
- * - SQLite に切り替えるときは、書き込み系を含む実装を新たに足す。口とその上（リポジトリ・usecase・CLI）は変えない
+ *
+ * Issue と試しの置き場所は、ロック・読み直し・書き込みの集め方を `BackedDocumentStore`（`backed-document-store.ts`）が持つ。
+ * 置き場所を足すときは、そこへ渡す `StoreBackend` を書く。口とその上（リポジトリ・usecase・CLI）は変えない
  *
  * どの実装も次の約束を守る（`__tests__/document-store.contract.ts` で確かめる）。
  *
@@ -25,7 +27,7 @@ import { err, ok, type Result } from '../shared/result.js';
 export interface DocumentStore extends DocumentReader {
   /**
    * 読み書きできる状態か（置き場所を読める、形の版が合う、など）。CLI は読む前に必ず 1 回 `await` する。
-   * 置き場所を手元へ読み込む実装（git の fetch など）は、ここで読み込む
+   * 置き場所を手元へ読み込む実装（Issue の取得など）は、ここで読み込む
    */
   check(): Promise<Result<void, StoreError>>;
 
@@ -45,7 +47,7 @@ export interface DocumentStore extends DocumentReader {
   delete(collection: Collection, id: string): void;
 }
 
-/** 書き込みの 1 操作の名前（git の置き場所ではコミットの題）。結果から決めるときは関数で渡す。ID・ゲート・種別だけを入れ、ブランチ名や理由は入れない */
+/** 書き込みの 1 操作の名前。結果から決めるときは関数で渡す。ID・ゲート・種別だけを入れ、ブランチ名や理由は入れない */
 export type TransactLabel<T> = string | ((value: T) => string);
 
 export function labelOf<T>(label: TransactLabel<T>, value: T): string {
@@ -76,12 +78,12 @@ export function isCollection(value: string): value is Collection {
 }
 
 /** 置き場所の形の版。`board/meta` の `version` に持つ */
-export const STORE_VERSION = 3;
+export const STORE_VERSION = 4;
 export const META_COLLECTION: Collection = 'board';
 export const META_ID = 'meta';
 
 /**
- * 文書の ID に使える文字。git の置き場所ではファイル名にもなるので、パスの区切りや空白を含めない。
+ * 文書の ID に使える文字。試しのディレクトリの置き場所ではファイル名にもなるので、パスの区切りや空白を含めない。
  * `.` と `..` だけの ID は使えない
  */
 const DOCUMENT_ID_PATTERN = /^(?!\.\.?$)[A-Za-z0-9_\-.:@+]{1,180}$/;
@@ -97,12 +99,14 @@ export type StoreError =
   | { readonly type: 'StoreVersionMismatch'; readonly found: unknown; readonly expected: number }
   /** ほかのプロセスが書いている */
   | { readonly type: 'StoreLockTimeout'; readonly lockPath: string }
-  /** 置き場所のリモートがリポジトリに無い（git の置き場所） */
+  /** main の計画を読むリモートがリポジトリに無い */
   | { readonly type: 'StoreRemoteMissing'; readonly remote: string }
-  /** git の操作が失敗した（git の置き場所。届かない・権限が無い など） */
+  /** main の計画を読む git の操作が失敗した（届かない・権限が無い など） */
   | { readonly type: 'StoreGitFailed'; readonly operation: string; readonly message: string }
-  /** push が先を越され続けた（git の置き場所） */
-  | { readonly type: 'StorePushConflict'; readonly attempts: number }
+  /** GitHub の API の呼び出しが失敗した（Issue の置き場所。届かない・権限が無い など） */
+  | { readonly type: 'StoreApiFailed'; readonly operation: string; readonly message: string }
+  /** 置き場所の Issue を引くリポジトリが分からない（`.ai-board/config.yaml` に `github.repository` が無い） */
+  | { readonly type: 'StoreNotConfigured' }
   /** 置き場所は既に始まっている（`ai-board store init` を 2 度走らせた） */
   | { readonly type: 'StoreAlreadyInitialized' };
 

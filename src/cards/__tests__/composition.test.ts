@@ -1,11 +1,14 @@
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { err, ok, type Result } from '../../shared/result.js';
-import type { GitDocumentStore } from '../../infrastructure/git-document-store.js';
+import type { BackedDocumentStore } from '../../infrastructure/backed-document-store.js';
 import {
-  createGitStoreFixture,
+  createStoreFixture,
   initializedStore,
-  type GitStoreFixture,
-} from '../../__tests__/git-store-fixture.js';
+  type StoreFixture,
+} from '../../__tests__/store-fixture.js';
 import {
   initialDocuments,
   MemoryDocumentStore,
@@ -19,7 +22,12 @@ import type { PrSnapshotRepository } from '../../board/repositories/pr-snapshot.
 import type { CardId, PullRequestNumber } from '../../shared/schemas/common.js';
 import type { Card } from '../models/card.js';
 import { DocCardRepository } from '../repositories/doc-card.repository.js';
-import { createTransactionalPrWriter } from '../composition.js';
+import { resolvePaths, type AppConfig } from '../../infrastructure/config.js';
+import {
+  createBoardStore,
+  createStoreCliParts,
+  createTransactionalPrWriter,
+} from '../composition.js';
 
 // ============================================================
 // `PrFetcher` の PR 番号の書き戻しを、書き込みの 1 操作に通す
@@ -94,25 +102,25 @@ function branchClient(beforeResolve: () => Promise<void> = async () => undefined
 }
 
 describe('createTransactionalPrWriter', () => {
-  let fixture: GitStoreFixture;
+  let fixture: StoreFixture;
   /** 準備までのコミットの数 */
   let prepared: number;
 
   /** 形の版とカード 1 枚だけがある置き場所 */
-  async function preparedStore(): Promise<GitDocumentStore> {
+  async function preparedStore(): Promise<BackedDocumentStore> {
     const store = await initializedStore(fixture);
     await store.transact('始める', () => new DocCardRepository(store).create(makeCard()).then(ok));
-    prepared = fixture.commitSubjects().length;
+    prepared = fixture.writeLabels().length;
     return store;
   }
 
   /** 準備の後のコミットの題 */
   function writtenSubjects(): string[] {
-    return fixture.commitSubjects().slice(prepared);
+    return fixture.writeLabels().slice(prepared);
   }
 
   beforeEach(() => {
-    fixture = createGitStoreFixture();
+    fixture = createStoreFixture();
   });
 
   afterEach(() => {
@@ -128,7 +136,7 @@ describe('createTransactionalPrWriter', () => {
 
     await fetcher.refresh();
 
-    expect(writtenSubjects()).toEqual([`chore(board): ${WRITE_BACK_MESSAGE}`]);
+    expect(writtenSubjects()).toEqual([WRITE_BACK_MESSAGE]);
     expect((await cards.findById(CARD_ID))?.pr).toBe(42);
     expect(fetcher.connection()).toEqual({ status: 'connected', kind: 'github' });
   });
@@ -194,5 +202,37 @@ describe('createTransactionalPrWriter', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('StoreLockTimeout'));
     expect(fetcher.connection()).toEqual({ status: 'connected', kind: 'github' });
     expect(fetcher.get(CARD_ID)?.number).toBe(42);
+  });
+});
+
+describe('createBoardStore', () => {
+  const config = (overrides: Partial<AppConfig> = {}): AppConfig => ({
+    paths: resolvePaths('/tmp/ai-board-not-used', {}),
+    forge: { kind: 'github', owner: 'acme', repo: 'board' },
+    store: { remote: 'origin', branch: 'main', branchRemote: 'origin' },
+    ...overrides,
+  });
+
+  it('github.repository が無ければ、読むときに StoreNotConfigured で止まる', async () => {
+    const store = createBoardStore(config({ forge: null }));
+    expect(await store.check()).toEqual(err({ type: 'StoreNotConfigured' }));
+  });
+
+  it('AI_BOARD_STORE のディレクトリを指せば、GitHub に触れずにそこへ書く', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-board-trial-'));
+    try {
+      const paths = {
+        ...resolvePaths('/tmp/ai-board-not-used', {}),
+        storeOverride: path.join(dir, 'store'),
+        localDir: path.join(dir, 'local'),
+      };
+      const store = createBoardStore(config({ forge: null, paths }));
+
+      expect(await createStoreCliParts(store).initialize()).toEqual(ok(undefined));
+      expect(await store.check()).toEqual(ok(undefined));
+      expect(fs.existsSync(path.join(dir, 'store', 'board', 'meta.json'))).toBe(true);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

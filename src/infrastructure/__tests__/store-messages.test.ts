@@ -9,7 +9,8 @@ describe('describeStoreError', () => {
     { type: 'StoreLockTimeout', lockPath: '/x/store.lock' },
     { type: 'StoreRemoteMissing', remote: 'origin' },
     { type: 'StoreGitFailed', operation: 'fetch', message: 'Command failed: git fetch' },
-    { type: 'StorePushConflict', attempts: 3 },
+    { type: 'StoreApiFailed', operation: 'POST issues', message: 'gh の失敗（HTTP 403）' },
+    { type: 'StoreNotConfigured' },
     { type: 'StoreAlreadyInitialized' },
   ];
 

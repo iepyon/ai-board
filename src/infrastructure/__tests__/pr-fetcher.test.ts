@@ -2,10 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as path from 'node:path';
 import { PrFetcher } from '../pr-fetcher.js';
 import {
-  createGitStoreFixture,
+  createStoreFixture,
   initializedStore,
-  type GitStoreFixture,
-} from '../../__tests__/git-store-fixture.js';
+  type StoreFixture,
+} from '../../__tests__/store-fixture.js';
 import { DocPrSnapshotRepository } from '../../board/repositories/doc-pr-snapshot.repository.js';
 import type { CardRepository } from '../../cards/repositories/card.repository.js';
 import { ForgeRequestError, type ForgeClient } from '../../board/services/forge-client.js';
@@ -530,7 +530,7 @@ describe('PrFetcher の問い合わせの省略', () => {
 
 describe('PrFetcher と DocPrSnapshotRepository', () => {
   const card = () => makeCard({ pr: 42 as PullRequestNumber });
-  let fixture: GitStoreFixture;
+  let fixture: StoreFixture;
 
   /** PC ごとの手元のディレクトリで開いた置き場所の控え。同じ名前なら同じ PC */
   async function session(name: string): Promise<DocPrSnapshotRepository> {
@@ -551,7 +551,7 @@ describe('PrFetcher と DocPrSnapshotRepository', () => {
   }
 
   beforeEach(async () => {
-    fixture = createGitStoreFixture();
+    fixture = createStoreFixture();
     await initializedStore(fixture);
   });
 

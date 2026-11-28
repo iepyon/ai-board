@@ -3,7 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CardId, PullRequestNumber } from '../../../shared/schemas/common.js';
-import { createGitStoreFixture, initializedStore } from '../../../__tests__/git-store-fixture.js';
+import { createStoreFixture, initializedStore } from '../../../__tests__/store-fixture.js';
 import {
   initialDocuments,
   MemoryDocumentStore,
@@ -92,17 +92,17 @@ describe('DocPrSnapshotRepository', () => {
     expect(await repository.findAll()).toEqual(new Map([[id, merged()]]));
   });
 
-  it('git の置き場所では、マージ済みの控えを手元に置き、置き場所にコミットしない', async () => {
-    const fixture = createGitStoreFixture();
+  it('共有の置き場所では、マージ済みの控えを手元に置き、置き場所に書かない', async () => {
+    const fixture = createStoreFixture();
     try {
       const store = await initializedStore(fixture);
-      const before = fixture.commitSubjects();
+      const before = fixture.writeLabels();
       const { repository } = setup(store);
 
       await repository.save(id, merged());
       await repository.save(id, merged());
 
-      expect(fixture.commitSubjects()).toEqual(before);
+      expect(fixture.writeLabels()).toEqual(before);
       expect(fs.readdirSync(path.join(fixture.localDir, SNAPSHOTS_COLLECTION))).toEqual([
         `${id}.json`,
       ]);

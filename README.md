@@ -76,7 +76,8 @@ npm run build
 
 git に載っている `.ai-board/config.yaml` の `github.repository` を、自分の fork に書き換えて main に入れる。
 PR を問い合わせる先になる。
-カードの置き場所は `store.remote` / `store.branch`（既定は `origin` の `main`）で、ふつうは書き換えない。
+カードは、この `github.repository` の Issue に置く（ラベル `ai-board`）。`gh` にログイン済みで、そのリポジトリの Issue を読み書きできることが要る。
+マージ済みの計画を読む場所は `store.remote` / `store.branch`（既定は `origin` の `main`）で、ふつうは書き換えない。
 
 > .ai-board/config.yaml の repository を <you>/ai-board にして、main にコミットして
 
@@ -91,20 +92,20 @@ Claude の許可ルールは Bash からの `main` への push を止めてい�
 
 ### カードの置き場所を作る
 
-カードは `main` の `.ai-board/` にファイルで置く（`board.yaml`・`order.yaml`・`cards/<id>/card.md`・`cards/<id>/log/`）。
-CLI は読むたびに `origin` の `main` を fetch し、書き込みはそのコミットとして push する。メインのチェックアウトの作業ツリーには触らないので、別のブランチで作業中でもよい。
-人も Claude も、これらのファイルを手で書き換えない。読み書きは `ai-board card` / `decide` で行う。
-しくみと、なぜこう置くのかは [リファレンス](docs/reference.md#カード) と [ADR 0021](docs/adr/0021-cards-as-markdown-on-main.md) にある。
+カードは、`github.repository` の Issue に置く（1 枚 1 Issue。判断は Issue のコメント、並び順と形の版は専用の Issue）。
+CLI は読むたびに `gh api` で Issue を引き、書き込みも `gh api` で Issue とコメントに書く。git には何も書かないので、`main` にカードのコミットは入らない。
+人も Claude も、Issue の本文の末尾の隠しコメントと判断のコメントを手で書き換えない。読み書きは `ai-board card` / `decide` で行う。
+Issue の画面では、カードを読む・コメントする・ラベルや検索で探すのは自由にできる（タイトルを直せばカードのタイトルになる）。
+しくみと、なぜこう置くのかは [リファレンス](docs/reference.md#カード) と [ADR 0021](docs/adr/0021-cards-as-github-issues.md) にある。
 
 > 置き場所を用意して
 
 ```bash
-node dist/cli.js store init   # .ai-board/board.yaml と order.yaml を main に push する
+node dist/cli.js store init   # 置き場所の Issue（形の版と空の並び順）を作る
 ```
 
-用意はカードの無いボードで終わる。カードは次の「2. カードを入れる」で入れる。
-置き場所の書き込みは `origin` の `main` にコミットとして積まれるだけで、手元の `main` は自動では進まない。
-手元の `main` を追いつかせるときは `git pull` を打つ。`git pull` で `src/` が新しくなったら `npm run build` も走らせる（CLI は `dist/` が古いと止まる）。
+用意はカードの無いボードで終わる。カードは次の「2. カードを入れる」で入れる（`.ai-board/seed/*.md` の最初のカードが Issue になる）。
+計画はこれまでどおりカードのブランチから PR で `main` に入る。手元の `main` を追いつかせるときは `git pull` を打つ。`git pull` で `src/` が新しくなったら `npm run build` も走らせる（CLI は `dist/` が古いと止まる）。
 
 ### つながったかを確かめる
 

@@ -105,7 +105,7 @@ description: board-loop を動かした本筋のセッションから、`next.st
 2. 共通の決まりのハードルールにある品質ゲートを通す。計画ファイルだけの変更でも走らせる。
    通らなければコミットせず、止まって報告する
 3. `git -C "$WT" add .ai-board/cards/<cardId>/plan.md` → コミット（`docs: <cardId> の AI レビューの指摘を計画に書く`。末尾の署名は、そのセッションの指示に従う）→
-   `node "$MAIN/dist/cli.js" store check-branch <branch> --root "$MAIN"`（置き場所のファイルを変えていれば push せずに止まる）→ `git -C "$WT" push origin <branch>`。
+   `git -C "$WT" push origin <branch>`。
    push が失敗したらやり直さずに止まり、コミットが手元にだけあることを報告する
 4. `git -C "$WT" status --porcelain=v2 --branch` で、`# branch.ab +0 -0` の行があり、変更の行が無いことを確かめる（`origin/<branch>` と一致し、未コミットの変更が無い）。
    満たされなければ止まって報告する（次の手は、ワークツリーと `origin` の状態から続きを選ぶ）。

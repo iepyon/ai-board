@@ -12,7 +12,7 @@ npm install
 npm run build
 ```
 
-サブコマンドは `card`（カードの読み書き）・`status`・`store`（置き場所を始める・seed を入れる・カードのブランチを検査する）・`pr`（`gh api` の REST での PR の読み書き）・`decide`（人の判断）・`loop`（ループの 1 手の記録）・`dist-check`（`dist/` が HEAD より古ければ 1）。
+サブコマンドは `card`（カードの読み書き）・`status`・`store`（置き場所の Issue を始める・seed を入れる）・`pr`（`gh api` の REST での PR の読み書き）・`decide`（人の判断）・`loop`（ループの 1 手の記録）・`dist-check`（`dist/` が HEAD より古ければ 1）。
 細部は `ai-board --help` と `ai-board <command> --help` で見る。常駐するサーバは無い（[ADR 0017](adr/0017-remove-web-and-server.md)）。
 `--root` で別のプロジェクトを指せるのは CLI だけで、チャットのスキル（`board-loop` / `board-decide` / `board-view`）は ai-board のリポジトリのメインのチェックアウトの `dist/cli.js` を動かす。
 
@@ -101,22 +101,26 @@ frontmatter の `skipGates` に `plan` を入れると、AI の 提出 / 再提�
 
 ## カード
 
-カードの正本は、置き場所のブランチ（既定は `origin` の `main`。`.ai-board/config.yaml` の `store.remote` / `store.branch`）の `.ai-board/` のファイルにある（[ADR 0021](adr/0021-cards-as-markdown-on-main.md)）。
+カードの正本は、リポジトリ（`.ai-board/config.yaml` の `github.repository`）の GitHub Issue にある（[ADR 0021](adr/0021-cards-as-github-issues.md)）。
 
 ```
-.ai-board/board.yaml                              形の版
-.ai-board/order.yaml                              並び順とアイデアの区切り線
-.ai-board/cards/<id>/card.md                      カード（frontmatter と本文。`## レビュー` は持たない）
-.ai-board/cards/<id>/log/<時刻>.<gate>.<種別>.md  判断・着手 1 件（中身は理由）
-.ai-board/cards/<id>/plan.md                      計画（カードのブランチ → PR でマージ）
-.ai-board/local/                                  git に載せない。マージ済みの PR の控え・ループの記録・ロック・ボードの HTML
+Issue（ラベル ai-board）  カード 1 枚。タイトル=カードのタイトル、本文=カードの本文
+                          本文の末尾の隠しコメント `<!-- ai-board:card {id, created, skipGates, branch, pr} -->`
+Issue のコメント          判断・着手 1 件（見出しの行と理由。末尾の隠しコメント `<!-- ai-board:log {...} -->`）
+置き場所の Issue          形の版と並び順・アイデアの区切り線（隠しコメント `<!-- ai-board:store {...} -->`）
+.ai-board/cards/<id>/plan.md   計画（カードのブランチ → PR でマージ。git のファイル）
+.ai-board/seed/*.md       最初のカードの種（`ai-board store seed` で Issue にする。起票した後は正本にしない）
+.ai-board/local/          git に載せない。マージ済みの PR の控え・ループの記録・ロック・ボードの HTML
 ```
 
-CLI は読むたびに置き場所を専用の参照（`refs/ai-board/store`）へ fetch し、`board.yaml`・`order.yaml`・`cards/` を読む。
-書き込みは「ロック → 検査する → 一時の index でその参照の上にコミットを作る → push する」を 1 操作で行い、メインのチェックアウトの作業ツリー・index・今のブランチには触らない。
-2 つの PC が続けて書いて push が先を越されたら、取り直した置き場所の上で検査からやり直す（3 回まで）。先を越されたのでない失敗（権限が無い・保護されている）は、やり直さずに push の失敗として止まる。判断は 1 件 1 ファイルなので、同じカードへの判断が重なっても両方残る。
-置き場所のファイルを変えない書き込み（ループの記録・マージ済みの PR の控えだけ）は push しない。それらは各 PC の手元に置き、共有しない（控えが無ければ GitHub から引き直す）。
-リンクされたワークツリーから動かしても、手元のファイルはメインのチェックアウトのものを共有する。`ai-board card show <id>` は次の形で出す。
+CLI は読むたびに `gh api graphql` で `ai-board` ラベルの Issue とコメントを引く（1 ページ 50 件。コメントが 100 件を超えた Issue だけ REST で全ページ読む）。
+**信用するのは、作者の `authorAssociation` が OWNER / MEMBER / COLLABORATOR の Issue とコメントだけ。** 公開リポジトリで外の人が承認などの判断を偽造できないようにするためで、ほかは警告して読み飛ばす。
+書き込みは「ロック → 読み直す → 検査する → Issue の作成・更新とコメントの追加」を 1 操作で行う。git には何も書かない。
+Issue の更新に楽観ロックは無く、複数の API の呼び出しは全部か無しにならない。同じカードの本文や並び順を 2 つの PC が同時に書けば後の書き込みが勝つ（判断はコメントの追加なので重ならない）。途中で失敗したら `StoreApiFailed` で止まり、次の操作が読み直した状態から続ける。
+ループの記録とマージ済みの PR の控えは、各 PC の手元（`.ai-board/local/`）に置き、共有しない（控えが無ければ GitHub から引き直す）。
+人が Issue の画面でタイトルを直せば、カードのタイトルとして読む。本文の末尾の隠しコメントを消すとそのカードは読めなくなる。
+`AI_BOARD_STORE` に手元のディレクトリを指すと、GitHub に何も書かず、そのディレクトリの JSON（`<コレクション>/<ID>.json`）で試せる。
+リンクされたワークツリーから動かしても、手元のファイルはメインのチェックアウトのものを共有する。`ai-board card show <id>` は、Issue から組み立てた次の形で出す。
 
 ```markdown
 ---
@@ -135,8 +139,7 @@ rank: 1500 # 並び順。小さいほど上。並べ替えたときだけ書か�
 ## レビュー
 ```
 
-エージェントは `ai-board card`（本文・ブランチ・提出・保留だけ。コマンドは `CLAUDE.md`）で、人は `ai-board decide` で書く。置き場所のファイルを直接書き換えない。
-カードのブランチは置き場所のファイルを変えない。ループは push の前に `ai-board store check-branch <branch>` で確かめる（分岐点からの差分で見る）。
+エージェントは `ai-board card`（本文・ブランチ・提出・保留だけ。コマンドは `CLAUDE.md`）で、人は `ai-board decide` で書く。Issue の隠しコメントや判断のコメントを直接書き換えない。
 
 ### 人の判断
 
@@ -161,7 +164,7 @@ ai-board decide move-divider --after <ref> --before <ref>   # 区切り線を動
 ## 計画ファイル
 
 `.ai-board/cards/<card-id>/plan.md` がそのカードの計画で、**ディレクトリ名がカード ID と一致することで紐付く。** 書くのは AI で、CLI は read-only に扱う。
-計画はカードのブランチに載り、PR のマージでだけ main に入る。**main（置き場所の参照）に計画があればマージ済み**で、CLI は作業ツリーではなくその参照から読む。
+計画はカードのブランチに載り、PR のマージでだけ main に入る。**main（fetch した参照 `refs/ai-board/store`）に計画があればマージ済み**で、CLI は作業ツリーではなくその参照から読む。
 
 ```markdown
 # リフレッシュトークン対応
@@ -188,7 +191,7 @@ ai-board decide move-divider --after <ref> --before <ref>   # 区切り線を動
 ```bash
 git show <branch>:.ai-board/cards/<id>/plan.md   # 動作確認の結果を読む
 git diff main...<branch>                         # 差分を読む
-git merge --no-ff <branch> && git push           # マージして置き場所のブランチに入れる
+git merge --no-ff <branch> && git push           # マージして main に入れる
 ```
 
 締めの段の AI は `## 動作確認の手順` をもとに動かし、「確かめたこと / コマンド / 結果」の表を PR の本文に書く。
@@ -224,22 +227,22 @@ git merge --no-ff <branch> && git push           # マージして置き場所�
 
 - **`allow`:** `main` 以外への `git push --force-with-lease origin <branch>`、カードのワークツリーの中の取り消し（`checkout -- .` / `clean -fd`）
 - **`ask`:** `git reset --hard`、`git branch -D` / `-d`、`git worktree remove`
-- **`deny`:** 置き場所のファイル（`.ai-board/cards/*/card.md`・`log/`・`order.yaml`・`board.yaml`）の編集、データ用ブランチ（消すまで）の編集と push、
-  Bash からの `main` への push（main へのコミットは `ai-board` の CLI の書き込みだけが作る）、`--force` / `-f` / `+` の force push、`--mirror` の push、
+- **`deny`:** データ用ブランチ（消すまで）の編集と push、
+  Bash からの `main` への push、`--force` / `-f` / `+` の force push、`--mirror` の push、
   メインのチェックアウトの `.claude/settings*.json` の編集
 
 許可ルールは前方一致で迂回できる**事故よけの保険で、境界そのものではない。** 境界は `ai-board card` の構造と手順書の決まりに置く。
-`main` には force push の禁止を入れることを勧める。カードの書き込みは CLI が `main` へ直接 push するので、PR 必須の保護は入れない（ADR 0021）。
+`main` には force push の禁止に加え、PR 必須の保護も入れられる。カードは Issue にあり、CLI は `main` へ push しない（ADR 0021）。
 
 ### クラウドのセッション・Windows
 
-- クラウド: clone すればカードが見える（CLI が置き場所を fetch する）。カードの書き込みには、そのセッションから `main` へ push できる必要がある。まず `npm ci && npm run build` で `dist/` を作り、会話で `/loop 5m /board-loop` を回し、判断は会話で頼む。
+- クラウド: カードは Issue なので、そのセッションの `gh` が `github.repository` の Issue を読み書きできれば見える・書ける（`main` への push は要らない）。まず `npm ci && npm run build` で `dist/` を作り、会話で `/loop 5m /board-loop` を回し、判断は会話で頼む。
   GraphQL が 403 になる（`gh pr` が動かない）ので、手順書は `ai-board pr ...` を使う。ブランチを消せないので「Automatically delete head branches」を有効にしておく
 - Windows: Git Bash で回せる（PowerShell / cmd は想定しない）。`jq` の代わりに `status --json --only` を使い、改行は `.gitattributes` で LF に揃える。テストは Windows を対象にしていない
 
 ## GitHub との接続
 
-設定は git に載せた `.ai-board/config.yaml`（`github.repository` と `store`）から読む。fork したら `github.repository` を自分のものに書き換える。カードの置き場所は既定で `origin` の `main` なので、fork の中に作られる。
+設定は git に載せた `.ai-board/config.yaml`（`github.repository` と `store`）から読む。fork したら `github.repository` を自分のものに書き換える。カードはその Issue に作られ、`store`（既定は `origin` の `main`）はマージ済みの計画を読む場所になる。
 アクセストークンは受け取らず、問い合わせは `gh api` で行う（認証は `gh auth login` に委ねる）。
 使えないときは連携が無効になり、理由が `status` の「GitHub:」の行に出る。使えないあいだも、マージ済みの PR は手元の控えで出る（リンクと Ready・マージの時刻、区間の時間）。マージ前の PR は出さず、次の一手と判断も止まる。問い合わせるのは `branch` か `pr` のあるカードだけで、中止のカードの PR は一度控えを取った後は引き直さない。
 

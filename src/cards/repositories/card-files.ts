@@ -38,8 +38,8 @@ import {
  *
  * `Card` の `startedAt` は着手の判断から、`rank` は並び順から、本文の `## レビュー` は判断から組み立てる。
  * `card.md` はこの 3 つを持たない。
- * 前の置き場所（データ用ブランチ `ai-board/data`、形の版 2）もこのファイルの形だったので、
- * git の置き場所（`card-file-codec.ts`）も、ここの関数で文書とファイルを行き来する。
+ * seed のファイル（`.ai-board/seed/*.md`）は `card.md` と同じ形で、`ai-board store seed` が読んで文書にする。
+ * Issue の置き場所（`issue-store-backend.ts`）は、文書の `title`・`body`・`reason` を Issue とコメントの本文に出す。
  */
 
 export const DATA_VERSION_FILE = 'ai-board-data.yaml';

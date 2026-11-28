@@ -7,20 +7,16 @@ import { readPlanFilesAtCommit } from '../../../infrastructure/git-plan-tree.js'
 import { createCliRunner } from '../../../infrastructure/cli-runner.js';
 import { err, ok } from '../../../shared/result.js';
 import type { CardId } from '../../../shared/schemas/common.js';
-import {
-  createGitStoreFixture,
-  git,
-  type GitStoreFixture,
-} from '../../../__tests__/git-store-fixture.js';
+import { createStoreFixture, git, type StoreFixture } from '../../../__tests__/store-fixture.js';
 
 // ============================================================
 // fixture ヘルパー — コードのリポジトリの main に計画をコミットし、その参照から読む
 // ============================================================
 
-let fixture: GitStoreFixture;
+let fixture: StoreFixture;
 
 beforeEach(() => {
-  fixture = createGitStoreFixture();
+  fixture = createStoreFixture();
 });
 
 afterEach(() => {

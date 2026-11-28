@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
 import { locateWorktree } from './git-worktree.js';
-import { isRemoteName } from './git-document-store.js';
+import { isRemoteName } from './git-main-head.js';
 
 // ============================================================
 // ai-board の設定
@@ -14,11 +14,11 @@ export const CONFIG_FILE = 'config.yaml';
 /** git に載せない各自のファイル（PR の控え・ループの記録・ロック・ボードの HTML）を置くディレクトリ（`sharedBoardDir` の下） */
 export const LOCAL_DIR = 'local';
 /**
- * 置き場所のリモートの代わりに使う git のリポジトリ（`git init --bare` したもの）のパスを明示する環境変数。
- * 共有のカードを汚さずに試すときに使う。手元のファイルもそのパスの隣の `<パス>.local/` に置く
+ * 置き場所の Issue の代わりに使う、手元のディレクトリのパスを明示する環境変数。
+ * 共有のカードを汚さずに（GitHub に何も書かずに）試すときに使う。手元のファイルもそのパスの隣の `<パス>.local/` に置く
  */
 export const STORE_ENV = 'AI_BOARD_STORE';
-/** 置き場所のリモートとブランチの既定 */
+/** main の計画を読むリモートとブランチの既定 */
 export const DEFAULT_STORE_REMOTE = 'origin';
 export const DEFAULT_STORE_BRANCH = 'main';
 
@@ -65,7 +65,7 @@ function hasControlChar(text: string): boolean {
   });
 }
 
-/** 置き場所。git のリポジトリの 1 つのブランチの `.ai-board/` */
+/** main の計画を読む場所。git のリモートの 1 つのブランチ（カードは Issue にあり、ここには無い） */
 const StoreConfigSchema = z.object({
   remote: GitValueSchema('store.remote').nullable().optional(),
   branch: BranchNameSchema.nullable().optional(),
@@ -101,7 +101,7 @@ export interface BoardPaths {
   readonly repoDir: string;
   /** git に載せない各自のファイルのディレクトリ。既定は `sharedBoardDir` の下の local/ */
   readonly localDir: string;
-  /** `AI_BOARD_STORE` で指した置き場所のリポジトリ。指していなければ null */
+  /** `AI_BOARD_STORE` で指した、試しの置き場所のディレクトリ。指していなければ null */
   readonly storeOverride: string | null;
 }
 
@@ -109,18 +109,15 @@ export interface AppConfig {
   readonly paths: BoardPaths;
   /** 取得先が未設定なら null（ボードはカードと計画ファイルだけで動く） */
   readonly forge: ForgeConfig | null;
-  /** カードの置き場所（git のリモートとブランチ） */
+  /** main の計画を読む場所（git のリモートとブランチ）。カードの置き場所は `forge` の Issue（`AI_BOARD_STORE` で差し替え） */
   readonly store: StoreConfig;
 }
 
 export interface StoreConfig {
-  /** リモートの名前か、リポジトリのパス・URL（`AI_BOARD_STORE` を指せばそのパス） */
+  /** リモートの名前か、リポジトリのパス・URL */
   readonly remote: string;
   readonly branch: string;
-  /**
-   * カードのブランチを追う、コードのリポジトリのリモートの名前（`store.remote`、既定 `origin`）。
-   * `AI_BOARD_STORE` で置き場所を差し替えても、カードのブランチはこのリモートにある
-   */
+  /** カードのブランチを追う、コードのリポジトリのリモートの名前（`store.remote`、既定 `origin`） */
   readonly branchRemote: string;
 }
 
@@ -171,7 +168,7 @@ function resolveSharedBoardDir(root: string, boardDir: string): string {
  * 設定を読み込む。
  *
  * config.yaml は git に載せた `.ai-board/config.yaml`（`boardDir`）から読む。clone した時点で揃い、
- * fork では `github.repository` を書き換える。置き場所は書かなければ `origin` の `main`。
+ * fork では `github.repository`（カードの Issue を引くリポジトリ）を書き換える。main の計画を読む場所は書かなければ `origin` の `main`。
  *
  * 設定ファイルが無い、取得先のセクションが無いのいずれの場合も
  * 連携は無効になるだけでエラーにはしない。
@@ -196,7 +193,7 @@ export function loadConfig(root: string, env: NodeJS.ProcessEnv = process.env): 
     paths,
     forge: toForgeConfig(parsed.data),
     store: {
-      remote: paths.storeOverride ?? parsed.data.store?.remote ?? DEFAULT_STORE_REMOTE,
+      remote: parsed.data.store?.remote ?? DEFAULT_STORE_REMOTE,
       branch: parsed.data.store?.branch ?? DEFAULT_STORE_BRANCH,
       branchRemote: branchRemoteOf(parsed.data.store?.remote),
     },

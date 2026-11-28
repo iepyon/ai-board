@@ -30,7 +30,7 @@ Commands:
   card <command>      カードの読み書き（ai-board card --help）
   status [--json [--only <項目,...>]]
                       ボードの状態と次の一手
-  store <command>     置き場所を始める・seed を入れる・カードのブランチを検査する（ai-board store --help）
+  store <command>     置き場所（Issue）を始める・seed を入れる（ai-board store --help）
   pr <command>        PR の読み書き（gh api の REST。ai-board pr --help）
   decide <command>    人の判断を書く（人と、人が会話で頼んだ Claude だけ。ai-board decide --help）
   loop <start|finish> ループの 1 手の記録を書く（ループだけが使う。ai-board loop --help）
@@ -61,7 +61,7 @@ async function checkStore(store: DocumentStore, io: CardCliIo): Promise<boolean>
 }
 
 /**
- * `card` サブコマンド。置き場所を読み込んでから読み、書き込みは置き場所のブランチへ push する。
+ * `card` サブコマンド。置き場所を読み込んでから読み、書き込みは置き場所（Issue）へ書く。
  */
 async function runCard(argv: readonly string[]): Promise<number> {
   const { root, rest } = extractRoot(argv);
@@ -72,7 +72,7 @@ async function runCard(argv: readonly string[]): Promise<number> {
 }
 
 /**
- * `store` サブコマンド。置き場所を始め、seed を入れ、カードのブランチを検査する。
+ * `store` サブコマンド。置き場所を始め、seed を入れる。
  */
 async function runStore(argv: readonly string[]): Promise<number> {
   const { root, rest } = extractRoot(argv);
@@ -83,7 +83,7 @@ async function runStore(argv: readonly string[]): Promise<number> {
   return runStoreCli(
     rest,
     {
-      ...createStoreCliParts(config, store),
+      ...createStoreCliParts(store),
       runSeed: (dir) => runCard(['seed', '--from', dir, '--root', root]),
       seedDir: path.join(root, BOARD_DIR, SEED_DIR),
     },
@@ -112,7 +112,7 @@ async function runStatus(argv: readonly string[]): Promise<number> {
     return args === 'help' ? 0 : 1;
   }
 
-  const runner = createCliRunner();
+  const runner = createCliRunner({ timeoutMs: PR_TIMEOUT_MS });
   const store = createBoardStore(loadConfig(root));
   if (!(await checkStore(store, io))) return 1;
 
@@ -139,7 +139,7 @@ async function runDecide(argv: readonly string[]): Promise<number> {
     return rest.length === 0 || help ? 0 : 1;
   }
 
-  const runner = createCliRunner();
+  const runner = createCliRunner({ timeoutMs: PR_TIMEOUT_MS });
   const store = createBoardStore(loadConfig(root));
   if (!(await checkStore(store, io))) return 1;
 

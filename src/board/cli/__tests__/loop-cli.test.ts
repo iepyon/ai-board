@@ -1,21 +1,21 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { GitDocumentStore } from '../../../infrastructure/git-document-store.js';
+import type { BackedDocumentStore } from '../../../infrastructure/backed-document-store.js';
 import {
-  createGitStoreFixture,
+  createStoreFixture,
   initializedStore,
-  type GitStoreFixture,
-} from '../../../__tests__/git-store-fixture.js';
+  type StoreFixture,
+} from '../../../__tests__/store-fixture.js';
 import { LOOP_COLLECTION, readLoopSteps } from '../../repositories/loop-history.repository.js';
 import type { LoopStep } from '../../models/loop-step.js';
 import { parseFlags, runLoopCli } from '../loop-cli.js';
 
 // ============================================================
-// 一時の git の置き場所で確かめる。ループの記録は手元（localDir）に置き、置き場所にはコミットしない
+// 一時の置き場所で確かめる。ループの記録は手元（localDir）に置き、共有の置き場所には書かない
 // ============================================================
 
-let fixture: GitStoreFixture;
+let fixture: StoreFixture;
 /** 置き場所を始めた後のコミット。ループの記録はこれを増やさない */
 let commits: string[];
 let stdout: string;
@@ -23,7 +23,7 @@ let stderr: string;
 let now: Date;
 
 /** 呼び出しごとに新しく組み、読み込む（別のプロセスとして走らせるのと同じ） */
-async function openStore(): Promise<GitDocumentStore> {
+async function openStore(): Promise<BackedDocumentStore> {
   const store = fixture.open();
   await store.check();
   return store;
@@ -57,9 +57,9 @@ async function run(...argv: string[]): Promise<number> {
 }
 
 beforeEach(async () => {
-  fixture = createGitStoreFixture();
+  fixture = createStoreFixture();
   await initializedStore(fixture);
-  commits = fixture.commitSubjects();
+  commits = fixture.writeLabels();
 
   stdout = '';
   stderr = '';
@@ -92,7 +92,7 @@ describe('start と finish', () => {
     now = new Date('2026-11-02T11:15:41.000Z');
     expect(await run(...FINISH)).toBe(0);
 
-    expect(fixture.commitSubjects()).toEqual(commits);
+    expect(fixture.writeLabels()).toEqual(commits);
     expect(localLoopFiles()).toEqual(['20261102T111406.000Z.session-a.json']);
     expect(await steps()).toEqual([
       {
@@ -122,7 +122,7 @@ describe('start と finish', () => {
     expect((await steps()).map((s) => s.result)).toEqual(['interrupted', null]);
     expect(stderr).toContain('途切れた');
     expect(localLoopFiles()).toHaveLength(2);
-    expect(fixture.commitSubjects()).toEqual(commits);
+    expect(fixture.writeLabels()).toEqual(commits);
   });
 
   it.each(['revise-impl', 'ready'])(
@@ -145,7 +145,7 @@ describe('拒否（何も書かない）', () => {
     expect(stderr).toContain(message);
     expect(localLoopFiles()).toEqual(before);
     expect(JSON.stringify(await steps())).toBe(written);
-    expect(fixture.commitSubjects()).toEqual(commits);
+    expect(fixture.writeLabels()).toEqual(commits);
   }
 
   it('存在しないカード', async () => {

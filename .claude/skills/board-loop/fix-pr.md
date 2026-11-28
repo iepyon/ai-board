@@ -38,7 +38,7 @@ PR中 のカードは人の番だが、人が PR に指摘（コメント）を�
 2. 品質ゲート `cd "$WT" && npm run typecheck && npm run lint && npm run format:check && npm test` を通す。通せなければコミットせず、変更を残したまま止まって報告する
 3. `fix: PR の指摘に応える` のコミットにする。本文に、応えたコメントの URL を 1 行ずつ並べ、直した / 直さなかった（理由）を添える。
    直さない指摘が混ざっていても返信はしない（push で人の番に戻り、人はコミットの本文を読む）
-4. `node "$MAIN/dist/cli.js" store check-branch <branch> --root "$MAIN"` で置き場所のファイルを変えていないことを確かめてから、`git -C "$WT" push origin <branch>`
+4. `git -C "$WT" push origin <branch>`
 5. `ai-board pr checks <pr> --wait --sha "$(git -C "$WT" rev-parse HEAD)"` で CI を確かめる。扱いは `implement.md` の 2.2 の 2 と同じ
    （赤なら直すのはブランチのコミットの本文の `CI を通すための直し` の行で数えて 2 回まで、`pending` やチェックを読めないときは直さずに止まる）
 

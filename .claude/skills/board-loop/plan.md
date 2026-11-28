@@ -120,8 +120,6 @@
    **GitHub が未設定のボード**（共通の決まりの「GitHub が未設定のボード」）では、コミットまでで止め、push と `ai-board pr create` をしない。
    ボードはカードのブランチの計画（`cards/<id>/plan.md`）を読んで計画レビューを立てる
 
-   push の前に `ai-board store check-branch <branch>` を走らせ、ブランチが置き場所のファイル（`card.md`・`log/`・`order.yaml`・`board.yaml`）を変えていないことを確かめる。
-   変えていれば push せずに止まる（カードの書き込みは `ai-board card` で行う）
 5. `ai-board card branch <id> <branch>` → `ai-board card submit <id> --reason "<計画の ## 人に判断してほしいこと の中身>"`（`- なし` なら「判断してほしい点なし」）
 
 ## 3. `revise-plan` — 差し戻された計画を直して再提出する

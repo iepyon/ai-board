@@ -31,7 +31,7 @@ import {
  *
  * カードについては「その ID のカードがあるか」を読む関数（`cardExists`）だけを受け取り、
  * カードのリポジトリの書き込みの口を持たない。`card-cli.ts` の書き込み境界には入口を足さない。
- * 書き込みは `DocumentStore.transact` の 1 操作として走らせる（git の置き場所では手元の `.ai-board/local/` に書き、コミットしない）。
+ * 書き込みは `DocumentStore.transact` の 1 操作として走らせる（手元の `.ai-board/local/` に書き、Issue には書かない）。
  */
 export const LOOP_USAGE = `使い方: ai-board loop <command> [--root <path>]
 

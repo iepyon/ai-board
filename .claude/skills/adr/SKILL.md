@@ -1,7 +1,7 @@
 ---
 name: adr
 description: ai-board の今も効いている設計判断を、短い ADR（Architecture Decision Record）として docs/adr/ に書く。新しい判断を記録するとき、判断が変わって ADR を書き直すとき、git log・計画の archive・仕様から判断を書き起こすときに使う。「ADR を書いて」「この判断を ADR に残して」「履歴から ADR を起こして」「ADR を整理して」で使う。
-argument-hint: '[記録する判断。例: カードを git の main の Markdown に置く]'
+argument-hint: '[記録する判断。例: カードを GitHub の Issue に置く]'
 ---
 
 # adr — 今も効いている設計判断を、短く残す

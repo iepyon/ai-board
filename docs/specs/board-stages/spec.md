@@ -100,7 +100,7 @@ plan ゲートのレビュー記録が 1 件も無い場合も `plan-review` を
 
 #### Scenario: GitHub が未設定のボードで、計画がカードのブランチにだけある
 
-- **WHEN** `config.yaml` に `github:` が無く、置き場所のブランチに計画ファイルは無いが、カードのブランチに `.ai-board/cards/<id>/plan.md` があり、plan ゲートの記録が提出である
+- **WHEN** `config.yaml` に `github:` が無く、main に計画ファイルは無いが、カードのブランチに `.ai-board/cards/<id>/plan.md` があり、plan ゲートの記録が提出である
 - **THEN** ステージは `plan-review` になる
 
 #### Scenario: AI が差し戻された計画を直しきれずに止まった
@@ -161,7 +161,7 @@ AI レビューの指摘のうち直すものは、計画の末尾の `## AI レ
 ### Requirement: PR 中とマージ済みは PR と main の計画で決まる
 
 システムは PR が open で Draft でない（Ready の）とき `pr`、PR がマージされたか、main に `.ai-board/cards/<id>/plan.md` があるとき `merged` を返さなければならない (MUST)。
-main の計画は、作業ツリーではなく、fetch した置き場所の参照から読まなければならない (MUST)。メインのチェックアウトがほかのブランチにいても、そのブランチの計画でマージ済みに見えてはならないためである。
+main の計画は、作業ツリーではなく、fetch した main の参照（`refs/ai-board/store`）から読まなければならない (MUST)。メインのチェックアウトがほかのブランチにいても、そのブランチの計画でマージ済みに見えてはならないためである。
 計画の時刻は、その参照で計画ファイルを最後に変えたコミットの時刻としなければならない (MUST)。
 open でも Draft の PR は `pr` を立てない。計画の成果物か、実装中の PR だからである。
 計画はカードのブランチに載り、main にはマージでだけ入るので、main の計画をマージ済みの印に使う。
@@ -184,10 +184,10 @@ AI は実装と AI レビューを終えたら、動かした証拠を PR の本
 
 #### Scenario: 計画が main に入った
 
-- **WHEN** 置き場所の参照に `.ai-board/cards/<id>/plan.md` がある
+- **WHEN** fetch した main の参照に `.ai-board/cards/<id>/plan.md` がある
 - **THEN** ステージは `merged` になる
 
 #### Scenario: メインのチェックアウトがほかのブランチにいる
 
-- **WHEN** メインのチェックアウトがカードのブランチにいて、作業ツリーに `.ai-board/cards/<id>/plan.md` があるが、置き場所の参照には無い
+- **WHEN** メインのチェックアウトがカードのブランチにいて、作業ツリーに `.ai-board/cards/<id>/plan.md` があるが、fetch した main の参照には無い
 - **THEN** ステージは `merged` にならない

@@ -10,7 +10,7 @@ import type { StoreError } from './document-store.js';
 export function describeStoreError(error: StoreError): string {
   switch (error.type) {
     case 'StoreUninitialized':
-      return '置き場所が空です（.ai-board/board.yaml がありません）。ai-board store init を走らせてください';
+      return '置き場所が空です（ai-board の置き場所の Issue がありません）。ai-board store init を走らせてください';
     case 'StoreVersionMismatch':
       return (
         `置き場所の形の版（${String(error.found)}）が、この CLI の版（${error.expected}）と違うため読みません。` +
@@ -20,17 +20,16 @@ export function describeStoreError(error: StoreError): string {
       return `ほかの ai-board が置き場所に書いています（${error.lockPath}）。しばらくしてからやり直してください`;
     case 'StoreRemoteMissing':
       return (
-        `置き場所のリモート ${error.remote} がこのリポジトリにありません。` +
+        `計画を読むリモート ${error.remote} がこのリポジトリにありません。` +
         'git remote add で足すか、.ai-board/config.yaml の store.remote を直してください'
       );
     case 'StoreGitFailed':
-      return `置き場所の git の操作（${error.operation}）に失敗しました: ${error.message}`;
-    case 'StorePushConflict':
-      return (
-        `置き場所への push が ${error.attempts} 回とも先を越されました（ほかの人が続けて書いています）。` +
-        'しばらくしてからやり直してください'
-      );
+      return `計画を読む git の操作（${error.operation}）に失敗しました: ${error.message}`;
+    case 'StoreApiFailed':
+      return `置き場所の GitHub の操作（${error.operation}）に失敗しました: ${error.message}`;
+    case 'StoreNotConfigured':
+      return '置き場所の Issue を引くリポジトリが分かりません。.ai-board/config.yaml の github.repository（owner/repo）を書いてください';
     case 'StoreAlreadyInitialized':
-      return '置き場所は既に始まっています（board/meta があります）';
+      return '置き場所は既に始まっています（置き場所の Issue があります）';
   }
 }

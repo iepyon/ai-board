@@ -36,14 +36,15 @@ npm run typecheck && npm run lint && npm run format:check && npm test
 
 整形は `npm run format`。単体は `npx vitest run <path>` / `-t '<name>'`。
 
-## タスクはボードの置き場所（git の main の Markdown）にある
+## タスクはボードの置き場所（GitHub の Issue）にある
 
-**このリポジトリ自身のバックログはボードのカードとして、置き場所のブランチ（既定は `origin` の `main`）の `.ai-board/` にある**
-（`board.yaml`・`order.yaml`・`cards/<id>/card.md`・`cards/<id>/log/`。ADR 0021）。何に着手するかはまずここを見る。
-CLI は読むたびに置き場所を専用の参照（`refs/ai-board/store`）へ fetch して読み、書き込みはその上のコミットとして自分で push する。メインのチェックアウトの作業ツリーには触らない。
+**このリポジトリ自身のバックログはボードのカードとして、リポジトリ（`.ai-board/config.yaml` の `github.repository`）の Issue にある**
+（1 枚 1 Issue。ラベル `ai-board`。判断は Issue のコメント、並び順と形の版は専用の Issue。ADR 0021）。何に着手するかはまずここを見る。
+CLI は読むたびに `gh api` で Issue とコメントを引き、書き込みも `gh api` で Issue の作成・更新とコメントの追加として行う。git には何も書かない。
+信用するのは、作者が OWNER / MEMBER / COLLABORATOR の Issue とコメントだけ（判断のコメントの偽造を防ぐ）。
 PR の控えとループの記録は各 PC の `.ai-board/local/`（git に載せない）に置き、共有しない。
-**読み書きは `ai-board card` / `decide` の CLI で行い、置き場所のファイルをエディタや `git` で直接書き換えない。カードのブランチでも変えない**
-（push の前に `ai-board store check-branch <branch>` で確かめる）。置き場所は `DocumentStore` の口に閉じてある。
+**読み書きは `ai-board card` / `decide` の CLI で行い、Issue の本文末尾の隠しコメント（`<!-- ai-board:card {...} -->`）や判断のコメントを手で書き換えない。**
+隠しコメントを消すとそのカードは読めなくなる（警告して読み飛ばす）。置き場所は `DocumentStore` の口に閉じてある。
 開発中は `node dist/cli.js ...`（先に `npm run build`）。ほかのサブコマンドは `--help` と `docs/reference.md`。
 
 ```bash
@@ -55,19 +56,19 @@ ai-board card branch <id> <name>                       # ブランチの紐付�
 ai-board card submit <id> [--resubmit] [--reason <text>]   # plan 提出 / 再提出
 ai-board card hold <id> --gate plan --reason <text>    # 保留（plan の最新が差し戻しのときだけ）
 ai-board status [--json [--only <項目,...>]]           # ステージ・判断待ち・次の一手
-ai-board store init | seed | check-branch <branch>     # 置き場所を始める・seed を入れる・ブランチを検査する
+ai-board store init | seed                             # 置き場所（Issue）を始める・seed を Issue に起票する
 ```
 
 - 計画は `.ai-board/cards/<id>/plan.md`。ディレクトリ名がカード ID と一致することで紐付く。カードのブランチに載せ、PR のマージで main に入る（main にあればマージ済み）。
 - 本文の `## レビュー` は判断の追記専用ログで導出の入力。`## 探索メモ` は自由記述で、ループに伝えたい補足はここに書く。
-- 最初のアイデアカードは `.ai-board/seed/*.md`（`ai-board store seed` で起票する。並ぶ順は `.ai-board/seed/order.txt`）。
-- **カードに書くコードや、置き場所の形を変えるコードを動かすときは、`AI_BOARD_STORE` で試しの置き場所（`git init --bare` したリポジトリ）を指す。**
-  指さなければ試しの書き込みが本物の置き場所のブランチ（main）へそのまま push される。形の版（`board.yaml`）を上げれば古い CLI がカードを読めなくなる。
+- 最初のアイデアカードは `.ai-board/seed/*.md`（`ai-board store seed` で Issue に起票する。並ぶ順は `.ai-board/seed/order.txt`）。起票した後はファイルを正本にしない。
+- **カードに書くコードや、置き場所の形を変えるコードを動かすときは、`AI_BOARD_STORE` で試しの置き場所（手元の空のディレクトリ）を指す。**
+  指さなければ試しの書き込みが本物の Issue へそのまま書かれる。形の版（`board/meta`）を上げれば古い CLI がカードを読めなくなる。
   手順は `.claude/skills/board-loop/rules.md` の「動かして確かめるとき」。
 
 ## 書き込み境界
 
-| 主体                         | 計画（`.ai-board/cards/<id>/plan.md`）                  | カード（置き場所）                                                                                     |
+| 主体                         | 計画（`.ai-board/cards/<id>/plan.md`）                  | カード（Issue）                                                                                        |
 | ---------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | `ai-board status` / `decide` | **read-only**                                           | PR 番号を書き戻す（マージ済みの PR の控えは手元）。`decide` は人の判断も書く                           |
 | AI エージェント・ループ      | カードのブランチで書く（計画・タスクの更新・`## 締め`） | `ai-board card` で本文・ブランチ・提出・保留のみ。ループは `ai-board loop` で 1 手の記録（手元）も書く |
@@ -103,7 +104,7 @@ ai-board store init | seed | check-branch <branch>     # 置き場所を始め�
 - 差し戻しに専用ルールは無く、手前の AI 列へ自然に落ちる。**ここに `if` を足したくなったら設計を疑う。**
   アイデアの区切り線（`DIVIDER_ID`）だけの分岐も足さない。
 - **計画の成果物（Draft の PR、GitHub が未設定のボードではカードのブランチの計画ファイル）が存在するだけで計画レビューの列が立つ**（取りこぼさないための保険）。「空ファイルは無視する」条件を足さない。
-  main の計画（`cards/<id>/plan.md`）はマージ済みの印で、作業ツリーではなく置き場所の参照から読む（ADR 0001・0021）。
+  main の計画（`cards/<id>/plan.md`）はマージ済みの印で、作業ツリーではなく、fetch した main の参照（`refs/ai-board/store`）から読む（ADR 0001・0021）。
 - 計画ファイルのディレクトリ名が ID として不正なら、警告して読み飛ばす（例外を投げるとボード全体が読めなくなる）。
 - **外部コマンドは `src/infrastructure/cli-runner.ts` に閉じ、shell を介さず引数は配列で渡す。**
   カードの `branch` は誰でも書けるので、文字列連結でコマンドを組むと任意のコマンドを実行できてしまう。
