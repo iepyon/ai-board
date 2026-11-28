@@ -123,7 +123,7 @@ board-view-idea-cards: 起票しました
 board-view-wait-accent: 起票しました
 board-view-title-link: 起票しました
 board-view-relative-time: 起票しました
-board-artifact-loop-republish: 起票しました
+board-view-loop-refresh: 起票しました
 board-events: 起票しました
 decision-notify: 起票しました
 refactor-cli-usecase-entry: 起票しました
