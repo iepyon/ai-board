@@ -13,3 +13,6 @@ decision-notify
 refactor-cli-usecase-entry
 retro-decisions
 status-stage-counts
+
+# 画面（閲覧専用）
+web-readonly-viewer
