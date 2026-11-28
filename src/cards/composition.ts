@@ -109,7 +109,7 @@ export interface CardCliParts {
 }
 
 /**
- * `ai-board card` の依存を組む。書き込みは `store` の書き込みの 1 操作として置き場所へ push する。
+ * `ai-board card` の依存を組む。書き込みは `store` の書き込みの 1 操作として置き場所（Issue）へ書く。
  * 人の判断を書く usecase（`appendReviewCommand`・`updateCardMetaCommand`）は渡さない。
  */
 export function createCardCliParts(store: DocumentStore): CardCliParts {

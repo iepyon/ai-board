@@ -6,8 +6,8 @@
 github:
   repository: 'iepyon/ai-board'
 
-# カードの置き場所。git のリモートの 1 つのブランチの .ai-board/ に、カード・判断・並び順のファイルを置く。
-# 書かなければ origin の main。CLI は fetch して読み、書き込みはコミットとして push する。
+# マージ済みの計画を読む場所。git のリモートの 1 つのブランチ。CLI は fetch して、そこの .ai-board/cards/<id>/plan.md を読む。
+# 書かなければ origin の main。カードそのものは github.repository の Issue にある（git には置かない）。
 # 始め方は ai-board store init → ai-board store seed。
 store:
   remote: origin

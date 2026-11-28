@@ -192,7 +192,7 @@ export async function assembleBoard(
     cards.cardRepository,
     createPrSnapshotRepository(store, config.paths.localDir),
     runner,
-    // ブランチから解決した PR 番号は、書き込みの 1 操作として置き場所へ push する
+    // ブランチから解決した PR 番号は、書き込みの 1 操作として置き場所（Issue）へ書く
     { writePr: createTransactionalPrWriter(store) }
   );
   await fetcher?.refresh();

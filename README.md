@@ -32,15 +32,15 @@ AI の手にはコマンドが無く、チャットで頼むだけになる。
 ### 要るもの
 
 - Node 24 以上と git
-- GitHub の CLI（`gh`）。`gh auth login` でログインしておく。ai-board はアクセストークンを受け取らず、PR の問い合わせを `gh api` に任せる
+- GitHub の CLI（`gh`）。`gh auth login` でログインしておく。ai-board はアクセストークンを受け取らず、Issue（カード）と PR の読み書きを `gh api` に任せる
 - Claude Code（チャットで頼むときと、AI の手を進めるときに使う）。clone の根で開く。AI の手は auto モードで回す前提で、権限の確認が毎回出ると手が止まる（[リファレンス](docs/reference.md#ループの許可ルール)）
-- ボードを使う全員が、自分の fork（か共有のリポジトリ）の `main` に直接 push できること。カードは `main` の `.ai-board/` に置き、CLI が書き込みのたびに push する
+- ボードを使う全員が、自分の fork（か共有のリポジトリ）の Issue を読み書きできること（fork の Settings で Issues を有効にする）。カードはその Issue に置く
 
 ### fork して clone する
 
 GitHub でこのリポジトリを fork する。
-fork の画面の「Copy the `main` branch only」は入れたままでよい（カードは `main` の `.ai-board/` に置く）。
-`main` に PR 必須のブランチ保護を入れない（CLI がカードの書き込みを直接 push するため）。force push の禁止は入れてよい。
+fork の画面の「Copy the `main` branch only」は入れたままでよい。
+カードは Issue に置くので、`main` には PR 必須のブランチ保護を入れてよい（force push の禁止も入れてよい）。
 
 ```bash
 git clone https://github.com/<you>/ai-board.git

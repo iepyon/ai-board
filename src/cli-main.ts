@@ -125,7 +125,7 @@ async function runStatus(argv: readonly string[]): Promise<number> {
  * `decide` サブコマンド。人がチャットで頼んだ判断を書く。
  *
  * 置き場所を読み込み、`status` と同じ組み立てのボード（`assembleBoard`）から、判断を書く usecase（`decide`）を渡す。
- * 導出・検査・書き込み・コミットの題・書いた後の列の読み直しは usecase（`decide.command.ts`）が行う。書いたものは置き場所へ push される。
+ * 導出・検査・書き込み・書き込みの名前・書いた後の列の読み直しは usecase（`decide.command.ts`）が行う。書いたものは置き場所（Issue）に書かれる。
  * PR の状態は頭で 1 回取り直したものを使い、書き込みの中でも書いた後でも問い合わせない。
  */
 async function runDecide(argv: readonly string[]): Promise<number> {

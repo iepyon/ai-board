@@ -9,8 +9,8 @@ import type { Card } from '../models/card.js';
 // ============================================================
 
 /**
- * カードの正本はデータ用ブランチにある（`card-files.ts` の形）。Markdown 表現は `ai-board card show` の出力でだけ使い、
- * エージェントが読む形を移行前と揃える。ここからデータのワークツリーへ書き込むことは無い。
+ * カードの正本は置き場所（Issue）にある（`card-files.ts` の形）。Markdown 表現は `ai-board card show` の出力でだけ使い、
+ * エージェントが読む形を揃える。ここから置き場所へ書き込むことは無い。
  */
 
 const CARD_EXTENSION = '.md';

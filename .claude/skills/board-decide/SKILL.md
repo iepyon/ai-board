@@ -23,7 +23,7 @@ PR中 のカードは GitHub で PR をマージして判断するので、こ�
 
 このセッションが今いるチェックアウト（以下 `$ROOT`。メインでもワークツリーでもよい）の ai-board で `status --json` を読む。
 カードの置き場所はどこから読んでも同じ（`github.repository` の Issue。`AI_BOARD_STORE` があればそのディレクトリ）になる。
-CLI は読むたびに fetch して最新を読むので、取り込みの段は無い。
+CLI は読むたびに `gh api` で最新を読むので、取り込みの段は無い。
 
 ```bash
 ROOT=$(git rev-parse --show-toplevel)
