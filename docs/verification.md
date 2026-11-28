@@ -14,7 +14,7 @@ README などほかの文書は読まず、この文書だけで進めてほし�
 ## 実行前提
 
 次の 4 つがそろっていれば始められる。
-カードの置き場所は fork の `main` の `.ai-board/` なので、fork の `main` に直接 push できる必要がある（PR 必須のブランチ保護を入れない）。
+カードの置き場所は fork の GitHub Issue なので、`gh` でその Issue を読み書きできる必要がある（`main` への push は要らない）。
 
 | 要るもの           | 条件                                                                                                 | 確かめるコマンド              |
 | ------------------ | ---------------------------------------------------------------------------------------------------- | ----------------------------- |
@@ -46,22 +46,21 @@ fork してビルドし、置き場所を始めれば準備は終わる。
    npm run build
    ```
 
-3. `.ai-board/config.yaml` の `github.repository` を `<you>/ai-board` にして、main にコミットして push する。PR を問い合わせる先になる
+3. `.ai-board/config.yaml` の `github.repository` を `<you>/ai-board` にして、main にコミットして push する。PR を問い合わせる先と、カードの Issue を置く先になる
    - チャットなら「.ai-board/config.yaml の repository を <you>/ai-board にして、main にコミットして」。Claude の許可ルールは Bash からの `main` への push を止めているので、`git push origin main` は自分の端末で打つ
-   - カードの置き場所（`store.remote` / `store.branch`）は既定の `origin` の `main` のままにする
+   - マージ済みの計画を読む場所（`store.remote` / `store.branch`）は既定の `origin` の `main` のままにする
 4. 置き場所を始める（チャットなら「置き場所を用意して」）
 
    ```bash
    node dist/cli.js store init
    ```
 
-   `置き場所を始めました（.ai-board/board.yaml と order.yaml を push しました）` と出れば成功である。fork の `main` に `chore(board): 置き場所を始める` のコミットが増える
+   `置き場所を始めました（置き場所の Issue を作りました）` と出れば成功である。fork の Issues に、`ai-board: 置き場所…` という題の Issue が 1 件（ラベル `ai-board`）できる。形の版と並び順を持つ Issue で、編集や close をしてはいけない
 
 用意はカードが 0 枚のボードで終わる。アイデアは後の節で入れる。
 
-カードは `main` の `.ai-board/`（`board.yaml`・`order.yaml`・`cards/<id>/card.md`・`cards/<id>/log/`）にファイルで置く。
-CLI は読むたびに `origin` の `main` を fetch し、書き込みはそのコミットとして push する。これらのファイルを手で触らないでほしい。
-手元の `main` は `git pull` すれば追いつく。
+カードは fork の Issue に置く（1 枚 1 Issue。判断は Issue のコメント）。
+CLI は読むたびに `gh api` で Issue を引き、書き込みも Issue とコメントに書く。git には何も書かない。Issue の本文の末尾の隠しコメントと判断のコメントは、手で触らないでほしい。
 
 ## 空のボードを表示する
 
@@ -112,7 +111,8 @@ AI 作業中 (0)
 
 ### 入れる
 
-チャットで「最初のアイデアカードを入れて」と頼むか、次を打つ。起票は 1 枚ずつ `main` へのコミットとして push される。
+チャットで「最初のアイデアカードを入れて」と頼むか、次を打つ。`.ai-board/seed/*.md`（最初のカードの種）を読み、1 枚ずつ fork の Issue として起票する。
+起票した後は、seed のファイルを変えてもカードは変わらない（Issue が正本である）。
 
 ```bash
 node dist/cli.js store seed
@@ -132,6 +132,9 @@ status-stage-counts: 起票しました
 ```
 
 もう一度走らせると、どのカードも「<ID>: 既にあるので飛ばしました」と出て、重複しない。
+
+起票した結果は、fork の Issues（ラベル `ai-board`）で見られる。Issue の本文がカードの本文で、末尾に見えない隠しコメントがある。
+Issue のタイトルを直すと、カードのタイトルも変わる。
 
 ### 確かめる
 
@@ -154,10 +157,10 @@ status-stage-counts: 起票しました
 
 - [ ] `node -v` が 24 以上、`gh auth status` がログイン済み
 - [ ] `npm ci` と `npm run build` がエラーなく終わる
-- [ ] 「置き場所を用意して」（`store init`）で、fork の `main` に `.ai-board/board.yaml` と `order.yaml` が入る
+- [ ] 「置き場所を用意して」（`store init`）で、fork の Issues に置き場所の Issue が 1 件できる
 - [ ] `status` が「GitHub: 接続済み」と判断待ち (0)・AI 作業中 (0) を出す
 - [ ] 「ボードを見せて」で空のページが開く
-- [ ] 「最初のアイデアカードを入れて」の後、`card list` が `status-stage-counts` を含む 10 件を返す
+- [ ] 「最初のアイデアカードを入れて」の後、`card list` が `status-stage-counts` を含む 10 件を返し、fork の Issues にカードの Issue が 10 件ある
 - [ ] 「ボードを見せて」を頼み直すと、アイデア（10）に 10 枚が出る
 - [ ] （任意）自分で起票したカードがアイデアの末尾に付く
 - [ ] （任意）別の PC で clone してビルドすると、`card list` で同じカードが見える
@@ -171,11 +174,10 @@ CLI は失敗すると、次にすることを 1 行で出す。下の表の「�
 | ------------------------------------------------------------------ | ------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
 | `npm ci` で `EBADENGINE` の警告                                    | Node が 24 より古い                                    | Node 24 以上を入れて `npm ci` からやり直す                                                |
 | `…/dist/cli.js は HEAD のコミットより古い。ビルドし直してください` | `git pull` の後にビルドしていない                      | `npm run build`                                                                           |
-| `置き場所が空です（.ai-board/board.yaml がありません）…`           | `store init` を走らせていない                          | `node dist/cli.js store init`                                                             |
-| `置き場所のリモート origin がこのリポジトリにありません…`          | clone ではなく `git init` したリポジトリなど           | `git remote add origin <URL>` か、`config.yaml` の `store.remote` を直す                  |
-| `置き場所の git の操作（fetch）に失敗しました: …`                  | ネットワークに出られない・`origin` を読めない          | `git fetch origin` が通るか確かめる                                                       |
-| `置き場所の git の操作（push）に失敗しました: …`                   | `main` に push できない（ブランチ保護・権限）          | `git push origin main` が通るか確かめる。PR 必須の保護を外す                              |
-| `置き場所への push が 3 回とも先を越されました…`                   | ほかの人が続けて書いている                             | 少し待ってやり直す                                                                        |
+| `置き場所が空です（ai-board の置き場所の Issue がありません）…`    | `store init` を走らせていない                          | `node dist/cli.js store init`                                                             |
+| `置き場所の Issue を引くリポジトリが分かりません…`                 | `config.yaml` に `github.repository` が無い            | `github.repository: <you>/ai-board` を書く                                                |
+| `置き場所の GitHub の操作（…）に失敗しました: …（HTTP 403）`       | `gh` の権限が足りない・Issues が無効のリポジトリ       | `gh auth login`。fork の Settings で Issues を有効にする                                  |
+| `計画を読むリモート origin がこのリポジトリにありません…`          | clone ではなく `git init` したリポジトリなど           | `git remote add origin <URL>` か、`config.yaml` の `store.remote` を直す                  |
 | `GitHub: 使えません（gh の終了コード 4 で失敗した）`               | `gh` にログインしていない                              | `gh auth login`                                                                           |
 | `GitHub: 使えません（gh の終了コード 1 で失敗した）`               | `github.repository` が存在しない・見られないリポジトリ | fork の `<you>/ai-board` に書き換える。`gh repo view <you>/ai-board` で見られるか確かめる |
 | `…/config.yaml の内容が不正です: …`                                | `config.yaml` の書き方の誤り（例: `repository: null`） | 連携しないなら `github:` の節ごと消す。値は `'owner/repo'` の文字列で書く                 |
@@ -184,12 +186,10 @@ CLI は失敗すると、次にすることを 1 行で出す。下の表の「�
 | アイデアを入れたのに `status` が変わらない                         | 人向けの `status` はアイデアを出さない（仕様）         | `card list` か「ボードを見せて」で確かめる                                                |
 | ページが古いまま・アイデアが 0 件のまま                            | ページは頼んだ時点の写し                               | 「ボードを見せて」と頼み直す                                                              |
 
-fork の `main` を汚さずに試したいときは、試しの置き場所（手元の bare のリポジトリ）を `AI_BOARD_STORE` で指す。本物の置き場所には届かない。
+fork の Issue を汚さずに試したいときは、試しの置き場所（手元の空のディレクトリ）を `AI_BOARD_STORE` で指す。GitHub には何も書かれない。
 
 ```bash
-STORE="$(mktemp -d)/store.git"
-git init --quiet --bare --initial-branch=main "$STORE"
-export AI_BOARD_STORE="$STORE"
+export AI_BOARD_STORE="$(mktemp -d)/store"
 node dist/cli.js store init
 node dist/cli.js store seed
 node dist/cli.js status && node dist/cli.js card list

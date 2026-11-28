@@ -141,7 +141,7 @@ AI 作業中 (0)
 node dist/cli.js store seed   # 既定は .ai-board/seed/。既にある ID は飛ばす
 ```
 
-起票したカードは、`.ai-board/seed/order.txt` の順（書いていない題材はその後にファイル名の順）でアイデアの列の末尾に付く。起票は `main` へのコミットとして push される。
+起票したカードは、`.ai-board/seed/order.txt` の順（書いていない題材はその後にファイル名の順）でアイデアの列の末尾に付く。起票は、`github.repository` の Issue として書かれる（git には何も書かない）。起票した後は、seed のファイルを変えてもカードは変わらない（Issue が正本）。
 ターミナルの `status` はアイデアを出さないので（カードを入れても出力は変わらない）、入ったことは `node dist/cli.js card list`（10 件）か「ボードを見せて」で確かめる。
 研修の題材を増やすときは、`.ai-board/seed/` に `<id>.md`（frontmatter に `id` と `title`、本文は自由）を足し、並べたい位置に合わせて `order.txt` に ID を書く。
 
