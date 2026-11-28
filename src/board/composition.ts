@@ -7,7 +7,7 @@ import { PrFetcher, type PrFetcherOptions } from '../infrastructure/pr-fetcher.j
 import type { ForgeClient } from './services/forge-client.js';
 import { GhForgeClient } from './services/github-client.js';
 import { RefPlanRepository, type PlanRepository } from './repositories/plan.repository.js';
-import { readPlanFilesAtCommit } from '../infrastructure/git-plan-tree.js';
+import { readPlanFilesAtCommit, resolvePlanCommit } from '../infrastructure/git-plan-tree.js';
 import type { PrSnapshotRepository } from './repositories/pr-snapshot.repository.js';
 import type { PrState } from './models/pr-state.js';
 import {
@@ -173,7 +173,7 @@ export interface AssembledBoard {
 
 /**
  * `status` と `decide` が使うボードの組み立て。置き場所は呼び出し側が読み込んでおく（`check`）。
- * main の計画は、読み込んだ置き場所の先頭のコミット（`headCommit()`）から読む。
+ * main の計画は、コードの `store.planBranch` の先頭のコミットから読む（置き場所が同じブランチなら置き場所の先頭、`resolvePlanCommit`）。
  *
  * PR の状態は`refresh()` を 1 回だけ待ってから読む。
  * `branch` から解決した PR 番号の書き戻しも、この `refresh()` の中で起きる。
@@ -200,9 +200,16 @@ export async function assembleBoard(
     config.paths.root,
     config.store.branchRemote
   );
-  // main の計画は、check() が fetch した置き場所の先頭のコミットから読む（作業ツリーは読まない）
+  // main の計画は、コードの main の先頭のコミットから読む（作業ツリーは読まない）。
+  // 置き場所がコードの main と同じブランチなら、check() が fetch した置き場所の先頭を使う
+  const planCommit = await resolvePlanCommit({
+    runner,
+    repoDir: config.paths.repoDir,
+    store: config.store,
+    storeHead: store.headCommit(),
+  });
   const mainPlans = new RefPlanRepository(() =>
-    readPlanFilesAtCommit({ runner, repoDir: config.paths.repoDir, commit: store.headCommit() })
+    readPlanFilesAtCommit({ runner, repoDir: config.paths.repoDir, commit: planCommit })
   );
   const board = createBoardDependencies(
     mainPlans,

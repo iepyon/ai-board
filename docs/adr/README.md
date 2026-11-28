@@ -30,3 +30,4 @@ ai-board の**今も効いている**設計判断を、なぜそう決めたか�
 | 19   | [ボードを見るページは、スキルのひな形に `status --json --active` を流し込んで HTML のファイルに書き出す](0019-board-view-artifact.md) | 2026-11-07 |
 | 20   | （欠番。Artifact の DB の置き場所の判断は 21 にまとめた）                                                                             | —          |
 | 21   | [カードの置き場所を git の main の Markdown にし、計画をカードのディレクトリに置く](0021-cards-as-markdown-on-main.md)                | 2026-11-22 |
+| 22   | [カードのデータを、コードの main と履歴が交わらない専用ブランチに置く](0022-data-branch-separate-from-code.md)                        | 2026-11-28 |

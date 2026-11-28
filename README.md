@@ -76,7 +76,7 @@ npm run build
 
 git に載っている `.ai-board/config.yaml` の `github.repository` を、自分の fork に書き換えて main に入れる。
 PR を問い合わせる先になる。
-カードの置き場所は `store.remote` / `store.branch`（既定は `origin` の `main`）で、ふつうは書き換えない。
+カードの置き場所は `store.remote` / `store.branch`（既定は `origin` の `ai-board-data`。コードの `main` とは履歴が交わらない専用のブランチ）で、ふつうは書き換えない。
 
 > .ai-board/config.yaml の repository を <you>/ai-board にして、main にコミットして
 
@@ -91,20 +91,21 @@ Claude の許可ルールは Bash からの `main` への push を止めてい�
 
 ### カードの置き場所を作る
 
-カードは `main` の `.ai-board/` にファイルで置く（`board.yaml`・`order.yaml`・`cards/<id>/card.md`・`cards/<id>/log/`）。
-CLI は読むたびに `origin` の `main` を fetch し、書き込みはそのコミットとして push する。メインのチェックアウトの作業ツリーには触らないので、別のブランチで作業中でもよい。
+カードは専用ブランチ（`ai-board-data`）の `.ai-board/` にファイルで置く（`board.yaml`・`order.yaml`・`cards/<id>/card.md`・`cards/<id>/log/`）。
+CLI は読むたびに `origin` の `ai-board-data` を fetch し、書き込みはそのコミットとして push する。メインのチェックアウトの作業ツリーには触らないので、別のブランチで作業中でもよい。
 人も Claude も、これらのファイルを手で書き換えない。読み書きは `ai-board card` / `decide` で行う。
 しくみと、なぜこう置くのかは [リファレンス](docs/reference.md#カード) と [ADR 0021](docs/adr/0021-cards-as-markdown-on-main.md) にある。
 
 > 置き場所を用意して
 
 ```bash
-node dist/cli.js store init   # .ai-board/board.yaml と order.yaml を main に push する
+node dist/cli.js store init   # 専用ブランチ ai-board-data を作り、.ai-board/board.yaml と order.yaml を push する
 ```
 
 用意はカードの無いボードで終わる。カードは次の「2. カードを入れる」で入れる。
-置き場所の書き込みは `origin` の `main` にコミットとして積まれるだけで、手元の `main` は自動では進まない。
-手元の `main` を追いつかせるときは `git pull` を打つ。`git pull` で `src/` が新しくなったら `npm run build` も走らせる（CLI は `dist/` が古いと止まる）。
+置き場所の書き込みは `origin` の `ai-board-data` にコミットとして積まれるだけで、手元のブランチには現れない。コードの `main` を更新するのは機能修正の PR だけになる。
+上流のコードに追いつくときは `git pull`（上流の `main` を取り込む）を打つ。`src/` が新しくなったら `npm run build` も走らせる（CLI は `dist/` が古いと止まる）。
+マージ済みの計画は、コードの `main`（`store.planBranch`、既定 `main`）から読む。
 
 ### つながったかを確かめる
 

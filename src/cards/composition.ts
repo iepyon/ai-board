@@ -10,6 +10,7 @@ import {
 } from '../infrastructure/document-store.js';
 import { GitDocumentStore } from '../infrastructure/git-document-store.js';
 import { changedStoreFiles, type BranchCheckError } from '../infrastructure/git-branch-check.js';
+import { resolvePlanCommit } from '../infrastructure/git-plan-tree.js';
 import { cardFileCodec, isStoreFilePath } from './repositories/card-file-codec.js';
 import {
   EMPTY_ORDER,
@@ -212,10 +213,20 @@ export function createStoreCliParts(config: AppConfig, store: GitDocumentStore):
     checkBranch: async (branch) => {
       const checked = await store.check();
       if (isErr(checked)) return checked;
-      return changedStoreFiles({
-        runner: createStoreRunner(),
+      const runner = createStoreRunner();
+      // カードのブランチはコードの main から切るので、比べる先はコードの main。
+      // 置き場所が専用のブランチだと共通の祖先が無く、merge-base を取れない
+      const base = await resolvePlanCommit({
+        runner,
         repoDir: config.paths.repoDir,
+        store: config.store,
         storeHead: store.headCommit(),
+      });
+      // 置き場所の先頭とコードの main のどちらが無くても、検査はせず「置き場所が無い」で止める
+      return changedStoreFiles({
+        runner,
+        repoDir: config.paths.repoDir,
+        storeHead: base,
         branch,
         isStoreFile: isStoreFilePath,
       });

@@ -18,9 +18,11 @@ export const LOCAL_DIR = 'local';
  * 共有のカードを汚さずに試すときに使う。手元のファイルもそのパスの隣の `<パス>.local/` に置く
  */
 export const STORE_ENV = 'AI_BOARD_STORE';
-/** 置き場所のリモートとブランチの既定 */
+/** 置き場所のリモートとブランチの既定。カードのデータは、コードの変更と履歴が交わらない専用のブランチに置く */
 export const DEFAULT_STORE_REMOTE = 'origin';
-export const DEFAULT_STORE_BRANCH = 'main';
+export const DEFAULT_STORE_BRANCH = 'ai-board-data';
+/** マージ済みの計画（`.ai-board/cards/<id>/plan.md`）を読む、コードのリポジトリのブランチの既定 */
+export const DEFAULT_PLAN_BRANCH = 'main';
 
 /** GitHub は API パスが owner/repo 固定なので数値 id を受ける意味が無い */
 const GitHubConfigSchema = z.object({
@@ -38,12 +40,13 @@ const GitValueSchema = (name: string) =>
  * ブランチの名前（`git check-ref-format --branch` の主な決まり）。fetch の refspec（`+refs/heads/<branch>:…`）に埋め込むので、
  * `:`・`..`・`~^?*[\\`・空白・制御文字を含むもの、`-`・`/` で始まるもの、`/`・`.`・`.lock` で終わるもの、`@{` を含むものを拒む
  */
-const BranchNameSchema = z
-  .string()
-  .min(1)
-  .refine((name) => isValidBranchName(name), {
-    message: 'store.branch は git のブランチの名前にする（: や .. や空白を含めない）',
-  });
+const BranchNameSchema = (name: string) =>
+  z
+    .string()
+    .min(1)
+    .refine((value) => isValidBranchName(value), {
+      message: `${name} は git のブランチの名前にする（: や .. や空白を含めない）`,
+    });
 
 /** ブランチの名前に使えない文字（空白・制御文字・`:~^?*[\\`） */
 const FORBIDDEN_BRANCH_CHARS = /[\s:~^?*[\\]/;
@@ -68,7 +71,9 @@ function hasControlChar(text: string): boolean {
 /** 置き場所。git のリポジトリの 1 つのブランチの `.ai-board/` */
 const StoreConfigSchema = z.object({
   remote: GitValueSchema('store.remote').nullable().optional(),
-  branch: BranchNameSchema.nullable().optional(),
+  branch: BranchNameSchema('store.branch').nullable().optional(),
+  /** マージ済みの計画を読む、コードのリポジトリのブランチ。置き場所と別のブランチのときだけ効く */
+  planBranch: BranchNameSchema('store.planBranch').nullable().optional(),
 });
 
 const ConfigFileSchema = z.object({
@@ -117,6 +122,11 @@ export interface StoreConfig {
   /** リモートの名前か、リポジトリのパス・URL（`AI_BOARD_STORE` を指せばそのパス） */
   readonly remote: string;
   readonly branch: string;
+  /**
+   * マージ済みの計画を読む、コードのリポジトリのブランチ（`store.planBranch`、既定 `main`）。
+   * 置き場所と同じリモート・同じブランチなら、置き場所の先頭から読む（`plansLiveInStore`）
+   */
+  readonly planBranch: string;
   /**
    * カードのブランチを追う、コードのリポジトリのリモートの名前（`store.remote`、既定 `origin`）。
    * `AI_BOARD_STORE` で置き場所を差し替えても、カードのブランチはこのリモートにある
@@ -171,7 +181,7 @@ function resolveSharedBoardDir(root: string, boardDir: string): string {
  * 設定を読み込む。
  *
  * config.yaml は git に載せた `.ai-board/config.yaml`（`boardDir`）から読む。clone した時点で揃い、
- * fork では `github.repository` を書き換える。置き場所は書かなければ `origin` の `main`。
+ * fork では `github.repository` を書き換える。置き場所は書かなければ `origin` の `ai-board-data`。
  *
  * 設定ファイルが無い、取得先のセクションが無いのいずれの場合も
  * 連携は無効になるだけでエラーにはしない。
@@ -195,12 +205,29 @@ export function loadConfig(root: string, env: NodeJS.ProcessEnv = process.env): 
   return {
     paths,
     forge: toForgeConfig(parsed.data),
-    store: {
-      remote: paths.storeOverride ?? parsed.data.store?.remote ?? DEFAULT_STORE_REMOTE,
-      branch: parsed.data.store?.branch ?? DEFAULT_STORE_BRANCH,
-      branchRemote: branchRemoteOf(parsed.data.store?.remote),
-    },
+    store: toStoreConfig(paths, parsed.data.store),
   };
+}
+
+function toStoreConfig(
+  paths: BoardPaths,
+  store: z.infer<typeof StoreConfigSchema> | undefined
+): StoreConfig {
+  return {
+    remote: paths.storeOverride ?? store?.remote ?? DEFAULT_STORE_REMOTE,
+    branch: store?.branch ?? DEFAULT_STORE_BRANCH,
+    planBranch: store?.planBranch ?? DEFAULT_PLAN_BRANCH,
+    branchRemote: branchRemoteOf(store?.remote),
+  };
+}
+
+/**
+ * マージ済みの計画が置き場所のブランチの中にあるか。
+ * 置き場所がコードと同じリモートの同じブランチ（カードをコードの `main` に同居させる形）のときだけ真。
+ * 偽のときは、コードのリポジトリの `planBranch` から読む（`git-plan-tree.ts` の `resolvePlanCommit`）
+ */
+export function plansLiveInStore(store: StoreConfig): boolean {
+  return store.remote === store.branchRemote && store.branch === store.planBranch;
 }
 
 /**

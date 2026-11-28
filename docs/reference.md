@@ -101,7 +101,7 @@ frontmatter の `skipGates` に `plan` を入れると、AI の 提出 / 再提�
 
 ## カード
 
-カードの正本は、置き場所のブランチ（既定は `origin` の `main`。`.ai-board/config.yaml` の `store.remote` / `store.branch`）の `.ai-board/` のファイルにある（[ADR 0021](adr/0021-cards-as-markdown-on-main.md)）。
+カードの正本は、置き場所のブランチ（既定は `origin` の `ai-board-data`。`.ai-board/config.yaml` の `store.remote` / `store.branch`。マージ済みの計画だけはコードの `store.planBranch`（既定 `main`）から読む）の `.ai-board/` のファイルにある（[ADR 0021](adr/0021-cards-as-markdown-on-main.md)）。
 
 ```
 .ai-board/board.yaml                              形の版
@@ -239,7 +239,7 @@ git merge --no-ff <branch> && git push           # マージして置き場所�
 
 ## GitHub との接続
 
-設定は git に載せた `.ai-board/config.yaml`（`github.repository` と `store`）から読む。fork したら `github.repository` を自分のものに書き換える。カードの置き場所は既定で `origin` の `main` なので、fork の中に作られる。
+設定は git に載せた `.ai-board/config.yaml`（`github.repository` と `store`）から読む。fork したら `github.repository` を自分のものに書き換える。カードの置き場所は既定で `origin` の `ai-board-data`（専用の孤立ブランチ）なので、fork の中に作られ、コードの `main` とは履歴が交わらない。
 アクセストークンは受け取らず、問い合わせは `gh api` で行う（認証は `gh auth login` に委ねる）。
 使えないときは連携が無効になり、理由が `status` の「GitHub:」の行に出る。使えないあいだも、マージ済みの PR は手元の控えで出る（リンクと Ready・マージの時刻、区間の時間）。マージ前の PR は出さず、次の一手と判断も止まる。問い合わせるのは `branch` か `pr` のあるカードだけで、中止のカードの PR は一度控えを取った後は引き直さない。
 

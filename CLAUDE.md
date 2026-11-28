@@ -38,7 +38,7 @@ npm run typecheck && npm run lint && npm run format:check && npm test
 
 ## タスクはボードの置き場所（git の main の Markdown）にある
 
-**このリポジトリ自身のバックログはボードのカードとして、置き場所のブランチ（既定は `origin` の `main`）の `.ai-board/` にある**
+**このリポジトリ自身のバックログはボードのカードとして、置き場所のブランチ（既定は `origin` の `ai-board-data`。コードの `main` とは履歴が交わらない専用ブランチ）の `.ai-board/` にある**
 （`board.yaml`・`order.yaml`・`cards/<id>/card.md`・`cards/<id>/log/`。ADR 0021）。何に着手するかはまずここを見る。
 CLI は読むたびに置き場所を専用の参照（`refs/ai-board/store`）へ fetch して読み、書き込みはその上のコミットとして自分で push する。メインのチェックアウトの作業ツリーには触らない。
 PR の控えとループの記録は各 PC の `.ai-board/local/`（git に載せない）に置き、共有しない。

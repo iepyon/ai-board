@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { loadConfig, resolvePaths } from '../config.js';
+import { loadConfig, plansLiveInStore, resolvePaths } from '../config.js';
 
 let root: string;
 
@@ -196,9 +196,28 @@ describe('store', () => {
 
     expect(loadConfig(root, {}).store).toEqual({
       remote: 'origin',
-      branch: 'main',
+      branch: 'ai-board-data',
+      planBranch: 'main',
       branchRemote: 'origin',
     });
+  });
+
+  it('store.planBranch を読む。置き場所が同じリモートの同じブランチのときだけ、計画は置き場所から読む', async () => {
+    await writeConfig(`${githubYaml}store:\n  branch: main\n`);
+    const same = loadConfig(root, {}).store;
+    expect(same.planBranch).toBe('main');
+    expect(plansLiveInStore(same)).toBe(true);
+
+    await writeConfig(`${githubYaml}store:\n  planBranch: trunk\n`);
+    const split = loadConfig(root, {}).store;
+    expect(split.planBranch).toBe('trunk');
+    expect(plansLiveInStore(split)).toBe(false);
+    expect(plansLiveInStore(loadConfig(root, { AI_BOARD_STORE: '/tmp/x.git' }).store)).toBe(false);
+  });
+
+  it('store.planBranch に git のブランチの名前でない値を書けばエラーにする', async () => {
+    await writeConfig('store:\n  planBranch: "a b"\n');
+    expect(() => loadConfig(root, {})).toThrow('store.planBranch');
   });
 
   it('store.remote と store.branch を読む', async () => {
@@ -207,6 +226,7 @@ describe('store', () => {
     expect(loadConfig(root, {}).store).toEqual({
       remote: 'upstream',
       branch: 'board',
+      planBranch: 'main',
       branchRemote: 'upstream',
     });
   });
@@ -216,7 +236,8 @@ describe('store', () => {
 
     expect(loadConfig(root, { AI_BOARD_STORE: '/tmp/x.git' }).store).toEqual({
       remote: '/tmp/x.git',
-      branch: 'main',
+      branch: 'ai-board-data',
+      planBranch: 'main',
       branchRemote: 'upstream',
     });
   });

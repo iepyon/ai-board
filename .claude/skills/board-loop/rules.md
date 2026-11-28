@@ -22,7 +22,7 @@
 ## カードの読み書き
 
 カードは `node "$MAIN/dist/cli.js" card ... --root "$MAIN"` で読み書きする（各定義では `ai-board card ...` と書く）。
-カードの正本は git の置き場所のブランチ（既定は `origin` の `main`）の `.ai-board/` のファイル（`board.yaml`・`order.yaml`・`cards/<id>/card.md`・`cards/<id>/log/`）にある。
+カードの正本は git の置き場所のブランチ（既定は `origin` の `ai-board-data`）の `.ai-board/` のファイル（`board.yaml`・`order.yaml`・`cards/<id>/card.md`・`cards/<id>/log/`）にある。
 CLI は読むたびに fetch し、書き込みはそのブランチへのコミットとして自分で push する（メインのチェックアウトの作業ツリーには触らない）。
 置き場所のファイルをエディタや `git` で直接書き換えない。カードのブランチでも変えない（push の前に `ai-board store check-branch <branch>` で確かめる）。
 main へのコミットは `ai-board` の CLI の書き込みだけが作る。Bash から main へ push しない。

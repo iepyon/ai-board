@@ -51,7 +51,7 @@ Ready にしたカードは PR中 の列に移り、人が PR をマージする
 ## 1. ボードを読む
 
 メインのチェックアウト（以下 `$MAIN`）で `status` を読む。`dist/` が古ければ先にビルドする。
-カードの置き場所は git の置き場所のブランチ（既定は `origin` の `main`）の `.ai-board/` にあり、CLI は読むたびに fetch して最新を読む。取り込み・送り出しの段は無い。
+カードの置き場所は git の置き場所のブランチ（既定は `origin` の `ai-board-data`）の `.ai-board/` にあり、CLI は読むたびに fetch して最新を読む。取り込み・送り出しの段は無い。
 `status --json` は全カードの全項目を出すので、`--only next,waiting,forge,loop` で要る項目だけを出して読む。
 
 ```bash

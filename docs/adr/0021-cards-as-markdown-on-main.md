@@ -1,6 +1,6 @@
 # 21. カードの置き場所を git の main の Markdown にし、計画をカードのディレクトリに置く
 
-- 状態: 採用
+- 状態: 採用（置き場所の既定は [ADR 0022](0022-data-branch-separate-from-code.md) で `ai-board-data` に変えた）
 - 日付: 2026-11-22
 
 ## 背景

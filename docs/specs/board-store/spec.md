@@ -8,8 +8,10 @@
 
 ### Requirement: 正本の置き場所
 
-システムは カード・判断・並び順の正本を、設定で指す git のリポジトリの 1 つのブランチ（既定は `origin` の `main`）の `.ai-board/` の下に、ファイル（`board.yaml`・`order.yaml`・`cards/<id>/card.md`・`cards/<id>/log/`）として置かなければならない (MUST)。
-リモートとブランチは `main` の `.ai-board/config.yaml` の `store.remote` と `store.branch` で指し、書かなければ `origin` と `main` を使わなければならない (MUST)。
+システムは カード・判断・並び順の正本を、設定で指す git のリポジトリの 1 つのブランチ（既定は `origin` の `ai-board-data`）の `.ai-board/` の下に、ファイル（`board.yaml`・`order.yaml`・`cards/<id>/card.md`・`cards/<id>/log/`）として置かなければならない (MUST)。
+リモートとブランチは `main` の `.ai-board/config.yaml` の `store.remote` と `store.branch` で指し、書かなければ `origin` と `ai-board-data` を使わなければならない (MUST)。
+マージ済みの計画は、置き場所が `store.planBranch`（既定 `main`）と同じリモートの同じブランチのときは置き場所の先頭から、そうでなければコードのリポジトリの `store.planBranch` の先頭から読まなければならない (MUST)。
+`ai-board store check-branch` は、置き場所のファイルの変更を、カードのブランチと `store.planBranch` の分岐点からの差分で見なければならない (MUST)（置き場所が専用ブランチのときは共通の祖先が無いため）。
 `AI_BOARD_STORE` があれば、そのパスの git リポジトリを置き場所のリモートとして使わなければならない (MUST)。
 リポジトリ（カード・区切り線・PR の控え・ループの記録）は、置き場所の口（`DocumentStore`）だけを通して読み書きしなければならない (MUST)。
 
@@ -47,7 +49,7 @@
 
 ### Requirement: 書き込みは置き場所のブランチへのコミットとして push する
 
-システムは CLI の書き込みを、`git fetch` で取った置き場所のブランチ（既定は `origin` の `main`）の先頭の上に、置き場所のファイルだけを変えるコミットを 1 つ作り、push しなければならない (MUST)。
+システムは CLI の書き込みを、`git fetch` で取った置き場所のブランチ（既定は `origin` の `ai-board-data`）の先頭の上に、置き場所のファイルだけを変えるコミットを 1 つ作り、push しなければならない (MUST)。
 メインのチェックアウトの作業ツリー・index・今のブランチを変えては SHALL NOT。
 push が先を越されて拒まれたら、取り直した先頭の上で書く前の検査からやり直さなければならない (MUST)。3 回やり直しても通らなければ、書かずに 0 以外で終わらなければならない (MUST)。
 push が通らず、取り直した先頭が動いていなければ（権限が無い・保護されている・届かない）、やり直さずに push の失敗を伝えて 0 以外で終わらなければならない (MUST)。

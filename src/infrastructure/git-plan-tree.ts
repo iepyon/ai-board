@@ -1,6 +1,6 @@
 import { err, isErr, ok, type Result } from '../shared/result.js';
-import type { CliRunner } from './cli-runner.js';
-import { BOARD_DIR } from './config.js';
+import { describeCliError, type CliRunner } from './cli-runner.js';
+import { BOARD_DIR, plansLiveInStore, type StoreConfig } from './config.js';
 import { gitIn, readBlobs } from './git-objects.js';
 
 // ============================================================
@@ -14,6 +14,47 @@ export interface PlanFileAtCommit {
   readonly content: string;
   /** そのコミットまでで、このファイルを最後に変えたコミットの時刻（ISO 8601） */
   readonly committedAt: string;
+}
+
+/** コードのリポジトリの `planBranch` の先頭を取る専用の参照。ブランチの切り替えやほかの fetch と取り合わない */
+export const PLAN_REF = 'refs/ai-board/plan-main';
+
+/**
+ * マージ済みの計画を読むコミットを決める。
+ *
+ * - 置き場所がコードと同じブランチなら、`check()` で取った置き場所の先頭（`storeHead`）
+ * - 置き場所が専用のブランチなら、コードのリポジトリ（`store.branchRemote`）の `planBranch` の先頭を fetch して取る
+ *
+ * fetch や読み取りが失敗しても例外は投げず、警告して null（計画が無いものとして扱う）を返す。
+ * 1 回の失敗でボード全体を読めなくしないため。
+ */
+export async function resolvePlanCommit(options: {
+  readonly runner: CliRunner;
+  readonly repoDir: string;
+  readonly store: StoreConfig;
+  readonly storeHead: string | null;
+}): Promise<string | null> {
+  if (plansLiveInStore(options.store)) return options.storeHead;
+  const git = gitIn(options.runner, options.repoDir);
+  const { branchRemote, planBranch } = options.store;
+  const fetched = await git([
+    'fetch',
+    '--quiet',
+    '--no-tags',
+    '--no-write-fetch-head',
+    branchRemote,
+    `+refs/heads/${planBranch}:${PLAN_REF}`,
+  ]);
+  const head = isErr(fetched)
+    ? fetched
+    : await git(['rev-parse', '--verify', `${PLAN_REF}^{commit}`]);
+  if (isErr(head)) {
+    console.warn(
+      `[ai-board] ${branchRemote} の ${planBranch} を取れないため、マージ済みの計画を読み飛ばします: ${describeCliError(head.error)}`
+    );
+    return null;
+  }
+  return head.value.trim();
 }
 
 /** カードのディレクトリ（`.ai-board/cards`）。カードの置き場所のファイルと計画がここに並ぶ */

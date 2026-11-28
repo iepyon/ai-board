@@ -11,4 +11,4 @@ github:
 # 始め方は ai-board store init → ai-board store seed。
 store:
   remote: origin
-  branch: main
+  branch: ai-board-data

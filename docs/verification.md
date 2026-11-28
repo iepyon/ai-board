@@ -48,7 +48,7 @@ fork してビルドし、置き場所を始めれば準備は終わる。
 
 3. `.ai-board/config.yaml` の `github.repository` を `<you>/ai-board` にして、main にコミットして push する。PR を問い合わせる先になる
    - チャットなら「.ai-board/config.yaml の repository を <you>/ai-board にして、main にコミットして」。Claude の許可ルールは Bash からの `main` への push を止めているので、`git push origin main` は自分の端末で打つ
-   - カードの置き場所（`store.remote` / `store.branch`）は既定の `origin` の `main` のままにする
+   - カードの置き場所（`store.remote` / `store.branch`）は既定の `origin` の `ai-board-data` のままにする
 4. 置き場所を始める（チャットなら「置き場所を用意して」）
 
    ```bash
@@ -60,7 +60,7 @@ fork してビルドし、置き場所を始めれば準備は終わる。
 用意はカードが 0 枚のボードで終わる。アイデアは後の節で入れる。
 
 カードは `main` の `.ai-board/`（`board.yaml`・`order.yaml`・`cards/<id>/card.md`・`cards/<id>/log/`）にファイルで置く。
-CLI は読むたびに `origin` の `main` を fetch し、書き込みはそのコミットとして push する。これらのファイルを手で触らないでほしい。
+CLI は読むたびに `origin` の `ai-board-data` を fetch し、書き込みはそのコミットとして push する。これらのファイルを手で触らないでほしい。
 手元の `main` は `git pull` すれば追いつく。
 
 ## 空のボードを表示する
