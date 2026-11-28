@@ -74,12 +74,15 @@ npm run build
 
 ### 接続先を書く
 
-git に載っている `.ai-board/config.yaml` の `github.repository` を、自分の fork に書き換えて main に入れる。
-PR を問い合わせる先になる。
+git に載っている `.ai-board/config.yaml` の `github.repository` を、自分の fork に書き換える。
+PR を問い合わせる先と、カードの Issue を置く先になる。CLI は手元のこのファイルを読むので、書き換えて保存すればすぐ効く。
 カードは、この `github.repository` の Issue に置く（ラベル `ai-board`）。`gh` にログイン済みで、そのリポジトリの Issue を読み書きできることが要る。
 マージ済みの計画を読む場所は `store.remote` / `store.branch`（既定は `origin` の `main`）で、ふつうは書き換えない。
 
-> .ai-board/config.yaml の repository を <you>/ai-board にして、main にコミットして
+> .ai-board/config.yaml の repository を <you>/ai-board に書き換えて
+
+この書き換えを `main` に入れるのは、別の PC で clone し直すとき、またはあとで AI のループ（計画・実装の手）を回すときでよい（ループが切るカードのブランチは `main` から出るため）。
+そのときは次を打つ。
 
 ```bash
 git add .ai-board/config.yaml

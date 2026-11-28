@@ -46,8 +46,10 @@ fork してビルドし、置き場所を始めれば準備は終わる。
    npm run build
    ```
 
-3. `.ai-board/config.yaml` の `github.repository` を `<you>/ai-board` にして、main にコミットして push する。PR を問い合わせる先と、カードの Issue を置く先になる
-   - チャットなら「.ai-board/config.yaml の repository を <you>/ai-board にして、main にコミットして」。Claude の許可ルールは Bash からの `main` への push を止めているので、`git push origin main` は自分の端末で打つ
+3. `.ai-board/config.yaml` の `github.repository` を `<you>/ai-board` に書き換えて保存する。PR を問い合わせる先と、カードの Issue を置く先になる
+   - CLI は手元のこのファイルを読むので、この文書の範囲（ボードを表示するところまで）では、コミットも push も要らない
+   - チャットなら「.ai-board/config.yaml の repository を <you>/ai-board に書き換えて」
+   - 別の PC で clone し直すとき、またはあとで AI のループを回すときは、`main` にコミットして push する。Claude の許可ルールは Bash からの `main` への push を止めているので、`git push origin main` は自分の端末で打つ
    - マージ済みの計画を読む場所（`store.remote` / `store.branch`）は既定の `origin` の `main` のままにする
 4. 置き場所を始める（チャットなら「置き場所を用意して」）
 
@@ -170,21 +172,22 @@ Issue のタイトルを直すと、カードのタイトルも変わる。
 
 CLI は失敗すると、次にすることを 1 行で出す。下の表の「症状」は実際に出る文面である（パスなどは環境で変わる）。
 
-| 症状（出る文面）                                                   | 原因                                                   | 対処                                                                                      |
-| ------------------------------------------------------------------ | ------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `npm ci` で `EBADENGINE` の警告                                    | Node が 24 より古い                                    | Node 24 以上を入れて `npm ci` からやり直す                                                |
-| `…/dist/cli.js は HEAD のコミットより古い。ビルドし直してください` | `git pull` の後にビルドしていない                      | `npm run build`                                                                           |
-| `置き場所が空です（ai-board の置き場所の Issue がありません）…`    | `store init` を走らせていない                          | `node dist/cli.js store init`                                                             |
-| `置き場所の Issue を引くリポジトリが分かりません…`                 | `config.yaml` に `github.repository` が無い            | `github.repository: <you>/ai-board` を書く                                                |
-| `置き場所の GitHub の操作（…）に失敗しました: …（HTTP 403）`       | `gh` の権限が足りない・Issues が無効のリポジトリ       | `gh auth login`。fork の Settings で Issues を有効にする                                  |
-| `計画を読むリモート origin がこのリポジトリにありません…`          | clone ではなく `git init` したリポジトリなど           | `git remote add origin <URL>` か、`config.yaml` の `store.remote` を直す                  |
-| `GitHub: 使えません（gh の終了コード 4 で失敗した）`               | `gh` にログインしていない                              | `gh auth login`                                                                           |
-| `GitHub: 使えません（gh の終了コード 1 で失敗した）`               | `github.repository` が存在しない・見られないリポジトリ | fork の `<you>/ai-board` に書き換える。`gh repo view <you>/ai-board` で見られるか確かめる |
-| `…/config.yaml の内容が不正です: …`                                | `config.yaml` の書き方の誤り（例: `repository: null`） | 連携しないなら `github:` の節ごと消す。値は `'owner/repo'` の文字列で書く                 |
-| `ほかの ai-board が置き場所に書いています（…）`                    | 別の CLI が同時に書いている                            | 少し待ってやり直す                                                                        |
-| `置き場所の形の版（…）が、この CLI の版（…）と違うため読みません`  | 手元の CLI が古い                                      | `git pull` して `npm run build`                                                           |
-| アイデアを入れたのに `status` が変わらない                         | 人向けの `status` はアイデアを出さない（仕様）         | `card list` か「ボードを見せて」で確かめる                                                |
-| ページが古いまま・アイデアが 0 件のまま                            | ページは頼んだ時点の写し                               | 「ボードを見せて」と頼み直す                                                              |
+| 症状（出る文面）                                                                                    | 原因                                                   | 対処                                                                                      |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `npm ci` で `EBADENGINE` の警告                                                                     | Node が 24 より古い                                    | Node 24 以上を入れて `npm ci` からやり直す                                                |
+| `…/dist/cli.js は HEAD のコミットより古い。ビルドし直してください`                                  | `git pull` の後にビルドしていない                      | `npm run build`                                                                           |
+| `置き場所が空です（ai-board の置き場所の Issue がありません）…`                                     | `store init` を走らせていない                          | `node dist/cli.js store init`                                                             |
+| `置き場所の Issue を引くリポジトリが分かりません…`                                                  | `config.yaml` に `github.repository` が無い            | `github.repository: <you>/ai-board` を書く                                                |
+| `置き場所の GitHub の操作（POST issues）に失敗しました: Issues が無効のリポジトリです…（HTTP 410）` | fork は Issues が無効が既定                            | fork の Settings → General → Features で Issues にチェックを入れ、`store init` をやり直す |
+| `置き場所の GitHub の操作（…）に失敗しました: …（HTTP 403）`                                        | `gh` の権限が足りない（Issue を書けない）              | `gh auth login`（`repo` の権限）。fork の所有者か、書き込み権限のあるアカウントで入る     |
+| `計画を読むリモート origin がこのリポジトリにありません…`                                           | clone ではなく `git init` したリポジトリなど           | `git remote add origin <URL>` か、`config.yaml` の `store.remote` を直す                  |
+| `GitHub: 使えません（gh の終了コード 4 で失敗した）`                                                | `gh` にログインしていない                              | `gh auth login`                                                                           |
+| `GitHub: 使えません（gh の終了コード 1 で失敗した）`                                                | `github.repository` が存在しない・見られないリポジトリ | fork の `<you>/ai-board` に書き換える。`gh repo view <you>/ai-board` で見られるか確かめる |
+| `…/config.yaml の内容が不正です: …`                                                                 | `config.yaml` の書き方の誤り（例: `repository: null`） | 連携しないなら `github:` の節ごと消す。値は `'owner/repo'` の文字列で書く                 |
+| `ほかの ai-board が置き場所に書いています（…）`                                                     | 別の CLI が同時に書いている                            | 少し待ってやり直す                                                                        |
+| `置き場所の形の版（…）が、この CLI の版（…）と違うため読みません`                                   | 手元の CLI が古い                                      | `git pull` して `npm run build`                                                           |
+| アイデアを入れたのに `status` が変わらない                                                          | 人向けの `status` はアイデアを出さない（仕様）         | `card list` か「ボードを見せて」で確かめる                                                |
+| ページが古いまま・アイデアが 0 件のまま                                                             | ページは頼んだ時点の写し                               | 「ボードを見せて」と頼み直す                                                              |
 
 fork の Issue を汚さずに試したいときは、試しの置き場所（手元の空のディレクトリ）を `AI_BOARD_STORE` で指す。GitHub には何も書かれない。
 

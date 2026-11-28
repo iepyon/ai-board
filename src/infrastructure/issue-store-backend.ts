@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import { err, isErr, ok, type Result } from '../shared/result.js';
 import { CardIdSchema } from '../shared/schemas/common.js';
-import { describeCliErrorWithStatus, parseJson, type CliRunner } from './cli-runner.js';
+import {
+  describeCliErrorWithStatus,
+  parseJson,
+  type CliError,
+  type CliRunner,
+} from './cli-runner.js';
 import { isValidDocumentId, type DocumentData, type StoreError } from './document-store.js';
 import {
   BackedDocumentStore,
@@ -426,7 +431,7 @@ export class IssueStoreBackend implements StoreBackend {
             input: JSON.stringify(body),
           });
     if (isErr(result))
-      return err(apiFailed(`${method} ${endpoint}`, describeCliErrorWithStatus(result.error)));
+      return err(apiFailed(`${method} ${endpoint}`, describeWriteFailure(result.error)));
     const text = result.value.trim();
     if (text === '') return ok(null);
     const parsed = parseJson<unknown>(GH, text);
@@ -645,6 +650,13 @@ function numberOf(value: unknown): number | null {
 function idOf(value: unknown): number | null {
   const id = (value as { id?: unknown } | null)?.id;
   return typeof id === 'number' ? id : null;
+}
+
+/** 書き込みの失敗の 1 行。fork は Issues が無効が既定で、410 が返るので、直し方を添える */
+function describeWriteFailure(error: CliError): string {
+  return error.type === 'Failed' && error.httpStatus === 410
+    ? 'Issues が無効のリポジトリです。リポジトリの Settings で Issues を有効にしてください（HTTP 410）'
+    : describeCliErrorWithStatus(error);
 }
 
 function apiFailed(operation: string, message: string): StoreError {

@@ -255,6 +255,29 @@ describe('Issue の置き場所', () => {
     expect(store.get('log', LOG_A)).toBeNull();
   });
 
+  it('Issues が無効のリポジトリ（HTTP 410）なら、有効にする場所を伝える', async () => {
+    const disabled = createIssueDocumentStore({
+      owner: 'acme',
+      repo: 'board',
+      localDir,
+      runner: {
+        run: (_command, args) =>
+          Promise.resolve(
+            args.includes('graphql')
+              ? ok(
+                  '{"data":{"repository":{"issues":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[]}}}}'
+                )
+              : err({ type: 'Failed', command: 'gh', message: '失敗', httpStatus: 410 })
+          ),
+      },
+    });
+
+    const result = await disabled.initialize(initialDocuments());
+    expect(isErr(result) && (result.error as { message: string }).message).toContain(
+      'Settings で Issues を有効'
+    );
+  });
+
   it('API が届かなければ check も StoreApiFailed', async () => {
     const result = await createIssueDocumentStore({
       owner: 'acme',
